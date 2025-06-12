@@ -37,6 +37,10 @@ const EventCard = ({ event, onEdit, onDelete, onViewGuests, onCheckin }) => {
         setAnchorEl(e.currentTarget);
     };
 
+    const handleCardClick = () => {
+        window.location.href = `/events/${event._id}`;
+    }
+
     const handleMenuClose = () => setAnchorEl(null);
 
     const canManage = isOperationsManager || isAdmin;
@@ -50,7 +54,9 @@ const EventCard = ({ event, onEdit, onDelete, onViewGuests, onCheckin }) => {
                 transform: 'translateY(-2px)',
                 transition: 'all 0.2s ease-in-out'
             }
-        }}>
+        }}
+        onClick={handleCardClick} 
+        >
             <CardContent>
                 <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
                     <Box>

@@ -10,6 +10,8 @@ import Dashboard from './components/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import EventsList from './components/Events/EventsList';
 import CreateEvent from './components/Events/CreateEvent';
+import EventDetails from './components/Events/EventDetails';
+import UploadGuest from './components/Guest/UploadGuest'
 
 const theme = createTheme({
   palette: {
@@ -39,6 +41,16 @@ function App() {
             <Route path="/events/new" element={
               <ProtectedRoute>
                 <CreateEvent />
+              </ProtectedRoute>
+            } />
+             <Route path="/events/:eventId" element={
+              <ProtectedRoute>
+                <EventDetails />
+              </ProtectedRoute>
+            } />
+             <Route path="/events/:eventId/upload" element={
+              <ProtectedRoute>
+                <UploadGuest />
               </ProtectedRoute>
             } />
             <Route path="/" element={<Navigate to="/dashboard" />} />
