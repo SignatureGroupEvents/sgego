@@ -71,6 +71,8 @@ const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
   </Card>
 );
 
+///This is old and not doesn't need to be used, I'm keeping it here for now for reference for certain features
+
 const GuestTable = ({ guests, onAddGuest, onUploadGuests }) => {
   if (guests.length === 0) {
     return (

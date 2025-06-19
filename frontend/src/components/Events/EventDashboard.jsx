@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer } from '@mui/material';
+import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer } from '@mui/material';
 import { CheckCircle as CheckCircleIcon, Person as PersonIcon, Groups as GroupsIcon, Assessment as AssessmentIcon, Event as EventIcon, Home as HomeIcon, Menu as MenuIcon, Upload as UploadIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -47,6 +47,18 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event }) => {
   const handleCloseCheckIn = () => {
     setCheckInGuest(null);
     setModalOpen(false);
+  };
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
   };
 
   if (guests.length === 0) {
@@ -122,7 +134,7 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event }) => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {guests.map((guest) => (
+                {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => (
                   <TableRow key={guest._id} hover>
                     <TableCell>
                       <Button
@@ -178,6 +190,17 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event }) => {
           </TableContainer>
         </CardContent>
       </Card>
+      <TablePagination
+        component="div"
+        count={guests.length}
+        page={page}
+        onPageChange={handleChangePage}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        rowsPerPageOptions={[10, 25, 50]}
+        labelRowsPerPage="Guests per page"
+        sx={{ mt: 2 }}
+      />
       {/* Check-in Modal */}
       {modalOpen && checkInGuest && (
         <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -286,12 +309,12 @@ const EventDashboard = () => {
           { label: 'Events', to: '/events', icon: <EventIcon /> },
           ...(parentEvent
             ? [
-                { label: parentEvent.eventName, to: `/events/${parentEvent._id}` },
-                { label: event.eventName }
-              ]
+              { label: parentEvent.eventName, to: `/events/${parentEvent._id}` },
+              { label: event.eventName }
+            ]
             : [
-                { label: event.eventName }
-              ]),
+              { label: event.eventName }
+            ]),
         ]}
         leftAction={
           <IconButton color="inherit" onClick={() => setSidebarOpen(true)} sx={{ mr: 2 }}>
