@@ -28,6 +28,9 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
+import TopNavBar from '../TopNavBar';
+import HomeIcon from '@mui/icons-material/Home';
+import EventIcon from '@mui/icons-material/Event';
 
 // Validation schema
 const validationSchema = Yup.object({
@@ -411,73 +414,102 @@ const CreateEvent = () => {
   };
 
   return (
-    <Container maxWidth="md">
-      <Box sx={{ my: 4 }}>
-        <Box display="flex" alignItems="center" mb={4}>
-          <IconButton onClick={() => navigate('/events')} sx={{ mr: 2 }}>
-            <ArrowBackIcon />
-          </IconButton>
-          <Typography variant="h4">
-            Create New Event
-          </Typography>
+    <Box sx={{ p: 0 }}>
+      <TopNavBar breadcrumbs={[
+        { label: 'Home', to: '/dashboard', icon: <HomeIcon /> },
+        { label: 'Events', to: '/events', icon: <EventIcon /> },
+        { label: 'Create Event' }
+      ]} />
+      <Container maxWidth="md">
+        <Box sx={{ my: 4 }}>
+          <Paper sx={{ p: 4 }}>
+            <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+              {steps.map((label) => (
+                <Step key={label}>
+                  <StepLabel>{label}</StepLabel>
+                </Step>
+              ))}
+            </Stepper>
+
+            {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+
+            <Formik
+              initialValues={initialValues}
+              validationSchema={validationSchema}
+              onSubmit={handleSubmit}
+            >
+              {({
+                values,
+                setFieldValue,
+                errors,
+                touched,
+                validateForm,
+                setTouched,
+                submitForm
+              }) => (
+                <Form
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                    }
+                  }}
+                >
+                  <StepContent 
+                    values={values} 
+                    setFieldValue={setFieldValue}
+                    errors={errors}
+                    touched={touched}
+                  />
+
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+                    <Button
+                      type="button"
+                      disabled={activeStep === 0}
+                      onClick={() => setActiveStep(activeStep - 1)}
+                    >
+                      Back
+                    </Button>
+                    
+                    {activeStep === steps.length - 1 ? (
+                      <Button
+                        type="button"
+                        variant="contained"
+                        disabled={loading}
+                        onClick={submitForm}
+                      >
+                        {loading ? 'Creating...' : 'Create Event'}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="contained"
+                        onClick={async () => {
+                          if (activeStep === 0) {
+                            const errors = await validateForm();
+                            setTouched({
+                              eventName: true,
+                              eventContractNumber: true,
+                              eventStart: true,
+                            });
+                            if (!errors.eventName && !errors.eventContractNumber && !errors.eventStart) {
+                              setActiveStep(activeStep + 1);
+                            }
+                          } else if (activeStep === 1) {
+                            setActiveStep(activeStep + 1);
+                          }
+                        }}
+                      >
+                        Next
+                      </Button>
+                    )}
+                  </Box>
+                </Form>
+              )}
+            </Formik>
+          </Paper>
         </Box>
-
-        <Paper sx={{ p: 4 }}>
-          <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-            {steps.map((label) => (
-              <Step key={label}>
-                <StepLabel>{label}</StepLabel>
-              </Step>
-            ))}
-          </Stepper>
-
-          {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-
-          <Formik
-            initialValues={initialValues}
-            validationSchema={validationSchema}
-            onSubmit={handleSubmit}
-          >
-            {({ values, setFieldValue, errors, touched }) => (
-              <Form>
-                <StepContent 
-                  values={values} 
-                  setFieldValue={setFieldValue}
-                  errors={errors}
-                  touched={touched}
-                />
-
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-                  <Button
-                    disabled={activeStep === 0}
-                    onClick={() => setActiveStep(activeStep - 1)}
-                  >
-                    Back
-                  </Button>
-                  
-                  {activeStep === steps.length - 1 ? (
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      disabled={loading}
-                    >
-                      {loading ? 'Creating...' : 'Create Event'}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="contained"
-                      onClick={() => setActiveStep(activeStep + 1)}
-                    >
-                      Next
-                    </Button>
-                  )}
-                </Box>
-              </Form>
-            )}
-          </Formik>
-        </Paper>
-      </Box>
-    </Container>
+      </Container>
+    </Box>
   );
 };
 

@@ -16,7 +16,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 
-const Dashboard = () => {
+const Dashboard = ({ selectedEvent }) => {
   const { user, logout } = useAuth();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -62,6 +62,11 @@ const Dashboard = () => {
   return (
     <Container maxWidth="lg">
       <Box sx={{ my: 4 }}>
+        {selectedEvent && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Viewing event: <strong>{selectedEvent.eventName}</strong>
+          </Alert>
+        )}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <Typography variant="h4">
             Welcome, {user?.username}! 👋

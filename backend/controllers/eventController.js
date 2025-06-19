@@ -2,7 +2,14 @@ const Event = require('../models/Event');
 
 exports.getEvents = async (req, res) => {
   try {
-    const events = await Event.find({ isActive: true })
+    const { parentEventId } = req.query;
+    let filter = { isActive: true };
+
+    if (parentEventId) {
+      filter.parentEventId = parentEventId;
+    }
+
+    const events = await Event.find(filter)
       .populate('createdBy', 'username email')
       .sort({ createdAt: -1 });
 

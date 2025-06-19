@@ -31,12 +31,14 @@ import {
   Event as EventIcon,
   CalendarToday as CalendarIcon,
   Groups as GroupsIcon,
-  Assessment as AssessmentIcon
+  Assessment as AssessmentIcon,
+  Home as HomeIcon
 } from '@mui/icons-material';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
 import { format } from 'date-fns';
+import TopNavBar from '../TopNavBar';
 
 const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
   <Card>
@@ -250,9 +252,7 @@ const EventDetails = () => {
 
   if (error || !event) {
     return (
-      <Container>
-        <Alert severity="error">{error || 'Event not found'}</Alert>
-      </Container>
+      <Box p={4}><Alert severity="error">{error || 'Event not found'}</Alert></Box>
     );
   }
 
@@ -280,193 +280,200 @@ const EventDetails = () => {
   }));
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ my: 4 }}>
-        {/* Header */}
-        <Box display="flex" alignItems="center" mb={4}>
-          <IconButton onClick={() => navigate('/events')} sx={{ mr: 2 }}>
-            <ArrowBackIcon />
-          </IconButton>
-          <Box flexGrow={1}>
-            <Typography variant="h4" gutterBottom>
-              {event.eventName}
-            </Typography>
-            <Typography variant="subtitle1" color="textSecondary">
-              Contract: {event.eventContractNumber}
-            </Typography>
+    <Box sx={{ p: 0 }}>
+      <TopNavBar breadcrumbs={[
+        { label: 'Home', to: '/dashboard', icon: <HomeIcon /> },
+        { label: 'Events', to: '/events', icon: <EventIcon /> },
+        { label: event.eventName }
+      ]} />
+      <Container maxWidth="lg">
+        <Box sx={{ my: 4 }}>
+          {/* Header */}
+          <Box display="flex" alignItems="center" mb={4}>
+            <IconButton onClick={() => navigate('/events')} sx={{ mr: 2 }}>
+              <ArrowBackIcon />
+            </IconButton>
+            <Box flexGrow={1}>
+              <Typography variant="h4" gutterBottom>
+                {event.eventName}
+              </Typography>
+              <Typography variant="subtitle1" color="textSecondary">
+                Contract: {event.eventContractNumber}
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<CheckCircleIcon />}
+              onClick={handleCheckIn}
+              size="large"
+            >
+              Start Check-in
+            </Button>
           </Box>
-          <Button
-            variant="contained"
-            startIcon={<CheckCircleIcon />}
-            onClick={handleCheckIn}
-            size="large"
-          >
-            Start Check-in
-          </Button>
-        </Box>
 
-        {/* Event Info Card */}
-        <Card sx={{ mb: 4 }}>
-          <CardContent>
-            <Grid container spacing={3}>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Typography variant="h6" gutterBottom>
-                  Event Details
-                </Typography>
-                <Box display="flex" alignItems="center" mb={1}>
-                  <CalendarIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                  <Typography>
-                    {format(new Date(event.eventStart), 'PPP')}
+          {/* Event Info Card */}
+          <Card sx={{ mb: 4 }}>
+            <CardContent>
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Event Details
                   </Typography>
-                </Box>
-                {event.eventEnd && (
                   <Box display="flex" alignItems="center" mb={1}>
                     <CalendarIcon sx={{ mr: 1, color: 'text.secondary' }} />
                     <Typography>
-                      End: {format(new Date(event.eventEnd), 'PPP')}
+                      {format(new Date(event.eventStart), 'PPP')}
                     </Typography>
                   </Box>
-                )}
-                <Typography color="textSecondary">
-                  Created by: {event.createdBy?.username}
-                </Typography>
+                  {event.eventEnd && (
+                    <Box display="flex" alignItems="center" mb={1}>
+                      <CalendarIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                      <Typography>
+                        End: {format(new Date(event.eventEnd), 'PPP')}
+                      </Typography>
+                    </Box>
+                  )}
+                  <Typography color="textSecondary">
+                    Created by: {event.createdBy?.username}
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Configuration
+                  </Typography>
+                  <Box display="flex" flexWrap="wrap" gap={1}>
+                    {event.isMainEvent ? (
+                      <Chip label="Main Event" color="primary" />
+                    ) : (
+                      <Chip label="Secondary Event" color="secondary" />
+                    )}
+                    {event.includeStyles && (
+                      <Chip label="Styles Enabled" variant="outlined" />
+                    )}
+                    {event.allowMultipleGifts && (
+                      <Chip label="Multi-Gift" variant="outlined" />
+                    )}
+                  </Box>
+                </Grid>
               </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Typography variant="h6" gutterBottom>
-                  Configuration
-                </Typography>
-                <Box display="flex" flexWrap="wrap" gap={1}>
-                  {event.isMainEvent ? (
-                    <Chip label="Main Event" color="primary" />
-                  ) : (
-                    <Chip label="Secondary Event" color="secondary" />
-                  )}
-                  {event.includeStyles && (
-                    <Chip label="Styles Enabled" variant="outlined" />
-                  )}
-                  {event.allowMultipleGifts && (
-                    <Chip label="Multi-Gift" variant="outlined" />
-                  )}
-                </Box>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-
-        {/* Stats Cards */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <StatCard
-              title="Total Guests"
-              value={totalGuests}
-              icon={<GroupsIcon />}
-              color="primary"
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <StatCard
-              title="Checked In"
-              value={checkedInGuests}
-              subtitle={`${checkInPercentage}% complete`}
-              icon={<CheckCircleIcon />}
-              color="success"
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <StatCard
-              title="Pending"
-              value={pendingGuests}
-              icon={<PersonIcon />}
-              color="warning"
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <StatCard
-              title="Check-in Rate"
-              value={`${checkInPercentage}%`}
-              icon={<AssessmentIcon />}
-              color="info"
-            />
-          </Grid>
-        </Grid>
-
-        {/* Progress Bar */}
-        {totalGuests > 0 && (
-          <Card sx={{ mb: 4 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Check-in Progress
-              </Typography>
-              <LinearProgress
-                variant="determinate"
-                value={checkInPercentage}
-                sx={{ height: 10, borderRadius: 1 }}
-              />
-              <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                {checkedInGuests} of {totalGuests} guests checked in
-              </Typography>
             </CardContent>
           </Card>
-        )}
 
-        {/* Charts */}
-        {totalGuests > 0 && (
+          {/* Stats Cards */}
           <Grid container spacing={3} sx={{ mb: 4 }}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Check-in Status
-                  </Typography>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={pieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={40}
-                        outerRadius={80}
-                        dataKey="value"
-                      >
-                        {pieData.map((entry, index) => (
-                          <Cell key={index} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <StatCard
+                title="Total Guests"
+                value={totalGuests}
+                icon={<GroupsIcon />}
+                color="primary"
+              />
             </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Attendee Types
-                  </Typography>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={barData}>
-                      <XAxis dataKey="type" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="count" fill="#1976d2" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <StatCard
+                title="Checked In"
+                value={checkedInGuests}
+                subtitle={`${checkInPercentage}% complete`}
+                icon={<CheckCircleIcon />}
+                color="success"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <StatCard
+                title="Pending"
+                value={pendingGuests}
+                icon={<PersonIcon />}
+                color="warning"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <StatCard
+                title="Check-in Rate"
+                value={`${checkInPercentage}%`}
+                icon={<AssessmentIcon />}
+                color="info"
+              />
             </Grid>
           </Grid>
-        )}
 
-        {/* Guest Table */}
-        <GuestTable
-          guests={guests}
-          onAddGuest={handleAddGuest}
-          onUploadGuests={handleUploadGuests}
-        />
-      </Box>
-    </Container>
+          {/* Progress Bar */}
+          {totalGuests > 0 && (
+            <Card sx={{ mb: 4 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Check-in Progress
+                </Typography>
+                <LinearProgress
+                  variant="determinate"
+                  value={checkInPercentage}
+                  sx={{ height: 10, borderRadius: 1 }}
+                />
+                <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                  {checkedInGuests} of {totalGuests} guests checked in
+                </Typography>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Charts */}
+          {totalGuests > 0 && (
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Check-in Status
+                    </Typography>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie
+                          data={pieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={40}
+                          outerRadius={80}
+                          dataKey="value"
+                        >
+                          {pieData.map((entry, index) => (
+                            <Cell key={index} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Attendee Types
+                    </Typography>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={barData}>
+                        <XAxis dataKey="type" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="count" fill="#1976d2" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          )}
+
+          {/* Guest Table */}
+          <GuestTable
+            guests={guests}
+            onAddGuest={handleAddGuest}
+            onUploadGuests={handleUploadGuests}
+          />
+        </Box>
+      </Container>
+    </Box>
   );
 };
 

@@ -46,6 +46,10 @@ import {
   TableChart as TableChartIcon
 } from '@mui/icons-material';
 import api from '../../services/api';
+import TopNavBar from '../TopNavBar';
+import HomeIcon from '@mui/icons-material/Home';
+import EventIcon from '@mui/icons-material/Event';
+import { getEvent } from '../../services/events';
 
 const UploadGuest = () => {
   const { eventId } = useParams();
@@ -64,6 +68,14 @@ const UploadGuest = () => {
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResults, setUploadResults] = useState(null);
+  const [event, setEvent] = useState(null);
+  const [copying, setCopying] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [copyError, setCopyError] = useState('');
+
+  React.useEffect(() => {
+    getEvent(eventId).then(setEvent).catch(() => setEvent(null));
+  }, [eventId]);
 
   // Expected columns for guest data
   const expectedColumns = {
@@ -311,177 +323,236 @@ const UploadGuest = () => {
     'Complete'
   ];
 
+  // Add this function to copy guests from main event
+  const handleCopyGuestsFromMain = async () => {
+    if (!event?.parentEventId) return;
+    setCopying(true);
+    setCopyError('');
+    try {
+      // Fetch guests from main event
+      const mainGuestsRes = await api.get(`/guests?eventId=${event.parentEventId}`);
+      const guests = mainGuestsRes.data.guests || mainGuestsRes.data;
+      if (!guests.length) throw new Error('No guests found in main event.');
+      // Remove _id and eventId from each guest
+      const guestsToCopy = guests.map(g => {
+        const { _id, eventId, ...rest } = g;
+        return rest;
+      });
+      // Bulk add to this event
+      await api.post('/guests/bulk-add', {
+        eventId,
+        guests: guestsToCopy
+      });
+      setCopySuccess(true);
+      setTimeout(() => navigate(`/events/${eventId}`), 1200);
+    } catch (err) {
+      setCopyError(err.message || 'Failed to copy guests.');
+    } finally {
+      setCopying(false);
+    }
+  };
+
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ my: 4 }}>
-        {/* Header */}
-        <Box display="flex" alignItems="center" mb={4}>
-          <IconButton onClick={() => navigate(`/events/${eventId}`)} sx={{ mr: 2 }}>
-            <ArrowBackIcon />
-          </IconButton>
-          <Box>
-            <Typography variant="h4" gutterBottom>
-              Upload Guest List
-            </Typography>
-            <Typography variant="subtitle1" color="textSecondary">
-              Import guests from a CSV file
-            </Typography>
-          </Box>
-        </Box>
-
-        {/* Stepper */}
-        <Card sx={{ mb: 4 }}>
-          <CardContent>
-            <Stepper activeStep={activeStep} alternativeLabel>
-              {steps.map((label, index) => (
-                <Step key={label}>
-                  <StepLabel
-                    StepIconProps={{
-                      sx: {
-                        '&.Mui-completed': {
-                          color: 'success.main'
-                        },
-                        '&.Mui-active': {
-                          color: 'primary.main'
-                        }
-                      }
-                    }}
-                  >
-                    {label}
-                  </StepLabel>
-                </Step>
-              ))}
-            </Stepper>
-          </CardContent>
-        </Card>
-
-        {/* Step Content */}
-        {activeStep === 0 && (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Step 1: Select CSV File
+    <Box sx={{ p: 0 }}>
+      <TopNavBar breadcrumbs={[
+        { label: 'Home', to: '/dashboard', icon: <HomeIcon /> },
+        { label: 'Events', to: '/events', icon: <EventIcon /> },
+        { label: eventId },
+        { label: 'Upload Guests' }
+      ]} />
+      <Container maxWidth="lg">
+        <Box sx={{ my: 4 }}>
+          {/* Header */}
+          <Box display="flex" alignItems="center" mb={4}>
+            <IconButton onClick={() => navigate(`/events/${eventId}`)} sx={{ mr: 2 }}>
+              <ArrowBackIcon />
+            </IconButton>
+            <Box>
+              <Typography variant="h4" gutterBottom>
+                Upload Guest List
               </Typography>
-              
-              {/* File Upload Area */}
-              <Box
-                sx={{
-                  border: 2,
-                  borderStyle: 'dashed',
-                  borderColor: dragActive ? 'primary.main' : file ? 'success.main' : 'grey.300',
-                  borderRadius: 2,
-                  p: 8,
-                  textAlign: 'center',
-                  backgroundColor: dragActive ? 'primary.light' : file ? 'success.light' : 'background.default',
-                  mb: 3,
-                  transition: 'all 0.3s ease',
-                  cursor: 'pointer'
-                }}
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-                onClick={() => !file && fileInputRef.current?.click()}
+              <Typography variant="subtitle1" color="textSecondary">
+                Import guests from a CSV file
+              </Typography>
+            </Box>
+          </Box>
+          {/* Use same guest list option for secondary events */}
+          {event && event.parentEventId && activeStep === 0 && (
+            <Alert severity="info" sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box>Use the same guest list as the main event? This will copy all guests from the main event to this event.</Box>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleCopyGuestsFromMain}
+                disabled={copying}
               >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFileSelect}
-                  style={{ display: 'none' }}
-                />
-                
-                {!file ? (
-                  <Box>
-                    <CloudUploadIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                    <Typography variant="h6" gutterBottom>
-                      Drop your CSV file here
-                    </Typography>
-                    <Typography color="textSecondary" paragraph>
-                      or click to browse and select a file
-                    </Typography>
-                    <Button
-                      variant="contained"
-                      startIcon={<UploadIcon />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        fileInputRef.current?.click();
+                {copying ? 'Copying...' : 'Use Same Guest List'}
+              </Button>
+            </Alert>
+          )}
+          {copySuccess && (
+            <Alert severity="success" sx={{ mb: 2 }}>Guest list copied! Redirecting...</Alert>
+          )}
+          {copyError && (
+            <Alert severity="error" sx={{ mb: 2 }}>{copyError}</Alert>
+          )}
+
+          {/* Stepper */}
+          <Card sx={{ mb: 4 }}>
+            <CardContent>
+              <Stepper activeStep={activeStep} alternativeLabel>
+                {steps.map((label, index) => (
+                  <Step key={label}>
+                    <StepLabel
+                      StepIconProps={{
+                        sx: {
+                          '&.Mui-completed': {
+                            color: 'success.main'
+                          },
+                          '&.Mui-active': {
+                            color: 'primary.main'
+                          }
+                        }
                       }}
                     >
-                      Choose File
-                    </Button>
-                  </Box>
-                ) : (
-                  <Box>
-                    <FilePresentIcon sx={{ fontSize: 48, color: 'success.main', mb: 2 }} />
-                    <Typography variant="h6" gutterBottom>
-                      {file.name}
-                    </Typography>
-                    <Typography color="textSecondary" paragraph>
-                      {(file.size / 1024).toFixed(1)} KB
-                    </Typography>
-                    <Button
-                      variant="outlined"
-                      startIcon={<DeleteIcon />}
-                      color="error"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        clearFile();
-                      }}
-                    >
-                      Remove File
-                    </Button>
-                  </Box>
-                )}
-                
-                {isProcessing && (
-                  <Box mt={3}>
-                    <CircularProgress size={30} />
-                    <Typography variant="body2" color="textSecondary" mt={1}>
-                      Processing file...
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-
-              {/* Expected Format Info */}
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Expected CSV Format:
-                </Typography>
-                <Typography variant="body2">
-                  Required columns: First Name, Last Name<br />
-                  Optional columns: Email, Job Title, Company, Attendee Type, Notes, QR Code Data
-                </Typography>
-              </Alert>
-
-              {/* Errors */}
-              {errors.length > 0 && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>Issues found:</Typography>
-                  {errors.map((error, index) => (
-                    <Typography key={index} variant="body2">• {error}</Typography>
-                  ))}
-                </Alert>
-              )}
+                      {label}
+                    </StepLabel>
+                  </Step>
+                ))}
+              </Stepper>
             </CardContent>
           </Card>
-        )}
 
-        {activeStep === 1 && parsedData && (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Step 2: Map CSV Columns to Guest Fields
-              </Typography>
-              <Typography color="textSecondary" paragraph>
-                Map each column from your CSV file to the corresponding guest field.
-              </Typography>
-              
-              <Grid container spacing={3}>
-                {parsedData.headers.map((header, index) => (
-                  <Grid item xs={12} md={6} key={index}>
-                    <FormControl fullWidth>
+          {/* Step Content */}
+          {activeStep === 0 && (
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Step 1: Select CSV File
+                </Typography>
+                
+                {/* File Upload Area */}
+                <Box
+                  sx={{
+                    border: 2,
+                    borderStyle: 'dashed',
+                    borderColor: dragActive ? 'primary.main' : file ? 'success.main' : 'grey.300',
+                    borderRadius: 2,
+                    p: 8,
+                    textAlign: 'center',
+                    backgroundColor: dragActive ? 'primary.light' : file ? 'success.light' : 'background.default',
+                    mb: 3,
+                    transition: 'all 0.3s ease',
+                    cursor: 'pointer'
+                  }}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                  onClick={() => !file && fileInputRef.current?.click()}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileSelect}
+                    style={{ display: 'none' }}
+                  />
+                  
+                  {!file ? (
+                    <Box>
+                      <CloudUploadIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                      <Typography variant="h6" gutterBottom>
+                        Drop your CSV file here
+                      </Typography>
+                      <Typography color="textSecondary" paragraph>
+                        or click to browse and select a file
+                      </Typography>
+                      <Button
+                        variant="contained"
+                        startIcon={<UploadIcon />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fileInputRef.current?.click();
+                        }}
+                      >
+                        Choose File
+                      </Button>
+                    </Box>
+                  ) : (
+                    <Box>
+                      <FilePresentIcon sx={{ fontSize: 48, color: 'success.main', mb: 2 }} />
+                      <Typography variant="h6" gutterBottom>
+                        {file.name}
+                      </Typography>
+                      <Typography color="textSecondary" paragraph>
+                        {(file.size / 1024).toFixed(1)} KB
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        startIcon={<DeleteIcon />}
+                        color="error"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          clearFile();
+                        }}
+                      >
+                        Remove File
+                      </Button>
+                    </Box>
+                  )}
+                  
+                  {isProcessing && (
+                    <Box mt={3}>
+                      <CircularProgress size={30} />
+                      <Typography variant="body2" color="textSecondary" mt={1}>
+                        Processing file...
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+
+                {/* Expected Format Info */}
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Expected CSV Format:
+                  </Typography>
+                  <Typography variant="body2">
+                    Required columns: First Name, Last Name<br />
+                    Optional columns: Email, Job Title, Company, Attendee Type, Notes, QR Code Data
+                  </Typography>
+                </Alert>
+
+                {/* Errors */}
+                {errors.length > 0 && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>Issues found:</Typography>
+                    {errors.map((error, index) => (
+                      <Typography key={index} variant="body2">• {error}</Typography>
+                    ))}
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeStep === 1 && parsedData && (
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Step 2: Map CSV Columns to Guest Fields
+                </Typography>
+                <Typography color="textSecondary" paragraph>
+                  Map each column from your CSV file to the corresponding guest field.
+                </Typography>
+                <Box sx={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(auto-fit, minmax(220px, 1fr))`,
+                  gap: 3,
+                  mb: 2
+                }}>
+                  {parsedData.headers.map((header, index) => (
+                    <FormControl fullWidth key={index}>
                       <InputLabel>Map "{header}" to</InputLabel>
                       <Select
                         value={columnMapping[header] || ''}
@@ -498,252 +569,251 @@ const UploadGuest = () => {
                         ))}
                       </Select>
                     </FormControl>
-                  </Grid>
-                ))}
-              </Grid>
-
-              <Box display="flex" justifyContent="space-between" mt={4}>
-                <Button onClick={() => setActiveStep(0)}>
-                  Back
-                </Button>
-                <Button 
-                  variant="contained" 
-                  onClick={validateAndProceed}
-                  disabled={Object.keys(columnMapping).length === 0}
-                >
-                  Next: Review Data
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        )}
-
-        {activeStep === 2 && (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Step 3: Review and Upload
-              </Typography>
-              
-              {/* Summary */}
-              <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={4}>
-                  <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'primary.light' }}>
-                    <Typography variant="h3" color="primary.main" gutterBottom>
-                      {parsedData.data.length}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Total Guests
-                    </Typography>
-                  </Paper>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'success.light' }}>
-                    <Typography variant="h3" color="success.main" gutterBottom>
-                      {Object.values(columnMapping).filter(v => v && v !== 'ignore').length}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Mapped Fields
-                    </Typography>
-                  </Paper>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'warning.light' }}>
-                    <Typography variant="h3" color="warning.main" gutterBottom>
-                      {warnings.length}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Warnings
-                    </Typography>
-                  </Paper>
-                </Grid>
-              </Grid>
-
-              {/* Warnings */}
-              {warnings.length > 0 && (
-                <Alert severity="warning" sx={{ mb: 3 }}>
-                  <Typography variant="subtitle2" gutterBottom>Warnings:</Typography>
-                  {warnings.slice(0, 5).map((warning, index) => (
-                    <Typography key={index} variant="body2">• {warning}</Typography>
                   ))}
-                  {warnings.length > 5 && (
-                    <Typography variant="body2">• ... and {warnings.length - 5} more</Typography>
-                  )}
-                </Alert>
-              )}
-
-              {/* Errors */}
-              {errors.length > 0 && (
-                <Alert severity="error" sx={{ mb: 3 }}>
-                  <Typography variant="subtitle2" gutterBottom>Errors (must be fixed):</Typography>
-                  {errors.map((error, index) => (
-                    <Typography key={index} variant="body2">• {error}</Typography>
-                  ))}
-                </Alert>
-              )}
-
-              {/* Preview Button */}
-              <Button
-                variant="outlined"
-                startIcon={<VisibilityIcon />}
-                onClick={() => setPreviewDialogOpen(true)}
-                sx={{ mb: 3 }}
-              >
-                Preview Data ({parsedData.data.length} rows)
-              </Button>
-
-              {/* Upload Progress */}
-              {isProcessing && (
-                <Box sx={{ mb: 3 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                    <Typography variant="body2">
-                      Uploading guests...
-                    </Typography>
-                    <Typography variant="body2">
-                      {uploadProgress}%
-                    </Typography>
-                  </Box>
-                  <LinearProgress variant="determinate" value={uploadProgress} />
                 </Box>
-              )}
+                <Box display="flex" justifyContent="space-between" mt={4}>
+                  <Button onClick={() => setActiveStep(0)}>
+                    Back
+                  </Button>
+                  <Button 
+                    variant="contained" 
+                    onClick={validateAndProceed}
+                    disabled={Object.keys(columnMapping).length === 0}
+                  >
+                    Next: Review Data
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          )}
 
-              <Box display="flex" justifyContent="space-between">
-                <Button onClick={() => setActiveStep(1)} disabled={isProcessing}>
-                  Back
-                </Button>
-                <Button 
-                  variant="contained" 
-                  onClick={handleUpload}
-                  disabled={errors.length > 0 || isProcessing}
-                  startIcon={<SaveIcon />}
-                >
-                  Upload {parsedData.data.length} Guests
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        )}
-
-        {activeStep === 3 && uploadResults && (
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <CheckCircleIcon sx={{ fontSize: 80, color: 'success.main', mb: 2 }} />
-              <Typography variant="h5" gutterBottom>
-                Upload Complete!
-              </Typography>
-              
-              <Grid container spacing={2} justifyContent="center" sx={{ mb: 4 }}>
-                <Grid item>
-                  <Paper sx={{ p: 3 }}>
-                    <Typography variant="h4" color="success.main" gutterBottom>
-                      {uploadResults.successful || 0}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Successfully Added
-                    </Typography>
-                  </Paper>
+          {activeStep === 2 && (
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Step 3: Review and Upload
+                </Typography>
+                
+                {/* Summary */}
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'primary.light' }}>
+                      <Typography variant="h3" color="primary.main" gutterBottom>
+                        {parsedData.data.length}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Total Guests
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'success.light' }}>
+                      <Typography variant="h3" color="success.main" gutterBottom>
+                        {Object.values(columnMapping).filter(v => v && v !== 'ignore').length}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Mapped Fields
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'warning.light' }}>
+                      <Typography variant="h3" color="warning.main" gutterBottom>
+                        {warnings.length}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Warnings
+                      </Typography>
+                    </Paper>
+                  </Grid>
                 </Grid>
-                {uploadResults.duplicates > 0 && (
-                  <Grid item>
-                    <Paper sx={{ p: 3 }}>
-                      <Typography variant="h4" color="warning.main" gutterBottom>
-                        {uploadResults.duplicates}
-                      </Typography>
-                      <Typography variant="body2" color="textSecondary">
-                        Duplicates Skipped
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                )}
-                {uploadResults.errors > 0 && (
-                  <Grid item>
-                    <Paper sx={{ p: 3 }}>
-                      <Typography variant="h4" color="error.main" gutterBottom>
-                        {uploadResults.errors}
-                      </Typography>
-                      <Typography variant="body2" color="textSecondary">
-                        Errors
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                )}
-              </Grid>
 
-              <Box display="flex" gap={2} justifyContent="center">
-                <Button
-                  variant="contained"
-                  onClick={() => navigate(`/events/${eventId}`)}
-                >
-                  View Event
-                </Button>
+                {/* Warnings */}
+                {warnings.length > 0 && (
+                  <Alert severity="warning" sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" gutterBottom>Warnings:</Typography>
+                    {warnings.slice(0, 5).map((warning, index) => (
+                      <Typography key={index} variant="body2">• {warning}</Typography>
+                    ))}
+                    {warnings.length > 5 && (
+                      <Typography variant="body2">• ... and {warnings.length - 5} more</Typography>
+                    )}
+                  </Alert>
+                )}
+
+                {/* Errors */}
+                {errors.length > 0 && (
+                  <Alert severity="error" sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" gutterBottom>Errors (must be fixed):</Typography>
+                    {errors.map((error, index) => (
+                      <Typography key={index} variant="body2">• {error}</Typography>
+                    ))}
+                  </Alert>
+                )}
+
+                {/* Preview Button */}
                 <Button
                   variant="outlined"
-                  onClick={clearFile}
+                  startIcon={<VisibilityIcon />}
+                  onClick={() => setPreviewDialogOpen(true)}
+                  sx={{ mb: 3 }}
                 >
-                  Upload More Guests
+                  Preview Data ({parsedData.data.length} rows)
                 </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        )}
 
-        {/* Preview Dialog */}
-        <Dialog 
-          open={previewDialogOpen} 
-          onClose={() => setPreviewDialogOpen(false)}
-          maxWidth="lg"
-          fullWidth
-        >
-          <DialogTitle>
-            <Box display="flex" alignItems="center">
-              <TableChartIcon sx={{ mr: 1 }} />
-              Data Preview
-            </Box>
-          </DialogTitle>
-          <DialogContent>
-            {parsedData && (
-              <TableContainer component={Paper}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      {parsedData.headers.map((header) => (
-                        <TableCell key={header}>
-                          <Box>
-                            <Typography variant="subtitle2">{header}</Typography>
-                            <Typography variant="caption" color="textSecondary">
-                              → {columnMapping[header] ? expectedColumns[columnMapping[header]]?.label : 'Not mapped'}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {parsedData.data.slice(0, 10).map((row, index) => (
-                      <TableRow key={index} hover>
+                {/* Upload Progress */}
+                {isProcessing && (
+                  <Box sx={{ mb: 3 }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                      <Typography variant="body2">
+                        Uploading guests...
+                      </Typography>
+                      <Typography variant="body2">
+                        {uploadProgress}%
+                      </Typography>
+                    </Box>
+                    <LinearProgress variant="determinate" value={uploadProgress} />
+                  </Box>
+                )}
+
+                <Box display="flex" justifyContent="space-between">
+                  <Button onClick={() => setActiveStep(1)} disabled={isProcessing}>
+                    Back
+                  </Button>
+                  <Button 
+                    variant="contained" 
+                    onClick={handleUpload}
+                    disabled={errors.length > 0 || isProcessing}
+                    startIcon={<SaveIcon />}
+                  >
+                    Upload {parsedData.data.length} Guests
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeStep === 3 && uploadResults && (
+            <Card>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <CheckCircleIcon sx={{ fontSize: 80, color: 'success.main', mb: 2 }} />
+                <Typography variant="h5" gutterBottom>
+                  Upload Complete!
+                </Typography>
+                
+                <Grid container spacing={2} justifyContent="center" sx={{ mb: 4 }}>
+                  <Grid item>
+                    <Paper sx={{ p: 3 }}>
+                      <Typography variant="h4" color="success.main" gutterBottom>
+                        {uploadResults.successful || 0}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Successfully Added
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  {uploadResults.duplicates > 0 && (
+                    <Grid item>
+                      <Paper sx={{ p: 3 }}>
+                        <Typography variant="h4" color="warning.main" gutterBottom>
+                          {uploadResults.duplicates}
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary">
+                          Duplicates Skipped
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  )}
+                  {uploadResults.errors > 0 && (
+                    <Grid item>
+                      <Paper sx={{ p: 3 }}>
+                        <Typography variant="h4" color="error.main" gutterBottom>
+                          {uploadResults.errors}
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary">
+                          Errors
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  )}
+                </Grid>
+
+                <Box display="flex" gap={2} justifyContent="center">
+                  <Button
+                    variant="contained"
+                    onClick={() => navigate(`/events/${eventId}`)}
+                  >
+                    View Event
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={clearFile}
+                  >
+                    Upload More Guests
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Preview Dialog */}
+          <Dialog 
+            open={previewDialogOpen} 
+            onClose={() => setPreviewDialogOpen(false)}
+            maxWidth="lg"
+            fullWidth
+          >
+            <DialogTitle>
+              <Box display="flex" alignItems="center">
+                <TableChartIcon sx={{ mr: 1 }} />
+                Data Preview
+              </Box>
+            </DialogTitle>
+            <DialogContent>
+              {parsedData && (
+                <TableContainer component={Paper}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
                         {parsedData.headers.map((header) => (
                           <TableCell key={header}>
-                            {row[header]}
+                            <Box>
+                              <Typography variant="subtitle2">{header}</Typography>
+                              <Typography variant="caption" color="textSecondary">
+                                → {columnMapping[header] ? expectedColumns[columnMapping[header]]?.label : 'Not mapped'}
+                              </Typography>
+                            </Box>
                           </TableCell>
                         ))}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-            {parsedData && parsedData.data.length > 10 && (
-              <Typography variant="body2" color="textSecondary" sx={{ mt: 2, textAlign: 'center' }}>
-                Showing first 10 of {parsedData.data.length} rows
-              </Typography>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setPreviewDialogOpen(false)}>Close</Button>
-          </DialogActions>
-        </Dialog>
-      </Box>
-    </Container>
+                    </TableHead>
+                    <TableBody>
+                      {parsedData.data.slice(0, 10).map((row, index) => (
+                        <TableRow key={index} hover>
+                          {parsedData.headers.map((header) => (
+                            <TableCell key={header}>
+                              {row[header]}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+              {parsedData && parsedData.data.length > 10 && (
+                <Typography variant="body2" color="textSecondary" sx={{ mt: 2, textAlign: 'center' }}>
+                  Showing first 10 of {parsedData.data.length} rows
+                </Typography>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setPreviewDialogOpen(false)}>Close</Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      </Container>
+    </Box>
   );
 };
 
