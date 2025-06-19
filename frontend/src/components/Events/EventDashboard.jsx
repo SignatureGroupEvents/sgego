@@ -8,6 +8,8 @@ import TopNavBar from '../TopNavBar';
 import SidebarEventsList from './SidebarEventsList';
 import AddSecondaryEventModal from './AddSecondaryEventModal';
 import { getEvent } from '../../services/events';
+import InventoryPage from '../Inventory/InventoryPage';
+import GuestCheckIn from '../Guest/GuestCheckIn';
 
 const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
   <Card>
@@ -34,7 +36,19 @@ const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
   </Card>
 );
 
-const GuestTable = ({ guests, onAddGuest, onUploadGuests }) => {
+const GuestTable = ({ guests, onAddGuest, onUploadGuests, event }) => {
+  const [checkInGuest, setCheckInGuest] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const handleOpenCheckIn = (guest) => {
+    setCheckInGuest(guest);
+    setModalOpen(true);
+  };
+  const handleCloseCheckIn = () => {
+    setCheckInGuest(null);
+    setModalOpen(false);
+  };
+
   if (guests.length === 0) {
     return (
       <Card>
@@ -68,90 +82,117 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests }) => {
   }
 
   return (
-    <Card>
-      <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6">
-            Guest List ({guests.length})
-          </Typography>
-          <Box display="flex" gap={1}>
-            <Button
-              variant="outlined"
-              startIcon={<UploadIcon />}
-              onClick={onUploadGuests}
-              size="small"
-            >
-              Upload More
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<PersonAddIcon />}
-              onClick={onAddGuest}
-              size="small"
-            >
-              Add Guest
-            </Button>
+    <>
+      <Card>
+        <CardContent>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6">
+              Guest List ({guests.length})
+            </Typography>
+            <Box display="flex" gap={1}>
+              <Button
+                variant="outlined"
+                startIcon={<UploadIcon />}
+                onClick={onUploadGuests}
+                size="small"
+              >
+                Upload More
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<PersonAddIcon />}
+                onClick={onAddGuest}
+                size="small"
+              >
+                Add Guest
+              </Button>
+            </Box>
           </Box>
-        </Box>
-        <TableContainer component={Paper} variant="outlined">
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Company</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Tags</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {guests.map((guest) => (
-                <TableRow key={guest._id} hover>
-                  <TableCell>
-                    <Typography variant="subtitle2">
-                      {guest.firstName} {guest.lastName}
-                    </Typography>
-                    {guest.jobTitle && (
-                      <Typography variant="caption" color="textSecondary">
-                        {guest.jobTitle}
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>{guest.email || 'No email'}</TableCell>
-                  <TableCell>{guest.company || '-'}</TableCell>
-                  <TableCell>{guest.attendeeType || 'General'}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
-                      color={guest.hasCheckedIn ? 'success' : 'default'}
-                      size="small"
-                      icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Box display="flex" gap={0.5} flexWrap="wrap">
-                      {guest.tags?.map((tag, index) => (
-                        <Chip
-                          key={index}
-                          label={tag.name}
-                          size="small"
-                          sx={{
-                            backgroundColor: tag.color,
-                            color: 'white',
-                            fontSize: '0.7rem'
-                          }}
-                        />
-                      ))}
-                    </Box>
-                  </TableCell>
+          <TableContainer component={Paper} variant="outlined">
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell /> {/* Check-in action column */}
+                  <TableCell>Name</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>Company</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Tags</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </CardContent>
-    </Card>
+              </TableHead>
+              <TableBody>
+                {guests.map((guest) => (
+                  <TableRow key={guest._id} hover>
+                    <TableCell>
+                      <Button
+                        variant="contained"
+                        color="success"
+                        size="small"
+                        onClick={() => handleOpenCheckIn(guest)}
+                      >
+                        Check In
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="subtitle2">
+                        {guest.firstName} {guest.lastName}
+                      </Typography>
+                      {guest.jobTitle && (
+                        <Typography variant="caption" color="textSecondary">
+                          {guest.jobTitle}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>{guest.email || 'No email'}</TableCell>
+                    <TableCell>{guest.company || '-'}</TableCell>
+                    <TableCell>{guest.attendeeType || 'General'}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
+                        color={guest.hasCheckedIn ? 'success' : 'default'}
+                        size="small"
+                        icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Box display="flex" gap={0.5} flexWrap="wrap">
+                        {guest.tags?.map((tag, index) => (
+                          <Chip
+                            key={index}
+                            label={tag.name}
+                            size="small"
+                            sx={{
+                              backgroundColor: tag.color,
+                              color: 'white',
+                              fontSize: '0.7rem'
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
+      {/* Check-in Modal */}
+      {modalOpen && checkInGuest && (
+        <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Card sx={{ minWidth: 400, p: 2 }}>
+            <CardContent>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6">Check In Guest</Typography>
+                <Button onClick={handleCloseCheckIn} size="small">Close</Button>
+              </Box>
+              <GuestCheckIn event={event} guest={checkInGuest} onClose={handleCloseCheckIn} />
+            </CardContent>
+          </Card>
+        </Box>
+      )}
+    </>
   );
 };
 
@@ -186,9 +227,9 @@ const EventDashboard = () => {
         console.error('Error fetching event:', error);
       }
     };
-    const fetchGuests = async () => {
+    const fetchGuests = async (mainEventId) => {
       try {
-        const response = await api.get(`/guests?eventId=${eventId}`);
+        const response = await api.get(`/guests?eventId=${mainEventId}`);
         setGuests(response.data.guests || response.data);
       } catch (error) {
         console.error('Error fetching guests:', error);
@@ -204,8 +245,13 @@ const EventDashboard = () => {
         // ignore for now
       }
     };
-    fetchEventData();
-    fetchGuests();
+    fetchEventData().then(() => {
+      // Wait for event to be set
+      setTimeout(() => {
+        const mainEventId = event && event.isMainEvent ? event._id : event?.parentEventId || eventId;
+        fetchGuests(mainEventId);
+      }, 0);
+    });
     fetchSecondaryEvents();
   }, [eventId]);
 
@@ -229,6 +275,9 @@ const EventDashboard = () => {
   const checkedInGuests = guests.filter(g => g.hasCheckedIn).length;
   const pendingGuests = totalGuests - checkedInGuests;
   const checkInPercentage = totalGuests > 0 ? Math.round((checkedInGuests / totalGuests) * 100) : 0;
+
+  // After event and parentEvent are set, determine mainEvent for guest actions
+  const mainEvent = event && event.isMainEvent ? event : parentEvent || event;
 
   return (
     <Box sx={{ p: 0 }}>
@@ -268,14 +317,17 @@ const EventDashboard = () => {
               Contract: {event.eventContractNumber}
             </Typography>
           </Box>
-          <Button
-            variant="contained"
-            startIcon={<CheckCircleIcon />}
-            onClick={() => navigate(`/events/${eventId}/checkin`)}
-            size="large"
-          >
-            Start Check-in
-          </Button>
+          {/* Inventory Button for main events only */}
+          {event.isMainEvent && (
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={() => navigate(`/events/${eventId}/inventory`)}
+              size="large"
+            >
+              View Inventory
+            </Button>
+          )}
         </Box>
         {/* Stats Cards */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -385,7 +437,7 @@ const EventDashboard = () => {
           </Card>
         )}
         {/* Guest Table */}
-        <GuestTable guests={guests} onAddGuest={handleAddGuest} onUploadGuests={handleUploadGuests} />
+        <GuestTable guests={guests} onAddGuest={handleAddGuest} onUploadGuests={handleUploadGuests} event={mainEvent} />
       </Box>
     </Box>
   );

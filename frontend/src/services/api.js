@@ -31,3 +31,50 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+export const uploadInventoryCSV = (eventId, file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('eventId', eventId);
+  return api.post('/inventory/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
+
+export const fetchInventory = (eventId) => {
+  return api.get(`/inventory/${eventId}`);
+};
+
+export const updateInventoryItem = (inventoryId, data) => {
+  return api.put(`/inventory/${inventoryId}`, data);
+};
+
+export const deleteInventoryItem = (inventoryId) => {
+  return api.delete(`/inventory/${inventoryId}`);
+};
+
+export const getCheckinContext = (eventId) => {
+  return api.get(`/checkins/context/${eventId}`);
+};
+
+export const singleEventCheckin = (guestId, eventId, selectedGifts, notes = '') => {
+  return api.post('/checkins/single', {
+    guestId,
+    eventId,
+    selectedGifts,
+    notes
+  });
+};
+
+export const multiEventCheckin = (guestId, checkins, notes = '') => {
+  // checkins: [{ eventId, selectedGifts: [{ inventoryId, quantity }] }]
+  return api.post('/checkins/multi', {
+    guestId,
+    checkins,
+    notes
+  });
+};
+
+export const updateInventoryAllocation = (inventoryId, allocatedEvents) => {
+  return api.put(`/inventory/${inventoryId}/allocation`, { allocatedEvents });
+};

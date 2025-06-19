@@ -71,7 +71,8 @@ exports.uploadInventory = async (req, res) => {
                   newCount: parseInt(row.Current_Inventory || row.current_inventory || row.CURRENT_INVENTORY || 0),
                   performedBy: req.user.id,
                   reason: 'Initial inventory upload'
-                }]
+                }],
+                allocatedEvents: [eventId], // Default allocation
               };
 
               if (!inventoryItem.type || !inventoryItem.style) {
@@ -117,12 +118,16 @@ exports.uploadInventory = async (req, res) => {
 exports.updateInventoryCount = async (req, res) => {
   try {
     const { inventoryId } = req.params;
-    const { newCount, reason, action } = req.body;
+    const { newCount, qtyWarehouse, qtyOnSite, reason, action } = req.body;
 
     const inventoryItem = await Inventory.findById(inventoryId);
     if (!inventoryItem) {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
+
+    // Update other fields if provided
+    if (typeof qtyWarehouse !== 'undefined') inventoryItem.qtyWarehouse = Number(qtyWarehouse);
+    if (typeof qtyOnSite !== 'undefined') inventoryItem.qtyOnSite = Number(qtyOnSite);
 
     await inventoryItem.updateInventory(
       newCount, 
@@ -130,6 +135,9 @@ exports.updateInventoryCount = async (req, res) => {
       req.user.id, 
       reason
     );
+
+    // Save the updated fields
+    await inventoryItem.save();
 
     res.json({
       success: true,
@@ -275,6 +283,23 @@ exports.bulkDeleteInventory = async (req, res) => {
       });
     }
 
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// New: Update allocatedEvents for an inventory item
+exports.updateInventoryAllocation = async (req, res) => {
+  try {
+    const { inventoryId } = req.params;
+    const { allocatedEvents } = req.body; // array of event IDs
+    const inventoryItem = await Inventory.findById(inventoryId);
+    if (!inventoryItem) {
+      return res.status(404).json({ message: 'Inventory item not found' });
+    }
+    inventoryItem.allocatedEvents = allocatedEvents;
+    await inventoryItem.save();
+    res.json({ success: true, inventoryItem });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

@@ -264,6 +264,9 @@ const UploadGuest = () => {
     }
   };
 
+  // Determine main event ID for upload
+  const mainEventId = event?.isMainEvent ? event._id : event?.parentEventId || eventId;
+
   const handleUpload = async () => {
     setIsProcessing(true);
     setUploadProgress(0);
@@ -271,10 +274,10 @@ const UploadGuest = () => {
     try {
       const mappedGuests = parsedData.data.map(row => {
         const mappedRow = mapRowData(row);
-        // Add eventId and set defaults
+        // Add mainEventId and set defaults
         return {
           ...mappedRow,
-          eventId,
+          eventId: mainEventId,
           hasExistingQR: !!mappedRow.qrCodeData,
           additionalInfo: {}
         };
@@ -286,7 +289,7 @@ const UploadGuest = () => {
       }, 200);
 
       const response = await api.post('/guests/bulk-add', {
-        eventId,
+        eventId: mainEventId,
         guests: mappedGuests
       });
 
@@ -323,35 +326,6 @@ const UploadGuest = () => {
     'Complete'
   ];
 
-  // Add this function to copy guests from main event
-  const handleCopyGuestsFromMain = async () => {
-    if (!event?.parentEventId) return;
-    setCopying(true);
-    setCopyError('');
-    try {
-      // Fetch guests from main event
-      const mainGuestsRes = await api.get(`/guests?eventId=${event.parentEventId}`);
-      const guests = mainGuestsRes.data.guests || mainGuestsRes.data;
-      if (!guests.length) throw new Error('No guests found in main event.');
-      // Remove _id and eventId from each guest
-      const guestsToCopy = guests.map(g => {
-        const { _id, eventId, ...rest } = g;
-        return rest;
-      });
-      // Bulk add to this event
-      await api.post('/guests/bulk-add', {
-        eventId,
-        guests: guestsToCopy
-      });
-      setCopySuccess(true);
-      setTimeout(() => navigate(`/events/${eventId}`), 1200);
-    } catch (err) {
-      setCopyError(err.message || 'Failed to copy guests.');
-    } finally {
-      setCopying(false);
-    }
-  };
-
   return (
     <Box sx={{ p: 0 }}>
       <TopNavBar breadcrumbs={[
@@ -376,26 +350,6 @@ const UploadGuest = () => {
               </Typography>
             </Box>
           </Box>
-          {/* Use same guest list option for secondary events */}
-          {event && event.parentEventId && activeStep === 0 && (
-            <Alert severity="info" sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Box>Use the same guest list as the main event? This will copy all guests from the main event to this event.</Box>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleCopyGuestsFromMain}
-                disabled={copying}
-              >
-                {copying ? 'Copying...' : 'Use Same Guest List'}
-              </Button>
-            </Alert>
-          )}
-          {copySuccess && (
-            <Alert severity="success" sx={{ mb: 2 }}>Guest list copied! Redirecting...</Alert>
-          )}
-          {copyError && (
-            <Alert severity="error" sx={{ mb: 2 }}>{copyError}</Alert>
-          )}
 
           {/* Stepper */}
           <Card sx={{ mb: 4 }}>

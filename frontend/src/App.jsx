@@ -14,6 +14,7 @@ import EventDetails from './components/Events/EventDetails';
 import UploadGuest from './components/Guest/UploadGuest'
 import DashboardLayout from './components/DashboardLayout';
 import EventDashboard from './components/Events/EventDashboard';
+import InventoryPageWrapper from './components/Inventory/InventoryPage';
 
 const theme = createTheme({
   palette: {
@@ -87,6 +88,11 @@ function App() {
             <Route path="/events/:eventId/upload" element={
               <ProtectedRoute>
                 <UploadGuest />
+              </ProtectedRoute>
+            } />
+            <Route path="/events/:eventId/inventory" element={
+              <ProtectedRoute>
+                <InventoryPageWrapper />
               </ProtectedRoute>
             } />
             <Route path="/" element={<Navigate to="/dashboard" />} />

@@ -27,17 +27,22 @@ exports.getCheckinContext = async (req, res) => {
 
     // Get available inventory for all events (shared inventory pool)
     const mainEventId = event.isMainEvent ? eventId : event.parentEventId;
-    const inventory = await Inventory.find({ 
+    let inventory = await Inventory.find({ 
       eventId: mainEventId,
-      isActive: true,
-      currentInventory: { $gt: 0 }
+      isActive: true
     }).sort({ type: 1, style: 1, size: 1 });
+
+    // Filter inventory by allocatedEvents for each event
+    const inventoryByEvent = {};
+    for (const ev of availableEvents) {
+      inventoryByEvent[ev._id] = inventory.filter(item => (item.allocatedEvents || []).map(id => id.toString()).includes(ev._id.toString()));
+    }
 
     res.json({
       currentEvent: event,
       availableEvents,
       checkinMode,
-      inventory,
+      inventoryByEvent,
       canCheckIntoMultiple: event.isMainEvent
     });
   } catch (error) {
@@ -177,6 +182,11 @@ exports.multiEventCheckin = async (req, res) => {
       ]);
     }
 
+    // Recalculate current inventory for each inventory item
+    for (const [inventoryId] of inventoryUpdates) {
+      await Inventory.recalculateCurrentInventory(inventoryId);
+    }
+
     res.json({
       success: true,
       message: `${guest.firstName} ${guest.lastName} checked into ${results.filter(r => r.success).length} events successfully!`,
@@ -218,13 +228,7 @@ exports.singleEventCheckin = async (req, res) => {
           return res.status(404).json({ message: `Inventory item not found: ${gift.inventoryId}` });
         }
 
-        if (inventoryItem.currentInventory < gift.quantity) {
-          return res.status(400).json({ 
-            message: `Insufficient inventory for ${inventoryItem.style}. Available: ${inventoryItem.currentInventory}` 
-          });
-        }
-
-        // Update inventory immediately
+        // No inventory restriction: allow check-in even if inventory is 0 or negative
         await inventoryItem.updateInventory(
           inventoryItem.currentInventory - gift.quantity,
           'checkin_distributed',
@@ -268,6 +272,11 @@ exports.singleEventCheckin = async (req, res) => {
     }
 
     await guest.save();
+
+    // Recalculate current inventory for each inventory item
+    for (const gift of giftsDistributed) {
+      await Inventory.recalculateCurrentInventory(gift.inventoryId);
+    }
 
     await checkin.populate([
       { path: 'guestId', select: 'firstName lastName email' },

@@ -7,7 +7,8 @@ const {
   getInventoryHistory,
   deleteInventoryItem,
   deactivateInventoryItem,
-  bulkDeleteInventory
+  bulkDeleteInventory,
+  updateInventoryAllocation
 } = require('../controllers/inventoryController');
 const { protect, requireOperationsOrAdmin } = require('../middleware/auth');
 
@@ -52,5 +53,6 @@ router.put('/:inventoryId/deactivate', requireOperationsOrAdmin, deactivateInven
 router.get('/:inventoryId/history', getInventoryHistory);
 router.delete('/:inventoryId', requireOperationsOrAdmin, deleteInventoryItem);
 router.delete('/bulk/:eventId', requireOperationsOrAdmin, bulkDeleteInventory);
+router.put('/:inventoryId/allocation', requireOperationsOrAdmin, updateInventoryAllocation);
 
 module.exports = router;
