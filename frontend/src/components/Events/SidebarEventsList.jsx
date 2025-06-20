@@ -2,24 +2,41 @@ import React, { useEffect, useState } from 'react';
 import { List, ListItem, ListItemText, ListItemIcon, Collapse, IconButton, Typography, Box } from '@mui/material';
 import { ExpandLess, ExpandMore, Event as EventIcon, SubdirectoryArrowRight as SubEventIcon } from '@mui/icons-material';
 import { getEvents } from '../../services/events';
+import { getUserAssignedEvents } from '../../services/events';
+import { useAuth } from '../../contexts/AuthContext';
 
 const SidebarEventsList = ({ onSelectEvent }) => {
   const [events, setEvents] = useState([]);
   const [expanded, setExpanded] = useState({});
   const [loading, setLoading] = useState(true);
+  const { isOperationsManager, isAdmin } = useAuth();
 
   useEffect(() => {
     const loadEvents = async () => {
       setLoading(true);
       try {
         const allEvents = await getEvents();
-        setEvents(allEvents.events || allEvents); // support both {events:[]} and []
+        let filteredEvents = allEvents.events || allEvents;
+        
+        // If user is staff, filter to only show assigned events
+        if (!isOperationsManager && !isAdmin) {
+          try {
+            const assignedEvents = await getUserAssignedEvents();
+            const assignedEventIds = assignedEvents.map(e => e._id);
+            filteredEvents = filteredEvents.filter(event => assignedEventIds.includes(event._id));
+          } catch (err) {
+            console.error('Failed to load assigned events:', err);
+            return;
+          }
+        }
+        
+        setEvents(filteredEvents);
       } finally {
         setLoading(false);
       }
     };
     loadEvents();
-  }, []);
+  }, [isOperationsManager, isAdmin]);
 
   const mainEvents = events.filter(ev => ev.isMainEvent);
   const secondaryEvents = parentId => events.filter(ev => ev.parentEventId === parentId);

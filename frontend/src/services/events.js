@@ -12,4 +12,9 @@ export const deleteEvent = async (eventId) => {
 export const getEvent = async (eventId) => {
   const res = await api.get(`/events/${eventId}`);
   return res.data.event;
+};
+
+export const getUserAssignedEvents = async () => {
+  const res = await api.get('/users/assigned-events');
+  return res.data.assignedEvents;
 }; 

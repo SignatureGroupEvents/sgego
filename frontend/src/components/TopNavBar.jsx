@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { AppBar, Toolbar, IconButton, Typography, Box, Button, Avatar, Breadcrumbs, Link } from '@mui/material';
-import { ArrowBack as ArrowBackIcon, Logout as LogoutIcon } from '@mui/icons-material';
+import { ArrowBack as ArrowBackIcon, Logout as LogoutIcon, Person as PersonIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
 const TopNavBar = ({ breadcrumbs = [], leftAction }) => {
@@ -42,6 +42,15 @@ const TopNavBar = ({ breadcrumbs = [], leftAction }) => {
                         <Typography variant="body2" color="textSecondary">
                             {user.username || user.email}
                         </Typography>
+                        <Button 
+                            color="inherit" 
+                            startIcon={<PersonIcon />} 
+                            component={RouterLink}
+                            to="/profile"
+                            sx={{ textTransform: 'none' }}
+                        >
+                            Profile
+                        </Button>
                         <Button color="inherit" startIcon={<LogoutIcon />} onClick={logout}>
                             Logout
                         </Button>

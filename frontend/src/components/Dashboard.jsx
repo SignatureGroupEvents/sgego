@@ -15,9 +15,10 @@ import {
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import { getUserAssignedEvents } from '../services/events';
 
 const Dashboard = ({ selectedEvent }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, isOperationsManager, isAdmin } = useAuth();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -27,8 +28,24 @@ const Dashboard = ({ selectedEvent }) => {
     setLoading(true);
     try {
       const response = await api.get('/events');
-      setEvents(response.data.events);
-      setMessage(`✅ API Working! Found ${response.data.events.length} events`);
+      let allEvents = response.data.events;
+      
+      // If user is staff, filter to only show assigned events
+      if (!isOperationsManager && !isAdmin) {
+        try {
+          const assignedEvents = await getUserAssignedEvents();
+          const assignedEventIds = assignedEvents.map(e => e._id);
+          allEvents = allEvents.filter(event => assignedEventIds.includes(event._id));
+        } catch (err) {
+          console.error('Failed to load assigned events:', err);
+          setMessage('❌ Failed to load your assigned events.');
+          setLoading(false);
+          return;
+        }
+      }
+      
+      setEvents(allEvents);
+      setMessage(`✅ API Working! Found ${allEvents.length} events`);
     } catch (error) {
       setMessage(`❌ API Error: ${error.message}`);
     }

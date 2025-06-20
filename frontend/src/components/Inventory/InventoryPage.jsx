@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete, TextField, Chip } from '@mui/material';
-import { Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon, Cancel as CancelIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
+import { Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon, Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon } from '@mui/icons-material';
 import { uploadInventoryCSV, fetchInventory, updateInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
 import TopNavBar from '../TopNavBar';
@@ -199,7 +199,7 @@ const InventoryPage = ({ eventId }) => {
     <Box sx={{ p: 4 }}>
       <TopNavBar
         breadcrumbs={[
-          { label: 'Events', to: '/events', icon: <EventIcon /> },
+          { label: 'Home', to: '/events', icon: <HomeIcon /> },
           ...(parentEvent
             ? [
                 { label: parentEvent.eventName, to: `/events/${parentEvent._id}` },

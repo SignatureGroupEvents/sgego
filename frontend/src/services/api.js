@@ -90,3 +90,44 @@ export const exportInventoryExcel = (eventId) => {
     responseType: 'blob'
   });
 };
+
+// User Management API functions
+export const getAllUsers = () => {
+  return api.get('/users');
+};
+
+export const getUserProfile = (userId) => {
+  return api.get(userId ? `/users/profile/${userId}` : '/users/profile');
+};
+
+export const updateUserProfile = (userId, data) => {
+  return api.put(userId ? `/users/profile/${userId}` : '/users/profile', data);
+};
+
+export const createUser = (userData) => {
+  return api.post('/users', userData);
+};
+
+export const updateUserRole = (userId, role) => {
+  return api.put(`/users/${userId}/role`, { role });
+};
+
+export const assignUserToEvents = (userId, eventIds) => {
+  return api.put(`/users/${userId}/assign-events`, { eventIds });
+};
+
+export const getUserAssignedEvents = (userId) => {
+  return api.get(userId ? `/users/${userId}/assigned-events` : '/users/assigned-events');
+};
+
+export const getAvailableEvents = () => {
+  return api.get('/users/available-events');
+};
+
+export const deactivateUser = (userId) => {
+  return api.put(`/users/${userId}/deactivate`);
+};
+
+export const deleteUser = (userId) => {
+  return api.delete(`/users/${userId}`);
+};

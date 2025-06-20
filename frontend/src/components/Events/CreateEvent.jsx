@@ -51,7 +51,7 @@ const CreateEvent = () => {
     return (
       <Container>
         <Alert severity="error">
-          Access denied. Only operations managers can create events.
+          Access denied. Only operations managers and administrators can create events.
         </Alert>
       </Container>
     );
@@ -416,8 +416,7 @@ const CreateEvent = () => {
   return (
     <Box sx={{ p: 0 }}>
       <TopNavBar breadcrumbs={[
-        { label: 'Home', to: '/dashboard', icon: <HomeIcon /> },
-        { label: 'Events', to: '/events', icon: <EventIcon /> },
+        { label: 'Home', to: '/events', icon: <HomeIcon /> },
         { label: 'Create Event' }
       ]} />
       <Container maxWidth="md">

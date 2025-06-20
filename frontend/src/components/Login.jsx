@@ -27,7 +27,7 @@ const Login = () => {
     const result = await login(formData);
     
     if (result.success) {
-      navigate('/dashboard');
+      navigate('/events');
     } else {
       setError(result.message);
     }

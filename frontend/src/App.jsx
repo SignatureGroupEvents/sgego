@@ -15,6 +15,7 @@ import UploadGuest from './components/Guest/UploadGuest'
 import DashboardLayout from './components/DashboardLayout';
 import EventDashboard from './components/Events/EventDashboard';
 import InventoryPageWrapper from './components/Inventory/InventoryPage';
+import ProfilePage from './components/Profile/ProfilePage';
 
 const theme = createTheme({
   palette: {
@@ -95,7 +96,17 @@ function App() {
                 <InventoryPageWrapper />
               </ProtectedRoute>
             } />
-            <Route path="/" element={<Navigate to="/dashboard" />} />
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/profile/:userId" element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/" element={<Navigate to="/events" />} />
           </Routes>
         </Router>
       </AuthProvider>

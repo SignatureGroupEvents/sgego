@@ -47,12 +47,14 @@ try {
   const guestRoutes = require('./routes/guests');
   const checkinRoutes = require('./routes/checkins');
   const inventoryRoutes = require('./routes/inventory');
+  const userRoutes = require('./routes/users');
 
   app.use('/api/auth', authRoutes);
   app.use('/api/events', eventRoutes);
   app.use('/api/guests', guestRoutes);
   app.use('/api/checkins', checkinRoutes);
   app.use('/api/inventory', inventoryRoutes);
+  app.use('/api/users', userRoutes);
   
   console.log('✅ All routes loaded successfully');
 } catch (error) {
@@ -96,6 +98,10 @@ mongoose.connect(process.env.MONGODB_URI)
     console.log('Loading Checkin model...');
     require('./models/Checkin');
     console.log('✅ Checkin model loaded');
+    
+    console.log('Loading UserAssignment model...');
+    require('./models/UserAssignment');
+    console.log('✅ UserAssignment model loaded');
     
     console.log('✅ All models loaded successfully');
   } catch (error) {

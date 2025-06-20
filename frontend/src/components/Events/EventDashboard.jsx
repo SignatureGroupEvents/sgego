@@ -306,15 +306,17 @@ const EventDashboard = () => {
     <Box sx={{ p: 0 }}>
       <TopNavBar
         breadcrumbs={[
-          { label: 'Events', to: '/events', icon: <EventIcon /> },
+          { label: 'Home', to: '/events', icon: <HomeIcon /> },
           ...(parentEvent
             ? [
-              { label: parentEvent.eventName, to: `/events/${parentEvent._id}` },
-              { label: event.eventName }
-            ]
+                { label: parentEvent.eventName, to: `/events/${parentEvent._id}` },
+                { label: event?.eventName, to: `/events/${event?._id}` },
+                { label: 'Dashboard' }
+              ]
             : [
-              { label: event.eventName }
-            ]),
+                { label: event?.eventName, to: `/events/${event?._id}` },
+                { label: 'Dashboard' }
+              ]),
         ]}
         leftAction={
           <IconButton color="inherit" onClick={() => setSidebarOpen(true)} sx={{ mr: 2 }}>

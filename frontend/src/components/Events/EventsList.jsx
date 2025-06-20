@@ -3,6 +3,7 @@ import { Box, Grid, Typography, Button, Alert, CircularProgress } from '@mui/mat
 import TopNavBar from '../TopNavBar';
 import SidebarEventsList from './SidebarEventsList';
 import { getEvents } from '../../services/events';
+import { getUserAssignedEvents } from '../../services/events';
 import EventCard from './EventCard';
 import AddIcon from '@mui/icons-material/Add';
 import { useNavigate } from 'react-router-dom';
@@ -22,7 +23,22 @@ const EventsList = () => {
     const fetchAllEvents = async () => {
       try {
         const res = await getEvents();
-        setEvents(res.events || res);
+        let allEvents = res.events || res;
+        
+        // If user is staff, filter to only show assigned events
+        if (!isOperationsManager && !isAdmin) {
+          try {
+            const assignedEvents = await getUserAssignedEvents();
+            const assignedEventIds = assignedEvents.map(e => e._id);
+            allEvents = allEvents.filter(event => assignedEventIds.includes(event._id));
+          } catch (err) {
+            console.error('Failed to load assigned events:', err);
+            setError('Failed to load your assigned events.');
+            return;
+          }
+        }
+        
+        setEvents(allEvents);
       } catch (err) {
         setError('Failed to load events');
       } finally {
@@ -30,7 +46,7 @@ const EventsList = () => {
       }
     };
     fetchAllEvents();
-  }, []);
+  }, [isOperationsManager, isAdmin]);
 
   const mainEvents = events.filter(ev => ev.isMainEvent);
   const secondaryEvents = parentId => events.filter(ev => ev.parentEventId === parentId);
@@ -42,8 +58,7 @@ const EventsList = () => {
   return (
     <Box sx={{ p: 0 }}>
       <TopNavBar breadcrumbs={[
-        { label: 'Home', to: '/dashboard', icon: <HomeIcon /> },
-        { label: 'Events', to: '/events', icon: <EventIcon /> }
+        { label: 'Home', to: '/events', icon: <HomeIcon /> }
       ]} />
       <Box sx={{ p: 4 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>

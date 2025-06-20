@@ -284,9 +284,9 @@ const EventDetails = () => {
   return (
     <Box sx={{ p: 0 }}>
       <TopNavBar breadcrumbs={[
-        { label: 'Home', to: '/dashboard', icon: <HomeIcon /> },
-        { label: 'Events', to: '/events', icon: <EventIcon /> },
-        { label: event.eventName }
+        { label: 'Home', to: '/events', icon: <HomeIcon /> },
+        { label: event?.eventName, to: `/events/${event?._id}` },
+        { label: 'Details' }
       ]} />
       <Container maxWidth="lg">
         <Box sx={{ my: 4 }}>

@@ -329,9 +329,8 @@ const UploadGuest = () => {
   return (
     <Box sx={{ p: 0 }}>
       <TopNavBar breadcrumbs={[
-        { label: 'Home', to: '/dashboard', icon: <HomeIcon /> },
-        { label: 'Events', to: '/events', icon: <EventIcon /> },
-        { label: eventId },
+        { label: 'Home', to: '/events', icon: <HomeIcon /> },
+        { label: event?.eventName, to: `/events/${event?._id}` },
         { label: 'Upload Guests' }
       ]} />
       <Container maxWidth="lg">
