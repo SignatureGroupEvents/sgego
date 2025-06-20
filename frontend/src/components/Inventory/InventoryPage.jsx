@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete, TextField, Chip } from '@mui/material';
-import { Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon, Cancel as CancelIcon } from '@mui/icons-material';
-import { uploadInventoryCSV, fetchInventory, updateInventoryItem, deleteInventoryItem, updateInventoryAllocation } from '../../services/api';
+import { Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon, Cancel as CancelIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
+import { uploadInventoryCSV, fetchInventory, updateInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
 import TopNavBar from '../TopNavBar';
 import { getEvent, getEvents } from '../../services/events';
 import EventIcon from '@mui/icons-material/Event';
 import { useAuth } from '../../contexts/AuthContext';
+
 
 const InventoryPage = ({ eventId }) => {
   const [inventory, setInventory] = useState([]);
@@ -160,6 +161,40 @@ const InventoryPage = ({ eventId }) => {
     }
   };
 
+  const handleExportCSV = async () => {
+    try {
+      const response = await exportInventoryCSV(eventId);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `inventory_${event?.eventContractNumber || eventId}_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setSuccess('CSV exported successfully!');
+    } catch (err) {
+      setError('Failed to export CSV.');
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      const response = await exportInventoryExcel(eventId);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `inventory_${event?.eventContractNumber || eventId}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setSuccess('Excel file exported successfully!');
+    } catch (err) {
+      setError('Failed to export Excel file.');
+    }
+  };
+
   return (
     <Box sx={{ p: 4 }}>
       <TopNavBar
@@ -178,6 +213,14 @@ const InventoryPage = ({ eventId }) => {
         ]}
       />
       <Typography variant="h4" gutterBottom>Inventory</Typography>
+      <Box display="flex" gap={2} mb={2}>
+        <Button variant="contained" color="primary" onClick={handleExportCSV} startIcon={<FileDownloadIcon />}>
+          Export CSV
+        </Button>
+        <Button variant="contained" color="secondary" onClick={handleExportExcel} startIcon={<FileDownloadIcon />}>
+          Export Excel
+        </Button>
+      </Box>
       <Typography variant="body2" color="textSecondary" mb={2}>
         Upload a CSV file to import inventory for this event. The table below shows all inventory items for this event.
       </Typography>

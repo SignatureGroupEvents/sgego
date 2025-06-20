@@ -78,3 +78,15 @@ export const multiEventCheckin = (guestId, checkins, notes = '') => {
 export const updateInventoryAllocation = (inventoryId, allocatedEvents) => {
   return api.put(`/inventory/${inventoryId}/allocation`, { allocatedEvents });
 };
+
+export const exportInventoryCSV = (eventId) => {
+  return api.get(`/inventory/${eventId}/export/csv`, {
+    responseType: 'blob'
+  });
+};
+
+export const exportInventoryExcel = (eventId) => {
+  return api.get(`/inventory/${eventId}/export/excel`, {
+    responseType: 'blob'
+  });
+};
