@@ -115,7 +115,13 @@ mongoose.connect(process.env.MONGODB_URI)
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 API Base: http://localhost:${PORT}`);
-});
+
+// Only start the server if this file is run directly (not imported for testing)
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📍 API Base: http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
