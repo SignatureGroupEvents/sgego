@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Grid, Typography, Button, Alert, CircularProgress } from '@mui/material';
-import TopNavBar from '../TopNavBar';
-import SidebarEventsList from './SidebarEventsList';
+import MainNavigation from '../MainNavigation';
 import { getEvents } from '../../services/events';
 import { getUserAssignedEvents } from '../../services/events';
 import EventCard from './EventCard';
@@ -52,15 +51,20 @@ const EventsList = () => {
   const secondaryEvents = parentId => events.filter(ev => ev.parentEventId === parentId);
 
   if (loading) {
-    return <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px"><CircularProgress size={60} /></Box>;
+    return (
+      <Box sx={{ display: 'flex', height: '100vh' }}>
+        <MainNavigation />
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <CircularProgress size={60} />
+        </Box>
+      </Box>
+    );
   }
 
   return (
-    <Box sx={{ p: 0 }}>
-      <TopNavBar breadcrumbs={[
-        { label: 'Home', to: '/events', icon: <HomeIcon /> }
-      ]} />
-      <Box sx={{ p: 4 }}>
+    <Box sx={{ display: 'flex', height: '100vh' }}>
+      <MainNavigation />
+      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
           <Box>
             <Typography variant="h4" gutterBottom>🎪 Events</Typography>

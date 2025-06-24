@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer } from '@mui/material';
-import { CheckCircle as CheckCircleIcon, Person as PersonIcon, Groups as GroupsIcon, Assessment as AssessmentIcon, Event as EventIcon, Home as HomeIcon, Menu as MenuIcon, Upload as UploadIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
-import api from '../../services/api';
+import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel } from '@mui/material';
+import { CheckCircle as CheckCircleIcon, Person as PersonIcon, Groups as GroupsIcon, Assessment as AssessmentIcon, Event as EventIcon, Home as HomeIcon, Menu as MenuIcon, Upload as UploadIcon, PersonAdd as PersonAddIcon, Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon, PeopleAlt as PeopleAltIcon, HourglassEmpty as HourglassEmptyIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import api, { fetchInventory } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import TopNavBar from '../TopNavBar';
-import SidebarEventsList from './SidebarEventsList';
+import MainNavigation from '../MainNavigation';
 import AddSecondaryEventModal from './AddSecondaryEventModal';
 import { getEvent } from '../../services/events';
 import InventoryPage from '../Inventory/InventoryPage';
@@ -28,8 +28,8 @@ const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
             </Typography>
           )}
         </Box>
-        <Box sx={{ backgroundColor: `${color}.light`, borderRadius: 2, p: 2 }}>
-          {React.cloneElement(icon, { sx: { fontSize: 40, color: `${color}.main` } })}
+        <Box sx={{ backgroundColor: `${color}.light`, borderRadius: 2, p: 1.5 }}>
+          {React.cloneElement(icon, { sx: { fontSize: 28, color: `${color}.main` } })}
         </Box>
       </Box>
     </CardContent>
@@ -227,45 +227,67 @@ const EventDashboard = () => {
   const [event, setEvent] = useState(null);
   const [guests, setGuests] = useState([]);
   const [error, setError] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [secondaryModalOpen, setSecondaryModalOpen] = useState(false);
   const [secondaryEvents, setSecondaryEvents] = useState([]);
   const [parentEvent, setParentEvent] = useState(null);
+  const [inventory, setInventory] = useState([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [giftTrackerCollapsed, setGiftTrackerCollapsed] = useState(true); // Collapsed by default
+  const [inventoryViewMode, setInventoryViewMode] = useState('basic');
+  const [inventoryExpanded, setInventoryExpanded] = useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => {
     const fetchEventData = async () => {
       try {
-        const response = await api.get(`/events/${eventId}`);
-        const eventData = response.data.event || response.data;
+        setLoading(true);
+        const eventData = await getEvent(eventId);
         setEvent(eventData);
+        
+        // If this is a secondary event, fetch the parent event
         if (eventData.parentEventId) {
-          // Fetch parent event for breadcrumbs
-          const parent = await getEvent(eventData.parentEventId);
-          setParentEvent(parent);
-        } else {
-          setParentEvent(null);
+          try {
+            const parentData = await getEvent(eventData.parentEventId);
+            setParentEvent(parentData);
+          } catch (error) {
+            console.error('Error fetching parent event:', error);
+          }
         }
       } catch (error) {
-        setError('Failed to load event data');
-        console.error('Error fetching event:', error);
-      }
-    };
-    const fetchGuests = async (mainEventId) => {
-      try {
-        const response = await api.get(`/guests?eventId=${mainEventId}`);
-        setGuests(response.data.guests || response.data);
-      } catch (error) {
-        console.error('Error fetching guests:', error);
+        setError(error.response?.data?.message || 'Failed to fetch event');
       } finally {
         setLoading(false);
       }
     };
+
+    const fetchGuests = async (mainEventId) => {
+      try {
+        const response = await api.get(`/guests?eventId=${mainEventId}`);
+        setGuests(response.data.guests || []);
+      } catch (error) {
+        console.error('Error fetching guests:', error);
+      }
+    };
+
     const fetchSecondaryEvents = async () => {
       try {
         const response = await api.get(`/events?parentEventId=${eventId}`);
         setSecondaryEvents(response.data.events || response.data);
       } catch (error) {
         // ignore for now
+      }
+    };
+
+    const fetchInventoryData = async () => {
+      try {
+        setInventoryLoading(true);
+        const response = await fetchInventory(eventId);
+        setInventory(response.data.inventory || []);
+      } catch (error) {
+        console.error('Error fetching inventory:', error);
+      } finally {
+        setInventoryLoading(false);
       }
     };
     fetchEventData().then(() => {
@@ -276,6 +298,7 @@ const EventDashboard = () => {
       }, 0);
     });
     fetchSecondaryEvents();
+    fetchInventoryData();
   }, [eventId]);
 
   const handleUploadGuests = () => {
@@ -286,11 +309,25 @@ const EventDashboard = () => {
   };
 
   if (loading) {
-    return <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px"><CircularProgress size={60} /></Box>;
+    return (
+      <Box sx={{ display: 'flex', height: '100vh' }}>
+        <MainNavigation />
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <CircularProgress size={60} />
+        </Box>
+      </Box>
+    );
   }
 
   if (error || !event) {
-    return <Box p={4}><Alert severity="error">{error || 'Event not found'}</Alert></Box>;
+    return (
+      <Box sx={{ display: 'flex', height: '100vh' }}>
+        <MainNavigation />
+        <Box sx={{ flex: 1, p: 4 }}>
+          <Alert severity="error">{error || 'Event not found'}</Alert>
+        </Box>
+      </Box>
+    );
   }
 
   // Calculate stats
@@ -303,164 +340,202 @@ const EventDashboard = () => {
   const mainEvent = event && event.isMainEvent ? event : parentEvent || event;
 
   return (
-    <Box sx={{ p: 0 }}>
-      <TopNavBar
-        breadcrumbs={[
-          { label: 'Home', to: '/events', icon: <HomeIcon /> },
-          ...(parentEvent
-            ? [
-                { label: parentEvent.eventName, to: `/events/${parentEvent._id}` },
-                { label: event?.eventName, to: `/events/${event?._id}` },
-                { label: 'Dashboard' }
-              ]
-            : [
-                { label: event?.eventName, to: `/events/${event?._id}` },
-                { label: 'Dashboard' }
-              ]),
-        ]}
-        leftAction={
-          <IconButton color="inherit" onClick={() => setSidebarOpen(true)} sx={{ mr: 2 }}>
-            <MenuIcon />
-          </IconButton>
-        }
-      />
-      <Drawer
-        anchor="left"
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        ModalProps={{ keepMounted: true }}
-      >
-        <SidebarEventsList onSelectEvent={() => setSidebarOpen(false)} />
-      </Drawer>
-      <Box sx={{ p: 4 }}>
+    <Box sx={{ display: 'flex', height: '100vh' }}>
+      <MainNavigation />
+      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
         <Box display="flex" alignItems="center" mb={4}>
           <Box flexGrow={1}>
-            <Typography variant="h4" gutterBottom>
-              {event.eventName} Dashboard
-            </Typography>
-            <Typography variant="subtitle1" color="textSecondary" gutterBottom>
-              Contract: {event.eventContractNumber}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+              <Box flexGrow={1}>
+                <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: '#1a1a1a' }}>
+                  {event.eventName} Dashboard
+                </Typography>
+                <Typography variant="subtitle1" color="textSecondary" sx={{ fontWeight: 500 }}>
+                  📋 Contract: {event.eventContractNumber}
+                </Typography>
+              </Box>
+              <Button
+                variant="outlined"
+                onClick={() => navigate(`/events/${eventId}/inventory`)}
+                sx={{ 
+                  borderRadius: 2
+                }}
+              >
+                View Inventory
+              </Button>
+            </Box>
+            
+            {/* Additional Events Section - Enhanced */}
+            {secondaryEvents.length > 0 && (
+              <Box sx={{ 
+                background: 'linear-gradient(135deg, #FFFAF6 0%, #f8f9fa 100%)', 
+                borderRadius: 3, 
+                p: 2.5, 
+                mb: 2,
+                border: '1px solid #e9ecef',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                position: 'relative',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: '3px',
+                  background: 'linear-gradient(90deg, #00B2C0, #FAA951)',
+                  borderRadius: '3px 3px 0 0'
+                }
+              }}>
+                <Typography variant="subtitle1" gutterBottom sx={{ 
+                  fontWeight: 700, 
+                  fontSize: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  mb: 1.5,
+                  color: '#00B2C0'
+                }}>
+                  📅 Additional Events
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', maxWidth: 600 }}>
+                  {secondaryEvents.map((secondaryEvent) => (
+                    <Button
+                      key={secondaryEvent._id}
+                      variant="outlined"
+                      size="small"
+                      onClick={() => navigate(`/events/${secondaryEvent._id}/dashboard`)}
+                      sx={{ 
+                        fontSize: '0.75rem',
+                        borderRadius: 2,
+                        borderColor: '#00B2C0',
+                        color: '#00B2C0',
+                        fontWeight: 600,
+                        textTransform: 'none',
+                        '&:hover': {
+                          backgroundColor: '#00B2C0',
+                          color: '#FFFAF6',
+                          transform: 'translateY(-1px)',
+                          boxShadow: '0 2px 8px rgba(0, 178, 192, 0.3)'
+                        },
+                        transition: 'all 0.2s ease-in-out'
+                      }}
+                    >
+                      {secondaryEvent.eventName}
+                    </Button>
+                  ))}
+                </Box>
+              </Box>
+            )}
+            
+            {/* Add Additional Event Button - Enhanced */}
+            <Box sx={{ mt: 2 }}>
+              <Button
+                variant="contained"
+                startIcon={<EventIcon />}
+                onClick={() => setSecondaryModalOpen(true)}
+                sx={{ 
+                  mr: 2,
+                  borderRadius: 2
+                }}
+              >
+                ➕ Add Additional Event
+              </Button>
+            </Box>
           </Box>
-          {/* Inventory Button for main events only */}
-          {event.isMainEvent && (
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={() => navigate(`/events/${eventId}/inventory`)}
-              size="large"
-            >
-              View Inventory
-            </Button>
-          )}
         </Box>
-        {/* Stats Cards */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Total Guests"
-              value={totalGuests}
-              icon={<GroupsIcon />}
-              color="primary"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Checked In"
-              value={checkedInGuests}
-              subtitle={`${checkInPercentage}% complete`}
-              icon={<CheckCircleIcon />}
-              color="success"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Pending"
-              value={pendingGuests}
-              icon={<PersonIcon />}
-              color="warning"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Check-in Rate"
-              value={`${checkInPercentage}%`}
-              icon={<AssessmentIcon />}
-              color="info"
-            />
-          </Grid>
-        </Grid>
-        {/* Add Secondary Event Button and Modal */}
-        {event.allowMultipleGifts && (
-          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
-            <Button variant="contained" color="secondary" onClick={() => setSecondaryModalOpen(true)}>
-              Add Additional Event
-            </Button>
-            <AddSecondaryEventModal
-              open={secondaryModalOpen}
-              onClose={() => setSecondaryModalOpen(false)}
-              parentEventId={eventId}
-              parentContractNumber={event.eventContractNumber}
-              parentEventStart={event.eventStart}
-              parentEventEnd={event.eventEnd}
-              onEventAdded={() => {
-                setSecondaryModalOpen(false);
-                // Refresh secondary events after add
-                api.get(`/events?parentEventId=${eventId}`).then(res => setSecondaryEvents(res.data.events || res.data));
-              }}
-            />
-          </Box>
-        )}
-        {/* List of Secondary Events */}
-        {secondaryEvents.length > 0 && (
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" gutterBottom>Additional Events</Typography>
-            <Grid container spacing={2}>
-              {secondaryEvents.map(sec => (
-                <Grid item xs={12} sm={6} md={4} key={sec._id}>
-                  <Card
-                    onClick={() => navigate(`/events/${sec._id}`)}
-                    sx={{
-                      cursor: 'pointer',
-                      bgcolor: 'grey.50',
-                      transition: 'box-shadow 0.2s, background 0.2s',
-                      '&:hover': {
-                        boxShadow: 6,
-                        bgcolor: 'grey.100',
-                      },
-                    }}
-                  >
-                    <CardContent>
-                      <Typography variant="subtitle1" fontWeight={600}>{sec.eventName}</Typography>
-                      <Button size="small" sx={{ mt: 1 }} variant="outlined" onClick={e => { e.stopPropagation(); navigate(`/events/${sec._id}`); }}>
-                        View Dashboard
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-        )}
-        {/* Progress Bar */}
-        {totalGuests > 0 && (
-          <Card sx={{ mb: 4 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Check-in Progress
+        
+        {/* Event Overview Section */}
+        <Card sx={{ mb: 4, p: 2, borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+          <CardHeader
+            title={
+              <Typography variant="h6" fontWeight={600} sx={{ color: '#1a1a1a' }}>
+                Event Overview
               </Typography>
-              <LinearProgress
-                variant="determinate"
-                value={checkInPercentage}
-                sx={{ height: 10, borderRadius: 5, my: 2 }}
-                color={checkInPercentage === 100 ? 'success' : 'primary'}
-              />
+            }
+            subheader={
               <Typography variant="body2" color="textSecondary">
-                {checkedInGuests} of {totalGuests} guests checked in
+                Key metrics and statistics for this event
               </Typography>
-            </CardContent>
-          </Card>
-        )}
+            }
+          />
+          <div style={{ display: 'flex', gap: '1.5rem', width: '100%' }}>
+            {/* Total Guests */}
+            <div style={{ 
+              flex: 1, 
+              background: '#fff', 
+              boxShadow: '0 4px 20px rgba(0,0,0,0.08)', 
+              border: '1px solid #e0e0e0', 
+              borderRadius: '16px', 
+              padding: '2rem 1.5rem', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '1rem',
+              transition: 'transform 0.2s ease-in-out',
+              cursor: 'pointer'
+            }}>
+              <PeopleAltIcon style={{ fontSize: 40, color: '#1976d2' }} />
+              <div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a' }}>{totalGuests}</div>
+                <div style={{ color: '#666', fontWeight: 500 }}>Total Guests</div>
+              </div>
+            </div>
+            {/* Checked In */}
+            <div style={{ 
+              flex: 1, 
+              background: '#fff', 
+              boxShadow: '0 4px 20px rgba(0,0,0,0.08)', 
+              border: '1px solid #e0e0e0', 
+              borderRadius: '16px', 
+              padding: '2rem 1.5rem', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '1rem',
+              transition: 'transform 0.2s ease-in-out',
+              cursor: 'pointer'
+            }}>
+              <CheckCircleIcon style={{ fontSize: 40, color: '#4caf50' }} />
+              <div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a' }}>{checkedInGuests}</div>
+                <div style={{ color: '#666', fontWeight: 500 }}>Checked In</div>
+              </div>
+            </div>
+            {/* Pending */}
+            <div style={{ 
+              flex: 1, 
+              background: '#fff', 
+              boxShadow: '0 4px 20px rgba(0,0,0,0.08)', 
+              border: '1px solid #e0e0e0', 
+              borderRadius: '16px', 
+              padding: '2rem 1.5rem', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '1rem',
+              transition: 'transform 0.2s ease-in-out',
+              cursor: 'pointer'
+            }}>
+              <PersonIcon style={{ fontSize: 40, color: '#ff9800' }} />
+              <div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a' }}>{pendingGuests}</div>
+                <div style={{ color: '#666', fontWeight: 500 }}>Pending</div>
+              </div>
+            </div>
+          </div>
+        </Card>
+        {/* Add Secondary Event Button and Modal */}
+        <AddSecondaryEventModal
+          open={secondaryModalOpen}
+          onClose={() => setSecondaryModalOpen(false)}
+          parentEventId={eventId}
+          parentContractNumber={event.eventContractNumber}
+          parentEventStart={event.eventStart}
+          parentEventEnd={event.eventEnd}
+          onEventAdded={() => {
+            setSecondaryModalOpen(false);
+            // Refresh secondary events after add
+            api.get(`/events?parentEventId=${eventId}`).then(res => setSecondaryEvents(res.data.events || res.data));
+          }}
+        />
+        
         {/* Guest Table */}
         <GuestTable guests={guests} onAddGuest={handleAddGuest} onUploadGuests={handleUploadGuests} event={mainEvent} />
       </Box>

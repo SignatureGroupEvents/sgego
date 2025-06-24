@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { getCheckinContext, singleEventCheckin, multiEventCheckin } from '../../services/api';
-import TopNavBar from '../TopNavBar';
+// import MainNavigation from '../MainNavigation'; // Removed
 import HomeIcon from '@mui/icons-material/Home';
+import { Box } from '@mui/material';
 
 const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess }) => {
   const [qrData, setQrData] = useState('');
@@ -86,12 +87,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess }) =>
   };
 
   return (
-    <div>
-      <TopNavBar breadcrumbs={[
-        { label: 'Home', to: '/events', icon: <HomeIcon /> },
-        { label: event?.eventName, to: `/events/${event?._id}` },
-        { label: 'Check-In' }
-      ]} />
+    <Box sx={{ p: 4 }}>
       <h3>Guest Check-In</h3>
       {!propGuest && (
         <>
@@ -131,7 +127,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess }) =>
           <button onClick={handleCheckIn} disabled={loading}>Check In Guest</button>
         </div>
       )}
-    </div>
+    </Box>
   );
 };
 

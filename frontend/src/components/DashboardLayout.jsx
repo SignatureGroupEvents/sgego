@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Box from '@mui/material/Box';
-import SidebarEventsList from './Events/SidebarEventsList';
+import MainNavigation from './MainNavigation';
 import Dashboard from './Dashboard';
 
 const DashboardLayout = () => {
@@ -8,7 +8,7 @@ const DashboardLayout = () => {
 
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
-      <SidebarEventsList onSelectEvent={setSelectedEvent} />
+      <MainNavigation />
       <Box sx={{ flex: 1, overflow: 'auto' }}>
         <Dashboard selectedEvent={selectedEvent} />
       </Box>

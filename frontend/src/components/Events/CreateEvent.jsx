@@ -28,7 +28,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
-import TopNavBar from '../TopNavBar';
+import MainNavigation from '../MainNavigation';
 import HomeIcon from '@mui/icons-material/Home';
 import EventIcon from '@mui/icons-material/Event';
 
@@ -414,100 +414,99 @@ const CreateEvent = () => {
   };
 
   return (
-    <Box sx={{ p: 0 }}>
-      <TopNavBar breadcrumbs={[
-        { label: 'Home', to: '/events', icon: <HomeIcon /> },
-        { label: 'Create Event' }
-      ]} />
-      <Container maxWidth="md">
-        <Box sx={{ my: 4 }}>
-          <Paper sx={{ p: 4 }}>
-            <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-              {steps.map((label) => (
-                <Step key={label}>
-                  <StepLabel>{label}</StepLabel>
-                </Step>
-              ))}
-            </Stepper>
+    <Box sx={{ display: 'flex', height: '100vh' }}>
+      <MainNavigation />
+      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
+        <Container maxWidth="md">
+          <Box sx={{ my: 4 }}>
+            <Paper sx={{ p: 4 }}>
+              <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+                {steps.map((label) => (
+                  <Step key={label}>
+                    <StepLabel>{label}</StepLabel>
+                  </Step>
+                ))}
+              </Stepper>
 
-            {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+              {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
-            <Formik
-              initialValues={initialValues}
-              validationSchema={validationSchema}
-              onSubmit={handleSubmit}
-            >
-              {({
-                values,
-                setFieldValue,
-                errors,
-                touched,
-                validateForm,
-                setTouched,
-                submitForm
-              }) => (
-                <Form
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                    }
-                  }}
-                >
-                  <StepContent 
-                    values={values} 
-                    setFieldValue={setFieldValue}
-                    errors={errors}
-                    touched={touched}
-                  />
+              <Formik
+                initialValues={initialValues}
+                validationSchema={validationSchema}
+                onSubmit={handleSubmit}
+              >
+                {({
+                  values,
+                  setFieldValue,
+                  errors,
+                  touched,
+                  validateForm,
+                  setTouched,
+                  submitForm
+                }) => (
+                  <Form
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                      }
+                    }}
+                  >
+                    <StepContent 
+                      values={values} 
+                      setFieldValue={setFieldValue}
+                      errors={errors}
+                      touched={touched}
+                    />
 
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-                    <Button
-                      type="button"
-                      disabled={activeStep === 0}
-                      onClick={() => setActiveStep(activeStep - 1)}
-                    >
-                      Back
-                    </Button>
-                    
-                    {activeStep === steps.length - 1 ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
                       <Button
                         type="button"
-                        variant="contained"
-                        disabled={loading}
-                        onClick={submitForm}
+                        disabled={activeStep === 0}
+                        onClick={() => setActiveStep(activeStep - 1)}
                       >
-                        {loading ? 'Creating...' : 'Create Event'}
+                        Back
                       </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="contained"
-                        onClick={async () => {
-                          if (activeStep === 0) {
-                            const errors = await validateForm();
-                            setTouched({
-                              eventName: true,
-                              eventContractNumber: true,
-                              eventStart: true,
-                            });
-                            if (!errors.eventName && !errors.eventContractNumber && !errors.eventStart) {
+                      
+                      {activeStep === steps.length - 1 ? (
+                        <Button
+                          type="button"
+                          variant="contained"
+                          disabled={loading}
+                          onClick={submitForm}
+                        >
+                          {loading ? 'Creating...' : 'Create Event'}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="contained"
+                          onClick={async () => {
+                            if (activeStep === 0) {
+                              const errors = await validateForm();
+                              setTouched({
+                                eventName: true,
+                                eventContractNumber: true,
+                                eventStart: true,
+                              });
+                              if (!errors.eventName && !errors.eventContractNumber && !errors.eventStart) {
+                                setActiveStep(activeStep + 1);
+                              }
+                            } else if (activeStep === 1) {
                               setActiveStep(activeStep + 1);
                             }
-                          } else if (activeStep === 1) {
-                            setActiveStep(activeStep + 1);
-                          }
-                        }}
-                      >
-                        Next
-                      </Button>
-                    )}
-                  </Box>
-                </Form>
-              )}
-            </Formik>
-          </Paper>
-        </Box>
-      </Container>
+                          }}
+                        >
+                          Next
+                        </Button>
+                      )}
+                    </Box>
+                  </Form>
+                )}
+              </Formik>
+            </Paper>
+          </Box>
+        </Container>
+      </Box>
     </Box>
   );
 };

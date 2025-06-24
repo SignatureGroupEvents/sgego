@@ -46,7 +46,7 @@ import {
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import TopNavBar from '../TopNavBar';
+import MainNavigation from '../MainNavigation';
 import {
   getUserProfile,
   updateUserProfile,
@@ -219,29 +219,30 @@ const ProfilePage = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress size={60} />
+      <Box sx={{ display: 'flex', height: '100vh' }}>
+        <MainNavigation />
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <CircularProgress size={60} />
+        </Box>
       </Box>
     );
   }
 
   if (error && !user) {
     return (
-      <Box p={4}>
-        <Alert severity="error">{error}</Alert>
+      <Box sx={{ display: 'flex', height: '100vh' }}>
+        <MainNavigation />
+        <Box sx={{ flex: 1, p: 4 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ p: 0 }}>
-      <TopNavBar breadcrumbs={[
-        { label: 'Home', to: '/events', icon: <HomeIcon /> },
-        { label: isOwnProfile ? 'My Profile' : 'User Management', to: '/profile', icon: <PersonIcon2 /> },
-        ...(userId && !isOwnProfile ? [{ label: user?.username || 'User' }] : [])
-      ]} />
-      
-      <Box sx={{ p: 4 }}>
+    <Box sx={{ display: 'flex', height: '100vh' }}>
+      <MainNavigation />
+      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
         <Typography variant="h4" gutterBottom>
           {isOwnProfile ? '👤 My Profile' : '👥 User Management'}
         </Typography>

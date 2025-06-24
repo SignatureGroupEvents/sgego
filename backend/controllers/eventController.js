@@ -210,3 +210,135 @@ exports.deleteSecondaryEvent = async (req, res) => {
     res.status(400).json({ message: error.message });
   }
 };
+
+// Analytics endpoint for gift distribution
+exports.getEventAnalytics = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    const Checkin = require('../models/Checkin');
+    const Inventory = require('../models/Inventory');
+
+    // Get all check-ins for this event and its secondary events
+    const eventIds = [eventId];
+    if (event.isMainEvent) {
+      const secondaryEvents = await Event.find({ parentEventId: eventId });
+      eventIds.push(...secondaryEvents.map(e => e._id));
+    }
+
+    // Aggregate gift distribution data
+    const giftDistribution = await Checkin.aggregate([
+      { 
+        $match: { 
+          eventId: { $in: eventIds.map(id => id.toString()) },
+          isValid: true 
+        } 
+      },
+      { $unwind: '$giftsDistributed' },
+      {
+        $lookup: {
+          from: 'inventories',
+          localField: 'giftsDistributed.inventoryId',
+          foreignField: '_id',
+          as: 'inventoryItem'
+        }
+      },
+      { $unwind: '$inventoryItem' },
+      {
+        $group: {
+          _id: {
+            inventoryId: '$giftsDistributed.inventoryId',
+            style: '$inventoryItem.style',
+            type: '$inventoryItem.type',
+            size: '$inventoryItem.size'
+          },
+          totalQuantity: { $sum: '$giftsDistributed.quantity' },
+          distributedCount: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          inventoryId: '$_id.inventoryId',
+          style: '$_id.style',
+          type: '$_id.type',
+          size: '$_id.size',
+          totalQuantity: 1,
+          distributedCount: 1
+        }
+      },
+      { $sort: { totalQuantity: -1 } }
+    ]);
+
+    // Create gift distribution object
+    const giftDistributionMap = {};
+    giftDistribution.forEach(item => {
+      const key = `${item.style} - ${item.size}`;
+      giftDistributionMap[key] = {
+        inventoryId: item.inventoryId,
+        style: item.style,
+        type: item.type,
+        size: item.size,
+        totalQuantity: item.totalQuantity,
+        distributedCount: item.distributedCount
+      };
+    });
+
+    // Calculate basic category totals
+    const categoryTotals = {};
+    giftDistribution.forEach(item => {
+      const category = getGiftCategory(item.style, item.type);
+      categoryTotals[category] = (categoryTotals[category] || 0) + item.totalQuantity;
+    });
+
+    res.json({
+      success: true,
+      analytics: {
+        giftDistribution: giftDistributionMap,
+        categoryTotals,
+        totalGiftsDistributed: giftDistribution.reduce((sum, item) => sum + item.totalQuantity, 0),
+        uniqueItemsDistributed: giftDistribution.length
+      }
+    });
+
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Helper function to categorize gifts
+function getGiftCategory(style, type) {
+  const styleLower = style.toLowerCase();
+  const typeLower = type.toLowerCase();
+  
+  // Check for shoes
+  if (styleLower.includes('nike') || styleLower.includes('shoe') || styleLower.includes('sneaker') || 
+      typeLower.includes('shoe') || typeLower.includes('footwear')) {
+    return 'Custom Shoes';
+  }
+  
+  // Check for hats
+  if (styleLower.includes('hat') || styleLower.includes('cap') || typeLower.includes('hat')) {
+    return 'Hats';
+  }
+  
+  // Check for clothing
+  if (styleLower.includes('shirt') || styleLower.includes('t-shirt') || styleLower.includes('hoodie') || 
+      styleLower.includes('jacket') || styleLower.includes('sweater') || typeLower.includes('clothing')) {
+    return 'Clothing';
+  }
+  
+  // Check for accessories
+  if (styleLower.includes('bag') || styleLower.includes('backpack') || styleLower.includes('tote') ||
+      styleLower.includes('wallet') || styleLower.includes('keychain') || typeLower.includes('accessory')) {
+    return 'Accessories';
+  }
+  
+  // Default category
+  return 'Other';
+}

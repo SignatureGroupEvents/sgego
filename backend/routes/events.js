@@ -5,7 +5,8 @@ const {
   getEvent,
   updateEvent,
   deleteEvent,
-  deleteSecondaryEvent
+  deleteSecondaryEvent,
+  getEventAnalytics
 } = require('../controllers/eventController');
 const { protect, requireOperationsOrAdmin } = require('../middleware/auth');
 
@@ -25,6 +26,7 @@ router.use(protect);
 router.get('/', getEvents);
 router.post('/', requireOperationsOrAdmin, createEvent);
 router.get('/:id', getEvent);
+router.get('/:id/analytics', getEventAnalytics);
 router.put('/:id', updateEvent);
 router.delete('/:id', requireOperationsOrAdmin, deleteEvent);
 router.delete('/:id/secondary', requireOperationsOrAdmin, deleteSecondaryEvent);

@@ -14,6 +14,11 @@ export const getEvent = async (eventId) => {
   return res.data.event;
 };
 
+export const getEventAnalytics = async (eventId) => {
+  const res = await api.get(`/events/${eventId}/analytics`);
+  return res.data.analytics;
+};
+
 export const getUserAssignedEvents = async () => {
   const res = await api.get('/users/assigned-events');
   return res.data.assignedEvents;

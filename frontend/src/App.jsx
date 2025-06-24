@@ -16,6 +16,7 @@ import DashboardLayout from './components/DashboardLayout';
 import EventDashboard from './components/Events/EventDashboard';
 import InventoryPageWrapper from './components/Inventory/InventoryPage';
 import ProfilePage from './components/Profile/ProfilePage';
+import AnalyticsOverview from './components/Analytics/AnalyticsOverview';
 
 const theme = createTheme({
   palette: {
@@ -104,6 +105,11 @@ function App() {
             <Route path="/profile/:userId" element={
               <ProtectedRoute>
                 <ProfilePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/analytics" element={
+              <ProtectedRoute>
+                <AnalyticsOverview />
               </ProtectedRoute>
             } />
             <Route path="/" element={<Navigate to="/events" />} />
