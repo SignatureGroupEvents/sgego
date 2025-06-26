@@ -149,7 +149,7 @@ const CreateEvent = () => {
               Event Information
             </Typography>
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12 }}>
+              <Grid item xs={12}>
                 <Field name="eventName">
                   {({ field }) => (
                     <TextField
@@ -163,7 +163,7 @@ const CreateEvent = () => {
                   )}
                 </Field>
               </Grid>
-              <Grid size={{ xs: 12 }}>
+              <Grid item xs={12}>
                 <Field name="eventContractNumber">
                   {({ field }) => (
                     <TextField
@@ -177,7 +177,7 @@ const CreateEvent = () => {
                   )}
                 </Field>
               </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid item xs={12} md={6}>
                 <Field name="eventStart">
                   {({ field }) => (
                     <TextField
@@ -193,13 +193,13 @@ const CreateEvent = () => {
                   )}
                 </Field>
               </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid item xs={12} md={6}>
                 <Field name="eventEnd">
                   {({ field }) => (
                     <TextField
                       {...field}
                       fullWidth
-                      label="Event End (Optional)"
+                      label="End Date (Optional)"
                       type="date"
                       InputLabelProps={{ shrink: true }}
                     />
@@ -224,7 +224,7 @@ const CreateEvent = () => {
                   Event Tags
                 </Typography>
                 <Grid container spacing={2} alignItems="center">
-                  <Grid size={{ xs: 12, sm: 4 }}>
+                  <Grid item xs={12}>
                     <Field name="currentTagName">
                       {({ field }) => (
                         <TextField
@@ -235,7 +235,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid size={{ xs: 12, sm: 3 }}>
+                  <Grid item xs={12} md={3}>
                     <Field name="currentTagColor">
                       {({ field }) => (
                         <TextField
@@ -247,7 +247,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid size={{ xs: 12, sm: 3 }}>
+                  <Grid item xs={12} md={3}>
                     <Field name="currentTagDescription">
                       {({ field }) => (
                         <TextField
@@ -258,7 +258,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid size={{ xs: 12, sm: 2 }}>
+                  <Grid item xs={12} md={2}>
                     <Button
                       variant="outlined"
                       onClick={() => addTag(values, setFieldValue)}
@@ -295,7 +295,7 @@ const CreateEvent = () => {
                   Attendee Types
                 </Typography>
                 <Grid container spacing={2} alignItems="center">
-                  <Grid size={{ xs: 12, sm: 4 }}>
+                  <Grid item xs={12}>
                     <Field name="currentTypeName">
                       {({ field }) => (
                         <TextField
@@ -306,7 +306,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
+                  <Grid item xs={12}>
                     <Field name="currentTypeDescription">
                       {({ field }) => (
                         <TextField
@@ -317,7 +317,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid size={{ xs: 12, sm: 2 }}>
+                  <Grid item xs={12} md={2}>
                     <Field name="currentTypeIsDefault">
                       {({ field }) => (
                         <FormControlLabel
@@ -332,7 +332,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid size={{ xs: 12, sm: 2 }}>
+                  <Grid item xs={12} md={2}>
                     <Button
                       variant="outlined"
                       onClick={() => addAttendeeType(values, setFieldValue)}

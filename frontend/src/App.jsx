@@ -17,6 +17,7 @@ import EventDashboard from './components/Events/EventDashboard';
 import InventoryPageWrapper from './components/Inventory/InventoryPage';
 import ProfilePage from './components/Profile/ProfilePage';
 import AnalyticsOverview from './components/Analytics/AnalyticsOverview';
+import ActivityFeedPage from './components/Analytics/ActivityFeedPage';
 
 const theme = createTheme({
   palette: {
@@ -82,6 +83,11 @@ function App() {
                 <EventDashboard />
               </ProtectedRoute>
             } />
+            <Route path="/events/:eventId/dashboard" element={
+              <ProtectedRoute>
+                <EventDashboard />
+              </ProtectedRoute>
+            } />
             <Route path="/events/:eventId/details" element={
               <ProtectedRoute>
                 <EventDetails />
@@ -110,6 +116,11 @@ function App() {
             <Route path="/analytics" element={
               <ProtectedRoute>
                 <AnalyticsOverview />
+              </ProtectedRoute>
+            } />
+            <Route path="/activity" element={
+              <ProtectedRoute>
+                <ActivityFeedPage />
               </ProtectedRoute>
             } />
             <Route path="/" element={<Navigate to="/events" />} />

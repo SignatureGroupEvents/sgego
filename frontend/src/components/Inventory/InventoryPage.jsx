@@ -227,6 +227,7 @@ const InventoryPage = ({ eventId }) => {
             onChange={handleFileChange}
           />
         </Button>
+        
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         {success && <Snackbar open autoHideDuration={3000} onClose={() => setSuccess('')} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
           <Alert onClose={() => setSuccess('')} severity="success" sx={{ width: '100%' }}>{success}</Alert>

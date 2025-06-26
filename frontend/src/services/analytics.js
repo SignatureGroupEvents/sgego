@@ -44,6 +44,17 @@ export const getGiftTypeAnalytics = async (filters = {}) => {
   }
 };
 
+// Get event-specific gift analytics for Gift Tracker
+export const getEventGiftAnalytics = async (eventId) => {
+  try {
+    const response = await api.get(`/events/${eventId}/analytics`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching event gift analytics:', error);
+    throw error;
+  }
+};
+
 // Export analytics data
 export const exportAnalytics = async (filters = {}, format = 'csv') => {
   try {

@@ -4,7 +4,7 @@ import { getCheckinContext, singleEventCheckin, multiEventCheckin } from '../../
 import HomeIcon from '@mui/icons-material/Home';
 import { Box } from '@mui/material';
 
-const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess }) => {
+const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onInventoryChange }) => {
   const [qrData, setQrData] = useState('');
   const [guest, setGuest] = useState(propGuest || null);
   const [context, setContext] = useState(null);
@@ -79,6 +79,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess }) =>
       setGiftSelections({});
       if (onClose) onClose();
       if (onCheckinSuccess) onCheckinSuccess();
+      if (onInventoryChange) onInventoryChange();
     } catch (err) {
       setError(err.response?.data?.message || 'Check-in failed.');
     } finally {

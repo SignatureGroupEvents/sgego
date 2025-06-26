@@ -1,4 +1,5 @@
 const Event = require('../models/Event');
+const ActivityLog = require('../models/ActivityLog');
 
 exports.getEvents = async (req, res) => {
   try {
@@ -60,6 +61,21 @@ exports.createEvent = async (req, res) => {
     const event = await Event.create(eventData);
     await event.populate(['createdBy']);
 
+    // Log event creation
+    await ActivityLog.create({
+      eventId: event._id,
+      type: 'event_create',
+      performedBy: req.user.id,
+      details: {
+        eventName: event.eventName,
+        eventContractNumber: event.eventContractNumber,
+        eventStart: event.eventStart,
+        eventEnd: event.eventEnd,
+        parentEventId: event.parentEventId || null
+      },
+      timestamp: new Date()
+    });
+
     res.status(201).json({
       success: true,
       event
@@ -110,6 +126,15 @@ exports.updateEvent = async (req, res) => {
       req.body,
       { new: true, runValidators: true }
     ).populate('createdBy', 'username email');
+
+    // Log event update
+    await ActivityLog.create({
+      eventId: updatedEvent._id,
+      type: 'event_update',
+      performedBy: req.user.id,
+      details: req.body,
+      timestamp: new Date()
+    });
 
     res.json({ event: updatedEvent });
   } catch (error) {
@@ -342,3 +367,38 @@ function getGiftCategory(style, type) {
   // Default category
   return 'Other';
 }
+
+// Get inventory for a specific event
+exports.getEventInventory = async (req, res) => {
+  try {
+    const { id: eventId } = req.params;
+    
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    const Inventory = require('../models/Inventory');
+
+    // Get inventory items that are:
+    // 1. Active (isActive: true)
+    // 2. Linked to this specific event (eventId matches)
+    const inventory = await Inventory.find({ 
+      eventId: eventId,
+      isActive: true 
+    }).sort({ type: 1, style: 1, size: 1 });
+
+    res.json({
+      success: true,
+      inventory,
+      event: {
+        id: event._id,
+        name: event.eventName,
+        contractNumber: event.eventContractNumber
+      }
+    });
+
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};

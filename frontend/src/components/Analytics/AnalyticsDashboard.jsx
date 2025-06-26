@@ -197,8 +197,8 @@ const AnalyticsDashboard = () => {
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
-          <Grid container columns={12} spacing={3}>
-            <Grid>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={3}>
               <FormControl fullWidth>
                 <InputLabel>Year</InputLabel>
                 <Select
@@ -212,7 +212,7 @@ const AnalyticsDashboard = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid>
+            <Grid item xs={12} md={3}>
               <FormControl fullWidth>
                 <InputLabel>Event Type</InputLabel>
                 <Select
@@ -228,7 +228,7 @@ const AnalyticsDashboard = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid>
+            <Grid item xs={12} md={3}>
               <FormControl fullWidth>
                 <InputLabel>Gift Types</InputLabel>
                 <Select
@@ -247,7 +247,7 @@ const AnalyticsDashboard = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid>
+            <Grid item xs={12} md={3}>
               <FormControl fullWidth>
                 <InputLabel>Gift Styles</InputLabel>
                 <Select
@@ -271,8 +271,8 @@ const AnalyticsDashboard = () => {
       </Accordion>
 
       {/* Overall Stats */}
-      <Grid container columns={12} spacing={3} sx={{ mb: 3 }}>
-        <Grid>
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={3}>
           <Card sx={{ textAlign: 'center', p: 2 }}>
             <Typography variant="h4" color="primary" fontWeight={700}>
               {formatNumber(analytics.overallStats.totalEvents)}
@@ -282,7 +282,7 @@ const AnalyticsDashboard = () => {
             </Typography>
           </Card>
         </Grid>
-        <Grid>
+        <Grid item xs={12} md={3}>
           <Card sx={{ textAlign: 'center', p: 2 }}>
             <Typography variant="h4" color="success.main" fontWeight={700}>
               {formatNumber(analytics.overallStats.totalGiftsDistributed)}
@@ -292,7 +292,7 @@ const AnalyticsDashboard = () => {
             </Typography>
           </Card>
         </Grid>
-        <Grid>
+        <Grid item xs={12} md={3}>
           <Card sx={{ textAlign: 'center', p: 2 }}>
             <Typography variant="h4" color="info.main" fontWeight={700}>
               {formatNumber(analytics.overallStats.uniqueGiftTypes)}
@@ -302,7 +302,7 @@ const AnalyticsDashboard = () => {
             </Typography>
           </Card>
         </Grid>
-        <Grid>
+        <Grid item xs={12} md={3}>
           <Card sx={{ textAlign: 'center', p: 2 }}>
             <Typography variant="h4" color="warning.main" fontWeight={700}>
               {Math.round(analytics.overallStats.avgGiftsPerGuest * 100) / 100}
@@ -431,15 +431,15 @@ const AnalyticsDashboard = () => {
           <Typography variant="h6" gutterBottom>
             Category Performance Summary
           </Typography>
-          <Grid container columns={12} spacing={3}>
+          <Grid container spacing={3}>
             {Object.entries(analytics.categorySummary).map(([category, data], index) => (
-              <Grid key={category}>
+              <Grid item xs={12} md={6} key={category}>
                 <Card sx={{ p: 2 }}>
                   <Typography variant="h6" gutterBottom>
                     {category}
                   </Typography>
-                  <Grid container columns={12} spacing={2}>
-                    <Grid>
+                  <Grid container spacing={2}>
+                    <Grid item xs={4}>
                       <Typography variant="body2" color="textSecondary">
                         Total Distributed
                       </Typography>
@@ -447,7 +447,7 @@ const AnalyticsDashboard = () => {
                         {formatNumber(data.totalDistributed)}
                       </Typography>
                     </Grid>
-                    <Grid>
+                    <Grid item xs={4}>
                       <Typography variant="body2" color="textSecondary">
                         Unique Items
                       </Typography>
@@ -455,7 +455,7 @@ const AnalyticsDashboard = () => {
                         {data.uniqueItems}
                       </Typography>
                     </Grid>
-                    <Grid>
+                    <Grid item xs={4}>
                       <Typography variant="body2" color="textSecondary">
                         Avg per Item
                       </Typography>
@@ -463,7 +463,7 @@ const AnalyticsDashboard = () => {
                         {Math.round(data.avgDistributionPerItem * 100) / 100}
                       </Typography>
                     </Grid>
-                    <Grid>
+                    <Grid item xs={4}>
                       <Typography variant="body2" color="textSecondary">
                         Top Item
                       </Typography>

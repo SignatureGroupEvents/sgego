@@ -58,7 +58,7 @@ const SidebarEventsList = ({ onSelectEvent }) => {
           const hasSecondaries = secondaries.length > 0;
           return (
             <React.Fragment key={main._id}>
-              <ListItem button onClick={() => onSelectEvent(main)}>
+              <ListItem component="button" onClick={() => onSelectEvent(main)}>
                 <ListItemIcon>
                   <EventIcon color="primary" />
                 </ListItemIcon>
@@ -73,7 +73,7 @@ const SidebarEventsList = ({ onSelectEvent }) => {
                 <Collapse in={expanded[main._id]} timeout="auto" unmountOnExit>
                   <List component="div" disablePadding>
                     {secondaries.map(sec => (
-                      <ListItem button key={sec._id} sx={{ pl: 6 }} onClick={() => onSelectEvent(sec)}>
+                      <ListItem component="button" key={sec._id} sx={{ pl: 6 }} onClick={() => onSelectEvent(sec)}>
                         <ListItemIcon>
                           <SubEventIcon color="secondary" fontSize="small" />
                         </ListItemIcon>
