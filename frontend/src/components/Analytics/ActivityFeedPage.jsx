@@ -1,42 +1,47 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Container, Typography, Button } from '@mui/material';
+import { Box, Container, Typography, Button, Alert } from '@mui/material';
 import ActivityFeedList from './ActivityFeedList';
 import MainNavigation from '../MainNavigation';
-import api from '../../services/api';
+import { getGlobalActivityFeed, createTestActivityLog } from '../../services/api';
 
 export default function ActivityFeedPage() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [filterType, setFilterType] = useState('');
 
-  const loadLogs = () => {
+  const loadLogs = async () => {
     setLoading(true);
-    api.get('/analytics/activity', {
-      params: filterType ? { type: filterType } : {}
-    })
-      .then(res => {
-        console.log('Activity logs loaded:', res.data.logs);
-        setLogs(res.data.logs || []);
-      })
-      .catch(err => {
-        console.error('Error loading logs:', err);
-        setLogs([]);
-      })
-      .finally(() => setLoading(false));
+    setError('');
+    try {
+      const response = await getGlobalActivityFeed({
+        type: filterType || undefined,
+        limit: 100
+      });
+      console.log('Activity logs loaded:', response.data.logs);
+      setLogs(response.data.logs || []);
+    } catch (err) {
+      console.error('Error loading logs:', err);
+      setError('Failed to load activity logs');
+      setLogs([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     loadLogs();
   }, [filterType]);
 
-  const createTestLog = async () => {
+  const handleCreateTestLog = async () => {
     try {
       console.log('Creating test log...');
-      await api.post('/analytics/activity/test', { eventId: null });
+      await createTestActivityLog();
       console.log('Test log created, reloading...');
-      loadLogs();
+      await loadLogs();
     } catch (error) {
       console.error('Error creating test log:', error);
+      setError('Failed to create test log');
     }
   };
 
@@ -51,10 +56,16 @@ export default function ActivityFeedPage() {
           View all activity across all events
         </Typography>
         
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+        
         {/* Test button for debugging */}
         <Button 
           variant="outlined" 
-          onClick={createTestLog} 
+          onClick={handleCreateTestLog} 
           sx={{ mb: 2 }}
         >
           Create Test Log

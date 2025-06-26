@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField } from '@mui/material';
-import { CheckCircle as CheckCircleIcon, Person as PersonIcon, Groups as GroupsIcon, Assessment as AssessmentIcon, Event as EventIcon, Home as HomeIcon, Menu as MenuIcon, Upload as UploadIcon, PersonAdd as PersonAddIcon, Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon, PeopleAlt as PeopleAltIcon, HourglassEmpty as HourglassEmptyIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, CardGiftcard as GiftIcon, Search as SearchIcon, Inventory as InventoryIcon, Save as SaveIcon, Cancel as CancelIcon, Edit as EditIcon, Info as InfoIcon } from '@mui/icons-material';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField, Autocomplete, Tooltip } from '@mui/material';
+import { CheckCircle as CheckCircleIcon, Person as PersonIcon, Groups as GroupsIcon, Assessment as AssessmentIcon, Event as EventIcon, Home as HomeIcon, Menu as MenuIcon, Upload as UploadIcon, PersonAdd as PersonAddIcon, Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon, PeopleAlt as PeopleAltIcon, HourglassEmpty as HourglassEmptyIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, CardGiftcard as GiftIcon, Search as SearchIcon, Inventory as InventoryIcon, Save as SaveIcon, Cancel as CancelIcon, Edit as EditIcon, Info as InfoIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import api, { fetchInventory } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import MainNavigation from '../MainNavigation';
@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { useTheme } from '@mui/material/styles';
 import ActivityFeedList from '../Analytics/ActivityFeedList';
 import axios from 'axios';
+import { getEventActivityFeed } from '../../services/api';
 
 const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
   <Card>
@@ -747,25 +748,31 @@ const AdvancedView = ({ event, guests, secondaryEvents, inventory = [], onInvent
   const { eventId } = event || {};
 
   // Fetch activity feed logs for this event
-  useEffect(() => {
+  const fetchFeed = async () => {
     if (!event?._id) return;
-    const fetchFeed = async () => {
-      setFeedLoading(true);
-      try {
-        const res = await api.get(`/analytics/events/${event._id}/activity`, {
-          params: feedType ? { type: feedType } : {}
-        });
-        console.log('Event feed logs loaded:', res.data.logs);
-        setFeedLogs(res.data.logs || []);
-      } catch (err) {
-        console.error('Error loading event feed:', err);
-        setFeedLogs([]);
-      } finally {
-        setFeedLoading(false);
-      }
-    };
+    setFeedLoading(true);
+    try {
+      const res = await getEventActivityFeed(event._id, feedType ? { type: feedType } : {});
+      console.log('Event feed logs loaded:', res.data.logs);
+      setFeedLogs(res.data.logs || []);
+    } catch (err) {
+      console.error('Error loading event feed:', err);
+      setFeedLogs([]);
+    } finally {
+      setFeedLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchFeed();
   }, [event?._id, feedType]);
+
+  // Refresh activity feed when inventory changes
+  useEffect(() => {
+    if (activeTab === 2) { // Only refresh if on activity feed tab
+      fetchFeed();
+    }
+  }, [inventory]); // Refresh when inventory changes
 
   // Group inventory by type+style for analytics
   const groupedByTypeStyle = inventory.reduce((acc, item) => {
@@ -809,6 +816,8 @@ const AdvancedView = ({ event, guests, secondaryEvents, inventory = [], onInvent
     try {
       await api.put(`/inventory/${inventoryId}`, { notes: newNote });
       if (onInventoryChange) onInventoryChange();
+      // Refresh activity feed after note update
+      fetchFeed();
     } catch (err) {
       alert('Failed to update note.');
     }
@@ -856,7 +865,7 @@ const AdvancedView = ({ event, guests, secondaryEvents, inventory = [], onInvent
                       <Cell key={`cell-${idx}`} fill={pieColors[idx % pieColors.length]} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <RechartsTooltip />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
@@ -865,7 +874,22 @@ const AdvancedView = ({ event, guests, secondaryEvents, inventory = [], onInvent
       )}
       {activeTab === 1 && <FulfillmentInventoryTable inventory={inventory} />}
       {activeTab === 2 && (
-        <ActivityFeedList logs={feedLogs} loading={feedLoading} filterType={feedType} onFilterTypeChange={setFeedType} />
+        <Box>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">Event Activity Feed</Typography>
+            <Tooltip title="Refresh Activity Feed">
+              <IconButton onClick={fetchFeed} disabled={feedLoading}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          <ActivityFeedList 
+            logs={feedLogs} 
+            loading={feedLoading} 
+            filterType={feedType} 
+            onFilterTypeChange={setFeedType} 
+          />
+        </Box>
       )}
     </Box>
   );

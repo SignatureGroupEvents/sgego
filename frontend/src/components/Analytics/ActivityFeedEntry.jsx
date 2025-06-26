@@ -7,12 +7,13 @@ import NoteIcon from '@mui/icons-material/Note';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import EditIcon from '@mui/icons-material/Edit';
 import InfoIcon from '@mui/icons-material/Info';
+import ShareIcon from '@mui/icons-material/Share';
 import { formatDistanceToNow } from 'date-fns';
 
 const typeIconMap = {
   checkin: CheckCircleIcon,
   inventory_update: InventoryIcon,
-  allocation_update: InventoryIcon,
+  allocation_update: ShareIcon,
   note: NoteIcon,
   event_create: EventIcon,
   event_update: EditIcon,

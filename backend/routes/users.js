@@ -1,5 +1,7 @@
 const express = require('express');
+
 const {
+  inviteUser,
   getAllUsers,
   getUserProfile,
   updateUserProfile,
@@ -15,6 +17,9 @@ const { protect, requireRole, requireOperationsOrAdmin } = require('../middlewar
 
 const router = express.Router();
 
+// Invite route
+router.post('/invite', protect, inviteUser);
+
 // Test route
 router.get('/test', (req, res) => {
   res.json({ 
@@ -25,13 +30,13 @@ router.get('/test', (req, res) => {
 
 router.use(protect); // Protect all user routes
 
-// Profile routes (accessible to all authenticated users)
+// Profile routes
 router.get('/profile', getUserProfile);
 router.get('/profile/:userId', getUserProfile);
 router.put('/profile', updateUserProfile);
 router.put('/profile/:userId', updateUserProfile);
 
-// User management routes (admin and operations manager only)
+// User management
 router.get('/', requireOperationsOrAdmin, getAllUsers);
 router.post('/', requireOperationsOrAdmin, createUser);
 router.put('/:userId/role', requireRole('admin'), updateUserRole);
@@ -39,8 +44,8 @@ router.put('/:userId/assign-events', requireOperationsOrAdmin, assignUserToEvent
 router.get('/:userId/assigned-events', getUserAssignedEvents);
 router.get('/available-events', requireOperationsOrAdmin, getAvailableEvents);
 
-// User deactivation/deletion (admin only)
+// Deactivate / delete users
 router.put('/:userId/deactivate', requireRole('admin'), deactivateUser);
 router.delete('/:userId', requireRole('admin'), deleteUser);
 
-module.exports = router; 
+module.exports = router;

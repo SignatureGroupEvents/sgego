@@ -23,6 +23,21 @@ const userSchema = new mongoose.Schema({
     enum: ['operations_manager', 'staff', 'admin'],
     default: 'staff'
   },
+  invitedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  isInvited: {
+    type: Boolean,
+    default: false
+  },
+  isActive: {
+    type: Boolean,
+    default: false // User must activate via invite
+  },
+  
+    
   lastLogin: {
     type: Date,
     default: null

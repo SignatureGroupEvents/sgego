@@ -2,6 +2,58 @@ const User = require('../models/User');
 const UserAssignment = require('../models/UserAssignment');
 const Event = require('../models/Event');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const InvitationToken = require('../models/InvitationToken');
+
+
+
+
+
+exports.inviteUser = async (req, res) => {
+  try {
+    const { email, role } = req.body;
+
+    // Only admin or ops can invite
+    if (!['admin', 'operations_manager'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Not authorized to invite users' });
+    }
+
+    // Check if user already exists
+    let user = await User.findOne({ email });
+
+    if (user) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    // Create new inactive user
+    user = await User.create({
+      email,
+      role,
+      invitedBy: req.user.id,
+      isInvited: true,
+      isActive: false
+    });
+
+    // Create token
+    const token = crypto.randomBytes(32).toString('hex');
+
+    await InvitationToken.create({
+      userId: user._id,
+      token,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+    });
+
+    const inviteLink = `${process.env.CLIENT_URL}/invite/${token}`;
+
+    res.status(201).json({
+      message: 'User invited successfully',
+      inviteLink
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 // Get all users (admin and operations manager only)
 exports.getAllUsers = async (req, res) => {

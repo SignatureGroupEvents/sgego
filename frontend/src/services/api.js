@@ -131,3 +131,26 @@ export const deactivateUser = (userId) => {
 export const deleteUser = (userId) => {
   return api.delete(`/users/${userId}`);
 };
+
+// Activity Feed API functions
+export const getGlobalActivityFeed = (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.type) params.append('type', filters.type);
+  if (filters.user) params.append('user', filters.user);
+  if (filters.limit) params.append('limit', filters.limit);
+  
+  return api.get(`/analytics/activity?${params.toString()}`);
+};
+
+export const getEventActivityFeed = (eventId, filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.type) params.append('type', filters.type);
+  if (filters.user) params.append('user', filters.user);
+  if (filters.limit) params.append('limit', filters.limit);
+  
+  return api.get(`/analytics/events/${eventId}/activity?${params.toString()}`);
+};
+
+export const createTestActivityLog = (eventId = null) => {
+  return api.post('/analytics/activity/test', { eventId });
+};
