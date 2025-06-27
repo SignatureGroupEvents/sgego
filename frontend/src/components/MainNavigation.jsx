@@ -43,7 +43,7 @@ const MainNavigation = () => {
       path: '/activity'
     },
     {
-      label: 'Profile',
+      label: 'Account',
       icon: <ProfileIcon />,
       path: '/profile'
     }

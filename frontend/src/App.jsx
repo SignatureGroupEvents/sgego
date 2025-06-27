@@ -18,6 +18,8 @@ import InventoryPageWrapper from './components/Inventory/InventoryPage';
 import ProfilePage from './components/Profile/ProfilePage';
 import AnalyticsOverview from './components/Analytics/AnalyticsOverview';
 import ActivityFeedPage from './components/Analytics/ActivityFeedPage';
+import AcceptInvitePage from './pages/AcceptInvitePage';
+import AccountEditPage from './pages/AccountEditPage';
 
 const theme = createTheme({
   palette: {
@@ -123,6 +125,8 @@ function App() {
                 <ActivityFeedPage />
               </ProtectedRoute>
             } />
+            <Route path="/invite/:token" element={<AcceptInvitePage />} />
+            <Route path="/account-edit/:userId" element={<AccountEditPage />} />
             <Route path="/" element={<Navigate to="/events" />} />
           </Routes>
         </Router>

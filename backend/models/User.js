@@ -10,13 +10,15 @@ const userSchema = new mongoose.Schema({
   },
   username: {
     type: String,
-    required: true,
-    unique: true
+    unique: true,
+    sparse: true // ✅ allows multiple nulls
   },
   password: {
     type: String,
-    required: true,
-    minlength: 6
+    required: function () {
+      return !this.isInvited;
+    },
+    select: false
   },
   role: {
     type: String,
@@ -34,21 +36,16 @@ const userSchema = new mongoose.Schema({
   },
   isActive: {
     type: Boolean,
-    default: false // User must activate via invite
+    default: false // ✅ keep this only
   },
-  
-    
   lastLogin: {
     type: Date,
     default: null
-  },
-  isActive: {
-    type: Boolean,
-    default: true
   }
 }, {
   timestamps: true
 });
+
 
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();

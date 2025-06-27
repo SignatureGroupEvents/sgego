@@ -132,6 +132,11 @@ export const deleteUser = (userId) => {
   return api.delete(`/users/${userId}`);
 };
 
+// Invite User API function
+export const inviteUser = (inviteData) => {
+  return api.post('/users/invite', inviteData);
+};
+
 // Activity Feed API functions
 export const getGlobalActivityFeed = (filters = {}) => {
   const params = new URLSearchParams();

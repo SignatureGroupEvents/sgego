@@ -1,7 +1,9 @@
 const express = require('express');
+const router = express.Router();
 
 const {
   inviteUser,
+  resendInvite,
   getAllUsers,
   getUserProfile,
   updateUserProfile,
@@ -13,12 +15,12 @@ const {
   deactivateUser,
   deleteUser
 } = require('../controllers/userController');
+
 const { protect, requireRole, requireOperationsOrAdmin } = require('../middleware/auth');
 
-const router = express.Router();
-
-// Invite route
+// Invite routes
 router.post('/invite', protect, inviteUser);
+router.post('/resend-invite/:userId', protect, resendInvite);
 
 // Test route
 router.get('/test', (req, res) => {
@@ -28,7 +30,8 @@ router.get('/test', (req, res) => {
   });
 });
 
-router.use(protect); // Protect all user routes
+// Protect all remaining user routes
+router.use(protect);
 
 // Profile routes
 router.get('/profile', getUserProfile);
@@ -49,3 +52,4 @@ router.put('/:userId/deactivate', requireRole('admin'), deactivateUser);
 router.delete('/:userId', requireRole('admin'), deleteUser);
 
 module.exports = router;
+

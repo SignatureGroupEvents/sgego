@@ -1,5 +1,7 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const InvitationToken = require('../models/InvitationToken');
+const bcrypt = require('bcryptjs');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -7,11 +9,62 @@ const generateToken = (id) => {
   });
 };
 
+
+
+exports.acceptInvite = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ message: 'Password is required' });
+    }
+
+    // Find the invite token and populate user
+    const invite = await InvitationToken.findOne({ token }).populate('userId');
+
+    if (!invite || invite.expiresAt < Date.now()) {
+      return res.status(400).json({ message: 'Invite token is invalid or expired' });
+    }
+
+    const user = invite.userId;
+
+    if (!user || !user.isInvited || user.isActive) {
+      return res.status(400).json({ message: 'Invalid invite or user already registered' });
+    }
+
+    // Finalize the account
+    user.password = await bcrypt.hash(password, 10);
+    user.isInvited = false;
+    user.isActive = true;
+
+    await user.save();
+    await invite.deleteOne();
+
+    // Generate login token
+    const loginToken = generateToken(user._id);
+
+    res.json({
+      message: 'Account created successfully',
+      token: loginToken,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Accept invite error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
 exports.register = async (req, res) => {
   try {
     const { email, username, password, role } = req.body;
 
-    // Check if user exists
     const existingUser = await User.findOne({
       $or: [{ email }, { username }]
     });
@@ -22,7 +75,6 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Create user
     const user = await User.create({
       email,
       username,
@@ -51,7 +103,6 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user and include password for comparison
     const user = await User.findOne({ email }).select('+password');
 
     if (!user || !(await user.comparePassword(password))) {
@@ -62,7 +113,6 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Account is deactivated' });
     }
 
-    // Update last login
     user.lastLogin = new Date();
     await user.save();
 
@@ -100,18 +150,14 @@ exports.getProfile = async (req, res) => {
   }
 };
 
-// Delete Methods
-
 exports.deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // Only admins can delete users
     if (req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Only administrators can delete users' });
     }
 
-    // Don't allow deleting yourself
     if (userId === req.user.id) {
       return res.status(400).json({ message: 'Cannot delete your own account' });
     }
@@ -121,25 +167,22 @@ exports.deleteUser = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check if user has created events or performed check-ins
     const Event = require('../models/Event');
     const Checkin = require('../models/Checkin');
-    
+
     const eventCount = await Event.countDocuments({ createdBy: userId });
     const checkinCount = await Checkin.countDocuments({ checkedInBy: userId });
 
     if (eventCount > 0 || checkinCount > 0) {
-      // Soft delete - deactivate instead
       user.isActive = false;
       await user.save();
-      
+
       return res.json({
         success: true,
         message: `User ${user.username} has been deactivated (has ${eventCount} events and ${checkinCount} check-ins)`
       });
     }
 
-    // Safe to delete
     await User.findByIdAndDelete(userId);
 
     res.json({
