@@ -1,5 +1,6 @@
 const Inventory = require('../models/Inventory');
 const Event = require('../models/Event');
+const ActivityLog = require('../models/ActivityLog');
 const csv = require('csv-parser');
 const fs = require('fs');
 const { Parser } = require('json2csv');
@@ -126,6 +127,11 @@ exports.updateInventoryCount = async (req, res) => {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
 
+    // Store previous values for logging
+    const previousCount = inventoryItem.currentInventory;
+    const previousWarehouse = inventoryItem.qtyWarehouse;
+    const previousOnSite = inventoryItem.qtyOnSite;
+
     // Update other fields if provided
     if (typeof qtyWarehouse !== 'undefined') inventoryItem.qtyWarehouse = Number(qtyWarehouse);
     if (typeof qtyOnSite !== 'undefined') inventoryItem.qtyOnSite = Number(qtyOnSite);
@@ -139,6 +145,29 @@ exports.updateInventoryCount = async (req, res) => {
 
     // Save the updated fields
     await inventoryItem.save();
+
+    // Log the inventory update
+    await ActivityLog.create({
+      eventId: inventoryItem.eventId,
+      type: 'inventory_update',
+      performedBy: req.user.id,
+      details: {
+        inventoryId: inventoryItem._id,
+        type: inventoryItem.type,
+        style: inventoryItem.style,
+        size: inventoryItem.size,
+        gender: inventoryItem.gender,
+        previousCount: previousCount,
+        newCount: inventoryItem.currentInventory,
+        previousWarehouse: previousWarehouse,
+        newWarehouse: inventoryItem.qtyWarehouse,
+        previousOnSite: previousOnSite,
+        newOnSite: inventoryItem.qtyOnSite,
+        action: action || 'manual_adjustment',
+        reason: reason
+      },
+      timestamp: new Date()
+    });
 
     res.json({
       success: true,
@@ -298,8 +327,32 @@ exports.updateInventoryAllocation = async (req, res) => {
     if (!inventoryItem) {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
+    
+    // Store previous allocation for logging
+    const previousAllocatedEvents = inventoryItem.allocatedEvents || [];
+    
     inventoryItem.allocatedEvents = allocatedEvents;
     await inventoryItem.save();
+    
+    // Log the allocation update
+    await ActivityLog.create({
+      eventId: inventoryItem.eventId,
+      type: 'allocation_update',
+      performedBy: req.user.id,
+      details: {
+        inventoryId: inventoryItem._id,
+        type: inventoryItem.type,
+        style: inventoryItem.style,
+        size: inventoryItem.size,
+        gender: inventoryItem.gender,
+        previousAllocatedEvents: previousAllocatedEvents,
+        newAllocatedEvents: allocatedEvents,
+        previousCount: previousAllocatedEvents.length,
+        newCount: allocatedEvents.length
+      },
+      timestamp: new Date()
+    });
+    
     res.json({ success: true, inventoryItem });
   } catch (error) {
     res.status(400).json({ message: error.message });

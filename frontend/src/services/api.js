@@ -42,7 +42,7 @@ export const uploadInventoryCSV = (eventId, file) => {
 };
 
 export const fetchInventory = (eventId) => {
-  return api.get(`/inventory/${eventId}`);
+  return api.get(`/events/${eventId}/inventory`);
 };
 
 export const updateInventoryItem = (inventoryId, data) => {
@@ -130,4 +130,32 @@ export const deactivateUser = (userId) => {
 
 export const deleteUser = (userId) => {
   return api.delete(`/users/${userId}`);
+};
+
+// Invite User API function
+export const inviteUser = (inviteData) => {
+  return api.post('/users/invite', inviteData);
+};
+
+// Activity Feed API functions
+export const getGlobalActivityFeed = (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.type) params.append('type', filters.type);
+  if (filters.user) params.append('user', filters.user);
+  if (filters.limit) params.append('limit', filters.limit);
+  
+  return api.get(`/analytics/activity?${params.toString()}`);
+};
+
+export const getEventActivityFeed = (eventId, filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.type) params.append('type', filters.type);
+  if (filters.user) params.append('user', filters.user);
+  if (filters.limit) params.append('limit', filters.limit);
+  
+  return api.get(`/analytics/events/${eventId}/activity?${params.toString()}`);
+};
+
+export const createTestActivityLog = (eventId = null) => {
+  return api.post('/analytics/activity/test', { eventId });
 };

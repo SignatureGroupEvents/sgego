@@ -4,10 +4,10 @@ const {
   login, 
   getProfile,
   deleteUser,
-  deactivateUser 
+  deactivateUser, 
+  acceptInvite
 } = require('../controllers/authController');
 const { protect, requireRole } = require('../middleware/auth');
-
 const router = express.Router();
 
 // Test route
@@ -22,6 +22,8 @@ router.get('/test', (req, res) => {
 router.post('/register', register);
 router.post('/login', login);
 router.get('/profile', protect, getProfile);
+router.post('/accept-invite/:token', acceptInvite);
+
 
 // User management routes (admin only)
 router.delete('/users/:userId', protect, requireRole('admin'), deleteUser);

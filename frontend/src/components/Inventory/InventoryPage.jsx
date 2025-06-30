@@ -3,7 +3,7 @@ import { Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell
 import { Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon, Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon } from '@mui/icons-material';
 import { uploadInventoryCSV, fetchInventory, updateInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
-import TopNavBar from '../TopNavBar';
+import MainNavigation from '../MainNavigation';
 import { getEvent, getEvents } from '../../services/events';
 import EventIcon from '@mui/icons-material/Event';
 import { useAuth } from '../../contexts/AuthContext';
@@ -196,196 +196,185 @@ const InventoryPage = ({ eventId }) => {
   };
 
   return (
-    <Box sx={{ p: 4 }}>
-      <TopNavBar
-        breadcrumbs={[
-          { label: 'Home', to: '/events', icon: <HomeIcon /> },
-          ...(parentEvent
-            ? [
-                { label: parentEvent.eventName, to: `/events/${parentEvent._id}` },
-                { label: event?.eventName, to: `/events/${event?._id}` },
-                { label: 'Inventory' }
-              ]
-            : [
-                { label: event?.eventName, to: `/events/${event?._id}` },
-                { label: 'Inventory' }
-              ]),
-        ]}
-      />
-      <Typography variant="h4" gutterBottom>Inventory</Typography>
-      <Box display="flex" gap={2} mb={2}>
-        <Button variant="contained" color="primary" onClick={handleExportCSV} startIcon={<FileDownloadIcon />}>
-          Export CSV
+    <Box sx={{ display: 'flex', height: '100vh' }}>
+      <MainNavigation />
+      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
+        <Typography variant="h4" gutterBottom>Inventory</Typography>
+        <Box display="flex" gap={2} mb={2}>
+          <Button variant="contained" color="primary" onClick={handleExportCSV} startIcon={<FileDownloadIcon />}>
+            Export CSV
+          </Button>
+          <Button variant="contained" color="secondary" onClick={handleExportExcel} startIcon={<FileDownloadIcon />}>
+            Export Excel
+          </Button>
+        </Box>
+        <Typography variant="body2" color="textSecondary" mb={2}>
+          Upload a CSV file to import inventory for this event. The table below shows all inventory items for this event.
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<UploadIcon />}
+          component="label"
+          disabled={uploading}
+          sx={{ mb: 3 }}
+        >
+          {uploading ? 'Uploading...' : 'Upload Inventory CSV'}
+          <input
+            type="file"
+            accept=".csv"
+            hidden
+            ref={fileInputRef}
+            onChange={handleFileChange}
+          />
         </Button>
-        <Button variant="contained" color="secondary" onClick={handleExportExcel} startIcon={<FileDownloadIcon />}>
-          Export Excel
-        </Button>
-      </Box>
-      <Typography variant="body2" color="textSecondary" mb={2}>
-        Upload a CSV file to import inventory for this event. The table below shows all inventory items for this event.
-      </Typography>
-      <Button
-        variant="contained"
-        startIcon={<UploadIcon />}
-        component="label"
-        disabled={uploading}
-        sx={{ mb: 3 }}
-      >
-        {uploading ? 'Uploading...' : 'Upload Inventory CSV'}
-        <input
-          type="file"
-          accept=".csv"
-          hidden
-          ref={fileInputRef}
-          onChange={handleFileChange}
-        />
-      </Button>
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {success && <Snackbar open autoHideDuration={3000} onClose={() => setSuccess('')} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        <Alert onClose={() => setSuccess('')} severity="success" sx={{ width: '100%' }}>{success}</Alert>
-      </Snackbar>}
-      {loading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px"><CircularProgress /></Box>
-      ) : (
-        <Card>
-          <CardContent>
-            <TableContainer component={Paper}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Type</TableCell>
-                    <TableCell>Style</TableCell>
-                    <TableCell>Size</TableCell>
-                    <TableCell>Gender</TableCell>
-                    <TableCell>Qty Warehouse</TableCell>
-                    <TableCell>Qty On Site</TableCell>
-                    <TableCell>Current Inventory</TableCell>
-                    <TableCell>Post Event Count</TableCell>
-                    <TableCell>Allocated Events</TableCell>
-                    <TableCell align="center">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {inventory.length === 0 ? (
+        
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {success && <Snackbar open autoHideDuration={3000} onClose={() => setSuccess('')} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+          <Alert onClose={() => setSuccess('')} severity="success" sx={{ width: '100%' }}>{success}</Alert>
+        </Snackbar>}
+        {loading ? (
+          <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px"><CircularProgress /></Box>
+        ) : (
+          <Card>
+            <CardContent>
+              <TableContainer component={Paper}>
+                <Table size="small">
+                  <TableHead>
                     <TableRow>
-                      <TableCell colSpan={10} align="center">No inventory found.</TableCell>
+                      <TableCell>Type</TableCell>
+                      <TableCell>Style</TableCell>
+                      <TableCell>Size</TableCell>
+                      <TableCell>Gender</TableCell>
+                      <TableCell>Qty Warehouse</TableCell>
+                      <TableCell>Qty On Site</TableCell>
+                      <TableCell>Current Inventory</TableCell>
+                      <TableCell>Post Event Count</TableCell>
+                      <TableCell>Allocated Events</TableCell>
+                      <TableCell align="center">Actions</TableCell>
                     </TableRow>
-                  ) : (
-                    inventory.map(item => (
-                      <TableRow key={item._id}>
-                        <TableCell>{item.type}</TableCell>
-                        <TableCell>{item.style}</TableCell>
-                        <TableCell>{item.size}</TableCell>
-                        <TableCell>{item.gender}</TableCell>
-                        <TableCell>
-                          {editRowId === item._id ? (
-                            <input
-                              type="number"
-                              min="0"
-                              required
-                              value={editValues.qtyWarehouse}
-                              onChange={e => handleEditChange('qtyWarehouse', e.target.value)}
-                              style={{ width: 70 }}
-                            />
-                          ) : (
-                            item.qtyWarehouse
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {editRowId === item._id ? (
-                            <input
-                              type="number"
-                              min="0"
-                              required
-                              value={editValues.qtyOnSite}
-                              onChange={e => handleEditChange('qtyOnSite', e.target.value)}
-                              style={{ width: 70 }}
-                            />
-                          ) : (
-                            item.qtyOnSite
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {editRowId === item._id ? (
-                            <input
-                              type="number"
-                              min="0"
-                              required
-                              value={editValues.currentInventory}
-                              onChange={e => handleEditChange('currentInventory', e.target.value)}
-                              style={{ width: 70 }}
-                            />
-                          ) : (
-                            item.currentInventory
-                          )}
-                        </TableCell>
-                        <TableCell>{item.postEventCount ?? '-'}</TableCell>
-                        <TableCell>
-                          {eventsLoading ? (
-                            <CircularProgress size={20} />
-                          ) : (isOperationsManager || isAdmin) ? (
-                            <Autocomplete
-                              multiple
-                              size="small"
-                              options={filteredEvents}
-                              getOptionLabel={option => option.eventName}
-                              value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
-                              onChange={(_, newValue) => handleAllocationChange(item, newValue)}
-                              renderInput={params => <TextField {...params} variant="outlined" label="Allocated Events" />}
-                              renderTags={(value, getTagProps) =>
-                                value.map((option, index) => (
-                                  <Chip label={option.eventName} {...getTagProps({ index })} key={option._id} />
-                                ))
-                              }
-                              disableCloseOnSelect
-                              sx={{ minWidth: 200 }}
-                            />
-                          ) : (
-                            <Box display="flex" flexWrap="wrap" gap={0.5}>
-                              {filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id)).map(ev => (
-                                <Chip key={ev._id} label={ev.eventName} size="small" />
-                              ))}
-                            </Box>
-                          )}
-                        </TableCell>
-                        <TableCell align="center">
-                          {editRowId === item._id ? (
-                            <>
-                              <IconButton color="success" onClick={() => handleEditSave(item)} size="small"><SaveIcon /></IconButton>
-                              <IconButton color="inherit" onClick={handleEditCancel} size="small"><CancelIcon /></IconButton>
-                            </>
-                          ) : (
-                            <>
-                              <IconButton color="primary" onClick={() => handleEditClick(item)} size="small"><EditIcon /></IconButton>
-                              <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small"><DeleteIcon /></IconButton>
-                            </>
-                          )}
-                        </TableCell>
+                  </TableHead>
+                  <TableBody>
+                    {inventory.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={10} align="center">No inventory found.</TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            {deletingId && (
-              <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Card sx={{ minWidth: 300, p: 2 }}>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>Delete Inventory Item?</Typography>
-                    <Typography variant="body2" color="textSecondary" gutterBottom>
-                      Are you sure you want to delete this inventory item? This action cannot be undone.
-                    </Typography>
-                    <Box display="flex" gap={2} justifyContent="flex-end" mt={2}>
-                      <Button onClick={handleDeleteCancel} variant="outlined">Cancel</Button>
-                      <Button onClick={handleDeleteConfirm} color="error" variant="contained">Delete</Button>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Box>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                    ) : (
+                      inventory.map(item => (
+                        <TableRow key={item._id}>
+                          <TableCell>{item.type}</TableCell>
+                          <TableCell>{item.style}</TableCell>
+                          <TableCell>{item.size}</TableCell>
+                          <TableCell>{item.gender}</TableCell>
+                          <TableCell>
+                            {editRowId === item._id ? (
+                              <input
+                                type="number"
+                                min="0"
+                                required
+                                value={editValues.qtyWarehouse}
+                                onChange={e => handleEditChange('qtyWarehouse', e.target.value)}
+                                style={{ width: 70 }}
+                              />
+                            ) : (
+                              item.qtyWarehouse
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editRowId === item._id ? (
+                              <input
+                                type="number"
+                                min="0"
+                                required
+                                value={editValues.qtyOnSite}
+                                onChange={e => handleEditChange('qtyOnSite', e.target.value)}
+                                style={{ width: 70 }}
+                              />
+                            ) : (
+                              item.qtyOnSite
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editRowId === item._id ? (
+                              <input
+                                type="number"
+                                min="0"
+                                required
+                                value={editValues.currentInventory}
+                                onChange={e => handleEditChange('currentInventory', e.target.value)}
+                                style={{ width: 70 }}
+                              />
+                            ) : (
+                              item.currentInventory
+                            )}
+                          </TableCell>
+                          <TableCell>{item.postEventCount ?? '-'}</TableCell>
+                          <TableCell>
+                            {eventsLoading ? (
+                              <CircularProgress size={20} />
+                            ) : (isOperationsManager || isAdmin) ? (
+                              <Autocomplete
+                                multiple
+                                size="small"
+                                options={filteredEvents}
+                                getOptionLabel={option => option.eventName}
+                                value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
+                                onChange={(_, newValue) => handleAllocationChange(item, newValue)}
+                                renderInput={params => <TextField {...params} variant="outlined" label="Allocated Events" />}
+                                renderTags={(value, getTagProps) =>
+                                  value.map((option, index) => (
+                                    <Chip label={option.eventName} {...getTagProps({ index })} key={option._id} />
+                                  ))
+                                }
+                                disableCloseOnSelect
+                                sx={{ minWidth: 200 }}
+                              />
+                            ) : (
+                              <Box display="flex" flexWrap="wrap" gap={0.5}>
+                                {filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id)).map(ev => (
+                                  <Chip key={ev._id} label={ev.eventName} size="small" />
+                                ))}
+                              </Box>
+                            )}
+                          </TableCell>
+                          <TableCell align="center">
+                            {editRowId === item._id ? (
+                              <>
+                                <IconButton color="success" onClick={() => handleEditSave(item)} size="small"><SaveIcon /></IconButton>
+                                <IconButton color="inherit" onClick={handleEditCancel} size="small"><CancelIcon /></IconButton>
+                              </>
+                            ) : (
+                              <>
+                                <IconButton color="primary" onClick={() => handleEditClick(item)} size="small"><EditIcon /></IconButton>
+                                <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small"><DeleteIcon /></IconButton>
+                              </>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              {deletingId && (
+                <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Card sx={{ minWidth: 300, p: 2 }}>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>Delete Inventory Item?</Typography>
+                      <Typography variant="body2" color="textSecondary" gutterBottom>
+                        Are you sure you want to delete this inventory item? This action cannot be undone.
+                      </Typography>
+                      <Box display="flex" gap={2} justifyContent="flex-end" mt={2}>
+                        <Button onClick={handleDeleteCancel} variant="outlined">Cancel</Button>
+                        <Button onClick={handleDeleteConfirm} color="error" variant="contained">Delete</Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </Box>
     </Box>
   );
 };

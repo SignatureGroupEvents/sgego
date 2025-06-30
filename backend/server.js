@@ -5,13 +5,46 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 require('dotenv').config();
 
+// Debug environment variables
+console.log('🔧 Environment Variables:');
+console.log('  NODE_ENV:', process.env.NODE_ENV);
+console.log('  PORT:', process.env.PORT);
+console.log('  MONGODB_URI:', process.env.MONGODB_URI ? 'SET' : 'NOT SET');
+console.log('  JWT_SECRET:', process.env.JWT_SECRET ? 'SET' : 'NOT SET');
+
 const app = express();
+
+// Define allowed origins for CORS
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176'
+];
+
+// Debug CORS origins
+console.log('🔧 Allowed CORS Origins:', allowedOrigins);
 
 // Security middleware
 app.use(helmet());
+
+// CORS configuration
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('🚫 CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 // Logging
@@ -48,6 +81,7 @@ try {
   const checkinRoutes = require('./routes/checkins');
   const inventoryRoutes = require('./routes/inventory');
   const userRoutes = require('./routes/users');
+  const analyticsRoutes = require('./routes/analytics');
 
   app.use('/api/auth', authRoutes);
   app.use('/api/events', eventRoutes);
@@ -55,6 +89,7 @@ try {
   app.use('/api/checkins', checkinRoutes);
   app.use('/api/inventory', inventoryRoutes);
   app.use('/api/users', userRoutes);
+  app.use('/api/analytics', analyticsRoutes);
   
   console.log('✅ All routes loaded successfully');
 } catch (error) {
@@ -72,7 +107,6 @@ app.use((err, req, res, next) => {
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
-
 .then(() => {
   console.log('✅ MongoDB connected successfully');
   console.log('📍 Database:', mongoose.connection.name);
@@ -111,11 +145,30 @@ mongoose.connect(process.env.MONGODB_URI)
 })
 .catch(err => {
   console.error('❌ MongoDB connection error:', err.message);
-  process.exit(1);
+  console.log('⚠️  Starting server without MongoDB for testing...');
+  
+  // Load models without database connection for testing
+  try {
+    require('./models/User');
+    require('./models/Event');
+    require('./models/Guest');
+    require('./models/Inventory');
+    require('./models/Checkin');
+    require('./models/UserAssignment');
+    console.log('✅ Models loaded (database connection disabled)');
+  } catch (error) {
+    console.error('❌ Error loading models:', error.message);
+  }
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 API Base: http://localhost:${PORT}`);
-});
+
+// Only start the server if this file is run directly (not imported for testing)
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📍 API Base: http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

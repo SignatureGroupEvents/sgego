@@ -2,6 +2,7 @@ const Checkin = require('../models/Checkin');
 const Guest = require('../models/Guest');
 const Event = require('../models/Event');
 const Inventory = require('../models/Inventory');
+const ActivityLog = require('../models/ActivityLog');
 
 exports.getCheckinContext = async (req, res) => {
   try {
@@ -187,6 +188,22 @@ exports.multiEventCheckin = async (req, res) => {
       await Inventory.recalculateCurrentInventory(inventoryId);
     }
 
+    // After guest and inventory are updated, log activity for each event check-in
+    for (const record of checkinRecords) {
+      await ActivityLog.create({
+        eventId: record.eventId,
+        type: 'checkin',
+        performedBy: req.user.id,
+        details: {
+          guestId: guest._id,
+          guestName: `${guest.firstName} ${guest.lastName}`,
+          giftsDistributed: record.giftsDistributed,
+          notes: notes || '',
+        },
+        timestamp: new Date()
+      });
+    }
+
     res.json({
       success: true,
       message: `${guest.firstName} ${guest.lastName} checked into ${results.filter(r => r.success).length} events successfully!`,
@@ -284,6 +301,20 @@ exports.singleEventCheckin = async (req, res) => {
       { path: 'eventId', select: 'eventName' },
       { path: 'giftsDistributed.inventoryId' }
     ]);
+
+    // After guest and inventory are updated, log activity for each event check-in
+    await ActivityLog.create({
+      eventId: event._id,
+      type: 'checkin',
+      performedBy: req.user.id,
+      details: {
+        guestId: guest._id,
+        guestName: `${guest.firstName} ${guest.lastName}`,
+        giftsDistributed: giftsDistributed,
+        notes: notes || '',
+      },
+      timestamp: new Date()
+    });
 
     res.json({
       success: true,
