@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema({
   },
   isActive: {
     type: Boolean,
-    default: false // ✅ keep this only
+    default: true // ✅ Changed from false to true
   },
   lastLogin: {
     type: Date,
