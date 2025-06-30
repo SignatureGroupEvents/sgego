@@ -11,7 +11,13 @@ const resendInvite = async (req, res) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(userId);
-    if (!user || !user.isInvited || user.isActive) {
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Check if non-admin is trying to resend for a user who is no longer eligible
+    if ((!user.isInvited || user.isActive) && req.user.role !== 'admin') {
       return res.status(400).json({ message: 'User is not eligible for resending invite.' });
     }
 
@@ -27,8 +33,8 @@ const resendInvite = async (req, res) => {
 
     await sendEmail({
       to: user.email,
-      subject: 'You’ve Been Re-invited to Join SGEGO 🏱',
-      html: `<p>Hello,</p><p>You’ve been re-invited to join <strong>SGEGO</strong> as a <strong>${user.role}</strong>.</p><p>Click the link below to complete your registration:</p><p><a href="${inviteLink}">${inviteLink}</a></p><p>This invitation will expire in 7 days.</p>`
+      subject: "You've Been Re-invited to Join SGEGO 🏱",
+      html: `<p>Hello,</p><p>You've been re-invited to join <strong>SGEGO</strong> as a <strong>${user.role}</strong>.</p><p>Click the link below to complete your registration:</p><p><a href="${inviteLink}">${inviteLink}</a></p><p>This invitation will expire in 7 days.</p>`
     });
 
     res.json({ message: 'Invite resent successfully' });
@@ -68,8 +74,8 @@ const inviteUser = async (req, res) => {
 
     await sendEmail({
       to: email,
-      subject: 'You’ve Been Invited to Join SGEGO 🏱',
-      html: `<p>Hello,</p><p>You’ve been invited to join <strong>SGEGO</strong> as a <strong>${role}</strong>.</p><p>Click the link below to complete your registration:</p><p><a href="${inviteLink}">${inviteLink}</a></p><p>This invitation will expire in 7 days.</p>`
+      subject: "You've Been Invited to Join SGEGO 🏱",
+      html: `<p>Hello,</p><p>You've been invited to join <strong>SGEGO</strong> as a <strong>${role}</strong>.</p><p>Click the link below to complete your registration:</p><p><a href="${inviteLink}">${inviteLink}</a></p><p>This invitation will expire in 7 days.</p>`
     });
 
     res.status(201).json({ message: 'User invited successfully', inviteLink });
@@ -92,9 +98,9 @@ const getUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.params.userId || req.user.id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
-    if (req.user.role === 'staff' && req.user.id !== user._id.toString()) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+    
+    // Staff can view any user profile, but cannot modify others
+    // The updateUserProfile function will handle modification restrictions
 
     const assignments = await UserAssignment.find({ userId: user._id, isActive: true })
       .populate('eventId', 'eventName eventContractNumber');
@@ -231,9 +237,10 @@ const getUserAssignedEvents = async (req, res) => {
   try {
     const { userId } = req.params;
     const targetUserId = userId || req.user.id;
-    if (req.user.role === 'staff' && req.user.id !== targetUserId) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+    
+    // Staff can view any user's assigned events, but cannot modify assignments
+    // The assignUserToEvents function will handle modification restrictions
+    
     const assignments = await UserAssignment.find({ userId: targetUserId, isActive: true })
       .populate('eventId', 'eventName eventContractNumber eventStart');
     res.json({ assignedEvents: assignments.map(a => a.eventId) });
@@ -292,6 +299,106 @@ const deleteUser = async (req, res) => {
   }
 };
 
+const resetUserPassword = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { newPassword } = req.body;
+    
+    // Only admins can reset passwords
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only administrators can reset user passwords' });
+    }
+    
+    // Cannot reset your own password through this endpoint
+    if (userId === req.user.id) {
+      return res.status(400).json({ message: 'Cannot reset your own password through this endpoint' });
+    }
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+    
+    console.log('🔐 Admin password reset for user:', user.email);
+    console.log('📝 New password length:', newPassword.length);
+    
+    // Assign raw password - pre-save hook will hash it
+    user.password = newPassword;
+    await user.save();
+    
+    console.log('✅ Password reset successful for user:', user.email);
+    
+    res.json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+  } catch (error) {
+    console.error('💥 Password reset error:', error.message);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const sendPasswordResetLink = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Only admins can send reset links
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only administrators can send password reset links' });
+    }
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    console.log('🔐 Admin sending password reset link for user:', user.email);
+    
+    // Generate a secure reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    
+    // Store the reset token (you might want to create a separate model for this)
+    // For now, we'll store it in the user document
+    user.resetToken = resetToken;
+    user.resetTokenExpires = expiresAt;
+    await user.save();
+    
+    const resetLink = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+    
+    // Send email with reset link
+    await sendEmail({
+      to: user.email,
+      subject: 'Password Reset Request - SGEGO',
+      html: `
+        <p>Hello,</p>
+        <p>An administrator has requested a password reset for your SGEGO account.</p>
+        <p>Click the link below to set a new password:</p>
+        <p><a href="${resetLink}">${resetLink}</a></p>
+        <p>This link will expire in 24 hours.</p>
+        <p>If you did not request this reset, please contact your administrator.</p>
+        <p>Best regards,<br>SGEGO Team</p>
+      `
+    });
+    
+    console.log('✅ Password reset link sent successfully to:', user.email);
+    
+    res.json({
+      success: true,
+      message: 'Password reset link sent successfully',
+      resetLink // Only include in development
+    });
+    
+  } catch (error) {
+    console.error('💥 Send password reset link error:', error.message);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   resendInvite,
   inviteUser,
@@ -304,5 +411,7 @@ module.exports = {
   getUserAssignedEvents,
   getAvailableEvents,
   deactivateUser,
-  deleteUser
+  deleteUser,
+  resetUserPassword,
+  sendPasswordResetLink
 };

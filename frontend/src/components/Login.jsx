@@ -8,13 +8,17 @@ import {
   Button,
   Typography,
   Alert,
-  Box
+  Box,
+  InputAdornment,
+  IconButton
 } from '@mui/material';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -33,6 +37,10 @@ const Login = () => {
     }
     
     setLoading(false);
+  };
+
+  const handleTogglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
   };
 
   return (
@@ -54,15 +62,39 @@ const Login = () => {
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               margin="normal"
               required
+              autoComplete="email"
+              aria-describedby="email-helper-text"
+              inputProps={{
+                'aria-label': 'Email address'
+              }}
             />
             <TextField
               fullWidth
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               margin="normal"
               required
+              autoComplete="current-password"
+              aria-describedby="password-helper-text"
+              inputProps={{
+                'aria-label': 'Password'
+              }}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      onClick={handleTogglePasswordVisibility}
+                      edge="end"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <Button
               type="submit"
@@ -70,6 +102,7 @@ const Login = () => {
               variant="contained"
               disabled={loading}
               sx={{ mt: 3, mb: 2 }}
+              aria-describedby="submit-helper-text"
             >
               {loading ? 'Signing In...' : 'Sign In'}
             </Button>

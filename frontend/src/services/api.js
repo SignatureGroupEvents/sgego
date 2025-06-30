@@ -137,6 +137,33 @@ export const inviteUser = (inviteData) => {
   return api.post('/users/invite', inviteData);
 };
 
+// Admin Actions API functions
+export const resetUserPassword = (userId, newPassword) => {
+  return api.put(`/users/${userId}/reset-password`, { newPassword });
+};
+
+export const resendUserInvite = (userId) => {
+  return api.post(`/users/${userId}/resend-invite`);
+};
+
+export const sendPasswordResetLink = (userId) => {
+  return api.post(`/users/${userId}/send-reset-link`);
+};
+
+// Invite validation API function
+export const validateInviteToken = (token) => {
+  return api.get(`/auth/validate-invite/${token}`);
+};
+
+// Password reset API functions
+export const validateResetToken = (token) => {
+  return api.get(`/auth/validate-reset/${token}`);
+};
+
+export const resetPassword = (token, password) => {
+  return api.post(`/auth/reset-password/${token}`, { password });
+};
+
 // Activity Feed API functions
 export const getGlobalActivityFeed = (filters = {}) => {
   const params = new URLSearchParams();

@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, TextField, Button, Alert, CircularProgress, Card, CardContent, MenuItem, Snackbar, Table, TableBody, TableCell, TableRow, IconButton, Select, FormControl
+  Box, Typography, TextField, Button, Alert, CircularProgress, Card, CardContent, MenuItem, Snackbar, Table, TableBody, TableCell, TableRow, IconButton, Select, FormControl, Divider
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
-import api from '../services/api';
+import LockIcon from '@mui/icons-material/Lock';
+import EmailIcon from '@mui/icons-material/Email';
+import api, { resetUserPassword, resendUserInvite, sendPasswordResetLink, updateUserRole } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
 const fields = [
@@ -19,7 +21,7 @@ const fields = [
 const AccountEditPage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
-  const { isAdmin, isOperationsManager } = useAuth();
+  const { isAdmin, isOperationsManager, user: currentUser } = useAuth();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -30,6 +32,16 @@ const AccountEditPage: React.FC = () => {
   const [passwordEdit, setPasswordEdit] = useState(false);
   const [passwordValue, setPasswordValue] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [adminPasswordValue, setAdminPasswordValue] = useState('');
+  const [adminPasswordError, setAdminPasswordError] = useState('');
+  const [resendInviteLoading, setResendInviteLoading] = useState(false);
+  const [resendInviteSuccess, setResendInviteSuccess] = useState(false);
+  const [sendResetLinkLoading, setSendResetLinkLoading] = useState(false);
+  const [sendResetLinkSuccess, setSendResetLinkSuccess] = useState(false);
+
+  // Determine if current user can modify this profile
+  const canModifyProfile = isAdmin || isOperationsManager || (currentUser?.id === userId);
+  const isOwnProfile = currentUser?.id === userId;
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -47,6 +59,11 @@ const AccountEditPage: React.FC = () => {
   }, [userId]);
 
   const handleEdit = (key: string) => {
+    if (key === 'role' && isAdmin && userId === currentUser?.id) {
+      setError('You cannot change your own role');
+      return;
+    }
+    
     setEditingField(key);
     setEditValue(user[key] || '');
     setError('');
@@ -63,15 +80,25 @@ const AccountEditPage: React.FC = () => {
       setError('This field is required');
       return;
     }
+    
     setSaving(true);
     setError('');
+    
     try {
-      const payload: any = { [editingField!]: editValue };
-      await api.put(`/users/profile/${userId}`, payload);
-      setUser((prev: any) => ({ ...prev, [editingField!]: editValue }));
-      setSuccess(true);
-      setEditingField(null);
-      setEditValue('');
+      if (editingField === 'role') {
+        await updateUserRole(userId!, editValue);
+        setUser((prev: any) => ({ ...prev, role: editValue }));
+        setSuccess(true);
+        setEditingField(null);
+        setEditValue('');
+      } else {
+        const payload: any = { [editingField!]: editValue };
+        await api.put(`/users/profile/${userId}`, payload);
+        setUser((prev: any) => ({ ...prev, [editingField!]: editValue }));
+        setSuccess(true);
+        setEditingField(null);
+        setEditValue('');
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to update user.');
     } finally {
@@ -98,6 +125,50 @@ const AccountEditPage: React.FC = () => {
     }
   };
 
+  const handleAdminPasswordReset = async () => {
+    if (!adminPasswordValue || adminPasswordValue.length < 6) {
+      setAdminPasswordError('Password must be at least 6 characters');
+      return;
+    }
+    setSaving(true);
+    setAdminPasswordError('');
+    try {
+      await resetUserPassword(userId!, adminPasswordValue);
+      setSuccess(true);
+      setAdminPasswordValue('');
+    } catch (err: any) {
+      setAdminPasswordError(err.response?.data?.message || 'Failed to reset password.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResendInvite = async () => {
+    setResendInviteLoading(true);
+    try {
+      await resendUserInvite(userId!);
+      setResendInviteSuccess(true);
+      setTimeout(() => setResendInviteSuccess(false), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to resend invite.');
+    } finally {
+      setResendInviteLoading(false);
+    }
+  };
+
+  const handleSendResetLink = async () => {
+    setSendResetLinkLoading(true);
+    try {
+      await sendPasswordResetLink(userId!);
+      setSendResetLinkSuccess(true);
+      setTimeout(() => setSendResetLinkSuccess(false), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to send reset link.');
+    } finally {
+      setSendResetLinkLoading(false);
+    }
+  };
+
   if (loading) {
     return <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh"><CircularProgress /></Box>;
   }
@@ -115,6 +186,15 @@ const AccountEditPage: React.FC = () => {
       <Card sx={{ minWidth: 350, maxWidth: 500 }}>
         <CardContent>
           <Typography variant="h5" gutterBottom>Account Details</Typography>
+          
+          {!canModifyProfile && !isOwnProfile && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              You are viewing this profile in read-only mode. You can only edit your own profile.
+            </Alert>
+          )}
+          
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          
           <Table>
             <TableBody>
               {fields.map(f => (
@@ -157,14 +237,19 @@ const AccountEditPage: React.FC = () => {
                         </IconButton>
                       </>
                     ) : (
-                      <IconButton onClick={() => handleEdit(f.key)}>
+                      <IconButton 
+                        onClick={() => handleEdit(f.key)}
+                        disabled={f.key === 'role' && isAdmin && userId === currentUser?.id || !canModifyProfile}
+                        title={f.key === 'role' && isAdmin && userId === currentUser?.id ? 'You cannot change your own role' : 
+                               !canModifyProfile ? 'You can only edit your own profile' : ''}
+                      >
                         <EditIcon />
                       </IconButton>
                     )}
                   </TableCell>
                 </TableRow>
               ))}
-              {(isAdmin || isOperationsManager) && (
+              {(isAdmin || isOperationsManager || isOwnProfile) && (
                 <TableRow hover>
                   <TableCell sx={{ fontWeight: 600 }}>Password</TableCell>
                   <TableCell>
@@ -203,15 +288,87 @@ const AccountEditPage: React.FC = () => {
               )}
             </TableBody>
           </Table>
-          {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+          
+          {/* Admin Actions Section */}
+          {isAdmin && (
+            <>
+              <Divider sx={{ my: 3 }} />
+              <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 600 }}>
+                Admin Actions
+              </Typography>
+              
+              {/* Set New Password */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                  Set New Password
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                  <TextField
+                    value={adminPasswordValue}
+                    onChange={(e) => setAdminPasswordValue(e.target.value)}
+                    placeholder="Enter new password"
+                    type="password"
+                    size="small"
+                    sx={{ flexGrow: 1 }}
+                    error={!!adminPasswordError}
+                    helperText={adminPasswordError || 'Minimum 6 characters'}
+                  />
+                  <Button
+                    variant="contained"
+                    startIcon={<LockIcon />}
+                    onClick={handleAdminPasswordReset}
+                    disabled={saving || !adminPasswordValue || adminPasswordValue.length < 6}
+                    sx={{ minWidth: 140 }}
+                  >
+                    {saving ? 'Setting...' : 'Set Password'}
+                  </Button>
+                </Box>
+              </Box>
+              
+              {/* Resend Invite Link */}
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                  Resend Invite Link
+                </Typography>
+                <Button
+                  variant="outlined"
+                  startIcon={<EmailIcon />}
+                  onClick={handleResendInvite}
+                  disabled={resendInviteLoading}
+                  sx={{ minWidth: 140 }}
+                >
+                  {resendInviteLoading ? 'Sending...' : 'Resend Invite'}
+                </Button>
+              </Box>
+
+              {/* Send Password Reset Link */}
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                  Send Password Reset Link
+                </Typography>
+                <Button
+                  variant="outlined"
+                  startIcon={<LockIcon />}
+                  onClick={handleSendResetLink}
+                  disabled={sendResetLinkLoading}
+                  sx={{ minWidth: 140 }}
+                >
+                  {sendResetLinkLoading ? 'Sending...' : 'Send Reset Link'}
+                </Button>
+              </Box>
+            </>
+          )}
+          
           <Snackbar
-            open={success}
+            open={success || resendInviteSuccess || sendResetLinkSuccess}
             autoHideDuration={2000}
-            onClose={() => setSuccess(false)}
+            onClose={() => { setSuccess(false); setResendInviteSuccess(false); setSendResetLinkSuccess(false); }}
             anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
           >
             <Alert severity="success" sx={{ width: '100%' }}>
-              User updated successfully!
+              {sendResetLinkSuccess ? 'Reset link sent successfully!' : 
+               resendInviteSuccess ? 'Invite sent successfully!' : 
+               'User updated successfully!'}
             </Alert>
           </Snackbar>
         </CardContent>

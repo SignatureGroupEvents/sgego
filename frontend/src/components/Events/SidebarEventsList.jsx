@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { List, ListItem, ListItemText, ListItemIcon, Collapse, IconButton, Typography, Box } from '@mui/material';
 import { ExpandLess, ExpandMore, Event as EventIcon, SubdirectoryArrowRight as SubEventIcon } from '@mui/icons-material';
 import { getEvents } from '../../services/events';
-import { getUserAssignedEvents } from '../../services/events';
 import { useAuth } from '../../contexts/AuthContext';
 
 const SidebarEventsList = ({ onSelectEvent }) => {
@@ -18,18 +17,8 @@ const SidebarEventsList = ({ onSelectEvent }) => {
         const allEvents = await getEvents();
         let filteredEvents = allEvents.events || allEvents;
         
-        // If user is staff, filter to only show assigned events
-        if (!isOperationsManager && !isAdmin) {
-          try {
-            const assignedEvents = await getUserAssignedEvents();
-            const assignedEventIds = assignedEvents.map(e => e._id);
-            filteredEvents = filteredEvents.filter(event => assignedEventIds.includes(event._id));
-          } catch (err) {
-            console.error('Failed to load assigned events:', err);
-            return;
-          }
-        }
-        
+        // Staff can view all events, operations managers and admins can view all events
+        // No filtering needed since staff should see all events
         setEvents(filteredEvents);
       } finally {
         setLoading(false);

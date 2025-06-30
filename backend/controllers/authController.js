@@ -14,48 +14,99 @@ const generateToken = (id) => {
 exports.acceptInvite = async (req, res) => {
   try {
     const { token } = req.params;
-    const { password } = req.body;
+    const { password, name } = req.body;
+
+    console.log('🎫 Accept invite attempt with token:', token ? '[MASKED]' : '[MISSING]');
+    console.log('📝 Password provided:', password ? '[MASKED]' : '[MISSING]');
+    console.log('📝 Name provided:', name ? '[PROVIDED]' : '[NOT PROVIDED]');
 
     if (!password) {
+      console.log('❌ Accept invite failed: Password is required');
       return res.status(400).json({ message: 'Password is required' });
     }
 
     // Find the invite token and populate user
     const invite = await InvitationToken.findOne({ token }).populate('userId');
+    
+    console.log('🔍 Invite token found:', invite ? 'YES' : 'NO');
+    if (invite) {
+      console.log('📅 Invite expires at:', invite.expiresAt);
+      console.log('⏰ Current time:', new Date().toISOString());
+      console.log('⏰ Token expired:', invite.expiresAt < Date.now() ? 'YES' : 'NO');
+    }
 
     if (!invite || invite.expiresAt < Date.now()) {
+      console.log('❌ Accept invite failed: Invalid or expired token');
       return res.status(400).json({ message: 'Invite token is invalid or expired' });
     }
 
     const user = invite.userId;
-
-    if (!user || !user.isInvited || user.isActive) {
-      return res.status(400).json({ message: 'Invalid invite or user already registered' });
+    
+    console.log('👤 User from invite found:', user ? 'YES' : 'NO');
+    if (user) {
+      console.log('📋 User details:', {
+        id: user._id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        isInvited: user.isInvited,
+        isActive: user.isActive,
+        hasPassword: !!user.password
+      });
     }
 
-    // Finalize the account
-    user.password = await bcrypt.hash(password, 10);
+    if (!user) {
+      console.log('❌ Accept invite failed: User not found');
+      return res.status(400).json({ message: 'Invalid invite - user not found' });
+    }
+
+    if (user.isActive) {
+      console.log('❌ Accept invite failed: User already active');
+      return res.status(400).json({ message: 'User account is already active' });
+    }
+
+    if (!user.isInvited) {
+      console.log('❌ Accept invite failed: User not in invited state');
+      return res.status(400).json({ message: 'Invalid invite state' });
+    }
+
+    console.log('✅ User state is valid for invite acceptance');
+
+    // Update user information
+    console.log('🔐 Assigning raw password (will be hashed by pre-save hook)...');
+    user.password = password;
+    
+    // Set name if provided (for new users)
+    if (name && !user.username) {
+      console.log('📝 Setting username from provided name');
+      user.username = name;
+    }
+    
     user.isInvited = false;
     user.isActive = true;
 
+    console.log('💾 Saving user account...');
     await user.save();
+    console.log('🗑️ Deleting invite token...');
     await invite.deleteOne();
 
+    console.log('🎫 Generating login token...');
     // Generate login token
     const loginToken = generateToken(user._id);
 
+    console.log('✅ Account created successfully for user:', user.email);
     res.json({
       message: 'Account created successfully',
       token: loginToken,
       user: {
         id: user._id,
         email: user.email,
-        name: user.name,
+        username: user.username,
         role: user.role
       }
     });
   } catch (error) {
-    console.error('Accept invite error:', error);
+    console.error('💥 Accept invite error:', error.message);
     res.status(500).json({ message: error.message });
   }
 };
@@ -102,22 +153,57 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    console.log('🔐 Login attempt for email:', email);
+    console.log('📝 Password provided:', password ? '[MASKED]' : '[MISSING]');
 
     const user = await User.findOne({ email }).select('+password');
+    
+    console.log('👤 User found:', user ? 'YES' : 'NO');
+    if (user) {
+      console.log('📋 User details:', {
+        id: user._id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        isActive: user.isActive,
+        isInvited: user.isInvited,
+        hasPassword: !!user.password,
+        passwordLength: user.password ? user.password.length : 0
+      });
+    }
 
-    if (!user || !(await user.comparePassword(password))) {
+    if (!user) {
+      console.log('❌ Login failed: User not found');
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    console.log('🔍 Attempting password comparison...');
+    const passwordMatch = await user.comparePassword(password);
+    console.log('🔐 Password comparison result:', passwordMatch ? 'MATCH' : 'NO MATCH');
+
+    if (!passwordMatch) {
+      console.log('❌ Login failed: Password mismatch');
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    console.log('✅ Password verified successfully');
+
     if (!user.isActive) {
+      console.log('❌ Login failed: Account is deactivated');
       return res.status(401).json({ message: 'Account is deactivated' });
     }
 
+    console.log('✅ Account is active, proceeding with login');
+
     user.lastLogin = new Date();
     await user.save();
+    console.log('📅 Last login timestamp updated');
 
     const token = generateToken(user._id);
+    console.log('🎫 JWT token generated successfully');
 
+    console.log('✅ Login successful for user:', user.email);
     res.json({
       success: true,
       token,
@@ -129,6 +215,7 @@ exports.login = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('💥 Login error:', error.message);
     res.status(400).json({ message: error.message });
   }
 };
@@ -222,5 +309,208 @@ exports.deactivateUser = async (req, res) => {
 
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+};
+
+exports.validateInvite = async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    console.log('🔍 Validating invite token:', token ? '[MASKED]' : '[MISSING]');
+    
+    if (!token) {
+      console.log('❌ No token provided');
+      return res.status(400).json({ 
+        status: 'expired',
+        message: 'No token provided' 
+      });
+    }
+
+    // Find the invite token and populate user
+    const invite = await InvitationToken.findOne({ token }).populate('userId');
+    
+    console.log('🔍 Invite token found:', invite ? 'YES' : 'NO');
+    
+    if (!invite) {
+      console.log('❌ Token not found');
+      return res.json({
+        status: 'expired',
+        message: 'Invalid or expired token'
+      });
+    }
+
+    console.log('📅 Invite expires at:', invite.expiresAt);
+    console.log('⏰ Current time:', new Date().toISOString());
+    console.log('⏰ Token expired:', invite.expiresAt < Date.now() ? 'YES' : 'NO');
+
+    // Check if token has expired
+    if (invite.expiresAt < Date.now()) {
+      console.log('❌ Token has expired');
+      return res.json({
+        status: 'expired',
+        message: 'Token has expired'
+      });
+    }
+
+    const user = invite.userId;
+    
+    console.log('👤 User from invite found:', user ? 'YES' : 'NO');
+    if (user) {
+      console.log('📋 User details:', {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+        isInvited: user.isInvited,
+        isActive: user.isActive,
+        hasPassword: !!user.password
+      });
+    }
+
+    if (!user) {
+      console.log('❌ User not found for token');
+      return res.json({
+        status: 'expired',
+        message: 'Invalid token - user not found'
+      });
+    }
+
+    // Determine status based on user state
+    let status;
+    let message;
+
+    if (user.isActive) {
+      status = 'active';
+      message = 'User account is already active';
+      console.log('✅ User is already active');
+    } else if (user.isInvited && !user.password) {
+      status = 'new';
+      message = 'User needs to set password';
+      console.log('🆕 User is new and needs to set password');
+    } else if (user.isInvited && user.password) {
+      status = 'pending';
+      message = 'User has set password but account not activated';
+      console.log('⏳ User has set password but account not activated');
+    } else {
+      status = 'expired';
+      message = 'Invalid user state';
+      console.log('❌ Invalid user state');
+    }
+
+    console.log('✅ Token validation complete, status:', status);
+    
+    res.json({
+      email: user.email,
+      role: user.role,
+      status,
+      message
+    });
+
+  } catch (error) {
+    console.error('💥 Validate invite error:', error.message);
+    res.status(500).json({ 
+      status: 'expired',
+      message: 'Server error during validation' 
+    });
+  }
+};
+
+exports.validateResetToken = async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    console.log('🔍 Validating reset token:', token ? '[MASKED]' : '[MISSING]');
+    
+    if (!token) {
+      console.log('❌ No reset token provided');
+      return res.status(400).json({ 
+        status: 'expired',
+        message: 'No reset token provided' 
+      });
+    }
+
+    // Find user with this reset token
+    const user = await User.findOne({ 
+      resetToken: token,
+      resetTokenExpires: { $gt: Date.now() }
+    });
+    
+    console.log('🔍 Reset token found:', user ? 'YES' : 'NO');
+    
+    if (!user) {
+      console.log('❌ Reset token not found or expired');
+      return res.json({
+        status: 'expired',
+        message: 'Invalid or expired reset token'
+      });
+    }
+
+    console.log('📅 Reset token expires at:', user.resetTokenExpires);
+    console.log('⏰ Current time:', new Date().toISOString());
+    console.log('⏰ Token expired:', user.resetTokenExpires < Date.now() ? 'YES' : 'NO');
+
+    console.log('✅ Reset token validation successful for user:', user.email);
+    
+    res.json({
+      email: user.email,
+      status: 'valid',
+      message: 'Reset token is valid'
+    });
+
+  } catch (error) {
+    console.error('💥 Validate reset token error:', error.message);
+    res.status(500).json({ 
+      status: 'expired',
+      message: 'Server error during validation' 
+    });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+    
+    console.log('🔐 Password reset attempt with token:', token ? '[MASKED]' : '[MISSING]');
+    console.log('📝 New password provided:', password ? '[MASKED]' : '[MISSING]');
+
+    if (!password || password.length < 6) {
+      console.log('❌ Password reset failed: Invalid password');
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+
+    // Find user with valid reset token
+    const user = await User.findOne({ 
+      resetToken: token,
+      resetTokenExpires: { $gt: Date.now() }
+    });
+    
+    console.log('🔍 User found with reset token:', user ? 'YES' : 'NO');
+    
+    if (!user) {
+      console.log('❌ Password reset failed: Invalid or expired token');
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
+
+    console.log('✅ User found for password reset:', user.email);
+
+    // Update password and clear reset token
+    console.log('🔐 Setting new password...');
+    user.password = password; // Will be hashed by pre-save hook
+    user.resetToken = null;
+    user.resetTokenExpires = null;
+    
+    console.log('💾 Saving user account...');
+    await user.save();
+    
+    console.log('✅ Password reset successful for user:', user.email);
+    
+    res.json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+    
+  } catch (error) {
+    console.error('💥 Password reset error:', error.message);
+    res.status(500).json({ message: error.message });
   }
 };

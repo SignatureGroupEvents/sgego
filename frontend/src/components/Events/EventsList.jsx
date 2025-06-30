@@ -28,7 +28,6 @@ import {
 } from '@mui/material';
 import MainNavigation from '../MainNavigation';
 import { getEvents } from '../../services/events';
-import { getUserAssignedEvents } from '../../services/events';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
@@ -85,7 +84,7 @@ const TableRowSkeleton = ({ columns = 8 }) => (
 );
 
 // Empty state component
-const EmptyState = ({ searchTerm, onCreateEvent }) => (
+const EmptyState = ({ searchTerm, onCreateEvent, canModifyEvents }) => (
   <Card sx={{ textAlign: 'center', py: 6, px: 3 }}>
     <CardContent>
       <EventIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
@@ -95,10 +94,12 @@ const EmptyState = ({ searchTerm, onCreateEvent }) => (
       <Typography variant="body2" color="text.secondary" paragraph>
         {searchTerm 
           ? `No events match "${searchTerm}". Try adjusting your search terms.`
-          : 'Get started by creating your first event.'
+          : canModifyEvents 
+            ? 'Get started by creating your first event.'
+            : 'No events are currently available for check-ins.'
         }
       </Typography>
-      {!searchTerm && (
+      {!searchTerm && canModifyEvents && (
         <Button 
           variant="contained" 
           startIcon={<AddIcon />}
@@ -128,8 +129,11 @@ const EventsList = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   
   const rowsPerPage = isMobile ? 5 : isTablet ? 8 : 10;
-  const { isOperationsManager, isAdmin } = useAuth();
+  const { isOperationsManager, isAdmin, user: currentUser } = useAuth();
   const navigate = useNavigate();
+  
+  // Determine if user can create/modify events
+  const canModifyEvents = isOperationsManager || isAdmin;
 
   useEffect(() => {
     const fetchAllEvents = async () => {
@@ -137,16 +141,9 @@ const EventsList = () => {
         setLoading(true);
         const res = await getEvents();
         let allEvents = res.events || res;
-        if (!isOperationsManager && !isAdmin) {
-          try {
-            const assignedEvents = await getUserAssignedEvents();
-            const assignedEventIds = assignedEvents.map(e => e._id);
-            allEvents = allEvents.filter(event => assignedEventIds.includes(event._id));
-          } catch (err) {
-            setError('Failed to load your assigned events.');
-            return;
-          }
-        }
+        
+        // Staff can view all events, but operations managers and admins can view all events
+        // The filtering for assigned events is no longer needed since staff should see all events
         setEvents(allEvents);
       } catch (err) {
         setError('Failed to load events');
@@ -275,7 +272,10 @@ const EventsList = () => {
             color="text.secondary" 
             sx={{ mb: 3, display: { xs: 'none', sm: 'block' } }}
           >
-            Manage and view all events in the system
+            {canModifyEvents 
+              ? 'Manage and view all events in the system'
+              : 'View events and perform guest check-ins'
+            }
           </Typography>
         </Box>
 
@@ -318,29 +318,31 @@ const EventsList = () => {
               aria-label="Search events"
             />
           </Box>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            startIcon={<AddIcon />}
-            sx={{ 
-              borderRadius: 2, 
-              fontWeight: 600,
-              px: { xs: 2, md: 3 },
-              py: 1.5,
-              minWidth: { xs: 'auto', sm: 'fit-content' }
-            }} 
-            onClick={handleCreateEvent}
-            aria-label="Create new event"
-          >
-            {isMobile ? 'Create' : 'Create Event'}
-          </Button>
+          {canModifyEvents && (
+            <Button 
+              variant="contained" 
+              color="primary" 
+              startIcon={<AddIcon />}
+              sx={{ 
+                borderRadius: 2, 
+                fontWeight: 600,
+                px: { xs: 2, md: 3 },
+                py: 1.5,
+                minWidth: { xs: 'auto', sm: 'fit-content' }
+              }} 
+              onClick={handleCreateEvent}
+              aria-label="Create new event"
+            >
+              {isMobile ? 'Create' : 'Create Event'}
+            </Button>
+          )}
         </Box>
 
         {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
         {/* Events Table */}
         {mainEvents.length === 0 ? (
-          <EmptyState searchTerm={search} onCreateEvent={handleCreateEvent} />
+          <EmptyState searchTerm={search} onCreateEvent={handleCreateEvent} canModifyEvents={canModifyEvents} />
         ) : (
           <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
             <TableContainer>

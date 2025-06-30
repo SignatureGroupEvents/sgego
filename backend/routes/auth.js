@@ -5,7 +5,10 @@ const {
   getProfile,
   deleteUser,
   deactivateUser, 
-  acceptInvite
+  acceptInvite,
+  validateInvite,
+  validateResetToken,
+  resetPassword
 } = require('../controllers/authController');
 const { protect, requireRole } = require('../middleware/auth');
 const router = express.Router();
@@ -23,7 +26,9 @@ router.post('/register', register);
 router.post('/login', login);
 router.get('/profile', protect, getProfile);
 router.post('/accept-invite/:token', acceptInvite);
-
+router.get('/validate-invite/:token', validateInvite);
+router.get('/validate-reset/:token', validateResetToken);
+router.post('/reset-password/:token', resetPassword);
 
 // User management routes (admin only)
 router.delete('/users/:userId', protect, requireRole('admin'), deleteUser);

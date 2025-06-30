@@ -44,6 +44,10 @@ const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
 const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const { isOperationsManager, isAdmin } = useAuth();
+  
+  // Determine if user can modify events
+  const canModifyEvents = isOperationsManager || isAdmin;
 
   const handleOpenCheckIn = (guest) => {
     setCheckInGuest(guest);
@@ -106,24 +110,28 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
             <Typography variant="h6">
               Guest List ({guests.length})
             </Typography>
-            <Box display="flex" gap={1}>
-              <Button
-                variant="outlined"
-                startIcon={<UploadIcon />}
-                onClick={onUploadGuests}
-                size="small"
-              >
-                Upload More
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<PersonAddIcon />}
-                onClick={onAddGuest}
-                size="small"
-              >
-                Add Guest
-              </Button>
-            </Box>
+            {canModifyEvents && (
+              <Box display="flex" gap={1}>
+                <Button
+                  variant="outlined"
+                  startIcon={<UploadIcon />}
+                  onClick={onUploadGuests}
+                  size="small"
+                  sx={{ borderRadius: 2, fontWeight: 600 }}
+                >
+                  Upload More
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<PersonAddIcon />}
+                  onClick={onAddGuest}
+                  size="small"
+                  sx={{ borderRadius: 2, fontWeight: 600 }}
+                >
+                  Add Guest
+                </Button>
+              </Box>
+            )}
           </Box>
           <TableContainer component={Paper} variant="outlined">
             <Table>
@@ -935,7 +943,7 @@ const EventDashboardWrapper = () => {
 
 const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inventoryError = '', onInventoryChange }) => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, isOperationsManager, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState(null);
   const [guests, setGuests] = useState([]);
@@ -951,6 +959,9 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const [viewMode, setViewMode] = useState('basic'); // 'basic' or 'advanced'
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [checkInModalOpen, setCheckInModalOpen] = useState(false);
+
+  // Determine if user can modify events
+  const canModifyEvents = isOperationsManager || isAdmin;
 
   const handleOpenCheckIn = (guest) => {
     setCheckInGuest(guest);
@@ -1155,19 +1166,31 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
           )}
         </Card>
         {/* Add Secondary Event Button and Modal */}
-        <AddSecondaryEventModal
-          open={secondaryModalOpen}
-          onClose={() => setSecondaryModalOpen(false)}
-          parentEventId={eventId}
-          parentContractNumber={event.eventContractNumber}
-          parentEventStart={event.eventStart}
-          parentEventEnd={event.eventEnd}
-          onEventAdded={() => {
-            setSecondaryModalOpen(false);
-            // Refresh secondary events after add
-            api.get(`/events?parentEventId=${eventId}`).then(res => setSecondaryEvents(res.data.events || res.data));
-          }}
-        />
+        {canModifyEvents && (
+          <Button
+            variant="contained"
+            startIcon={<EventIcon />}
+            onClick={() => setSecondaryModalOpen(true)}
+            sx={{ mb: 4, borderRadius: 2, fontWeight: 600 }}
+          >
+            ➕ Add Additional Event
+          </Button>
+        )}
+        {secondaryModalOpen && (
+          <AddSecondaryEventModal
+            open={secondaryModalOpen}
+            onClose={() => setSecondaryModalOpen(false)}
+            parentEventId={eventId}
+            parentContractNumber={event.eventContractNumber}
+            parentEventStart={event.eventStart}
+            parentEventEnd={event.eventEnd}
+            onEventAdded={() => {
+              setSecondaryModalOpen(false);
+              // Refresh secondary events after add
+              api.get(`/events?parentEventId=${eventId}`).then(res => setSecondaryEvents(res.data.events || res.data));
+            }}
+          />
+        )}
         
         {/* Guest Table */}
         <Card elevation={2} sx={{ borderRadius: 3, p: 2, mb: 4 }}>
@@ -1175,26 +1198,28 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             <Typography variant="h6" fontWeight={600} color="primary.main">
               Guest List ({guests.length})
             </Typography>
-            <Box display="flex" gap={1}>
-              <Button
-                variant="outlined"
-                startIcon={<UploadIcon />}
-                onClick={handleUploadGuests}
-                size="small"
-                sx={{ borderRadius: 2, fontWeight: 600 }}
-              >
-                Upload More
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<PersonAddIcon />}
-                onClick={handleAddGuest}
-                size="small"
-                sx={{ borderRadius: 2, fontWeight: 600 }}
-              >
-                Add Guest
-              </Button>
-            </Box>
+            {canModifyEvents && (
+              <Box display="flex" gap={1}>
+                <Button
+                  variant="outlined"
+                  startIcon={<UploadIcon />}
+                  onClick={handleUploadGuests}
+                  size="small"
+                  sx={{ borderRadius: 2, fontWeight: 600 }}
+                >
+                  Upload More
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<PersonAddIcon />}
+                  onClick={handleAddGuest}
+                  size="small"
+                  sx={{ borderRadius: 2, fontWeight: 600 }}
+                >
+                  Add Guest
+                </Button>
+              </Box>
+            )}
           </Box>
           <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
             <Table>
@@ -1303,14 +1328,6 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             </Grid>
           </Card>
         )}
-        <Button
-          variant="contained"
-          startIcon={<EventIcon />}
-          onClick={() => setSecondaryModalOpen(true)}
-          sx={{ mb: 4, borderRadius: 2, fontWeight: 600 }}
-        >
-          ➕ Add Additional Event
-        </Button>
 
         {/* Check-in Modal */}
         {checkInModalOpen && checkInGuest && (

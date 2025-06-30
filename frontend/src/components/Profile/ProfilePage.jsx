@@ -89,14 +89,20 @@ const ProfilePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [createRoleModal, setCreateRoleModal] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(true);
+  
+  // Role editing state
+  const [editingRoleUserId, setEditingRoleUserId] = useState(null);
+  const [editingRoleValue, setEditingRoleValue] = useState('');
+  const [roleUpdateLoading, setRoleUpdateLoading] = useState(false);
 
   // Determine if this is viewing own profile or managing users
   const isOwnProfile = !userId || userId === currentUser?.id;
   const canManageUsers = isOperationsManager || isAdmin;
-  const canViewAllUsers = canManageUsers;
+  const canViewAllUsers = canManageUsers || isAdmin || isOperationsManager || currentUser?.role === 'staff';
+  const canModifyUsers = isOperationsManager || isAdmin; // Staff can view but not modify
 
   // --- Refactor: Always show user management for admin/ops ---
-  const showUserManagement = canManageUsers;
+  const showUserManagement = canViewAllUsers;
 
   useEffect(() => {
     loadProfile();
@@ -202,14 +208,53 @@ const ProfilePage = () => {
     }
   };
 
+  const handleRoleEditStart = (userId, currentRole) => {
+    // Prevent admins from editing their own role
+    if (userId === currentUser?.id) {
+      setError('You cannot change your own role');
+      return;
+    }
+    
+    setEditingRoleUserId(userId);
+    setEditingRoleValue(currentRole);
+    setError('');
+  };
+
+  const handleRoleEditCancel = () => {
+    setEditingRoleUserId(null);
+    setEditingRoleValue('');
+    setError('');
+  };
+
+  const handleRoleEditSave = async () => {
+    if (!editingRoleValue) {
+      setError('Please select a role');
+      return;
+    }
+
+    setRoleUpdateLoading(true);
+    setError('');
+    
+    try {
+      await updateUserRole(editingRoleUserId, editingRoleValue);
+      setSuccess('User role updated successfully!');
+      setEditingRoleUserId(null);
+      setEditingRoleValue('');
+      loadAllUsers();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update user role.');
+    } finally {
+      setRoleUpdateLoading(false);
+    }
+  };
+
   const handleAssignEvents = async () => {
     try {
       await assignUserToEvents(selectedUserForAssignment._id, selectedEvents.map(e => e._id));
-      setSuccess('User assigned to events successfully!');
+      setSuccess('Events assigned successfully!');
       setAssignEventsDialog(false);
-      setSelectedUserForAssignment(null);
       setSelectedEvents([]);
-      loadAllUsers();
+      setSelectedUserForAssignment(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to assign events.');
     }
@@ -229,26 +274,20 @@ const ProfilePage = () => {
 
   const handleInviteUser = async (inviteData) => {
     try {
-      // Send only email and role as the backend currently expects
-      const apiData = {
-        email: inviteData.email,
-        role: inviteData.role
-      };
-      await inviteUser(apiData);
-      setSuccess('Invitation sent successfully!');
+      await inviteUser(inviteData);
+      setSuccess('User invited successfully!');
       setInviteDialog(false);
-      // After inviting, fetch the latest users from backend
-      const response = await getAllUsers();
-      setAllUsers(response.data.users || []);
+      loadAllUsers();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to send invitation.');
+      setError(err.response?.data?.message || 'Failed to invite user.');
     }
   };
 
   const handleResendInvite = async (userId) => {
     try {
-      await api.post(`/users/resend-invite/${userId}`);
+      await api.post(`/users/${userId}/resend-invite`);
       setSuccess('Invite resent successfully!');
+      loadAllUsers();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to resend invite.');
     }
@@ -257,7 +296,7 @@ const ProfilePage = () => {
   const getRoleColor = (role) => {
     switch (role) {
       case 'admin': return 'error';
-      case 'operations_manager': return 'secondary';
+      case 'operations_manager': return 'warning';
       case 'staff': return 'info';
       default: return 'default';
     }
@@ -319,8 +358,17 @@ const ProfilePage = () => {
               Roles & Permissions
             </Typography>
             <Typography variant="subtitle1" color="textSecondary" sx={{ mb: 3 }}>
-              Invite collaborators to work on this site and manage roles.
+              {canModifyUsers 
+                ? 'Invite collaborators to work on this site and manage roles.'
+                : 'View user information and assigned events (read-only mode).'
+              }
             </Typography>
+
+            {!canModifyUsers && (
+              <Alert severity="info" sx={{ mb: 3 }}>
+                You are viewing user information in read-only mode. Only administrators and operations managers can modify user data.
+              </Alert>
+            )}
 
             {/* Filter/Search Bar Section */}
             <AccountFilters
@@ -331,16 +379,19 @@ const ProfilePage = () => {
               onCreateRole={() => setCreateRoleModal(true)}
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
+              canModifyUsers={canModifyUsers}
             />
 
             <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3}>
-              <Button
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={() => setInviteDialog(true)}
-              >
-                Invite User
-              </Button>
+              {canModifyUsers && (
+                <Button
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={() => setInviteDialog(true)}
+                >
+                  Invite User
+                </Button>
+              )}
             </Box>
             <Card>
               <CardContent>
@@ -368,11 +419,53 @@ const ProfilePage = () => {
                           </TableCell>
                           <TableCell>{user.email}</TableCell>
                           <TableCell>
-                            <Chip 
-                              label={getRoleLabel(user.role)} 
-                              color={getRoleColor(user.role)} 
-                              size="small" 
-                            />
+                            {editingRoleUserId === user._id ? (
+                              <Box display="flex" alignItems="center" gap={1}>
+                                <FormControl size="small" sx={{ minWidth: 150 }}>
+                                  <Select
+                                    value={editingRoleValue}
+                                    onChange={(e) => setEditingRoleValue(e.target.value)}
+                                    disabled={roleUpdateLoading}
+                                  >
+                                    <MenuItem value="admin">Administrator</MenuItem>
+                                    <MenuItem value="operations_manager">Operations Manager</MenuItem>
+                                    <MenuItem value="staff">Staff</MenuItem>
+                                  </Select>
+                                </FormControl>
+                                <IconButton 
+                                  color="primary" 
+                                  size="small" 
+                                  onClick={handleRoleEditSave}
+                                  disabled={roleUpdateLoading}
+                                >
+                                  <SaveIcon />
+                                </IconButton>
+                                <IconButton 
+                                  size="small" 
+                                  onClick={handleRoleEditCancel}
+                                  disabled={roleUpdateLoading}
+                                >
+                                  <CancelIcon />
+                                </IconButton>
+                              </Box>
+                            ) : (
+                              <Box display="flex" alignItems="center" gap={1}>
+                                <Chip 
+                                  label={getRoleLabel(user.role)} 
+                                  color={getRoleColor(user.role)} 
+                                  size="small" 
+                                />
+                                {isAdmin && user._id !== currentUser?.id && (
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleRoleEditStart(user._id, user.role)}
+                                    title="Edit Role"
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                )}
+                              </Box>
+                            )}
                           </TableCell>
                           <TableCell>
                             {user.isActive ? (
@@ -387,16 +480,18 @@ const ProfilePage = () => {
                           </TableCell>
                           <TableCell align="center">
                             <Box display="flex" gap={1} justifyContent="center">
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={<EditIcon />}
-                                onClick={() => navigate(`/account-edit/${user._id}`)}
-                                sx={{ minWidth: 0, px: 1 }}
-                              >
-                                Edit
-                              </Button>
-                              {user.isInvited === true && user.isActive === false && user._id && (
+                              {canModifyUsers && (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  startIcon={<EditIcon />}
+                                  onClick={() => navigate(`/account-edit/${user._id}`)}
+                                  sx={{ minWidth: 0, px: 1 }}
+                                >
+                                  Edit
+                                </Button>
+                              )}
+                              {canModifyUsers && user.isInvited === true && user.isActive === false && user._id && (
                                 <Button
                                   variant="outlined"
                                   size="small"
@@ -735,7 +830,7 @@ const InviteUserForm = ({ onSubmit, onCancel }) => {
 };
 
 // Account Filters Component
-const AccountFilters = ({ filterStatus, setFilterStatus, filterRole, setFilterRole, onCreateRole, searchQuery, setSearchQuery }) => {
+const AccountFilters = ({ filterStatus, setFilterStatus, filterRole, setFilterRole, onCreateRole, searchQuery, setSearchQuery, canModifyUsers }) => {
   return (
     <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
       {/* Tabs for filtering */}
@@ -767,14 +862,16 @@ const AccountFilters = ({ filterStatus, setFilterStatus, filterRole, setFilterRo
         onChange={(e) => setSearchQuery(e.target.value)}
       />
 
-      {/* "+ Create New Role" button */}
-      <Button
-        variant="outlined"
-        startIcon={<AddIcon />}
-        onClick={onCreateRole}
-      >
-        Create New Role
-      </Button>
+      {/* "+ Create New Role" button - only show for users who can modify */}
+      {canModifyUsers && (
+        <Button
+          variant="outlined"
+          startIcon={<AddIcon />}
+          onClick={onCreateRole}
+        >
+          Create New Role
+        </Button>
+      )}
     </Box>
   );
 };

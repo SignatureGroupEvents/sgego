@@ -24,12 +24,15 @@ router.get('/test', (req, res) => {
 // Protect all event routes
 router.use(protect);
 
+// View routes - allow all authenticated users (including staff)
 router.get('/', getEvents);
-router.post('/', requireOperationsOrAdmin, createEvent);
 router.get('/:id', getEvent);
 router.get('/:id/analytics', getEventAnalytics);
 router.get('/:id/inventory', getEventInventory);
-router.put('/:id', updateEvent);
+
+// Modification routes - restrict to operations manager and admin
+router.post('/', requireOperationsOrAdmin, createEvent);
+router.put('/:id', requireOperationsOrAdmin, updateEvent);
 router.delete('/:id', requireOperationsOrAdmin, deleteEvent);
 router.delete('/:id/secondary', requireOperationsOrAdmin, deleteSecondaryEvent);
 

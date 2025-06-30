@@ -13,7 +13,9 @@ const {
   getUserAssignedEvents,
   getAvailableEvents,
   deactivateUser,
-  deleteUser
+  deleteUser,
+  resetUserPassword,
+  sendPasswordResetLink
 } = require('../controllers/userController');
 
 const { protect, requireRole, requireOperationsOrAdmin } = require('../middleware/auth');
@@ -33,23 +35,28 @@ router.get('/test', (req, res) => {
 // Protect all remaining user routes
 router.use(protect);
 
-// Profile routes
+// Profile routes - allow all authenticated users to view profiles
 router.get('/profile', getUserProfile);
 router.get('/profile/:userId', getUserProfile);
 router.put('/profile', updateUserProfile);
 router.put('/profile/:userId', updateUserProfile);
 
-// User management
-router.get('/', requireOperationsOrAdmin, getAllUsers);
+// User management - allow staff to view, but restrict modifications
+router.get('/', getAllUsers); // Allow all authenticated users to view users
 router.post('/', requireOperationsOrAdmin, createUser);
 router.put('/:userId/role', requireRole('admin'), updateUserRole);
 router.put('/:userId/assign-events', requireOperationsOrAdmin, assignUserToEvents);
-router.get('/:userId/assigned-events', getUserAssignedEvents);
-router.get('/available-events', requireOperationsOrAdmin, getAvailableEvents);
+router.get('/:userId/assigned-events', getUserAssignedEvents); // Allow all authenticated users to view assigned events
+router.get('/available-events', getAvailableEvents); // Allow all authenticated users to view available events
 
-// Deactivate / delete users
+// Deactivate / delete users - admin only
 router.put('/:userId/deactivate', requireRole('admin'), deactivateUser);
 router.delete('/:userId', requireRole('admin'), deleteUser);
+
+// Admin actions - admin only
+router.put('/:userId/reset-password', requireRole('admin'), resetUserPassword);
+router.post('/:userId/resend-invite', requireRole('admin'), resendInvite);
+router.post('/:userId/send-reset-link', requireRole('admin'), sendPasswordResetLink);
 
 module.exports = router;
 

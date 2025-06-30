@@ -20,6 +20,7 @@ import AnalyticsOverview from './components/Analytics/AnalyticsOverview';
 import ActivityFeedPage from './components/Analytics/ActivityFeedPage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 import AccountEditPage from './pages/AccountEditPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 const theme = createTheme({
   palette: {
@@ -127,6 +128,7 @@ function App() {
             } />
             <Route path="/invite/:token" element={<AcceptInvitePage />} />
             <Route path="/account-edit/:userId" element={<AccountEditPage />} />
+            <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
             <Route path="/" element={<Navigate to="/events" />} />
           </Routes>
         </Router>
