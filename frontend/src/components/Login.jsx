@@ -1,95 +1,111 @@
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import {
-  Container,
-  Paper,
-  TextField,
-  Button,
-  Typography,
-  Alert,
   Box,
+  Button,
+  Paper,
+  Typography,
+  TextField,
   InputAdornment,
-  IconButton
+  IconButton,
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+
+// Placeholder logo icon (can be replaced with an SVG or image)
+const LogoIcon = () => (
+  <Box display="flex" justifyContent="center" alignItems="center" mb={2}>
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M24 8C16 24 32 24 24 40" stroke="#00B2C0" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  </Box>
+);
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
-  const { login } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { login } = useAuth();
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError('');
+  };
+
+  const handleTogglePassword = () => setShowPassword((show) => !show);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
+    if (!formData.email || !formData.password) {
+      setError('Please enter both email and password.');
+      toast.error('Please enter both email and password.');
+      setLoading(false);
+      return;
+    }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(formData.email)) {
+      setError('Please enter a valid email address.');
+      toast.error('Please enter a valid email address.');
+      setLoading(false);
+      return;
+    }
+    // Real login logic
     const result = await login(formData);
-    
+    setLoading(false);
     if (result.success) {
-      toast.success('Login successful!');
+      toast.success('Signed in!');
       navigate('/events');
     } else {
       setError(result.message);
       toast.error(result.message);
     }
-    
-    setLoading(false);
-  };
-
-  const handleTogglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
   };
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ mt: 8 }}>
-        <Paper sx={{ p: 4 }}>
-          <Typography variant="h4" align="center" gutterBottom>
-            Event Check-in System
+    <Box minHeight="100vh" bgcolor="#fef8f4" position="relative">
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+        <Paper elevation={2} sx={{ px: { xs: 2, sm: 6 }, py: { xs: 4, sm: 6 }, maxWidth: 400, width: '100%' }}>
+          <LogoIcon />
+          <Typography variant="h4" align="center" fontWeight={500} mb={2}>
+            Sign in
           </Typography>
-          
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          
           <Box component="form" onSubmit={handleSubmit}>
             <TextField
-              fullWidth
               label="Email"
+              name="email"
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={handleChange}
+              fullWidth
               margin="normal"
-              required
               autoComplete="email"
-              aria-describedby="email-helper-text"
-              inputProps={{
-                'aria-label': 'Email address'
+              required
+              InputProps={{
+                inputProps: { 'data-testid': 'email-input' }
               }}
             />
             <TextField
-              fullWidth
               label="Password"
+              name="password"
               type={showPassword ? 'text' : 'password'}
               value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              onChange={handleChange}
+              fullWidth
               margin="normal"
-              required
               autoComplete="current-password"
-              aria-describedby="password-helper-text"
-              inputProps={{
-                'aria-label': 'Password'
-              }}
+              required
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
                     <IconButton
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      onClick={handleTogglePasswordVisibility}
+                      onClick={handleTogglePassword}
                       edge="end"
                       tabIndex={-1}
                     >
@@ -97,22 +113,37 @@ const Login = () => {
                     </IconButton>
                   </InputAdornment>
                 ),
+                inputProps: { 'data-testid': 'password-input' }
               }}
             />
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              disabled={loading}
-              sx={{ mt: 3, mb: 2 }}
-              aria-describedby="submit-helper-text"
-            >
-              {loading ? 'Signing In...' : 'Sign In'}
-            </Button>
+            {/* Error state */}
+            {error && (
+              <Alert severity="error" sx={{ mt: 2, mb: 1 }}>
+                {error}
+              </Alert>
+            )}
+            {/* Forgot Password link and Sign In button */}
+            <Box display="flex" alignItems="center" justifyContent="space-between" mt={1} mb={1}>
+              <Button
+                variant="text"
+                sx={{ textTransform: 'none', fontWeight: 600, pl: 0 }}
+                onClick={() => navigate('/reset-password')}
+              >
+                Forgot Password?
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                sx={{ minWidth: 100, fontWeight: 600 }}
+                disabled={loading}
+              >
+                {loading ? <CircularProgress size={22} color="inherit" /> : 'Sign In'}
+              </Button>
+            </Box>
           </Box>
         </Paper>
       </Box>
-    </Container>
+    </Box>
   );
 };
 

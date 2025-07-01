@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, TextField, Button, Alert, CircularProgress, Card, CardContent, MenuItem, Snackbar, Table, TableBody, TableCell, TableRow, IconButton, Select, FormControl, Divider, InputAdornment
+  Box, Typography, TextField, Button, Alert, CircularProgress, Card, CardContent, MenuItem, Snackbar, Table, TableBody, TableCell, TableRow, IconButton, Select, FormControl, Divider, InputAdornment, Paper
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import LockIcon from '@mui/icons-material/Lock';
 import EmailIcon from '@mui/icons-material/Email';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import api, { resetUserPassword, resendUserInvite, sendPasswordResetLink, updateUserRole } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import MainNavigation from '../components/MainNavigation';
 import toast from 'react-hot-toast';
 
 const fields = [
@@ -49,6 +51,45 @@ const AccountEditPage: React.FC = () => {
   const canModifyProfile = isAdmin || isOperationsManager || (currentUser?.id === userId);
   const isOwnProfile = currentUser?.id === userId;
 
+  // Track form state for dirty checking
+  const [formState, setFormState] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    role: '',
+  });
+  useEffect(() => {
+    if (user) {
+      // If firstName/lastName missing but username exists, split username
+      let firstName = user.firstName || '';
+      let lastName = user.lastName || '';
+      if ((!firstName || !lastName) && user.username) {
+        const parts = user.username.split(' ');
+        firstName = parts[0] || '';
+        lastName = parts.slice(1).join(' ') || '';
+      }
+      setFormState({
+        firstName,
+        lastName,
+        email: user.email || '',
+        role: user.role || '',
+      });
+    }
+  }, [user]);
+
+  // Track dirty state
+  const isDirty =
+    formState.firstName !== (user?.firstName || '') ||
+    formState.lastName !== (user?.lastName || '') ||
+    formState.email !== (user?.email || '') ||
+    formState.role !== (user?.role || '');
+
+  // Handlers for field changes
+  const handleFieldChange = (key: string, value: string) => {
+    setFormState(prev => ({ ...prev, [key]: value }));
+    setError('');
+  };
+
   useEffect(() => {
     const fetchUser = async () => {
       setLoading(true);
@@ -81,32 +122,30 @@ const AccountEditPage: React.FC = () => {
     setError('');
   };
 
+  // Save only changed fields, always send username if name changed
   const handleSave = async () => {
-    if (!editValue && editingField !== 'email') {
-      setError('This field is required');
-      return;
-    }
-    
+    const updates: any = {};
+    let nameChanged = false;
+    if (formState.firstName !== (user?.firstName || '')) { updates.firstName = formState.firstName; nameChanged = true; }
+    if (formState.lastName !== (user?.lastName || '')) { updates.lastName = formState.lastName; nameChanged = true; }
+    if (formState.email !== (user?.email || '')) updates.email = formState.email;
+    if (formState.role !== (user?.role || '')) updates.role = formState.role;
+    if (nameChanged) updates.username = `${formState.firstName} ${formState.lastName}`.trim();
+    if (Object.keys(updates).length === 0) return;
     setSaving(true);
     setError('');
-    
     try {
-      if (editingField === 'role') {
-        await updateUserRole(userId!, editValue);
-        setUser((prev: any) => ({ ...prev, role: editValue }));
-        toast.success('User role updated successfully!');
-        setSuccess(true);
-        setEditingField(null);
-        setEditValue('');
-      } else {
-        const payload: any = { [editingField!]: editValue };
-        await api.put(`/users/profile/${userId}`, payload);
-        setUser((prev: any) => ({ ...prev, [editingField!]: editValue }));
-        toast.success('User updated successfully!');
-        setSuccess(true);
-        setEditingField(null);
-        setEditValue('');
+      if (updates.role) {
+        await updateUserRole(userId!, updates.role);
       }
+      if (updates.firstName || updates.lastName || updates.email || updates.username) {
+        await api.put(`/users/profile/${userId}`, updates);
+      }
+      toast.success('Account updated successfully!');
+      setSuccess(true);
+      // Re-fetch user to sync state
+      const res = await api.get(`/users/profile/${userId}`);
+      setUser(res.data.user);
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Failed to update user.';
       setError(errorMsg);
@@ -200,246 +239,198 @@ const AccountEditPage: React.FC = () => {
   };
 
   if (loading) {
-    return <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh"><CircularProgress /></Box>;
+    return (
+      <Box sx={{ display: 'flex', height: '100vh' }}>
+        <MainNavigation />
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <CircularProgress size={60} />
+        </Box>
+      </Box>
+    );
   }
 
   if (error) {
-    return <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
-      <Alert severity="error">{error}</Alert>
-    </Box>;
+    return (
+      <Box sx={{ display: 'flex', height: '100vh' }}>
+        <MainNavigation />
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      </Box>
+    );
   }
 
   if (!user) return null;
 
-  return (
-    <Box minHeight="100vh" display="flex" alignItems="center" justifyContent="center" bgcolor="#f9fafb">
-      <Card sx={{ minWidth: 350, maxWidth: 500 }}>
-        <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h5">Account Details</Typography>
-            <Button
-              variant="text"
-              onClick={() => navigate('/login')}
-              size="small"
-            >
-              ← Return to Login
-            </Button>
-          </Box>
-          
-          {!canModifyProfile && !isOwnProfile && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              You are viewing this profile in read-only mode. You can only edit your own profile.
-            </Alert>
-          )}
-          
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          
-          <Table>
-            <TableBody>
-              {fields.map(f => (
-                <TableRow key={f.key} hover>
-                  <TableCell sx={{ fontWeight: 600, width: 140 }}>{f.label}</TableCell>
-                  <TableCell>
-                    {editingField === f.key ? (
-                      f.key === 'role' ? (
-                        <FormControl size="small" fullWidth>
-                          <Select
-                            value={editValue}
-                            onChange={e => setEditValue(e.target.value)}
-                          >
-                            <MenuItem value="admin">Administrator</MenuItem>
-                            <MenuItem value="operations_manager">Operations Manager</MenuItem>
-                            <MenuItem value="staff">Staff</MenuItem>
-                          </Select>
-                        </FormControl>
-                      ) : (
-                        <TextField
-                          value={editValue}
-                          onChange={e => setEditValue(e.target.value)}
-                          size="small"
-                          fullWidth
-                          autoFocus
-                        />
-                      )
-                    ) : (
-                      user[f.key] || (f.key === 'email' ? <span style={{ color: '#aaa' }}>—</span> : '')
-                    )}
-                  </TableCell>
-                  <TableCell align="right" sx={{ width: 90 }}>
-                    {editingField === f.key ? (
-                      <>
-                        <IconButton color="primary" onClick={handleSave} disabled={saving}>
-                          <SaveIcon />
-                        </IconButton>
-                        <IconButton onClick={handleCancel} disabled={saving}>
-                          <CancelIcon />
-                        </IconButton>
-                      </>
-                    ) : (
-                      <IconButton 
-                        onClick={() => handleEdit(f.key)}
-                        disabled={f.key === 'role' && isAdmin && userId === currentUser?.id || !canModifyProfile}
-                        title={f.key === 'role' && isAdmin && userId === currentUser?.id ? 'You cannot change your own role' : 
-                               !canModifyProfile ? 'You can only edit your own profile' : ''}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {(isAdmin || isOperationsManager || isOwnProfile) && (
-                <TableRow hover>
-                  <TableCell sx={{ fontWeight: 600 }}>Password</TableCell>
-                  <TableCell>
-                    {passwordEdit ? (
-                      <TextField
-                        value={passwordValue}
-                        onChange={e => setPasswordValue(e.target.value)}
-                        size="small"
-                        type={showPassword ? 'text' : 'password'}
-                        fullWidth
-                        autoFocus
-                        error={!!passwordError}
-                        helperText={passwordError || 'Set a new password'}
-                        InputProps={{
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <IconButton
-                                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                                onClick={handleTogglePasswordVisibility}
-                                edge="end"
-                                size="small"
-                              >
-                                {showPassword ? <VisibilityOff /> : <Visibility />}
-                              </IconButton>
-                            </InputAdornment>
-                          ),
-                        }}
-                      />
-                    ) : (
-                      <span style={{ color: '#aaa' }}>••••••••</span>
-                    )}
-                  </TableCell>
-                  <TableCell align="right">
-                    {passwordEdit ? (
-                      <>
-                        <IconButton color="primary" onClick={handlePasswordSave} disabled={saving}>
-                          <SaveIcon />
-                        </IconButton>
-                        <IconButton onClick={() => { setPasswordEdit(false); setPasswordValue(''); setPasswordError(''); }} disabled={saving}>
-                          <CancelIcon />
-                        </IconButton>
-                      </>
-                    ) : (
-                      <IconButton onClick={() => { setPasswordEdit(true); setPasswordValue(''); setPasswordError(''); }}>
-                        <EditIcon />
-                      </IconButton>
-                    )}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          
-          {/* Admin Actions Section */}
-          {isAdmin && (
-            <>
-              <Divider sx={{ my: 3 }} />
-              <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 600 }}>
-                Admin Actions
-              </Typography>
-              
-              {/* Set New Password */}
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                  Set New Password
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-                  <TextField
-                    value={adminPasswordValue}
-                    onChange={(e) => setAdminPasswordValue(e.target.value)}
-                    placeholder="Enter new password"
-                    type={showAdminPassword ? 'text' : 'password'}
-                    size="small"
-                    sx={{ flexGrow: 1 }}
-                    error={!!adminPasswordError}
-                    helperText={adminPasswordError || 'Minimum 6 characters'}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton
-                            aria-label={showAdminPassword ? 'Hide password' : 'Show password'}
-                            onClick={handleToggleAdminPasswordVisibility}
-                            edge="end"
-                            size="small"
-                          >
-                            {showAdminPassword ? <VisibilityOff /> : <Visibility />}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                  <Button
-                    variant="contained"
-                    startIcon={<LockIcon />}
-                    onClick={handleAdminPasswordReset}
-                    disabled={saving || !adminPasswordValue || adminPasswordValue.length < 6}
-                    sx={{ minWidth: 140 }}
-                  >
-                    {saving ? 'Setting...' : 'Set Password'}
-                  </Button>
-                </Box>
-              </Box>
-              
-              {/* Resend Invite Link */}
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                  Resend Invite Link
-                </Typography>
-                <Button
-                  variant="outlined"
-                  startIcon={<EmailIcon />}
-                  onClick={handleResendInvite}
-                  disabled={resendInviteLoading}
-                  sx={{ minWidth: 140 }}
-                >
-                  {resendInviteLoading ? 'Sending...' : 'Resend Invite'}
-                </Button>
-              </Box>
+  // Role-based edit permissions
+  const canEditNames = isAdmin || isOperationsManager;
+  const canEditEmail = isAdmin || isOperationsManager;
+  const canEditRole = isAdmin && userId !== currentUser?.id;
+  const canResendInvite = user.isInvited && (isAdmin || isOperationsManager);
+  const canResetPassword = isAdmin;
+  const canSave = canEditNames || canEditEmail || canEditRole;
+  const statusLabel = user.isActive ? 'Active' : 'Pending';
 
-              {/* Send Password Reset Link */}
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-                  Send Password Reset Link
+  return (
+    <Box display="flex" minHeight="100vh" bgcolor="#fef8f4">
+      <MainNavigation />
+      <Box flex={1} px={6} py={4}>
+        {/* Header with Return Button */}
+        <Box display="flex" alignItems="center" mb={4}>
+          <Button
+            variant="contained"
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate('/profile')}
+            sx={{ 
+              backgroundColor: '#1bcddc', 
+              color: '#fff', 
+              fontWeight: 700, 
+              px: 3, 
+              borderRadius: 2, 
+              boxShadow: 'none', 
+              mr: 3,
+              '&:hover': { backgroundColor: '#17b3c0' } 
+            }}
+          >
+            RETURN TO ACCOUNT PAGE
+          </Button>
+        </Box>
+
+        {/* Page Title */}
+        <Typography variant="h5" fontWeight={700} letterSpacing={2} mb={4} color="#31365E">
+          Edit User Account
+        </Typography>
+
+        {/* Main Content Card */}
+        <Card sx={{ borderRadius: 3, boxShadow: '0 2px 8px #eee', p: 4 }}>
+          <Box component="form" autoComplete="off" onSubmit={e => { e.preventDefault(); handleSave(); }}>
+            <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }} gap={4} mb={4}>
+              {/* First Name */}
+              <Box>
+                <Typography fontWeight={600} mb={1} color="#222">First Name</Typography>
+                <TextField
+                  value={formState.firstName}
+                  onChange={e => handleFieldChange('firstName', e.target.value)}
+                  size="medium"
+                  fullWidth
+                  disabled={!canEditNames}
+                  InputProps={{
+                    style: !canEditNames ? { background: '#f5f5f7', color: '#888' } : { background: '#fff' }
+                  }}
+                  sx={{ borderRadius: 2, mb: 2 }}
+                />
+              </Box>
+              {/* Last Name */}
+              <Box>
+                <Typography fontWeight={600} mb={1} color="#222">Last Name</Typography>
+                <TextField
+                  value={formState.lastName}
+                  onChange={e => handleFieldChange('lastName', e.target.value)}
+                  size="medium"
+                  fullWidth
+                  disabled={!canEditNames}
+                  InputProps={{
+                    style: !canEditNames ? { background: '#f5f5f7', color: '#888' } : { background: '#fff' }
+                  }}
+                  sx={{ borderRadius: 2, mb: 2 }}
+                />
+              </Box>
+              {/* Email */}
+              <Box>
+                <Typography fontWeight={600} mb={1} color="#222">Email</Typography>
+                <TextField
+                  value={formState.email}
+                  onChange={e => handleFieldChange('email', e.target.value)}
+                  size="medium"
+                  fullWidth
+                  disabled={!canEditEmail}
+                  InputProps={{
+                    style: !canEditEmail ? { background: '#f5f5f7', color: '#888' } : { background: '#fff' }
+                  }}
+                  sx={{ borderRadius: 2, mb: 2 }}
+                />
+              </Box>
+              {/* Role + Resend Invite */}
+              <Box>
+                <Typography fontWeight={600} mb={1} color="#222">Role</Typography>
+                <Box display="flex" alignItems="center">
+                  <FormControl size="medium" fullWidth>
+                    <Select
+                      value={formState.role}
+                      onChange={e => handleFieldChange('role', e.target.value)}
+                      disabled={!canEditRole}
+                      sx={{ background: !canEditRole ? '#f5f5f7' : '#fff', color: !canEditRole ? '#888' : '#222', borderRadius: 2 }}
+                    >
+                      <MenuItem value="admin">Administrator</MenuItem>
+                      <MenuItem value="operations_manager">Operations Manager</MenuItem>
+                      <MenuItem value="staff">Staff</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+                <Typography variant="caption" color="text.secondary" mt={1}>
+                  {statusLabel}
+                </Typography>
+                {canResendInvite && (
+                  <Box mt={1}>
+                    <Button
+                      variant="text"
+                      size="small"
+                      startIcon={<EmailIcon />}
+                      onClick={handleResendInvite}
+                      sx={{ fontWeight: 600, color: 'primary.main', textTransform: 'none' }}
+                      disabled={resendInviteLoading}
+                    >
+                      {resendInviteLoading ? 'Sending...' : 'Resend Invite'}
+                    </Button>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+            {error && <Alert severity="error" sx={{ my: 2 }}>{error}</Alert>}
+            <Box mt={5} display="flex" justifyContent="flex-end">
+              <Button
+                type="submit"
+                variant="contained"
+                color="primary"
+                startIcon={<SaveIcon />}
+                disabled={!isDirty || saving}
+                sx={{ minWidth: 180, fontWeight: 600, fontSize: 18, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </Box>
+            {canResetPassword && (
+              <Box mt={8}>
+                <Divider sx={{ mb: 4 }} />
+                <Typography fontWeight={600} mb={3} letterSpacing={1} color="#222">
+                  SEND PASSWORD RESET LINK
                 </Typography>
                 <Button
-                  variant="outlined"
-                  startIcon={<LockIcon />}
+                  variant="contained"
+                  color="error"
                   onClick={handleSendResetLink}
                   disabled={sendResetLinkLoading}
-                  sx={{ minWidth: 140 }}
+                  sx={{ fontWeight: 700, minWidth: 260, borderRadius: 3 }}
                 >
-                  {sendResetLinkLoading ? 'Sending...' : 'Send Reset Link'}
+                  {sendResetLinkLoading ? 'Sending...' : 'Send Reset Password Link'}
                 </Button>
               </Box>
-            </>
-          )}
-          
-          <Snackbar
-            open={success || resendInviteSuccess || sendResetLinkSuccess}
-            autoHideDuration={2000}
-            onClose={() => { setSuccess(false); setResendInviteSuccess(false); setSendResetLinkSuccess(false); }}
-            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-          >
-            <Alert severity="success" sx={{ width: '100%' }}>
-              {sendResetLinkSuccess ? 'Reset link sent successfully!' : 
-               resendInviteSuccess ? 'Invite sent successfully!' : 
-               'User updated successfully!'}
-            </Alert>
-          </Snackbar>
-        </CardContent>
-      </Card>
+            )}
+          </Box>
+        </Card>
+        <Snackbar
+          open={success || resendInviteSuccess || sendResetLinkSuccess}
+          autoHideDuration={2000}
+          onClose={() => { setSuccess(false); setResendInviteSuccess(false); setSendResetLinkSuccess(false); }}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert severity="success" sx={{ width: '100%' }}>
+            {sendResetLinkSuccess ? 'Reset link sent successfully!' : 
+             resendInviteSuccess ? 'Invite sent successfully!' : 
+             'Account updated successfully!'}
+          </Alert>
+        </Snackbar>
+      </Box>
     </Box>
   );
 };

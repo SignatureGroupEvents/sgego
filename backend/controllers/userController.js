@@ -290,10 +290,11 @@ const deleteUser = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
     
+    // TODO: Re-enable this restriction after testing
     // Prevent deletion of operations_manager users
-    if (user.role === 'operations_manager') {
-      return res.status(403).json({ message: 'Cannot delete operations manager users' });
-    }
+    // if (user.role === 'operations_manager') {
+    //   return res.status(403).json({ message: 'Cannot delete operations manager users' });
+    // }
     
     const Checkin = require('../models/Checkin');
     const eventCount = await Event.countDocuments({ createdBy: userId });

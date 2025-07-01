@@ -16,6 +16,7 @@ import {
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { validateResetToken, resetPassword } from '../services/api';
 import toast from 'react-hot-toast';
+import ResetPasswordRequestForm from '../components/ResetPasswordRequestForm';
 
 interface ResetValidation {
   email: string;
@@ -27,6 +28,11 @@ const ResetPasswordPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   
+  // If no token, show the request form
+  if (!token) {
+    return <ResetPasswordRequestForm />;
+  }
+
   // State for validation
   const [validation, setValidation] = useState<ResetValidation | null>(null);
   const [validating, setValidating] = useState(true);

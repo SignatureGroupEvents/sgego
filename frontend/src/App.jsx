@@ -129,8 +129,8 @@ function App() {
             } />
             <Route path="/invite/:token" element={<AcceptInvitePage />} />
             <Route path="/account-edit/:userId" element={<AccountEditPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-            <Route path="/" element={<Navigate to="/events" />} />
           </Routes>
         </Router>
       </AuthProvider>

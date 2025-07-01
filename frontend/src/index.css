@@ -11,7 +11,7 @@
 
 html, body, #root {
   height: 100%;
-  margin: 1%;
+  margin: 0;
   padding: 0;
   background: var(--color-bg);
   font-family: 'Work Sans', Arial, sans-serif;

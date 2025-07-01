@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -32,7 +32,10 @@ import {
   Snackbar,
   Divider,
   Avatar,
-  InputAdornment
+  InputAdornment,
+  TablePagination,
+  useTheme,
+  Stack
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -45,11 +48,13 @@ import {
   Assignment as AssignmentIcon,
   Group as GroupIcon,
   Visibility,
-  VisibilityOff
+  VisibilityOff,
+  Search as SearchIcon
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import MainNavigation from '../MainNavigation';
+import toast from 'react-hot-toast';
 import {
   getUserProfile,
   updateUserProfile,
@@ -67,10 +72,35 @@ import HomeIcon from '@mui/icons-material/Home';
 import PersonIcon2 from '@mui/icons-material/Person';
 import api from '../../services/api';
 
+const SIDEBAR_ITEMS = [
+  { label: 'Dashboard', key: 'dashboard' },
+  { label: 'Events', key: 'events', active: true },
+  { label: 'Activity', key: 'activity' },
+  { label: 'Account', key: 'account' }
+];
+
+const ROLE_LABELS = {
+  admin: 'Admin',
+  staff: 'Staff',
+  operations_manager: 'Ops Manager'
+};
+
+const ROLE_COLORS = {
+  admin: '#CB1033', // Warning color from brand palette - distinct red
+  staff: '#FAA951', // Accent color from brand palette - orange
+  operations_manager: '#31365E' // Dark brand color - navy blue
+};
+
+const STATUS_LABELS = {
+  active: 'Active',
+  pending: 'Pending'
+};
+
 const ProfilePage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const { user: currentUser, isOperationsManager, isAdmin } = useAuth();
+  const theme = useTheme();
   
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -87,7 +117,7 @@ const ProfilePage = () => {
   const [selectedEvents, setSelectedEvents] = useState([]);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
-  const [inviteDialog, setInviteDialog] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterRole, setFilterRole] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -261,26 +291,38 @@ const ProfilePage = () => {
     }
   };
 
-  const handleDeleteUser = async () => {
+  const handleDeleteUser = async (userId) => {
     try {
-      await deleteUser(userToDelete._id);
-      setSuccess('User deleted successfully!');
-      setDeleteDialog(false);
-      setUserToDelete(null);
+      await deleteUser(userId);
+      toast.success('User deleted successfully!');
       loadAllUsers();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete user.');
+      toast.error(err.response?.data?.message || 'Failed to delete user.');
     }
   };
 
   const handleInviteUser = async (inviteData) => {
     try {
-      await inviteUser(inviteData);
-      setSuccess('User invited successfully!');
-      setInviteDialog(false);
-      loadAllUsers();
+      const response = await inviteUser(inviteData);
+      
+      // Check if the response indicates success
+      if (response && response.status >= 200 && response.status < 300) {
+        toast.success('User invited successfully!');
+        setShowInviteModal(false);
+        loadAllUsers();
+        return response; // Return success response
+      } else {
+        // Handle non-2xx responses
+        const errorMessage = response?.data?.message || 'Failed to invite user.';
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to invite user.');
+      // Handle network errors or other exceptions
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to invite user.';
+      toast.error(errorMessage);
+      console.error('Invite error:', err);
+      throw err; // Re-throw to let the form component handle it
     }
   };
 
@@ -336,6 +378,23 @@ const ProfilePage = () => {
     return true;
   });
 
+  // Debounced search
+  const [searchValue, setSearchValue] = useState('');
+  const [searchTimeout, setSearchTimeout] = useState(null);
+  useEffect(() => {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    setSearchTimeout(setTimeout(() => setSearchQuery(searchValue), 300));
+    // eslint-disable-next-line
+  }, [searchValue]);
+
+  // Pagination
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const pagedUsers = useMemo(() => {
+    const start = page * rowsPerPage;
+    return filteredUsers.slice(start, start + rowsPerPage);
+  }, [filteredUsers, page, rowsPerPage]);
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', height: '100vh' }}>
@@ -359,364 +418,171 @@ const ProfilePage = () => {
   }
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
+    <Box display="flex" minHeight="100vh" bgcolor="#fef8f4">
       <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
-        {showUserManagement ? (
-          <>
-            <Typography variant="h4" gutterBottom>
-              Roles & Permissions
-            </Typography>
-            <Typography variant="subtitle1" color="textSecondary" sx={{ mb: 3 }}>
-              {canModifyUsers 
-                ? 'Invite collaborators to work on this site and manage roles.'
-                : 'View user information and assigned events (read-only mode).'
-              }
-            </Typography>
-
-            {!canModifyUsers && (
-              <Alert severity="info" sx={{ mb: 3 }}>
-                You are viewing user information in read-only mode. Only administrators and operations managers can modify user data.
-              </Alert>
-            )}
-
-            {/* Filter/Search Bar Section */}
-            <AccountFilters
-              filterStatus={filterStatus}
-              setFilterStatus={setFilterStatus}
-              filterRole={filterRole}
-              setFilterRole={setFilterRole}
-              onCreateRole={() => setCreateRoleModal(true)}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              canModifyUsers={canModifyUsers}
+      <Box flex={1} px={6} py={4}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+          <Typography variant="h5" fontWeight={700} letterSpacing={2}>Account Details</Typography>
+          <Button
+            variant="contained"
+            sx={{ backgroundColor: '#1bcddc', color: '#fff', fontWeight: 700, px: 3, borderRadius: 2, boxShadow: 'none', '&:hover': { backgroundColor: '#17b3c0' } }}
+            onClick={() => setShowInviteModal(true)}
+          >
+            INVITE USERS
+          </Button>
+        </Box>
+        <Card sx={{ borderRadius: 3, boxShadow: '0 2px 8px #eee', p: 3 }}>
+          <Tabs value={filterStatus} onChange={(e, val) => setFilterStatus(val)}>
+            <Tab value="all" label="All" />
+            <Tab value="pending" label="Pending" />
+            <Tab value="expired" label="Expired" />
+          </Tabs>
+          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+            <TextField
+              placeholder="Search email or name"
+              value={searchValue}
+              onChange={e => setSearchValue(e.target.value)}
+              size="small"
+              sx={{ flex: 1, bgcolor: '#fff', borderRadius: 2 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                )
+              }}
             />
-
-            <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3}>
-              {canModifyUsers && (
-                <Button
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  onClick={() => setInviteDialog(true)}
-                >
-                  Invite User
-                </Button>
-              )}
+            <FormControl size="small" sx={{ minWidth: 140, ml: 2 }}>
+              <InputLabel>Role</InputLabel>
+              <Select
+                value={filterRole}
+                label="Role"
+                onChange={e => { setFilterRole(e.target.value); setPage(0); }}
+              >
+                <MenuItem value="all">All</MenuItem>
+                <MenuItem value="admin">Admin</MenuItem>
+                <MenuItem value="staff">Staff</MenuItem>
+                <MenuItem value="operations_manager">Ops Manager</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+          {loading ? (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+              <CircularProgress />
             </Box>
-            <Card>
-              <CardContent>
-                <TableContainer component={Paper}>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Name</TableCell>
-                        <TableCell>Email</TableCell>
-                        <TableCell>Role</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell align="center">Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {filteredUsers.map((user) => (
-                        <TableRow key={user._id}>
-                          <TableCell>
-                            <Box display="flex" alignItems="center" gap={1}>
-                              <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
-                                <PersonIcon sx={{ fontSize: 16 }} />
-                              </Avatar>
-                              {user.name || user.username || ''}
-                            </Box>
-                          </TableCell>
-                          <TableCell>{user.email}</TableCell>
-                          <TableCell>
-                            <Box display="flex" alignItems="center" gap={1}>
-                              <FormControl size="small" sx={{ minWidth: 150 }}>
-                                <Select
-                                  value={user.role}
-                                  onChange={(e) => handleRoleChange(user._id, e.target.value, user.role, user.username || user.email)}
-                                  disabled={!isAdmin || user._id === currentUser?.id || roleUpdateLoading}
-                                  size="small"
-                                >
-                                  <MenuItem value="admin">Administrator</MenuItem>
-                                  <MenuItem value="operations_manager">Operations Manager</MenuItem>
-                                  <MenuItem value="staff">Staff</MenuItem>
-                                </Select>
-                              </FormControl>
-                              {user._id === currentUser?.id && (
-                                <Chip 
-                                  label="Current User" 
-                                  color="info" 
-                                  size="small" 
-                                  variant="outlined"
-                                />
-                              )}
-                            </Box>
-                          </TableCell>
-                          <TableCell>
-                            {user.isActive ? (
-                              <Chip label="Active" color="success" size="small" />
-                            ) : user.isInvited && user.inviteExpired ? (
-                              <Chip label="Expired" color="error" size="small" />
-                            ) : user.isInvited ? (
-                              <Chip label="Pending Invite" color="warning" size="small" />
-                            ) : (
-                              <Chip label="Inactive" color="default" size="small" />
+          ) : (
+            <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: '0 2px 8px #eee' }}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Role</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {pagedUsers.map(user => (
+                    <TableRow key={user._id}>
+                      <TableCell>{user.username || '-'}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={ROLE_LABELS[user.role] || user.role}
+                          size="small"
+                          sx={{ 
+                            fontWeight: 700, 
+                            color: '#fff', 
+                            fontSize: 13, 
+                            px: 2, 
+                            borderRadius: 2,
+                            bgcolor: ROLE_COLORS[user.role] || '#757575'
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {user.isActive ? 'Active' : 'Pending'}
+                      </TableCell>
+                      <TableCell>
+                        {(isAdmin || isOperationsManager) ? (
+                          <Box display="flex" gap={1}>
+                            <Button
+                              variant="contained"
+                              size="small"
+                              sx={{ backgroundColor: '#1bcddc', color: '#fff', fontWeight: 700, borderRadius: 2, boxShadow: 'none', '&:hover': { backgroundColor: '#17b3c0' } }}
+                              onClick={() => navigate(`/account-edit/${user._id}`)}
+                            >
+                              Edit
+                            </Button>
+                            {isAdmin && (
+                              <Button
+                                variant="contained"
+                                size="small"
+                                sx={{ 
+                                  backgroundColor: '#CB1033', 
+                                  color: '#fff', 
+                                  fontWeight: 700, 
+                                  borderRadius: 2, 
+                                  boxShadow: 'none', 
+                                  '&:hover': { backgroundColor: '#a00000' } 
+                                }}
+                                onClick={() => {
+                                  if (window.confirm(`Are you sure you want to delete ${user.username || user.email}? This action cannot be undone.`)) {
+                                    handleDeleteUser(user._id);
+                                  }
+                                }}
+                              >
+                                Delete
+                              </Button>
                             )}
-                          </TableCell>
-                          <TableCell align="center">
-                            <Box display="flex" gap={1} justifyContent="center">
-                              {canModifyUsers && (
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  startIcon={<EditIcon />}
-                                  onClick={() => navigate(`/account-edit/${user._id}`)}
-                                  sx={{ minWidth: 0, px: 1 }}
-                                >
-                                  Edit
-                                </Button>
-                              )}
-                              {canModifyUsers && user.isInvited === true && user.isActive === false && user._id && (
-                                <Button
-                                  variant="outlined"
-                                  size="small"
-                                  onClick={() => handleResendInvite(user._id)}
-                                  sx={{ ml: 1 }}
-                                >
-                                  Resend
-                                </Button>
-                              )}
-                              {isAdmin && user.isActive && (
-                                <Button
-                                  variant="outlined"
-                                  size="small"
-                                  onClick={() => handleSendResetLink(user._id)}
-                                  sx={{ ml: 1 }}
-                                  title="Send Password Reset Link"
-                                >
-                                  Reset
-                                </Button>
-                              )}
-                              {isAdmin && (
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={() => {
-                                    setUserToDelete(user);
-                                    setDeleteDialog(true);
-                                  }}
-                                  title="Delete User"
-                                >
-                                  <DeleteIcon />
-                                </IconButton>
-                              )}
-                            </Box>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </>
-        ) : (
-          // Personal Profile View for regular users only
-          <>
-            <Typography variant="h4" gutterBottom>
-              My Account
-            </Typography>
-            <Card>
-              <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                  <Box display="flex" alignItems="center" gap={2}>
-                    <Avatar sx={{ width: 64, height: 64, bgcolor: 'primary.main' }}>
-                      <PersonIcon sx={{ fontSize: 32 }} />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="h5">{user?.username}</Typography>
-                      <Chip 
-                        label={getRoleLabel(user?.role)} 
-                        color={getRoleColor(user?.role)} 
-                        size="small" 
-                      />
-                    </Box>
-                  </Box>
-                  {!editMode && (
-                    <Button
-                      variant="outlined"
-                      startIcon={<EditIcon />}
-                      onClick={handleEditClick}
-                    >
-                      Edit Account
-                    </Button>
+                          </Box>
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {pagedUsers.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center" sx={{ py: 6, color: '#aaa' }}>
+                        No users found.
+                      </TableCell>
+                    </TableRow>
                   )}
-                </Box>
-
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Email"
-                      value={editMode ? editValues.email : user?.email}
-                      onChange={(e) => editMode && setEditValues({ ...editValues, email: e.target.value })}
-                      disabled={!editMode}
-                      margin="normal"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Username"
-                      value={editMode ? editValues.username : user?.username}
-                      onChange={(e) => editMode && setEditValues({ ...editValues, username: e.target.value })}
-                      disabled={!editMode}
-                      margin="normal"
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Role"
-                      value={getRoleLabel(user?.role)}
-                      disabled
-                      margin="normal"
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Last Login"
-                      value={user?.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never'}
-                      disabled
-                      margin="normal"
-                    />
-                  </Grid>
-                </Grid>
-
-                {editMode && (
-                  <Box display="flex" gap={2} mt={3}>
-                    <Button
-                      variant="contained"
-                      startIcon={<SaveIcon />}
-                      onClick={handleEditSave}
-                    >
-                      Save Changes
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<CancelIcon />}
-                      onClick={handleEditCancel}
-                    >
-                      Cancel
-                    </Button>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-          </>
-        )}
-
-        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-        {success && (
-          <Snackbar open autoHideDuration={3000} onClose={() => setSuccess('')} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-            <Alert onClose={() => setSuccess('')} severity="success" sx={{ width: '100%' }}>{success}</Alert>
-          </Snackbar>
-        )}
-
-        {/* Create User Dialog */}
-        <Dialog open={createUserDialog} onClose={() => setCreateUserDialog(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Create New User</DialogTitle>
-          <DialogContent>
-            <CreateUserForm onSubmit={handleCreateUser} onCancel={() => setCreateUserDialog(false)} />
-          </DialogContent>
-        </Dialog>
-
-        {/* Invite User Dialog */}
-        <Dialog open={inviteDialog} onClose={() => setInviteDialog(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Invite New User</DialogTitle>
-          <DialogContent>
-            <InviteUserForm onSubmit={handleInviteUser} onCancel={() => setInviteDialog(false)} />
-          </DialogContent>
-        </Dialog>
-
-        {/* Assign Events Dialog */}
-        <Dialog open={assignEventsDialog} onClose={() => setAssignEventsDialog(false)} maxWidth="md" fullWidth>
-          <DialogTitle>Assign Events to {selectedUserForAssignment?.username}</DialogTitle>
-          <DialogContent>
-            <Autocomplete
-              multiple
-              options={availableEvents}
-              getOptionLabel={(option) => `${option.eventName} (${option.eventContractNumber})`}
-              value={selectedEvents}
-              onChange={(_, newValue) => setSelectedEvents(newValue)}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  variant="outlined"
-                  label="Select Events"
-                  margin="normal"
-                />
-              )}
-              renderTags={(value, getTagProps) =>
-                value.map((option, index) => (
-                  <Chip
-                    label={option.eventName}
-                    {...getTagProps({ index })}
-                    key={option._id}
-                  />
-                ))
-              }
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setAssignEventsDialog(false)}>Cancel</Button>
-            <Button onClick={handleAssignEvents} variant="contained">Assign Events</Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Delete User Dialog */}
-        <Dialog open={deleteDialog} onClose={() => setDeleteDialog(false)}>
-          <DialogTitle>Delete User</DialogTitle>
-          <DialogContent>
-            <Typography>
-              Are you sure you want to delete {userToDelete?.username}? This action cannot be undone.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDeleteDialog(false)}>Cancel</Button>
-            <Button onClick={handleDeleteUser} color="error" variant="contained">Delete</Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Role Change Confirmation Dialog */}
-        <Dialog open={roleConfirmDialog} onClose={handleRoleCancel}>
-          <DialogTitle>Confirm Role Change</DialogTitle>
-          <DialogContent>
-            <Typography>
-              Are you sure you want to change the role of <strong>{roleChangeData.userName}</strong> from{' '}
-              <strong>{getRoleLabel(roleChangeData.oldRole)}</strong> to{' '}
-              <strong>{getRoleLabel(roleChangeData.newRole)}</strong>?
-            </Typography>
-            <Alert severity="warning" sx={{ mt: 2 }}>
-              This will change the user's permissions and access levels. Please ensure this change is appropriate.
-            </Alert>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleRoleCancel} disabled={roleUpdateLoading}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleRoleConfirm} 
-              variant="contained" 
-              disabled={roleUpdateLoading}
-              startIcon={roleUpdateLoading ? <CircularProgress size={20} /> : null}
-            >
-              {roleUpdateLoading ? 'Updating...' : 'Confirm Change'}
-            </Button>
-          </DialogActions>
-        </Dialog>
+                </TableBody>
+              </Table>
+              <TablePagination
+                component="div"
+                count={filteredUsers.length}
+                page={page}
+                onPageChange={(_, newPage) => setPage(newPage)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+                rowsPerPageOptions={[5, 10, 25]}
+                labelRowsPerPage="Rows per page:"
+                sx={{ px: 2, pb: 1, borderTop: '1px solid #eee' }}
+              />
+            </TableContainer>
+          )}
+        </Card>
       </Box>
+
+      {/* Invite User Modal */}
+      <Dialog
+        open={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Invite a New User
+        </DialogTitle>
+        <DialogContent>
+          <InviteUserForm
+            onSubmit={handleInviteUser}
+            onCancel={() => setShowInviteModal(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };
@@ -809,31 +675,69 @@ const InviteUserForm = ({ onSubmit, onCancel }) => {
     role: 'staff'
   });
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setErrors({}); // Clear previous errors
+    
     try {
       await onSubmit(formData);
+      // Only reset form on successful submission
       setFormData({ email: '', name: '', role: 'staff' });
     } catch (error) {
-      // Error is handled by the parent component
+      // Handle specific error cases
+      if (error.message && error.message.toLowerCase().includes('already exists')) {
+        setErrors({ email: 'User with this email already exists' });
+      } else if (error.message && error.message.toLowerCase().includes('invalid email')) {
+        setErrors({ email: 'Please enter a valid email address' });
+      } else {
+        setErrors({ general: error.message || 'Failed to send invite' });
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const handleEmailChange = (e) => {
+    const email = e.target.value;
+    setFormData({ ...formData, email });
+    // Clear email error when user starts typing
+    if (errors.email) {
+      setErrors({ ...errors, email: '' });
+    }
+  };
+
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+      {/* General error alert */}
+      {errors.general && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {errors.general}
+        </Alert>
+      )}
+      
       <TextField
         fullWidth
         label="Email"
         type="email"
         value={formData.email}
-        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+        onChange={handleEmailChange}
         required
         margin="normal"
         placeholder="Enter email address"
+        error={!!errors.email}
+        helperText={errors.email}
+        sx={{
+          '& .MuiOutlinedInput-root': {
+            '&.Mui-error': {
+              '& fieldset': {
+                borderColor: '#d32f2f',
+              },
+            },
+          },
+        }}
       />
       <TextField
         fullWidth
@@ -855,19 +759,30 @@ const InviteUserForm = ({ onSubmit, onCancel }) => {
           <MenuItem value="admin">Administrator</MenuItem>
         </Select>
       </FormControl>
-      <Box display="flex" gap={2} mt={3}>
+      <DialogActions sx={{ px: 0, pt: 2 }}>
         <Button 
           type="submit" 
           variant="contained" 
           disabled={loading}
           startIcon={loading ? <CircularProgress size={20} /> : null}
+          sx={{ 
+            minWidth: 120,
+            backgroundColor: '#1bcddc',
+            '&:hover': { backgroundColor: '#17b3c0' },
+            '&:disabled': { backgroundColor: '#ccc' }
+          }}
         >
           {loading ? 'Sending Invite...' : 'Send Invite'}
         </Button>
-        <Button onClick={onCancel} variant="outlined" disabled={loading}>
+        <Button 
+          onClick={onCancel} 
+          variant="outlined" 
+          disabled={loading}
+          sx={{ minWidth: 100 }}
+        >
           Cancel
         </Button>
-      </Box>
+      </DialogActions>
     </Box>
   );
 };
