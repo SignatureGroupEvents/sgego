@@ -31,7 +31,8 @@ import {
   IconButton,
   Snackbar,
   Divider,
-  Avatar
+  Avatar,
+  InputAdornment
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -42,7 +43,9 @@ import {
   Cancel as CancelIcon,
   Security as SecurityIcon,
   Assignment as AssignmentIcon,
-  Group as GroupIcon
+  Group as GroupIcon,
+  Visibility,
+  VisibilityOff
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -57,7 +60,8 @@ import {
   getAvailableEvents,
   deactivateUser,
   deleteUser,
-  inviteUser
+  inviteUser,
+  sendPasswordResetLink
 } from '../../services/api';
 import HomeIcon from '@mui/icons-material/Home';
 import PersonIcon2 from '@mui/icons-material/Person';
@@ -94,6 +98,8 @@ const ProfilePage = () => {
   const [editingRoleUserId, setEditingRoleUserId] = useState(null);
   const [editingRoleValue, setEditingRoleValue] = useState('');
   const [roleUpdateLoading, setRoleUpdateLoading] = useState(false);
+  const [roleConfirmDialog, setRoleConfirmDialog] = useState(false);
+  const [roleChangeData, setRoleChangeData] = useState({ userId: null, newRole: '', oldRole: '', userName: '' });
 
   // Determine if this is viewing own profile or managing users
   const isOwnProfile = !userId || userId === currentUser?.id;
@@ -208,44 +214,39 @@ const ProfilePage = () => {
     }
   };
 
-  const handleRoleEditStart = (userId, currentRole) => {
+  const handleRoleChange = (userId, newRole, oldRole, userName) => {
     // Prevent admins from editing their own role
     if (userId === currentUser?.id) {
       setError('You cannot change your own role');
       return;
     }
     
-    setEditingRoleUserId(userId);
-    setEditingRoleValue(currentRole);
+    setRoleChangeData({ userId, newRole, oldRole, userName });
+    setRoleConfirmDialog(true);
     setError('');
   };
 
-  const handleRoleEditCancel = () => {
-    setEditingRoleUserId(null);
-    setEditingRoleValue('');
-    setError('');
-  };
-
-  const handleRoleEditSave = async () => {
-    if (!editingRoleValue) {
-      setError('Please select a role');
-      return;
-    }
-
+  const handleRoleConfirm = async () => {
     setRoleUpdateLoading(true);
     setError('');
     
     try {
-      await updateUserRole(editingRoleUserId, editingRoleValue);
+      await updateUserRole(roleChangeData.userId, roleChangeData.newRole);
       setSuccess('User role updated successfully!');
-      setEditingRoleUserId(null);
-      setEditingRoleValue('');
+      setRoleConfirmDialog(false);
+      setRoleChangeData({ userId: null, newRole: '', oldRole: '', userName: '' });
       loadAllUsers();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update user role.');
     } finally {
       setRoleUpdateLoading(false);
     }
+  };
+
+  const handleRoleCancel = () => {
+    setRoleConfirmDialog(false);
+    setRoleChangeData({ userId: null, newRole: '', oldRole: '', userName: '' });
+    setError('');
   };
 
   const handleAssignEvents = async () => {
@@ -290,6 +291,15 @@ const ProfilePage = () => {
       loadAllUsers();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to resend invite.');
+    }
+  };
+
+  const handleSendResetLink = async (userId) => {
+    try {
+      await sendPasswordResetLink(userId);
+      setSuccess('Password reset link sent successfully!');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to send password reset link.');
     }
   };
 
@@ -419,53 +429,28 @@ const ProfilePage = () => {
                           </TableCell>
                           <TableCell>{user.email}</TableCell>
                           <TableCell>
-                            {editingRoleUserId === user._id ? (
-                              <Box display="flex" alignItems="center" gap={1}>
-                                <FormControl size="small" sx={{ minWidth: 150 }}>
-                                  <Select
-                                    value={editingRoleValue}
-                                    onChange={(e) => setEditingRoleValue(e.target.value)}
-                                    disabled={roleUpdateLoading}
-                                  >
-                                    <MenuItem value="admin">Administrator</MenuItem>
-                                    <MenuItem value="operations_manager">Operations Manager</MenuItem>
-                                    <MenuItem value="staff">Staff</MenuItem>
-                                  </Select>
-                                </FormControl>
-                                <IconButton 
-                                  color="primary" 
-                                  size="small" 
-                                  onClick={handleRoleEditSave}
-                                  disabled={roleUpdateLoading}
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <FormControl size="small" sx={{ minWidth: 150 }}>
+                                <Select
+                                  value={user.role}
+                                  onChange={(e) => handleRoleChange(user._id, e.target.value, user.role, user.username || user.email)}
+                                  disabled={!isAdmin || user._id === currentUser?.id || roleUpdateLoading}
+                                  size="small"
                                 >
-                                  <SaveIcon />
-                                </IconButton>
-                                <IconButton 
-                                  size="small" 
-                                  onClick={handleRoleEditCancel}
-                                  disabled={roleUpdateLoading}
-                                >
-                                  <CancelIcon />
-                                </IconButton>
-                              </Box>
-                            ) : (
-                              <Box display="flex" alignItems="center" gap={1}>
+                                  <MenuItem value="admin">Administrator</MenuItem>
+                                  <MenuItem value="operations_manager">Operations Manager</MenuItem>
+                                  <MenuItem value="staff">Staff</MenuItem>
+                                </Select>
+                              </FormControl>
+                              {user._id === currentUser?.id && (
                                 <Chip 
-                                  label={getRoleLabel(user.role)} 
-                                  color={getRoleColor(user.role)} 
+                                  label="Current User" 
+                                  color="info" 
                                   size="small" 
+                                  variant="outlined"
                                 />
-                                {isAdmin && user._id !== currentUser?.id && (
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleRoleEditStart(user._id, user.role)}
-                                    title="Edit Role"
-                                  >
-                                    <EditIcon fontSize="small" />
-                                  </IconButton>
-                                )}
-                              </Box>
-                            )}
+                              )}
+                            </Box>
                           </TableCell>
                           <TableCell>
                             {user.isActive ? (
@@ -499,6 +484,17 @@ const ProfilePage = () => {
                                   sx={{ ml: 1 }}
                                 >
                                   Resend
+                                </Button>
+                              )}
+                              {isAdmin && user.isActive && (
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  onClick={() => handleSendResetLink(user._id)}
+                                  sx={{ ml: 1 }}
+                                  title="Send Password Reset Link"
+                                >
+                                  Reset
                                 </Button>
                               )}
                               {isAdmin && (
@@ -692,6 +688,34 @@ const ProfilePage = () => {
             <Button onClick={handleDeleteUser} color="error" variant="contained">Delete</Button>
           </DialogActions>
         </Dialog>
+
+        {/* Role Change Confirmation Dialog */}
+        <Dialog open={roleConfirmDialog} onClose={handleRoleCancel}>
+          <DialogTitle>Confirm Role Change</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Are you sure you want to change the role of <strong>{roleChangeData.userName}</strong> from{' '}
+              <strong>{getRoleLabel(roleChangeData.oldRole)}</strong> to{' '}
+              <strong>{getRoleLabel(roleChangeData.newRole)}</strong>?
+            </Typography>
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              This will change the user's permissions and access levels. Please ensure this change is appropriate.
+            </Alert>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleRoleCancel} disabled={roleUpdateLoading}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleRoleConfirm} 
+              variant="contained" 
+              disabled={roleUpdateLoading}
+              startIcon={roleUpdateLoading ? <CircularProgress size={20} /> : null}
+            >
+              {roleUpdateLoading ? 'Updating...' : 'Confirm Change'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Box>
   );
@@ -705,10 +729,15 @@ const CreateUserForm = ({ onSubmit, onCancel }) => {
     password: '',
     role: 'staff'
   });
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit(formData);
+  };
+
+  const handleTogglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
   };
 
   return (
@@ -733,11 +762,25 @@ const CreateUserForm = ({ onSubmit, onCancel }) => {
       <TextField
         fullWidth
         label="Password"
-        type="password"
+        type={showPassword ? 'text' : 'password'}
         value={formData.password}
         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
         required
         margin="normal"
+        InputProps={{
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                onClick={handleTogglePasswordVisibility}
+                edge="end"
+                tabIndex={-1}
+              >
+                {showPassword ? <VisibilityOff /> : <Visibility />}
+              </IconButton>
+            </InputAdornment>
+          ),
+        }}
       />
       <FormControl fullWidth margin="normal">
         <InputLabel>Role</InputLabel>

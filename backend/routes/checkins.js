@@ -21,13 +21,13 @@ router.get('/test', (req, res) => {
 
 router.use(protect); // Protect all checkin routes
 
-// Enhanced check-in routes
+// Check-in routes - allow all authenticated users (including staff)
 router.get('/context/:eventId', getCheckinContext);
 router.post('/multi', multiEventCheckin);
 router.post('/single', singleEventCheckin);
-
-// Existing routes
 router.get('/', getCheckins);
+
+// Management routes - restrict to operations manager and admin
 router.put('/:checkinId/undo', requireRole('operations_manager', 'admin'), undoCheckin);
 router.delete('/:checkinId', requireRole('admin'), deleteCheckin);
 

@@ -2,6 +2,8 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const InvitationToken = require('../models/InvitationToken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const sendEmail = require('../utils/sendEmail');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -462,6 +464,81 @@ exports.validateResetToken = async (req, res) => {
       status: 'expired',
       message: 'Server error during validation' 
     });
+  }
+};
+
+exports.sendPasswordResetLink = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log('🔐 Admin sending password reset link for user ID:', userId);
+    
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      console.log('❌ User not found');
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (!user.isActive) {
+      console.log('❌ User account is deactivated');
+      return res.status(400).json({ message: 'Cannot send reset link to deactivated user' });
+    }
+
+    console.log('✅ User found and active:', user.email);
+
+    // Generate secure reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Save reset token to user
+    user.resetToken = resetToken;
+    user.resetTokenExpires = resetTokenExpires;
+    await user.save();
+
+    console.log('✅ Reset token generated and saved');
+
+    // Create reset link
+    const resetLink = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+
+    // Send email with reset link
+    await sendEmail({
+      to: user.email,
+      subject: 'Password Reset Request - SGEGO',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #1976d2;">Password Reset Request</h2>
+          <p>Hello ${user.username || user.email},</p>
+          <p>An administrator has requested a password reset for your SGEGO account.</p>
+          <p>Click the button below to set a new password:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" 
+               style="background-color: #1976d2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+              Reset Password
+            </a>
+          </div>
+          <p><strong>This link will expire in 24 hours.</strong></p>
+          <p>If you did not request this reset, please contact your administrator immediately.</p>
+          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+          <p style="color: #666; font-size: 14px;">
+            Best regards,<br>
+            SGEGO Team
+          </p>
+        </div>
+      `
+    });
+
+    console.log('✅ Password reset email sent successfully to:', user.email);
+    
+    res.json({
+      success: true,
+      message: 'Password reset link sent successfully',
+      resetLink // Only include in development
+    });
+    
+  } catch (error) {
+    console.error('💥 Send password reset link error:', error.message);
+    res.status(500).json({ message: error.message });
   }
 };
 

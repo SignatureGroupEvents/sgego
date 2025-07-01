@@ -8,7 +8,7 @@ const SidebarEventsList = ({ onSelectEvent }) => {
   const [events, setEvents] = useState([]);
   const [expanded, setExpanded] = useState({});
   const [loading, setLoading] = useState(true);
-  const { isOperationsManager, isAdmin } = useAuth();
+  const { isOperationsManager, isAdmin, user: currentUser } = useAuth();
 
   useEffect(() => {
     const loadEvents = async () => {

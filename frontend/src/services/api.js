@@ -147,7 +147,7 @@ export const resendUserInvite = (userId) => {
 };
 
 export const sendPasswordResetLink = (userId) => {
-  return api.post(`/users/${userId}/send-reset-link`);
+  return api.post(`/auth/send-reset-link/${userId}`);
 };
 
 // Invite validation API function
@@ -185,4 +185,25 @@ export const getEventActivityFeed = (eventId, filters = {}) => {
 
 export const createTestActivityLog = (eventId = null) => {
   return api.post('/analytics/activity/test', { eventId });
+};
+
+// Guest Management API functions
+export const getGuests = (eventId) => {
+  return api.get(`/guests?eventId=${eventId}`);
+};
+
+export const createGuest = (guestData) => {
+  return api.post('/guests', guestData);
+};
+
+export const deleteGuest = (guestId) => {
+  return api.delete(`/guests/${guestId}`);
+};
+
+export const bulkAddGuests = (eventId, guests) => {
+  return api.post('/guests/bulk-add', { eventId, guests });
+};
+
+export const bulkDeleteGuests = (eventId, guestIds) => {
+  return api.post('/guests/bulk-delete', { eventId, guestIds });
 };

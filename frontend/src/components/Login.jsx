@@ -13,6 +13,7 @@ import {
   IconButton
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
+import toast from 'react-hot-toast';
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -31,9 +32,11 @@ const Login = () => {
     const result = await login(formData);
     
     if (result.success) {
+      toast.success('Login successful!');
       navigate('/events');
     } else {
       setError(result.message);
+      toast.error(result.message);
     }
     
     setLoading(false);

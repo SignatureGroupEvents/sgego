@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { validateResetToken, resetPassword } from '../services/api';
+import toast from 'react-hot-toast';
 
 interface ResetValidation {
   email: string;
@@ -43,8 +44,8 @@ const ResetPasswordPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Toast state
-  const [toast, setToast] = useState<{
+  // Toast state (keeping for backward compatibility)
+  const [toastState, setToastState] = useState<{
     open: boolean;
     message: string;
     severity: 'success' | 'error' | 'warning' | 'info';
@@ -83,15 +84,19 @@ const ResetPasswordPage: React.FC = () => {
   }, [token]);
 
   const showToast = (message: string, severity: 'success' | 'error' | 'warning' | 'info') => {
-    setToast({
-      open: true,
-      message,
-      severity
-    });
+    if (severity === 'success') {
+      toast.success(message);
+    } else if (severity === 'error') {
+      toast.error(message);
+    } else if (severity === 'warning') {
+      toast(message, { icon: '⚠️' });
+    } else {
+      toast(message);
+    }
   };
 
   const handleCloseToast = () => {
-    setToast(prev => ({ ...prev, open: false }));
+    setToastState(prev => ({ ...prev, open: false }));
   };
 
   const handleInputChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,9 +214,14 @@ const ResetPasswordPage: React.FC = () => {
             </Typography>
             
             {validation?.email && (
-              <Alert severity="info" sx={{ mb: 3 }}>
-                Resetting password for: {validation.email}
-              </Alert>
+              <TextField
+                fullWidth
+                label="Email"
+                value={validation.email}
+                disabled
+                margin="normal"
+                sx={{ mb: 3 }}
+              />
             )}
             
             <form onSubmit={handleSubmit}>
@@ -300,13 +310,23 @@ const ResetPasswordPage: React.FC = () => {
                 Return to Login
               </Button>
             </form>
+            
+            <Box sx={{ mt: 3, textAlign: 'center' }}>
+              <Button
+                variant="text"
+                onClick={() => navigate('/login')}
+                disabled={loading}
+              >
+                ← Back to Login
+              </Button>
+            </Box>
           </CardContent>
         </Card>
       </Box>
 
       {/* Toast Notifications */}
       <Snackbar
-        open={toast.open}
+        open={toastState.open}
         autoHideDuration={6000}
         onClose={handleCloseToast}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
@@ -319,10 +339,10 @@ const ResetPasswordPage: React.FC = () => {
       >
         <Alert 
           onClose={handleCloseToast} 
-          severity={toast.severity} 
+          severity={toastState.severity} 
           sx={{ width: '100%' }}
         >
-          {toast.message}
+          {toastState.message}
         </Alert>
       </Snackbar>
     </>

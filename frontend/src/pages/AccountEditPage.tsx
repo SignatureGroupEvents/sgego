@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, TextField, Button, Alert, CircularProgress, Card, CardContent, MenuItem, Snackbar, Table, TableBody, TableCell, TableRow, IconButton, Select, FormControl, Divider
+  Box, Typography, TextField, Button, Alert, CircularProgress, Card, CardContent, MenuItem, Snackbar, Table, TableBody, TableCell, TableRow, IconButton, Select, FormControl, Divider, InputAdornment
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import LockIcon from '@mui/icons-material/Lock';
 import EmailIcon from '@mui/icons-material/Email';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
 import api, { resetUserPassword, resendUserInvite, sendPasswordResetLink, updateUserRole } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 const fields = [
   { key: 'firstName', label: 'First Name' },
@@ -38,6 +40,10 @@ const AccountEditPage: React.FC = () => {
   const [resendInviteSuccess, setResendInviteSuccess] = useState(false);
   const [sendResetLinkLoading, setSendResetLinkLoading] = useState(false);
   const [sendResetLinkSuccess, setSendResetLinkSuccess] = useState(false);
+  
+  // Password visibility states
+  const [showPassword, setShowPassword] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   // Determine if current user can modify this profile
   const canModifyProfile = isAdmin || isOperationsManager || (currentUser?.id === userId);
@@ -88,6 +94,7 @@ const AccountEditPage: React.FC = () => {
       if (editingField === 'role') {
         await updateUserRole(userId!, editValue);
         setUser((prev: any) => ({ ...prev, role: editValue }));
+        toast.success('User role updated successfully!');
         setSuccess(true);
         setEditingField(null);
         setEditValue('');
@@ -95,12 +102,15 @@ const AccountEditPage: React.FC = () => {
         const payload: any = { [editingField!]: editValue };
         await api.put(`/users/profile/${userId}`, payload);
         setUser((prev: any) => ({ ...prev, [editingField!]: editValue }));
+        toast.success('User updated successfully!');
         setSuccess(true);
         setEditingField(null);
         setEditValue('');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update user.');
+      const errorMsg = err.response?.data?.message || 'Failed to update user.';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setSaving(false);
     }
@@ -115,11 +125,14 @@ const AccountEditPage: React.FC = () => {
     setPasswordError('');
     try {
       await api.put(`/users/profile/${userId}`, { newPassword: passwordValue });
+      toast.success('Password updated successfully!');
       setSuccess(true);
       setPasswordEdit(false);
       setPasswordValue('');
     } catch (err: any) {
-      setPasswordError(err.response?.data?.message || 'Failed to update password.');
+      const errorMsg = err.response?.data?.message || 'Failed to update password.';
+      setPasswordError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setSaving(false);
     }
@@ -134,10 +147,13 @@ const AccountEditPage: React.FC = () => {
     setAdminPasswordError('');
     try {
       await resetUserPassword(userId!, adminPasswordValue);
+      toast.success('Password reset successfully!');
       setSuccess(true);
       setAdminPasswordValue('');
     } catch (err: any) {
-      setAdminPasswordError(err.response?.data?.message || 'Failed to reset password.');
+      const errorMsg = err.response?.data?.message || 'Failed to reset password.';
+      setAdminPasswordError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setSaving(false);
     }
@@ -147,10 +163,13 @@ const AccountEditPage: React.FC = () => {
     setResendInviteLoading(true);
     try {
       await resendUserInvite(userId!);
+      toast.success('Invite sent successfully!');
       setResendInviteSuccess(true);
       setTimeout(() => setResendInviteSuccess(false), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to resend invite.');
+      const errorMsg = err.response?.data?.message || 'Failed to resend invite.';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setResendInviteLoading(false);
     }
@@ -160,13 +179,24 @@ const AccountEditPage: React.FC = () => {
     setSendResetLinkLoading(true);
     try {
       await sendPasswordResetLink(userId!);
+      toast.success('Password reset link sent successfully!');
       setSendResetLinkSuccess(true);
       setTimeout(() => setSendResetLinkSuccess(false), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to send reset link.');
+      const errorMsg = err.response?.data?.message || 'Failed to send reset link.';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setSendResetLinkLoading(false);
     }
+  };
+
+  const handleTogglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const handleToggleAdminPasswordVisibility = () => {
+    setShowAdminPassword(!showAdminPassword);
   };
 
   if (loading) {
@@ -185,7 +215,16 @@ const AccountEditPage: React.FC = () => {
     <Box minHeight="100vh" display="flex" alignItems="center" justifyContent="center" bgcolor="#f9fafb">
       <Card sx={{ minWidth: 350, maxWidth: 500 }}>
         <CardContent>
-          <Typography variant="h5" gutterBottom>Account Details</Typography>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h5">Account Details</Typography>
+            <Button
+              variant="text"
+              onClick={() => navigate('/login')}
+              size="small"
+            >
+              ← Return to Login
+            </Button>
+          </Box>
           
           {!canModifyProfile && !isOwnProfile && (
             <Alert severity="info" sx={{ mb: 2 }}>
@@ -258,11 +297,25 @@ const AccountEditPage: React.FC = () => {
                         value={passwordValue}
                         onChange={e => setPasswordValue(e.target.value)}
                         size="small"
-                        type="password"
+                        type={showPassword ? 'text' : 'password'}
                         fullWidth
                         autoFocus
                         error={!!passwordError}
                         helperText={passwordError || 'Set a new password'}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                onClick={handleTogglePasswordVisibility}
+                                edge="end"
+                                size="small"
+                              >
+                                {showPassword ? <VisibilityOff /> : <Visibility />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
                       />
                     ) : (
                       <span style={{ color: '#aaa' }}>••••••••</span>
@@ -307,11 +360,25 @@ const AccountEditPage: React.FC = () => {
                     value={adminPasswordValue}
                     onChange={(e) => setAdminPasswordValue(e.target.value)}
                     placeholder="Enter new password"
-                    type="password"
+                    type={showAdminPassword ? 'text' : 'password'}
                     size="small"
                     sx={{ flexGrow: 1 }}
                     error={!!adminPasswordError}
                     helperText={adminPasswordError || 'Minimum 6 characters'}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label={showAdminPassword ? 'Hide password' : 'Show password'}
+                            onClick={handleToggleAdminPasswordVisibility}
+                            edge="end"
+                            size="small"
+                          >
+                            {showAdminPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
                   />
                   <Button
                     variant="contained"

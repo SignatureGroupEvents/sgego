@@ -134,6 +134,8 @@ const EventsList = () => {
   
   // Determine if user can create/modify events
   const canModifyEvents = isOperationsManager || isAdmin;
+  // Staff can view all events but cannot modify them
+  const canViewEvents = isOperationsManager || isAdmin || currentUser?.role === 'staff';
 
   useEffect(() => {
     const fetchAllEvents = async () => {

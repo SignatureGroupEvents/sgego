@@ -11,7 +11,6 @@ import {
 } from '@mui/material';
 import { 
   Event as EventIcon, 
-  Assessment as AnalyticsIcon,
   Dashboard as DashboardIcon,
   Person as ProfileIcon,
   Info as InfoIcon
@@ -31,11 +30,6 @@ const MainNavigation = () => {
       label: 'Events',
       icon: <EventIcon />,
       path: '/events'
-    },
-    {
-      label: 'Analytics',
-      icon: <AnalyticsIcon />,
-      path: '/analytics'
     },
     {
       label: 'Activity',

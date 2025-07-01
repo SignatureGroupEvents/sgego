@@ -7,6 +7,7 @@ import api, { fetchInventory } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import MainNavigation from '../MainNavigation';
 import AddSecondaryEventModal from './AddSecondaryEventModal';
+import AddGuest from '../Guest/AddGuest';
 import { getEvent } from '../../services/events';
 import InventoryPage from '../Inventory/InventoryPage';
 import GuestCheckIn from '../Guest/GuestCheckIn';
@@ -44,10 +45,14 @@ const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
 const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const { isOperationsManager, isAdmin } = useAuth();
+  const { isOperationsManager, isAdmin, user: currentUser } = useAuth();
   
   // Determine if user can modify events
   const canModifyEvents = isOperationsManager || isAdmin;
+  // Staff can perform check-ins and gift assignments but not modify guest lists
+  const canPerformCheckins = isOperationsManager || isAdmin || currentUser?.role === 'staff';
+  // Staff can add guests manually but not upload bulk
+  const canAddGuests = isOperationsManager || isAdmin || currentUser?.role === 'staff';
 
   const handleOpenCheckIn = (guest) => {
     setCheckInGuest(guest);
@@ -110,8 +115,8 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
             <Typography variant="h6">
               Guest List ({guests.length})
             </Typography>
-            {canModifyEvents && (
-              <Box display="flex" gap={1}>
+            <Box display="flex" gap={1}>
+              {canModifyEvents && (
                 <Button
                   variant="outlined"
                   startIcon={<UploadIcon />}
@@ -121,6 +126,8 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                 >
                   Upload More
                 </Button>
+              )}
+              {canAddGuests && (
                 <Button
                   variant="outlined"
                   startIcon={<PersonAddIcon />}
@@ -130,8 +137,8 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                 >
                   Add Guest
                 </Button>
-              </Box>
-            )}
+              )}
+            </Box>
           </Box>
           <TableContainer component={Paper} variant="outlined">
             <Table>
@@ -150,14 +157,16 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                 {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => (
                   <TableRow key={guest._id} hover>
                     <TableCell>
-                      <Button
-                        variant="contained"
-                        color="success"
-                        size="small"
-                        onClick={() => handleOpenCheckIn(guest)}
-                      >
-                        Check In
-                      </Button>
+                      {canPerformCheckins && (
+                        <Button
+                          variant="contained"
+                          color="success"
+                          size="small"
+                          onClick={() => handleOpenCheckIn(guest)}
+                        >
+                          Check In
+                        </Button>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Typography variant="subtitle2">
@@ -959,6 +968,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const [viewMode, setViewMode] = useState('basic'); // 'basic' or 'advanced'
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [checkInModalOpen, setCheckInModalOpen] = useState(false);
+  const [addGuestModalOpen, setAddGuestModalOpen] = useState(false);
 
   // Determine if user can modify events
   const canModifyEvents = isOperationsManager || isAdmin;
@@ -1028,7 +1038,12 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     navigate(`/events/${eventId}/upload`);
   };
   const handleAddGuest = () => {
-    navigate(`/events/${eventId}/add-guest`);
+    setAddGuestModalOpen(true);
+  };
+
+  const handleGuestAdded = (newGuest) => {
+    // Add the new guest to the current list
+    setGuests(prev => [...prev, newGuest]);
   };
 
   if (loading) {
@@ -1198,8 +1213,8 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             <Typography variant="h6" fontWeight={600} color="primary.main">
               Guest List ({guests.length})
             </Typography>
-            {canModifyEvents && (
-              <Box display="flex" gap={1}>
+            <Box display="flex" gap={1}>
+              {canModifyEvents && (
                 <Button
                   variant="outlined"
                   startIcon={<UploadIcon />}
@@ -1209,17 +1224,17 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                 >
                   Upload More
                 </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<PersonAddIcon />}
-                  onClick={handleAddGuest}
-                  size="small"
-                  sx={{ borderRadius: 2, fontWeight: 600 }}
-                >
-                  Add Guest
-                </Button>
-              </Box>
-            )}
+              )}
+              <Button
+                variant="outlined"
+                startIcon={<PersonAddIcon />}
+                onClick={handleAddGuest}
+                size="small"
+                sx={{ borderRadius: 2, fontWeight: 600 }}
+              >
+                Add Guest
+              </Button>
+            </Box>
           </Box>
           <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
             <Table>
@@ -1348,6 +1363,14 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             </Card>
           </Box>
         )}
+
+        {/* Add Guest Modal */}
+        <AddGuest
+          open={addGuestModalOpen}
+          onClose={() => setAddGuestModalOpen(false)}
+          eventId={mainEvent._id}
+          onGuestAdded={handleGuestAdded}
+        />
       </Box>
     </Box>
   );

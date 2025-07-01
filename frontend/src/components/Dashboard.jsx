@@ -17,7 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 
 const Dashboard = ({ selectedEvent }) => {
-  const { user, logout, isOperationsManager, isAdmin } = useAuth();
+  const { user, logout, isOperationsManager, isAdmin, user: currentUser } = useAuth();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');

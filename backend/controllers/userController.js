@@ -267,6 +267,12 @@ const deactivateUser = async (req, res) => {
     if (userId === req.user.id) return res.status(400).json({ message: 'Cannot deactivate your own account' });
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    // Prevent deactivation of operations_manager users
+    if (user.role === 'operations_manager') {
+      return res.status(403).json({ message: 'Cannot deactivate operations manager users' });
+    }
+    
     user.isActive = false;
     await user.save();
     await UserAssignment.updateMany({ userId }, { isActive: false });
@@ -283,6 +289,12 @@ const deleteUser = async (req, res) => {
     if (userId === req.user.id) return res.status(400).json({ message: 'Cannot delete your own account' });
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    // Prevent deletion of operations_manager users
+    if (user.role === 'operations_manager') {
+      return res.status(403).json({ message: 'Cannot delete operations manager users' });
+    }
+    
     const Checkin = require('../models/Checkin');
     const eventCount = await Event.countDocuments({ createdBy: userId });
     const checkinCount = await Checkin.countDocuments({ checkedInBy: userId });
