@@ -5,42 +5,15 @@ import { CheckCircle as CheckCircleIcon, Person as PersonIcon, Groups as GroupsI
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import api, { fetchInventory } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import MainNavigation from '../MainNavigation';
+import MainNavigation from '../layout/MainNavigation';
 import AddSecondaryEventModal from './AddSecondaryEventModal';
-import AddGuest from '../Guest/AddGuest';
+import AddGuest from '../guests/AddGuest';
+import InventoryPage from '../inventory/InventoryPage';
+import GuestCheckIn from '../guests/GuestCheckIn';
+import BasicAnalytics from '../dashboard/BasicAnalytics';
 import { getEvent } from '../../services/events';
-import InventoryPage from '../Inventory/InventoryPage';
-import GuestCheckIn from '../Guest/GuestCheckIn';
-import { format } from 'date-fns';
-import { useTheme } from '@mui/material/styles';
-import ActivityFeedList from '../Analytics/ActivityFeedList';
-import axios from 'axios';
 import { getEventActivityFeed } from '../../services/api';
 
-const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
-  <Card>
-    <CardContent>
-      <Box display="flex" alignItems="center" justifyContent="space-between">
-        <Box>
-          <Typography color="textSecondary" gutterBottom variant="h6">
-            {title}
-          </Typography>
-          <Typography variant="h3" component="div" color={color}>
-            {value}
-          </Typography>
-          {subtitle && (
-            <Typography variant="body2" color="textSecondary">
-              {subtitle}
-            </Typography>
-          )}
-        </Box>
-        <Box sx={{ backgroundColor: `${color}.light`, borderRadius: 2, p: 1.5 }}>
-          {React.cloneElement(icon, { sx: { fontSize: 28, color: `${color}.main` } })}
-        </Box>
-      </Box>
-    </CardContent>
-  </Card>
-);
 
 const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
@@ -900,12 +873,6 @@ const AdvancedView = ({ event, guests, secondaryEvents, inventory = [], onInvent
               </IconButton>
             </Tooltip>
           </Box>
-          <ActivityFeedList 
-            logs={feedLogs} 
-            loading={feedLoading} 
-            filterType={feedType} 
-            onFilterTypeChange={setFeedType} 
-          />
         </Box>
       )}
     </Box>
@@ -1080,7 +1047,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 2 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, gap: 2 }}>
           <Box flexGrow={1}>
             <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
@@ -1116,70 +1083,25 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         </Box>
         
         {/* Event Overview Section */}
-        <Card sx={{ mb: 4, p: 2, borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
-          <CardHeader
-            title={
-              <Typography variant="h6" fontWeight={600} sx={{ color: '#1a1a1a' }}>
-                Event Overview {viewMode === 'advanced' && '(Advanced View)'}
-              </Typography>
-            }
-            subheader={
-              <Typography variant="body2" color="textSecondary">
-                {viewMode === 'basic' 
-                  ? 'Key metrics and statistics for this event'
-                  : 'Detailed analytics and insights for this event'
-                }
-              </Typography>
-            }
-          />
-          {/* Stat Cards (modern, clean look) */}
-          <Box sx={{ display: 'flex', gap: 4, mb: 4, flexWrap: 'wrap' }}>
-            <Card sx={{ flex: 1, minWidth: 220, maxWidth: 400, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', borderRadius: 3, p: 3, display: 'flex', alignItems: 'center', height: 120 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-                <GroupsIcon sx={{ fontSize: 40, color: '#1976d2' }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight={700} sx={{ color: '#222', lineHeight: 1 }}>{totalGuests}</Typography>
-                <Typography variant="subtitle1" sx={{ color: '#444', fontWeight: 500 }}>Total Guests</Typography>
-              </Box>
-            </Card>
-            <Card sx={{ flex: 1, minWidth: 220, maxWidth: 400, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', borderRadius: 3, p: 3, display: 'flex', alignItems: 'center', height: 120 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-                <CheckCircleIcon sx={{ fontSize: 40, color: '#43a047' }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight={700} sx={{ color: '#222', lineHeight: 1 }}>{checkedInGuests}</Typography>
-                <Typography variant="subtitle1" sx={{ color: '#444', fontWeight: 500 }}>Checked In</Typography>
-              </Box>
-            </Card>
-            <Card sx={{ flex: 1, minWidth: 220, maxWidth: 400, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', borderRadius: 3, p: 3, display: 'flex', alignItems: 'center', height: 120 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-                <PersonIcon sx={{ fontSize: 40, color: '#ff9800' }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight={700} sx={{ color: '#222', lineHeight: 1 }}>{pendingGuests}</Typography>
-                <Typography variant="subtitle1" sx={{ color: '#444', fontWeight: 500 }}>Pending</Typography>
-              </Box>
-            </Card>
-          </Box>
-          {/* ViewMode switch and tab content remain below */}
-          {viewMode === 'basic' ? (
-            // Basic View - Simple stats
-            <div>
-              {/* Gift Tracker for Basic View */}
-              <EventGiftDashboard 
-                eventId={eventId} 
-                event={event} 
-                inventory={inventory}
-                loading={inventoryLoading}
-                error={inventoryError}
-                onInventoryChange={onInventoryChange}
-              />
-            </div>
-          ) : (
-            <AdvancedView event={event} guests={guests} secondaryEvents={secondaryEvents} inventory={inventory} onInventoryChange={onInventoryChange} />
-          )}
-        </Card>
+        <Box sx={{ width: '100%', px: 3, py: 4, backgroundColor: '#fdf9f6' }}>
+  {viewMode === 'basic' ? (
+    <BasicAnalytics 
+      event={event}
+      guests={guests}
+      inventory={inventory}
+    />
+  ) : (
+    <AdvancedView 
+      event={event}
+      guests={guests}
+      secondaryEvents={secondaryEvents}
+      inventory={inventory}
+      onInventoryChange={onInventoryChange}
+    />
+  )}
+</Box>
+
+
         {/* Add Secondary Event Button and Modal */}
         {canModifyEvents && (
           <Button

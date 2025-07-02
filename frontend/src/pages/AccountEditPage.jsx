@@ -12,7 +12,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import api, { resetUserPassword, resendUserInvite, sendPasswordResetLink, updateUserRole } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import MainNavigation from '../components/MainNavigation';
+import MainNavigation from '../components/layout/MainNavigation';
 import toast from 'react-hot-toast';
 
 const fields = [
@@ -22,13 +22,13 @@ const fields = [
   { key: 'role', label: 'Role' },
 ];
 
-const AccountEditPage: React.FC = () => {
-  const { userId } = useParams<{ userId: string }>();
+const AccountEditPage = () => {
+  const { userId } = useParams();
   const navigate = useNavigate();
   const { isAdmin, isOperationsManager, user: currentUser } = useAuth();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -85,7 +85,7 @@ const AccountEditPage: React.FC = () => {
     formState.role !== (user?.role || '');
 
   // Handlers for field changes
-  const handleFieldChange = (key: string, value: string) => {
+  const handleFieldChange = (key, value) => {
     setFormState(prev => ({ ...prev, [key]: value }));
     setError('');
   };
@@ -96,7 +96,7 @@ const AccountEditPage: React.FC = () => {
       try {
         const res = await api.get(`/users/profile/${userId}`);
         setUser(res.data.user);
-      } catch (err: any) {
+      } catch (err) {
         setError(err.response?.data?.message || 'Failed to load user.');
       } finally {
         setLoading(false);
@@ -105,7 +105,7 @@ const AccountEditPage: React.FC = () => {
     fetchUser();
   }, [userId]);
 
-  const handleEdit = (key: string) => {
+  const handleEdit = (key) => {
     if (key === 'role' && isAdmin && userId === currentUser?.id) {
       setError('You cannot change your own role');
       return;
@@ -124,7 +124,7 @@ const AccountEditPage: React.FC = () => {
 
   // Save only changed fields, always send username if name changed
   const handleSave = async () => {
-    const updates: any = {};
+    const updates = {};
     let nameChanged = false;
     if (formState.firstName !== (user?.firstName || '')) { updates.firstName = formState.firstName; nameChanged = true; }
     if (formState.lastName !== (user?.lastName || '')) { updates.lastName = formState.lastName; nameChanged = true; }
@@ -136,7 +136,7 @@ const AccountEditPage: React.FC = () => {
     setError('');
     try {
       if (updates.role) {
-        await updateUserRole(userId!, updates.role);
+        await updateUserRole(userId, updates.role);
       }
       if (updates.firstName || updates.lastName || updates.email || updates.username) {
         await api.put(`/users/profile/${userId}`, updates);
@@ -146,7 +146,7 @@ const AccountEditPage: React.FC = () => {
       // Re-fetch user to sync state
       const res = await api.get(`/users/profile/${userId}`);
       setUser(res.data.user);
-    } catch (err: any) {
+    } catch (err) {
       const errorMsg = err.response?.data?.message || 'Failed to update user.';
       setError(errorMsg);
       toast.error(errorMsg);
@@ -168,7 +168,7 @@ const AccountEditPage: React.FC = () => {
       setSuccess(true);
       setPasswordEdit(false);
       setPasswordValue('');
-    } catch (err: any) {
+    } catch (err) {
       const errorMsg = err.response?.data?.message || 'Failed to update password.';
       setPasswordError(errorMsg);
       toast.error(errorMsg);
@@ -185,11 +185,11 @@ const AccountEditPage: React.FC = () => {
     setSaving(true);
     setAdminPasswordError('');
     try {
-      await resetUserPassword(userId!, adminPasswordValue);
+      await resetUserPassword(userId, adminPasswordValue);
       toast.success('Password reset successfully!');
       setSuccess(true);
       setAdminPasswordValue('');
-    } catch (err: any) {
+    } catch (err) {
       const errorMsg = err.response?.data?.message || 'Failed to reset password.';
       setAdminPasswordError(errorMsg);
       toast.error(errorMsg);
@@ -201,11 +201,11 @@ const AccountEditPage: React.FC = () => {
   const handleResendInvite = async () => {
     setResendInviteLoading(true);
     try {
-      await resendUserInvite(userId!);
+      await resendUserInvite(userId);
       toast.success('Invite sent successfully!');
       setResendInviteSuccess(true);
       setTimeout(() => setResendInviteSuccess(false), 3000);
-    } catch (err: any) {
+    } catch (err) {
       const errorMsg = err.response?.data?.message || 'Failed to resend invite.';
       setError(errorMsg);
       toast.error(errorMsg);
@@ -217,11 +217,11 @@ const AccountEditPage: React.FC = () => {
   const handleSendResetLink = async () => {
     setSendResetLinkLoading(true);
     try {
-      await sendPasswordResetLink(userId!);
+      await sendPasswordResetLink(userId);
       toast.success('Password reset link sent successfully!');
       setSendResetLinkSuccess(true);
       setTimeout(() => setSendResetLinkSuccess(false), 3000);
-    } catch (err: any) {
+    } catch (err) {
       const errorMsg = err.response?.data?.message || 'Failed to send reset link.';
       setError(errorMsg);
       toast.error(errorMsg);
@@ -280,7 +280,7 @@ const AccountEditPage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/profile')}
+            onClick={() => navigate('/account')}
             sx={{ 
               backgroundColor: '#1bcddc', 
               color: '#fff', 

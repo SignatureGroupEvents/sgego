@@ -3,7 +3,7 @@ import { Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell
 import { Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon, Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon } from '@mui/icons-material';
 import { uploadInventoryCSV, fetchInventory, updateInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
-import MainNavigation from '../MainNavigation';
+import MainNavigation from '../layout/MainNavigation';
 import { getEvent, getEvents } from '../../services/events';
 import EventIcon from '@mui/icons-material/Event';
 import { useAuth } from '../../contexts/AuthContext';

@@ -52,8 +52,8 @@ import {
   Search as SearchIcon
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import MainNavigation from '../MainNavigation';
+import { useAuth } from '../contexts/AuthContext';
+import MainNavigation from '../components/layout/MainNavigation';
 import toast from 'react-hot-toast';
 import {
   getUserProfile,
@@ -67,10 +67,10 @@ import {
   deleteUser,
   inviteUser,
   sendPasswordResetLink
-} from '../../services/api';
+} from '../services/api';
 import HomeIcon from '@mui/icons-material/Home';
 import PersonIcon2 from '@mui/icons-material/Person';
-import api from '../../services/api';
+import api from '../services/api';
 
 const SIDEBAR_ITEMS = [
   { label: 'Dashboard', key: 'dashboard' },
@@ -96,7 +96,7 @@ const STATUS_LABELS = {
   pending: 'Pending'
 };
 
-const ProfilePage = () => {
+const AccountPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const { user: currentUser, isOperationsManager, isAdmin } = useAuth();
@@ -511,7 +511,7 @@ const ProfilePage = () => {
                               variant="contained"
                               size="small"
                               sx={{ backgroundColor: '#1bcddc', color: '#fff', fontWeight: 700, borderRadius: 2, boxShadow: 'none', '&:hover': { backgroundColor: '#17b3c0' } }}
-                              onClick={() => navigate(`/account-edit/${user._id}`)}
+                              onClick={() => navigate(`/account/edit/${user._id}`)}
                             >
                               Edit
                             </Button>
@@ -834,4 +834,4 @@ const AccountFilters = ({ filterStatus, setFilterStatus, filterRole, setFilterRo
   );
 };
 
-export default ProfilePage; 
+export default AccountPage; 

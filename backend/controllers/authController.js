@@ -542,6 +542,119 @@ exports.sendPasswordResetLink = async (req, res) => {
   }
 };
 
+// Public endpoint for users to request password reset by email
+exports.requestPasswordReset = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    console.log('🔐 User requesting password reset for email:', email);
+    
+    if (!email) {
+      console.log('❌ Password reset request failed: Email is required');
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Find the user by email
+    const user = await User.findOne({ email });
+    
+    console.log('🔍 User found:', user ? 'YES' : 'NO');
+    if (user) {
+      console.log('📋 User details:', {
+        id: user._id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        isActive: user.isActive,
+        isInvited: user.isInvited
+      });
+    }
+
+    // Always return success to prevent email enumeration attacks
+    // Don't reveal whether the email exists or not
+    if (!user) {
+      console.log('⚠️ Email not found, but returning success for security');
+      return res.json({
+        success: true,
+        message: 'If an account with this email exists, a password reset link has been sent.'
+      });
+    }
+
+    if (!user.isActive) {
+      console.log('⚠️ User account is deactivated, but returning success for security');
+      return res.json({
+        success: true,
+        message: 'If an account with this email exists, a password reset link has been sent.'
+      });
+    }
+
+    if (user.isInvited) {
+      console.log('⚠️ User is still invited, but returning success for security');
+      return res.json({
+        success: true,
+        message: 'If an account with this email exists, a password reset link has been sent.'
+      });
+    }
+
+    console.log('✅ User found and eligible for password reset:', user.email);
+
+    // Generate secure reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Save reset token to user
+    user.resetToken = resetToken;
+    user.resetTokenExpires = resetTokenExpires;
+    await user.save();
+
+    console.log('✅ Reset token generated and saved');
+
+    // Create reset link
+    const resetLink = `${process.env.CLIENT_URL}/auth?view=reset-password&token=${resetToken}`;
+
+    // Send email with reset link
+    await sendEmail({
+      to: user.email,
+      subject: 'Password Reset Request - SGEGO',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #1976d2;">Password Reset Request</h2>
+          <p>Hello ${user.username || user.email},</p>
+          <p>You have requested a password reset for your SGEGO account.</p>
+          <p>Click the button below to set a new password:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" 
+               style="background-color: #1976d2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+              Reset Password
+            </a>
+          </div>
+          <p><strong>This link will expire in 24 hours.</strong></p>
+          <p>If you did not request this reset, please ignore this email or contact your administrator.</p>
+          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+          <p style="color: #666; font-size: 14px;">
+            Best regards,<br>
+            SGEGO Team
+          </p>
+        </div>
+      `
+    });
+
+    console.log('✅ Password reset email sent successfully to:', user.email);
+    
+    res.json({
+      success: true,
+      message: 'If an account with this email exists, a password reset link has been sent.'
+    });
+    
+  } catch (error) {
+    console.error('💥 Request password reset error:', error.message);
+    // Always return success to prevent email enumeration attacks
+    res.json({
+      success: true,
+      message: 'If an account with this email exists, a password reset link has been sent.'
+    });
+  }
+};
+
 exports.resetPassword = async (req, res) => {
   try {
     const { token } = req.params;

@@ -26,7 +26,7 @@ import {
   Fade,
   useForkRef
 } from '@mui/material';
-import MainNavigation from '../MainNavigation';
+import MainNavigation from '../layout/MainNavigation';
 import { getEvents } from '../../services/events';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';

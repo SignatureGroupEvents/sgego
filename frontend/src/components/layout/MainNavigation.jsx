@@ -17,7 +17,7 @@ import {
   Info as InfoIcon,
   Logout as LogoutIcon
 } from '@mui/icons-material';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const MainNavigation = () => {
   const navigate = useNavigate();
@@ -36,14 +36,9 @@ const MainNavigation = () => {
       path: '/events'
     },
     {
-      label: 'Activity',
-      icon: <InfoIcon />,
-      path: '/activity'
-    },
-    {
       label: 'Account',
       icon: <ProfileIcon />,
-      path: '/profile'
+      path: '/account'
     }
   ];
 

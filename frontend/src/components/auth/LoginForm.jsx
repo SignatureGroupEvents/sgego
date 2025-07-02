@@ -11,8 +11,7 @@ import {
   CircularProgress
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 // Placeholder logo icon (can be replaced with an SVG or image)
@@ -24,12 +23,11 @@ const LogoIcon = () => (
   </Box>
 );
 
-const Login = () => {
+const LoginForm = ({ onSuccess, onForgotPassword }) => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const navigate = useNavigate();
   const { login } = useAuth();
 
   const handleChange = (e) => {
@@ -60,7 +58,9 @@ const Login = () => {
     setLoading(false);
     if (result.success) {
       toast.success('Signed in!');
-      navigate('/events');
+      if (onSuccess) {
+        onSuccess(result);
+      }
     } else {
       setError(result.message);
       toast.error(result.message);
@@ -127,7 +127,7 @@ const Login = () => {
               <Button
                 variant="text"
                 sx={{ textTransform: 'none', fontWeight: 600, pl: 0 }}
-                onClick={() => navigate('/reset-password')}
+                onClick={onForgotPassword}
               >
                 Forgot Password?
               </Button>
@@ -147,4 +147,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default LoginForm; 

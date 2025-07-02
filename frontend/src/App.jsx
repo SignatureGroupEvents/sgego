@@ -1,27 +1,25 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider } from './contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
 
 // Components
-import Login from './components/Login';
-import Dashboard from './components/Dashboard';
-import ProtectedRoute from './components/ProtectedRoute';
-import EventsList from './components/Events/EventsList';
-import CreateEvent from './components/Events/CreateEvent';
-import EventDetails from './components/Events/EventDetails';
-import UploadGuest from './components/Guest/UploadGuest'
-import DashboardLayout from './components/DashboardLayout';
-import EventDashboard from './components/Events/EventDashboard';
-import InventoryPageWrapper from './components/Inventory/InventoryPage';
-import ProfilePage from './components/Profile/ProfilePage';
-import AnalyticsOverview from './components/Analytics/AnalyticsOverview';
-import ActivityFeedPage from './components/Analytics/ActivityFeedPage';
-import AcceptInvitePage from './pages/AcceptInvitePage';
-import AccountEditPage from './pages/AccountEditPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
+import Dashboard from './components/dashboard/Dashboard';
+import ProtectedRoute from './components/layout/ProtectedRoute';
+import EventsList from './components/events/EventsList';
+import CreateEvent from './components/events/CreateEvent';
+import EventDetails from './components/events/EventDetails';
+import UploadGuest from './components/guests/UploadGuest';
+import DashboardLayout from './components/layout/DashboardLayout';
+import EventDashboard from './components/events/EventDashboard';
+import InventoryPageWrapper from './components/inventory/InventoryPage';
+import AccountPage from './pages/AccountPage';
+
+import AccountEditPage from './pages/AccountEditPage.jsx';
+import AuthPage from './pages/AuthPage';
+import AdvancedDashboard from './pages/AdvancedDashboard';
 
 const theme = createTheme({
   palette: {
@@ -59,6 +57,16 @@ const theme = createTheme({
   },
 });
 
+function InviteRedirect() {
+  const { token } = useParams();
+  return <Navigate to={`/auth?view=register&token=${token}`} replace />;
+}
+
+function ResetPasswordTokenRedirect() {
+  const { token } = useParams();
+  return <Navigate to={`/auth?view=reset-password&token=${token}`} replace />;
+}
+
 function App() {
   return (
     <ThemeProvider theme={theme}>
@@ -66,7 +74,15 @@ function App() {
       <AuthProvider>
         <Router>
           <Routes>
-            <Route path="/login" element={<Login />} />
+            {/* New centralized auth route */}
+            <Route path="/auth" element={<AuthPage />} />
+            
+            {/* Redirect old auth routes to new structure */}
+            <Route path="/login" element={<Navigate to="/auth?view=login" replace />} />
+            <Route path="/invite/:token" element={<InviteRedirect />} />
+            <Route path="/reset-password" element={<Navigate to="/auth?view=forgot-password" replace />} />
+            <Route path="/reset-password/:token" element={<ResetPasswordTokenRedirect />} />
+            
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <DashboardLayout />
@@ -107,30 +123,31 @@ function App() {
                 <InventoryPageWrapper />
               </ProtectedRoute>
             } />
-            <Route path="/profile" element={
+            <Route path="/account" element={
               <ProtectedRoute>
-                <ProfilePage />
+                <AccountPage />
               </ProtectedRoute>
             } />
-            <Route path="/profile/:userId" element={
+            <Route path="/account/:userId" element={
               <ProtectedRoute>
-                <ProfilePage />
+                <AccountPage />
               </ProtectedRoute>
             } />
             <Route path="/analytics" element={
               <ProtectedRoute>
-                <AnalyticsOverview />
+                <Navigate to="/dashboard/advanced" replace />
               </ProtectedRoute>
             } />
-            <Route path="/activity" element={
+            <Route path="/account/edit/:userId" element={
               <ProtectedRoute>
-                <ActivityFeedPage />
+                <AccountEditPage />
               </ProtectedRoute>
             } />
-            <Route path="/invite/:token" element={<AcceptInvitePage />} />
-            <Route path="/account-edit/:userId" element={<AccountEditPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+            <Route path="/dashboard/advanced" element={
+              <ProtectedRoute>
+                <AdvancedDashboard />
+              </ProtectedRoute>
+            } />
           </Routes>
         </Router>
       </AuthProvider>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import MainNavigation from './MainNavigation';
-import Dashboard from './Dashboard';
+import Dashboard from '../dashboard/Dashboard';
 
 const DashboardLayout = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);

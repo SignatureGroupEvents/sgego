@@ -10,15 +10,16 @@ const {
   validateInvite,
   validateResetToken,
   resetPassword,
-  sendPasswordResetLink
+  sendPasswordResetLink,
+  requestPasswordReset
 } = require('../controllers/authController');
 const { protect, requireRole } = require('../middleware/auth');
 const router = express.Router();
 
-// Rate limiter: 5 requests per 10 minutes per IP
+// Rate limiter: 20 requests per 10 minutes per IP
 const authLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 5,
+  max: 20,
   message: {
     message: 'Too many requests from this IP, please try again after 10 minutes.'
   },
@@ -42,6 +43,7 @@ router.post('/accept-invite/:token', acceptInvite);
 router.get('/validate-invite/:token', validateInvite);
 router.get('/validate-reset/:token', validateResetToken);
 router.post('/reset-password/:token', authLimiter, resetPassword);
+router.post('/request-reset-link', authLimiter, requestPasswordReset);
 
 // User management routes (admin only)
 router.delete('/users/:userId', protect, requireRole('admin'), deleteUser);

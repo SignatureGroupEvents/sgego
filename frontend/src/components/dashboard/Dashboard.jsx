@@ -13,8 +13,8 @@ import {
   ListItemText,
   CircularProgress
 } from '@mui/material';
-import { useAuth } from '../contexts/AuthContext';
-import api from '../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import api from '../../services/api';
 
 const Dashboard = ({ selectedEvent }) => {
   const { user, logout, isOperationsManager, isAdmin, user: currentUser } = useAuth();

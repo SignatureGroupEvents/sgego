@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Box, 
   Typography, 
@@ -9,32 +8,16 @@ import {
   CircularProgress, 
   Card, 
   CardContent,
-  Snackbar,
   InputAdornment,
   IconButton
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
-import { validateResetToken, resetPassword } from '../services/api';
+import { validateResetToken, resetPassword } from '../../services/api';
 import toast from 'react-hot-toast';
-import ResetPasswordRequestForm from '../components/ResetPasswordRequestForm';
 
-interface ResetValidation {
-  email: string;
-  status: 'valid' | 'expired';
-  message: string;
-}
-
-const ResetPasswordPage: React.FC = () => {
-  const { token } = useParams<{ token: string }>();
-  const navigate = useNavigate();
-  
-  // If no token, show the request form
-  if (!token) {
-    return <ResetPasswordRequestForm />;
-  }
-
+const ResetPasswordForm = ({ token, onSuccess, onBackToLogin }) => {
   // State for validation
-  const [validation, setValidation] = useState<ResetValidation | null>(null);
+  const [validation, setValidation] = useState(null);
   const [validating, setValidating] = useState(true);
   const [validationError, setValidationError] = useState('');
   
@@ -50,18 +33,9 @@ const ResetPasswordPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Toast state (keeping for backward compatibility)
-  const [toastState, setToastState] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'error' | 'warning' | 'info';
-  }>({
-    open: false,
-    message: '',
-    severity: 'info'
-  });
 
-  // Validate reset token on page load
+
+  // Validate reset token on component mount
   useEffect(() => {
     const validateToken = async () => {
       if (!token) {
@@ -79,7 +53,7 @@ const ResetPasswordPage: React.FC = () => {
           showToast('This reset link has expired. Please request a new one.', 'warning');
         }
         
-      } catch (err: any) {
+      } catch (err) {
         setValidationError(err.response?.data?.message || 'Failed to validate reset token');
       } finally {
         setValidating(false);
@@ -89,7 +63,8 @@ const ResetPasswordPage: React.FC = () => {
     validateToken();
   }, [token]);
 
-  const showToast = (message: string, severity: 'success' | 'error' | 'warning' | 'info') => {
+  const showToast = (message, severity) => {
+
     if (severity === 'success') {
       toast.success(message);
     } else if (severity === 'error') {
@@ -101,11 +76,9 @@ const ResetPasswordPage: React.FC = () => {
     }
   };
 
-  const handleCloseToast = () => {
-    setToastState(prev => ({ ...prev, open: false }));
-  };
 
-  const handleInputChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
+
+  const handleInputChange = (field) => (e) => {
     setFormData(prev => ({ ...prev, [field]: e.target.value }));
     setError('');
   };
@@ -118,7 +91,7 @@ const ResetPasswordPage: React.FC = () => {
     setShowConfirmPassword(!showConfirmPassword);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (formData.password !== formData.confirmPassword) {
@@ -135,14 +108,15 @@ const ResetPasswordPage: React.FC = () => {
     setError('');
     
     try {
-      const response = await resetPassword(token!, formData.password);
+      const response = await resetPassword(token, formData.password);
       
       showToast('Your password has been set. Redirecting to login...', 'success');
       
-      // Redirect to login after a short delay
-      setTimeout(() => navigate('/login'), 3000);
+      if (onSuccess) {
+        onSuccess(response);
+      }
       
-    } catch (err: any) {
+    } catch (err) {
       showToast(err.response?.data?.message || 'Failed to reset password', 'error');
     } finally {
       setLoading(false);
@@ -175,7 +149,7 @@ const ResetPasswordPage: React.FC = () => {
             <Button 
               variant="outlined" 
               fullWidth 
-              onClick={() => navigate('/login')}
+              onClick={onBackToLogin}
             >
               Return to Login
             </Button>
@@ -198,7 +172,7 @@ const ResetPasswordPage: React.FC = () => {
             <Button 
               variant="outlined" 
               fullWidth 
-              onClick={() => navigate('/login')}
+              onClick={onBackToLogin}
             >
               Return to Login
             </Button>
@@ -310,7 +284,7 @@ const ResetPasswordPage: React.FC = () => {
                 variant="outlined"
                 fullWidth
                 sx={{ mt: 2 }}
-                onClick={() => navigate('/login')}
+                onClick={onBackToLogin}
                 disabled={loading}
               >
                 Return to Login
@@ -320,7 +294,7 @@ const ResetPasswordPage: React.FC = () => {
             <Box sx={{ mt: 3, textAlign: 'center' }}>
               <Button
                 variant="text"
-                onClick={() => navigate('/login')}
+                onClick={onBackToLogin}
                 disabled={loading}
               >
                 ← Back to Login
@@ -330,29 +304,9 @@ const ResetPasswordPage: React.FC = () => {
         </Card>
       </Box>
 
-      {/* Toast Notifications */}
-      <Snackbar
-        open={toastState.open}
-        autoHideDuration={6000}
-        onClose={handleCloseToast}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        sx={{
-          '& .MuiSnackbarContent-root': {
-            minWidth: '300px',
-            maxWidth: '90vw'
-          }
-        }}
-      >
-        <Alert 
-          onClose={handleCloseToast} 
-          severity={toastState.severity} 
-          sx={{ width: '100%' }}
-        >
-          {toastState.message}
-        </Alert>
-      </Snackbar>
+
     </>
   );
 };
 
-export default ResetPasswordPage; 
+export default ResetPasswordForm; 
