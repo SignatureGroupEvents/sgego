@@ -7,6 +7,61 @@ const generateToken = (id) => {
   });
 };
 
+<<<<<<< Updated upstream
+=======
+
+
+exports.acceptInvite = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ message: 'Password is required' });
+    }
+
+    // Find the invite token and populate user
+    const invite = await InvitationToken.findOne({ token }).populate('userId');
+
+    if (!invite || invite.expiresAt < Date.now()) {
+      return res.status(400).json({ message: 'Invite token is invalid or expired' });
+    }
+
+    const user = invite.userId;
+
+    if (!user || !user.isInvited || user.isActive) {
+      return res.status(400).json({ message: 'Invalid invite or user already registered' });
+    }
+
+    // Finalize the account - let the User model's pre-save hook handle password hashing
+    user.password = password; // Don't hash here - the pre-save hook will do it
+    user.isInvited = false;
+    user.isActive = true;
+
+    await user.save();
+    await invite.deleteOne();
+
+    // Generate login token
+    const loginToken = generateToken(user._id);
+
+    res.json({
+      message: 'Account created successfully',
+      token: loginToken,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Accept invite error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+>>>>>>> Stashed changes
 exports.register = async (req, res) => {
   try {
     const { email, username, password, role } = req.body;

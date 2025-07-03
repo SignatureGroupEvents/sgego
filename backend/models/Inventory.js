@@ -30,7 +30,7 @@ const inventorySchema = new mongoose.Schema({
     type: Number,
     required: false
   },
-  qtyOnSite: {
+  qtyBeforeEvent: {
     type: Number,
     required: false
   },
@@ -97,7 +97,7 @@ inventorySchema.methods.updateInventory = function(newCount, action, userId, rea
   return this.save();
 };
 
-// Add a static method to recalculate currentInventory as qtyOnSite minus all distributed check-ins
+// Add a static method to recalculate currentInventory as qtyBeforeEvent minus all distributed check-ins
 inventorySchema.statics.recalculateCurrentInventory = async function(inventoryId) {
   const Checkin = require('./Checkin');
   const inventoryItem = await this.findById(inventoryId);
@@ -110,7 +110,7 @@ inventorySchema.statics.recalculateCurrentInventory = async function(inventoryId
     { $group: { _id: null, total: { $sum: '$giftsDistributed.quantity' } } }
   ]);
   const totalDistributed = checkins[0]?.total || 0;
-  inventoryItem.currentInventory = Math.max(0, (inventoryItem.qtyOnSite || 0) - totalDistributed);
+  inventoryItem.currentInventory = Math.max(0, (inventoryItem.qtyBeforeEvent || 0) - totalDistributed);
   await inventoryItem.save();
   return inventoryItem.currentInventory;
 };

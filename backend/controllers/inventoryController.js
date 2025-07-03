@@ -11,6 +11,42 @@ exports.getInventory = async (req, res) => {
     const inventory = await Inventory.find({ eventId, isActive: true })
       .sort({ type: 1, style: 1, size: 1 });
 
+    // Recalculate current inventory for all items
+    const Checkin = require('../models/Checkin');
+    for (const item of inventory) {
+      const distributedCount = await Checkin.aggregate([
+        {
+          $match: {
+            'giftsDistributed.inventoryId': item._id,
+            isValid: true
+          }
+        },
+        {
+          $unwind: '$giftsDistributed'
+        },
+        {
+          $match: {
+            'giftsDistributed.inventoryId': item._id
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalDistributed: { $sum: '$giftsDistributed.quantity' }
+          }
+        }
+      ]);
+
+      const totalDistributed = distributedCount.length > 0 ? distributedCount[0].totalDistributed : 0;
+      const calculatedCurrentInventory = Math.max(0, item.qtyBeforeEvent - totalDistributed);
+      
+      // Update if different
+      if (item.currentInventory !== calculatedCurrentInventory) {
+        item.currentInventory = calculatedCurrentInventory;
+        await item.save();
+      }
+    }
+
     // Group by type for easier display
     const groupedInventory = inventory.reduce((acc, item) => {
       if (!acc[item.type]) {
@@ -21,6 +57,97 @@ exports.getInventory = async (req, res) => {
     }, {});
 
     res.json({ inventory, groupedInventory });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+exports.addInventoryItem = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const {
+      type,
+      style,
+      size,
+      gender,
+      qtyWarehouse,
+      qtyBeforeEvent,
+      postEventCount,
+      notes
+    } = req.body;
+
+    // Validate required fields
+    if (!type || !style) {
+      return res.status(400).json({ message: 'Type and Style are required fields' });
+    }
+
+    // Validate numeric fields
+    if (isNaN(Number(qtyWarehouse)) || Number(qtyWarehouse) < 0) {
+      return res.status(400).json({ message: 'Qty Warehouse must be a valid number' });
+    }
+    if (isNaN(Number(qtyBeforeEvent)) || Number(qtyBeforeEvent) < 0) {
+      return res.status(400).json({ message: 'Qty Before Event must be a valid number' });
+    }
+    if (isNaN(Number(postEventCount)) || Number(postEventCount) < 0) {
+      return res.status(400).json({ message: 'Post Event Count must be a valid number' });
+    }
+
+    // Check if event exists
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    // Create new inventory item
+    const inventoryItem = new Inventory({
+      eventId,
+      type: type.trim(),
+      style: style.trim(),
+      size: size ? size.trim() : '',
+      gender: gender || 'N/A',
+      qtyWarehouse: Number(qtyWarehouse),
+      qtyBeforeEvent: Number(qtyBeforeEvent),
+      currentInventory: Number(qtyBeforeEvent), // Initially equals qtyBeforeEvent
+      postEventCount: Number(postEventCount),
+      notes: notes || '',
+      inventoryHistory: [{
+        action: 'initial',
+        quantity: Number(qtyBeforeEvent),
+        previousCount: 0,
+        newCount: Number(qtyBeforeEvent),
+        performedBy: req.user.id,
+        reason: 'Manual item addition'
+      }],
+      allocatedEvents: [eventId], // Default allocation to current event
+    });
+
+    await inventoryItem.save();
+
+    // Log the inventory addition
+    await ActivityLog.create({
+      eventId,
+      type: 'inventory_add',
+      performedBy: req.user.id,
+      details: {
+        inventoryId: inventoryItem._id,
+        type: inventoryItem.type,
+        style: inventoryItem.style,
+        size: inventoryItem.size,
+        gender: inventoryItem.gender,
+        qtyWarehouse: inventoryItem.qtyWarehouse,
+        qtyBeforeEvent: inventoryItem.qtyBeforeEvent,
+        currentInventory: inventoryItem.currentInventory,
+        postEventCount: inventoryItem.postEventCount,
+        notes: inventoryItem.notes
+      },
+      timestamp: new Date()
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Inventory item added successfully',
+      inventoryItem
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -62,14 +189,14 @@ exports.uploadInventory = async (req, res) => {
                 size: row.Size || row.size || row.SIZE || '',
                 gender: row.Gender || row.gender || row.GENDER || 'N/A',
                 qtyWarehouse: parseInt(row.Qty_Warehouse || row.qty_warehouse || row.QTY_WAREHOUSE || 0),
-                qtyOnSite: parseInt(row.Qty_OnSite || row.qty_onsite || row.QTY_ONSITE || 0),
-                currentInventory: parseInt(row.Current_Inventory || row.current_inventory || row.CURRENT_INVENTORY || 0),
+                qtyBeforeEvent: parseInt(row.Qty_BeforeEvent || row.qty_beforeevent || row.QTY_BEFOREEVENT || row.Qty_OnSite || row.qty_onsite || row.QTY_ONSITE || 0),
+                currentInventory: parseInt(row.Qty_BeforeEvent || row.qty_beforeevent || row.QTY_BEFOREEVENT || row.Qty_OnSite || row.qty_onsite || row.QTY_ONSITE || 0), // Initially equals qtyBeforeEvent
                 postEventCount: row.Post_Event_Count ? parseInt(row.Post_Event_Count) : null,
                 inventoryHistory: [{
                   action: 'initial',
-                  quantity: parseInt(row.Current_Inventory || row.current_inventory || row.CURRENT_INVENTORY || 0),
+                  quantity: parseInt(row.Qty_BeforeEvent || row.qty_beforeevent || row.QTY_BEFOREEVENT || row.Qty_OnSite || row.qty_onsite || row.QTY_ONSITE || 0),
                   previousCount: 0,
-                  newCount: parseInt(row.Current_Inventory || row.current_inventory || row.CURRENT_INVENTORY || 0),
+                  newCount: parseInt(row.Qty_BeforeEvent || row.qty_beforeevent || row.QTY_BEFOREEVENT || row.Qty_OnSite || row.qty_onsite || row.QTY_ONSITE || 0),
                   performedBy: req.user.id,
                   reason: 'Initial inventory upload'
                 }],
@@ -100,7 +227,7 @@ exports.uploadInventory = async (req, res) => {
             errors,
             sampleFormat: {
               note: "Expected CSV columns (case insensitive)",
-              columns: ["Type", "Style", "Size", "Gender", "Qty_Warehouse", "Qty_OnSite", "Current_Inventory", "Post_Event_Count"]
+              columns: ["Type", "Style", "Size", "Gender", "Qty_Warehouse", "Qty_BeforeEvent", "Current_Inventory", "Post_Event_Count"]
             }
           });
 
@@ -119,27 +246,88 @@ exports.uploadInventory = async (req, res) => {
 exports.updateInventoryCount = async (req, res) => {
   try {
     const { inventoryId } = req.params;
-    const { newCount, qtyWarehouse, qtyOnSite, reason, action } = req.body;
+    const { qtyWarehouse, qtyBeforeEvent, postEventCount, reason, action } = req.body;
 
     const inventoryItem = await Inventory.findById(inventoryId);
     if (!inventoryItem) {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
 
+<<<<<<< Updated upstream
     // Update other fields if provided
-    if (typeof qtyWarehouse !== 'undefined') inventoryItem.qtyWarehouse = Number(qtyWarehouse);
-    if (typeof qtyOnSite !== 'undefined') inventoryItem.qtyOnSite = Number(qtyOnSite);
+=======
+    // Store previous values for logging
+    const previousWarehouse = inventoryItem.qtyWarehouse;
+    const previousBeforeEvent = inventoryItem.qtyBeforeEvent;
+    const previousPostEventCount = inventoryItem.postEventCount;
 
-    await inventoryItem.updateInventory(
-      newCount,
-      action || 'manual_adjustment',
-      req.user.id,
-      reason
-    );
+    // Update fields if provided
+>>>>>>> Stashed changes
+    if (typeof qtyWarehouse !== 'undefined') inventoryItem.qtyWarehouse = Number(qtyWarehouse);
+    if (typeof qtyBeforeEvent !== 'undefined') inventoryItem.qtyBeforeEvent = Number(qtyBeforeEvent);
+    if (typeof postEventCount !== 'undefined') inventoryItem.postEventCount = Number(postEventCount);
+
+    // Calculate current inventory based on distributed gifts
+    const Checkin = require('../models/Checkin');
+    const distributedCount = await Checkin.aggregate([
+      {
+        $match: {
+          'giftsDistributed.inventoryId': inventoryItem._id,
+          isValid: true
+        }
+      },
+      {
+        $unwind: '$giftsDistributed'
+      },
+      {
+        $match: {
+          'giftsDistributed.inventoryId': inventoryItem._id
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalDistributed: { $sum: '$giftsDistributed.quantity' }
+        }
+      }
+    ]);
+
+    const totalDistributed = distributedCount.length > 0 ? distributedCount[0].totalDistributed : 0;
+    const previousCurrentInventory = inventoryItem.currentInventory;
+    inventoryItem.currentInventory = Math.max(0, inventoryItem.qtyBeforeEvent - totalDistributed);
 
     // Save the updated fields
     await inventoryItem.save();
 
+<<<<<<< Updated upstream
+=======
+    // Log the inventory update
+    await ActivityLog.create({
+      eventId: inventoryItem.eventId,
+      type: 'inventory_update',
+      performedBy: req.user.id,
+      details: {
+        inventoryId: inventoryItem._id,
+        type: inventoryItem.type,
+        style: inventoryItem.style,
+        size: inventoryItem.size,
+        gender: inventoryItem.gender,
+        previousWarehouse: previousWarehouse,
+        newWarehouse: inventoryItem.qtyWarehouse,
+        previousBeforeEvent: previousBeforeEvent,
+        newBeforeEvent: inventoryItem.qtyBeforeEvent,
+        previousPostEventCount: previousPostEventCount,
+        newPostEventCount: inventoryItem.postEventCount,
+        previousCurrentInventory: previousCurrentInventory,
+        newCurrentInventory: inventoryItem.currentInventory,
+        totalDistributed: totalDistributed,
+        action: action || 'manual_adjustment',
+        reason: reason
+      },
+      timestamp: new Date()
+    });
+
+>>>>>>> Stashed changes
     res.json({
       success: true,
       message: 'Inventory updated successfully',
@@ -331,7 +519,7 @@ exports.exportInventoryCSV = async (req, res) => {
       Size: item.size,
       Gender: item.gender,
       'Qty Warehouse': item.qtyWarehouse || 0,
-      'Qty On Site': item.qtyOnSite || 0,
+      'Qty Before Event': item.qtyBeforeEvent || 0,
       'Current Inventory': item.currentInventory || 0,
       'Post Event Count': item.postEventCount || '',
       'Allocated Events': item.allocatedEvents?.map(ev => ev.eventName).join(', ') || '',
@@ -347,7 +535,7 @@ exports.exportInventoryCSV = async (req, res) => {
       { label: 'Size', value: 'Size' },
       { label: 'Gender', value: 'Gender' },
       { label: 'Qty Warehouse', value: 'Qty Warehouse' },
-      { label: 'Qty On Site', value: 'Qty On Site' },
+      { label: 'Qty Before Event', value: 'Qty Before Event' },
       { label: 'Current Inventory', value: 'Current Inventory' },
       { label: 'Post Event Count', value: 'Post Event Count' },
       { label: 'Allocated Events', value: 'Allocated Events' },
@@ -398,7 +586,7 @@ exports.exportInventoryExcel = async (req, res) => {
       { header: 'Size', key: 'size', width: 10 },
       { header: 'Gender', key: 'gender', width: 10 },
       { header: 'Qty Warehouse', key: 'qtyWarehouse', width: 15 },
-      { header: 'Qty On Site', key: 'qtyOnSite', width: 15 },
+      { header: 'Qty Before Event', key: 'qtyBeforeEvent', width: 15 },
       { header: 'Current Inventory', key: 'currentInventory', width: 18 },
       { header: 'Post Event Count', key: 'postEventCount', width: 18 },
       { header: 'Allocated Events', key: 'allocatedEvents', width: 30 },
@@ -424,7 +612,7 @@ exports.exportInventoryExcel = async (req, res) => {
         size: item.size,
         gender: item.gender,
         qtyWarehouse: item.qtyWarehouse || 0,
-        qtyOnSite: item.qtyOnSite || 0,
+        qtyBeforeEvent: item.qtyBeforeEvent || 0,
         currentInventory: item.currentInventory || 0,
         postEventCount: item.postEventCount || '',
         allocatedEvents: item.allocatedEvents?.map(ev => ev.eventName).join(', ') || '',
@@ -440,7 +628,7 @@ exports.exportInventoryExcel = async (req, res) => {
     worksheet.addRow(['Total Items', inventory.length]);
     worksheet.addRow(['Active Items', inventory.filter(item => item.isActive).length]);
     worksheet.addRow(['Total Warehouse Quantity', inventory.reduce((sum, item) => sum + (item.qtyWarehouse || 0), 0)]);
-    worksheet.addRow(['Total On-Site Quantity', inventory.reduce((sum, item) => sum + (item.qtyOnSite || 0), 0)]);
+    worksheet.addRow(['Total Before Event Quantity', inventory.reduce((sum, item) => sum + (item.qtyBeforeEvent || 0), 0)]);
     worksheet.addRow(['Total Current Inventory', inventory.reduce((sum, item) => sum + (item.currentInventory || 0), 0)]);
 
     // Style summary section

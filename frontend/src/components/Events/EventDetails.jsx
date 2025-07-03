@@ -74,6 +74,30 @@ const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
 ///This is old and not doesn't need to be used, I'm keeping it here for now for reference for certain features
 
 const GuestTable = ({ guests, onAddGuest, onUploadGuests }) => {
+  // Helper function to get gift information for a guest
+  const getGuestGifts = (guest) => {
+    if (!guest.eventCheckins || !Array.isArray(guest.eventCheckins)) {
+      return [];
+    }
+    
+    // Get all gifts from all check-ins
+    const allGifts = [];
+    guest.eventCheckins.forEach(checkin => {
+      if (checkin.giftsReceived && Array.isArray(checkin.giftsReceived)) {
+        checkin.giftsReceived.forEach(gift => {
+          allGifts.push({
+            type: gift.inventoryId?.type || 'Unknown',
+            style: gift.inventoryId?.style || 'Unknown',
+            size: gift.inventoryId?.size || '',
+            quantity: gift.quantity || 1
+          });
+        });
+      }
+    });
+    
+    return allGifts;
+  };
+
   if (guests.length === 0) {
     return (
       <Card>
@@ -139,54 +163,73 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests }) => {
               <TableRow>
                 <TableCell>Name</TableCell>
                 <TableCell>Email</TableCell>
-                <TableCell>Company</TableCell>
+                <TableCell>Gifts</TableCell>
                 <TableCell>Type</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Tags</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {guests.map((guest) => (
-                <TableRow key={guest._id} hover>
-                  <TableCell>
-                    <Typography variant="subtitle2">
-                      {guest.firstName} {guest.lastName}
-                    </Typography>
-                    {guest.jobTitle && (
-                      <Typography variant="caption" color="textSecondary">
-                        {guest.jobTitle}
+              {guests.map((guest) => {
+                const gifts = getGuestGifts(guest);
+                return (
+                  <TableRow key={guest._id} hover>
+                    <TableCell>
+                      <Typography variant="subtitle2">
+                        {guest.firstName} {guest.lastName}
                       </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>{guest.email || 'No email'}</TableCell>
-                  <TableCell>{guest.company || '-'}</TableCell>
-                  <TableCell>{guest.attendeeType || 'General'}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
-                      color={guest.hasCheckedIn ? 'success' : 'default'}
-                      size="small"
-                      icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Box display="flex" gap={0.5} flexWrap="wrap">
-                      {guest.tags?.map((tag, index) => (
-                        <Chip
-                          key={index}
-                          label={tag.name}
-                          size="small"
-                          sx={{
-                            backgroundColor: tag.color,
-                            color: 'white',
-                            fontSize: '0.7rem'
-                          }}
-                        />
-                      ))}
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      {guest.jobTitle && (
+                        <Typography variant="caption" color="textSecondary">
+                          {guest.jobTitle}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>{guest.email || 'No email'}</TableCell>
+                    <TableCell>
+                      {gifts.length > 0 ? (
+                        <Box>
+                          {gifts.map((gift, index) => (
+                            <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
+                              <strong>{gift.type}</strong> - {gift.style}
+                              {gift.size && ` (${gift.size})`}
+                              {gift.quantity > 1 && ` x${gift.quantity}`}
+                            </Typography>
+                          ))}
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="textSecondary">
+                          No gifts selected
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>{guest.attendeeType || 'General'}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
+                        color={guest.hasCheckedIn ? 'success' : 'default'}
+                        size="small"
+                        icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Box display="flex" gap={0.5} flexWrap="wrap">
+                        {guest.tags?.map((tag, index) => (
+                          <Chip
+                            key={index}
+                            label={tag.name}
+                            size="small"
+                            sx={{
+                              backgroundColor: tag.color,
+                              color: 'white',
+                              fontSize: '0.7rem'
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>

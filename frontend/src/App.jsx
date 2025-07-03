@@ -16,6 +16,14 @@ import DashboardLayout from './components/DashboardLayout';
 import EventDashboard from './components/Events/EventDashboard';
 import InventoryPageWrapper from './components/Inventory/InventoryPage';
 import ProfilePage from './components/Profile/ProfilePage';
+<<<<<<< Updated upstream
+=======
+import AnalyticsOverview from './components/Analytics/AnalyticsOverview';
+import ActivityFeedPage from './components/Analytics/ActivityFeedPage';
+import AcceptInvitePage from './pages/AcceptInvitePage';
+import AccountEditPage from './pages/AccountEditPage';
+import GuestInfoPage from './components/Guest/GuestInfoPage';
+>>>>>>> Stashed changes
 
 const theme = createTheme({
   palette: {
@@ -94,6 +102,11 @@ function App() {
             <Route path="/events/:eventId/inventory" element={
               <ProtectedRoute>
                 <InventoryPageWrapper />
+              </ProtectedRoute>
+            } />
+            <Route path="/events/:eventId/guest/:guestId" element={
+              <ProtectedRoute>
+                <GuestInfoPage />
               </ProtectedRoute>
             } />
             <Route path="/profile" element={

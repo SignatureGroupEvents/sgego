@@ -12,6 +12,8 @@ exports.getGuests = async (req, res) => {
 
     const guests = await Guest.find({ eventId })
       .populate('eventId', 'eventName')
+      .populate('eventCheckins.eventId', 'eventName')
+      .populate('eventCheckins.giftsReceived.inventoryId', 'type style size')
       .sort({ createdAt: -1 });
 
     res.json({ guests });

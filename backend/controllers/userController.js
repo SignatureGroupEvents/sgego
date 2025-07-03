@@ -10,6 +10,79 @@ exports.getAllUsers = async (req, res) => {
       .select('-password')
       .sort({ createdAt: -1 });
 
+<<<<<<< Updated upstream
+=======
+    const token = crypto.randomBytes(32).toString('hex');
+    await InvitationToken.findOneAndDelete({ userId });
+    await InvitationToken.create({
+      userId,
+      token,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    });
+
+    // Use CLIENT_URL with fallback to FRONTEND_URL, then default to localhost:5174
+    const baseUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5174';
+    const inviteLink = `${baseUrl}/invite/${token}`;
+
+    await sendEmail({
+      to: user.email,
+      subject: `You've Been Re-invited to Join SGEGO 🏱`,
+      html: `<p>Hello,</p><p>You've been re-invited to join <strong>SGEGO</strong> as a <strong>${user.role}</strong>.</p><p>Click the link below to complete your registration:</p><p><a href="${inviteLink}">${inviteLink}</a></p><p>This invitation will expire in 7 days.</p>`
+    });
+
+    res.json({ message: 'Invite resent successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const inviteUser = async (req, res) => {
+  try {
+    const { email, role } = req.body;
+    if (!['admin', 'operations_manager'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Not authorized to invite users' });
+    }
+
+    let user = await User.findOne({ email });
+    if (user) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    user = await User.create({
+      email,
+      role,
+      invitedBy: req.user.id,
+      isInvited: true,
+      isActive: false
+    });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    await InvitationToken.create({
+      userId: user._id,
+      token,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    });
+
+    // Use CLIENT_URL with fallback to FRONTEND_URL, then default to localhost:5174
+    const baseUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5174';
+    const inviteLink = `${baseUrl}/invite/${token}`;
+
+    await sendEmail({
+      to: email,
+      subject: `You've Been Invited to Join SGEGO 🏱`,
+      html: `<p>Hello,</p><p>You've been invited to join <strong>SGEGO</strong> as a <strong>${role}</strong>.</p><p>Click the link below to complete your registration:</p><p><a href="${inviteLink}">${inviteLink}</a></p><p>This invitation will expire in 7 days.</p>`
+    });
+
+    res.status(201).json({ message: 'User invited successfully', inviteLink });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find({}).select('-password').sort({ createdAt: -1 });
+>>>>>>> Stashed changes
     res.json({ users });
   } catch (error) {
     res.status(400).json({ message: error.message });
