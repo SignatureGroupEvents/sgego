@@ -23,9 +23,7 @@ const theme = createTheme({
     info: {
       main: '#FAA951',
     },
-    accent: {
-      main: '#FAA951',
-    },
+   
     text: {
       primary: '#31365E',
       secondary: '#31365E',

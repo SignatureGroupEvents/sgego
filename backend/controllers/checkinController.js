@@ -4,6 +4,18 @@ const Event = require('../models/Event');
 const Inventory = require('../models/Inventory');
 const ActivityLog = require('../models/ActivityLog');
 
+// Helper function to emit analytics update
+const emitAnalyticsUpdate = (eventId) => {
+  if (global.io) {
+    global.io.to(`event-${eventId}`).emit('analytics:update', {
+      eventId,
+      timestamp: new Date().toISOString(),
+      type: 'checkin_update'
+    });
+    console.log(`📊 Emitted analytics:update for event ${eventId}`);
+  }
+};
+
 exports.getCheckinContext = async (req, res) => {
   try {
     const { eventId } = req.params;
@@ -63,6 +75,7 @@ exports.multiEventCheckin = async (req, res) => {
 
     const results = [];
     const inventoryUpdates = new Map(); // Track total inventory changes
+    const updatedEventIds = new Set(); // Track which events were updated
 
     // Process each event checkin
     for (const checkin of checkins) {
@@ -113,6 +126,8 @@ exports.multiEventCheckin = async (req, res) => {
         success: true,
         giftsDistributed
       });
+      
+      updatedEventIds.add(checkin.eventId);
     }
 
     // Validate total inventory requirements
@@ -202,6 +217,11 @@ exports.multiEventCheckin = async (req, res) => {
         },
         timestamp: new Date()
       });
+    }
+
+    // Emit WebSocket updates for all updated events
+    for (const eventId of updatedEventIds) {
+      emitAnalyticsUpdate(eventId);
     }
 
     res.json({
@@ -315,6 +335,9 @@ exports.singleEventCheckin = async (req, res) => {
       },
       timestamp: new Date()
     });
+
+    // Emit WebSocket update for analytics
+    emitAnalyticsUpdate(eventId);
 
     res.json({
       success: true,

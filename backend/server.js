@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
 require('dotenv').config();
 
 // Debug environment variables
@@ -13,6 +15,46 @@ console.log('  MONGODB_URI:', process.env.MONGODB_URI ? 'SET' : 'NOT SET');
 console.log('  JWT_SECRET:', process.env.JWT_SECRET ? 'SET' : 'NOT SET');
 
 const app = express();
+const server = createServer(app);
+
+// Socket.IO setup
+const io = new Server(server, {
+  cors: {
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:5174',
+      'http://localhost:5175',
+      'http://localhost:5176'
+    ],
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('🔌 Client connected:', socket.id);
+  
+  // Join event-specific room for analytics updates
+  socket.on('join-event', (eventId) => {
+    socket.join(`event-${eventId}`);
+    console.log(`📊 Client ${socket.id} joined event room: event-${eventId}`);
+  });
+  
+  // Leave event room
+  socket.on('leave-event', (eventId) => {
+    socket.leave(`event-${eventId}`);
+    console.log(`📊 Client ${socket.id} left event room: event-${eventId}`);
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('🔌 Client disconnected:', socket.id);
+  });
+});
+
+// Make io available globally for emitting events
+global.io = io;
 
 // Define allowed origins for CORS
 const allowedOrigins = [
@@ -165,10 +207,11 @@ const PORT = process.env.PORT || 3001;
 
 // Only start the server if this file is run directly (not imported for testing)
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
+  server.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📍 API Base: http://localhost:${PORT}`);
+    console.log(`🔌 WebSocket enabled`);
   });
 }
 
-module.exports = app;
+module.exports = { app, server, io };
