@@ -8,7 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import MainNavigation from '../layout/MainNavigation';
 import AddSecondaryEventModal from './AddSecondaryEventModal';
 import AddGuest from '../guests/AddGuest';
-import InventoryPage from '../inventory/InventoryPage';
+import InventoryPage from '../Inventory/InventoryPage';
 import GuestCheckIn from '../guests/GuestCheckIn';
 import BasicAnalytics from '../dashboard/BasicAnalytics';
 import { getEvent } from '../../services/events';
@@ -950,6 +950,15 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     setCheckInModalOpen(false);
   };
 
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
   useEffect(() => {
     const fetchEventData = async () => {
       try {
@@ -1172,7 +1181,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                 </TableRow>
               </TableHead>
               <TableBody>
-                {guests.slice(0, 10).map((guest) => (
+                {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => (
                   <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
                     <TableCell>
                       <Button
@@ -1227,6 +1236,17 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={guests.length}
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            rowsPerPageOptions={[10, 25, 50]}
+            labelRowsPerPage="Guests per page"
+            sx={{ mt: 2 }}
+          />
         </Card>
         {/* --- ADDITIONAL EVENTS SECTION --- */}
         {secondaryEvents.length > 0 && (

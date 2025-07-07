@@ -9,12 +9,12 @@ import { Toaster } from 'react-hot-toast';
 import Dashboard from './components/dashboard/Dashboard';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import EventsList from './components/events/EventsList';
-import CreateEvent from './components/events/CreateEvent';
-import EventDetails from './components/events/EventDetails';
+import CreateEvent from './components/Events/CreateEvent';
+import EventDetails from './components/Events/EventDetails';
 import UploadGuest from './components/guests/UploadGuest';
 import DashboardLayout from './components/layout/DashboardLayout';
-import EventDashboard from './components/events/EventDashboard';
-import InventoryPageWrapper from './components/inventory/InventoryPage';
+import EventDashboard from './components/Events/EventDashboard';
+import InventoryPageWrapper from './components/Inventory/InventoryPage';
 import AccountPage from './pages/AccountPage';
 
 import AccountEditPage from './pages/AccountEditPage.jsx';
