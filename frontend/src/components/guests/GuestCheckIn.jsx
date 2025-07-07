@@ -139,6 +139,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
   return (
     <Box sx={{ p: 4 }}>
       <Typography variant="h6" gutterBottom>Guest Check-In</Typography>
+      
       {!propGuest && (
         <Box sx={{ mb: 3 }}>
           <TextField
@@ -154,9 +155,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
             onClick={handleScan} 
             disabled={loading}
             fullWidth
-            sx={{ borderRadius: 2, fontWeight: 600 }}
           >
-            {loading ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
             Find Guest
           </Button>
         </Box>
@@ -222,7 +221,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
             onClick={handleCheckIn} 
             disabled={loading}
             fullWidth
-            sx={{ mt: 3, borderRadius: 2, fontWeight: 600 }}
+            sx={{ mt: 3 }}
             startIcon={loading ? <CircularProgress size={20} /> : null}
           >
             {loading ? 'Checking In...' : 'Check In Guest'}

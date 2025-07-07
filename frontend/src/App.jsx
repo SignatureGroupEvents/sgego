@@ -16,11 +16,10 @@ import UploadGuest from './components/guests/UploadGuest';
 import DashboardLayout from './components/layout/DashboardLayout';
 import EventDashboard from './components/events/EventDashboard';
 import InventoryPageWrapper from './components/inventory/InventoryPage';
-import AccountPage from './pages/AccountPage';
-
-import AccountEditPage from './pages/AccountEditPage.jsx';
-import AuthPage from './pages/AuthPage';
-import AdvancedDashboard from './pages/AdvancedDashboard';
+import AccountPage from "./pages/Account/AccountPage";
+import AccountEditPage from "./pages/Account/AccountEditPage";
+import AuthPage from "./pages/Auth/AuthPage";
+import AdvancedDashboard from "./pages/Dashboard/AdvancedDashboard";
 
 function InviteRedirect() {
   const { token } = useParams();
