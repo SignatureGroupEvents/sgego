@@ -1,8 +1,19 @@
 import React, { useState } from 'react';
 import { getCheckinContext, singleEventCheckin, multiEventCheckin } from '../../services/api';
-// import MainNavigation from '../MainNavigation'; // Removed
+import { 
+  Box, 
+  Button, 
+  TextField, 
+  Typography, 
+  Alert, 
+  CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
+} from '@mui/material';
+import { CheckCircleOutline as CheckCircleIcon } from '@mui/icons-material';
 import HomeIcon from '@mui/icons-material/Home';
-import { Box, Button, TextField, Typography, Alert, CircularProgress, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 
 const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onInventoryChange }) => {
   const [qrData, setQrData] = useState('');
@@ -12,6 +23,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [isCheckedIn, setIsCheckedIn] = useState(false);
 
   React.useEffect(() => {
     // Always fetch check-in context for the event
@@ -20,6 +32,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
     setError('');
     setGiftSelections({});
     setGuest(propGuest || null);
+    setIsCheckedIn(false);
     if (event?._id) {
       setLoading(true);
       getCheckinContext(event._id)
@@ -75,11 +88,25 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
         const selectedGifts = giftSelections[event._id] ? [giftSelections[event._id]] : [];
         await singleEventCheckin(guest._id, event._id, selectedGifts);
       }
+      
+      // Update local state to show success
+      setIsCheckedIn(true);
       setSuccess('Guest checked in successfully!');
       setGiftSelections({});
-      if (onClose) onClose();
-      if (onCheckinSuccess) onCheckinSuccess();
+      
+      // Update the guest object to reflect check-in status
+      const updatedGuest = { ...guest, hasCheckedIn: true };
+      setGuest(updatedGuest);
+      
+      // Call callbacks to update parent components
+      if (onCheckinSuccess) onCheckinSuccess(updatedGuest);
       if (onInventoryChange) onInventoryChange();
+      
+      // Auto-close after a short delay
+      setTimeout(() => {
+        if (onClose) onClose();
+      }, 2000);
+      
     } catch (err) {
       setError(err.response?.data?.message || 'Check-in failed.');
     } finally {
@@ -87,14 +114,36 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
     }
   };
 
+  // If guest is already checked in, show success state
+  if (isCheckedIn || (guest && guest.hasCheckedIn)) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <CheckCircleIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
+        <Typography variant="h6" color="success.main" gutterBottom>
+          Checked In Successfully!
+        </Typography>
+        <Typography variant="body1" gutterBottom>
+          {guest?.firstName} {guest?.lastName} has been checked in.
+        </Typography>
+        <Button 
+          variant="outlined" 
+          onClick={onClose}
+          sx={{ mt: 2 }}
+        >
+          Close
+        </Button>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ p: 4 }}>
-      <Typography variant="h5" gutterBottom>Guest Check-In</Typography>
+      <Typography variant="h6" gutterBottom>Guest Check-In</Typography>
       {!propGuest && (
         <Box sx={{ mb: 3 }}>
           <TextField
             fullWidth
-            placeholder="Enter or scan QR"
+            label="Enter or scan QR code"
             value={qrData}
             onChange={(e) => setQrData(e.target.value)}
             disabled={loading}
@@ -104,6 +153,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
             variant="contained" 
             onClick={handleScan} 
             disabled={loading}
+            fullWidth
             sx={{ borderRadius: 2, fontWeight: 600 }}
           >
             {loading ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
@@ -111,40 +161,71 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
           </Button>
         </Box>
       )}
+      
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+      
       {guest && context && (
         <Box sx={{ mt: 3 }}>
-          <Typography variant="h6" gutterBottom>{guest.firstName} {guest.lastName}</Typography>
-          <Typography variant="body2" color="text.secondary" gutterBottom>Email: {guest.email}</Typography>
-          <Typography variant="body2" color="text.secondary" gutterBottom>Type: {guest.type}</Typography>
-          {context.availableEvents.map(ev => (
-            <Box key={ev._id} sx={{ mb: 2 }}>
-              <FormControl fullWidth>
-                <InputLabel>{ev.eventName} Gift</InputLabel>
-                <Select
-                  value={giftSelections[ev._id]?.inventoryId || ''}
-                  onChange={e => handleGiftChange(ev._id, e.target.value)}
-                  label={`${ev.eventName} Gift`}
-                >
-                  <MenuItem value="">Select a gift</MenuItem>
-                  {(context.inventoryByEvent?.[ev._id] || []).map(gift => (
-                    <MenuItem key={gift._id} value={gift._id}>
-                      {gift.style} ({gift.size})
+          <Typography variant="h6" gutterBottom>
+            {guest.firstName} {guest.lastName}
+          </Typography>
+          <Typography variant="body2" color="textSecondary" gutterBottom>
+            Email: {guest.email}
+          </Typography>
+          <Typography variant="body2" color="textSecondary" gutterBottom>
+            Type: {guest.type || 'General'}
+          </Typography>
+          
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Select Gifts:
+            </Typography>
+            {context.availableEvents.map(ev => (
+              <Box key={ev._id} sx={{ mb: 2 }}>
+                <Typography variant="body2" fontWeight={500} gutterBottom>
+                  {ev.eventName} Gift:
+                </Typography>
+                <FormControl fullWidth size="small">
+                  <InputLabel id={`${ev._id}-gift-label`}>Select a gift</InputLabel>
+                  <Select
+                    labelId={`${ev._id}-gift-label`}
+                    id={`${ev._id}-gift`}
+                    value={giftSelections[ev._id]?.inventoryId || ''}
+                    label="Select a gift"
+                    onChange={e => handleGiftChange(ev._id, e.target.value)}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          zIndex: 9999
+                        }
+                      }
+                    }}
+                  >
+                    <MenuItem value="">
+                      <em>None</em>
                     </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-          ))}
+                    {(context.inventoryByEvent?.[ev._id] || []).map(gift => (
+                      <MenuItem key={gift._id} value={gift._id}>
+                        {gift.style} ({gift.size})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+            ))}
+          </Box>
+          
           <Button 
             variant="contained" 
+            color="success"
             onClick={handleCheckIn} 
             disabled={loading}
-            sx={{ mt: 2, borderRadius: 2, fontWeight: 600 }}
+            fullWidth
+            sx={{ mt: 3, borderRadius: 2, fontWeight: 600 }}
+            startIcon={loading ? <CircularProgress size={20} /> : null}
           >
-            {loading ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
-            Check In Guest
+            {loading ? 'Checking In...' : 'Check In Guest'}
           </Button>
         </Box>
       )}

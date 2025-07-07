@@ -42,11 +42,15 @@ export const uploadInventoryCSV = (eventId, file) => {
 };
 
 export const fetchInventory = (eventId) => {
-  return api.get(`/events/${eventId}/inventory`);
+  return api.get(`/inventory/${eventId}`);
 };
 
 export const updateInventoryItem = (inventoryId, data) => {
   return api.put(`/inventory/${inventoryId}`, data);
+};
+
+export const addInventoryItem = (eventId, data) => {
+  return api.post(`/inventory/${eventId}`, data);
 };
 
 export const deleteInventoryItem = (inventoryId) => {

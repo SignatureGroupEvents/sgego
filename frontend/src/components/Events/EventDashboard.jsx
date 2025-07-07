@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField, Autocomplete, Tooltip } from '@mui/material';
-import { CheckCircle as CheckCircleIcon, Person as PersonIcon, Groups as GroupsIcon, Assessment as AssessmentIcon, Event as EventIcon, Home as HomeIcon, Menu as MenuIcon, Upload as UploadIcon, PersonAdd as PersonAddIcon, Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon, PeopleAlt as PeopleAltIcon, HourglassEmpty as HourglassEmptyIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, CardGiftcard as GiftIcon, Search as SearchIcon, Inventory as InventoryIcon, Save as SaveIcon, Cancel as CancelIcon, Edit as EditIcon, Info as InfoIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField, Autocomplete, Tooltip, Dialog, DialogTitle, DialogContent } from '@mui/material';
+import { CheckCircleOutline as CheckCircleIcon, Person as PersonIcon, Groups as GroupsIcon, Assessment as AssessmentIcon, Event as EventIcon, Home as HomeIcon, Menu as MenuIcon, Upload as UploadIcon, PersonAdd as PersonAddIcon, Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon, PeopleAlt as PeopleAltIcon, HourglassEmpty as HourglassEmptyIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, CardGiftcard as GiftIcon, Search as SearchIcon, Inventory as InventoryIcon, Save as SaveIcon, Cancel as CancelIcon, Edit as EditIcon, Info as InfoIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import api, { fetchInventory } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -134,15 +134,28 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                   return (
                     <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
                       <TableCell>
-                        <Button
-                          variant="contained"
-                          color="success"
-                          size="small"
-                          sx={{ borderRadius: 2, fontWeight: 600 }}
-                          onClick={() => handleOpenCheckIn(guest)}
-                        >
-                          Check In
-                        </Button>
+                        {guest.hasCheckedIn ? (
+                          <Button
+                            variant="outlined"
+                            color="success"
+                            size="small"
+                            startIcon={<CheckCircleIcon />}
+                            disabled
+                            sx={{ borderRadius: 2, fontWeight: 600 }}
+                          >
+                            Checked In
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="contained"
+                            color="success"
+                            size="small"
+                            sx={{ borderRadius: 2, fontWeight: 600 }}
+                            onClick={() => handleOpenCheckIn(guest)}
+                          >
+                            Check In
+                          </Button>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
@@ -218,19 +231,31 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
         sx={{ mt: 2 }}
       />
       {/* Check-in Modal */}
-      {modalOpen && checkInGuest && (
-        <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Card sx={{ minWidth: 400, p: 2 }}>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">Check In Guest</Typography>
-                <Button onClick={handleCloseCheckIn} size="small">Close</Button>
-              </Box>
-              <GuestCheckIn event={event} guest={checkInGuest} onClose={handleCloseCheckIn} onInventoryChange={onInventoryChange} />
-            </CardContent>
-          </Card>
-        </Box>
-      )}
+      <Dialog
+        open={modalOpen}
+        onClose={handleCloseCheckIn}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            minWidth: 400
+          }
+        }}
+      >
+        <DialogTitle>
+          Check In Guest
+        </DialogTitle>
+        <DialogContent>
+          {checkInGuest && (
+            <GuestCheckIn 
+              event={event} 
+              guest={checkInGuest} 
+              onClose={handleCloseCheckIn} 
+              onInventoryChange={onInventoryChange}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
@@ -590,6 +615,13 @@ const GuestListWithGifts = ({ guests = [], inventory = [] }) => {
               value={filterGiftType}
               label="Gift Type"
               onChange={(e) => setFilterGiftType(e.target.value)}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    zIndex: 9999
+                  }
+                }
+              }}
             >
               <MenuItem value="all">All Types</MenuItem>
               {giftTypes.map(type => (
@@ -603,6 +635,13 @@ const GuestListWithGifts = ({ guests = [], inventory = [] }) => {
               value={filterStatus}
               label="Status"
               onChange={(e) => setFilterStatus(e.target.value)}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    zIndex: 9999
+                  }
+                }
+              }}
             >
               <MenuItem value="all">All Status</MenuItem>
               <MenuItem value="checked-in">Checked In</MenuItem>
@@ -944,6 +983,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState(null);
   const [guests, setGuests] = useState([]);
+  const [localGuests, setLocalGuests] = useState([]);
   const [error, setError] = useState('');
   const [secondaryModalOpen, setSecondaryModalOpen] = useState(false);
   const [secondaryEvents, setSecondaryEvents] = useState([]);
@@ -957,6 +997,11 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [checkInModalOpen, setCheckInModalOpen] = useState(false);
   const [addGuestModalOpen, setAddGuestModalOpen] = useState(false);
+
+  // Update local guests when props change
+  React.useEffect(() => {
+    setLocalGuests(guests);
+  }, [guests]);
 
   // Determine if user can modify events
   const canModifyEvents = isOperationsManager || isAdmin;
@@ -1041,6 +1086,16 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const handleGuestAdded = (newGuest) => {
     // Add the new guest to the current list
     setGuests(prev => [...prev, newGuest]);
+    setLocalGuests(prev => [...prev, newGuest]);
+  };
+
+  const handleCheckInSuccess = (checkedInGuest) => {
+    // Update the guest's check-in status in the local state
+    setLocalGuests(prev => prev.map(guest => 
+      guest._id === checkedInGuest._id 
+        ? { ...guest, hasCheckedIn: true }
+        : guest
+    ));
   };
 
   const handleCheckInSuccess = (checkedInGuest) => {
@@ -1172,7 +1227,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         <Card elevation={2} sx={{ borderRadius: 3, p: 2, mb: 4 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="h6" fontWeight={600} color="primary.main">
-              Guest List ({guests.length})
+              Guest List ({localGuests.length})
             </Typography>
             <Box display="flex" gap={1}>
               {canModifyEvents && (
@@ -1211,22 +1266,39 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                 </TableRow>
               </TableHead>
               <TableBody>
+<<<<<<< HEAD
                 {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
+=======
+                {localGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
+>>>>>>> origin/byoung
                   // Find the selected gift from inventory
                   const selectedGift = guest.giftSelection ? inventory.find(item => item._id === guest.giftSelection) : null;
                   
                   return (
                     <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
                       <TableCell>
-                        <Button
-                          variant="contained"
-                          color="success"
-                          size="small"
-                          sx={{ borderRadius: 2, fontWeight: 600 }}
-                          onClick={() => handleOpenCheckIn(guest)}
-                        >
-                          Check In
-                        </Button>
+                        {guest.hasCheckedIn ? (
+                          <Button
+                            variant="outlined"
+                            color="success"
+                            size="small"
+                            startIcon={<CheckCircleIcon />}
+                            disabled
+                            sx={{ borderRadius: 2, fontWeight: 600 }}
+                          >
+                            Checked In
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="contained"
+                            color="success"
+                            size="small"
+                            sx={{ borderRadius: 2, fontWeight: 600 }}
+                            onClick={() => handleOpenCheckIn(guest)}
+                          >
+                            Check In
+                          </Button>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
@@ -1290,7 +1362,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
           </TableContainer>
           <TablePagination
             component="div"
-            count={guests.length}
+            count={localGuests.length}
             page={page}
             onPageChange={handleChangePage}
             rowsPerPage={rowsPerPage}
@@ -1339,25 +1411,32 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         )}
 
         {/* Check-in Modal */}
-        {checkInModalOpen && checkInGuest && (
-          <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Card sx={{ minWidth: 400, p: 2 }}>
-              <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                  <Typography variant="h6">Check In Guest</Typography>
-                  <Button onClick={handleCloseCheckIn} size="small">Close</Button>
-                </Box>
-                <GuestCheckIn 
-                  event={event} 
-                  guest={checkInGuest} 
-                  onClose={handleCloseCheckIn} 
-                  onInventoryChange={onInventoryChange}
-                  onCheckInSuccess={handleCheckInSuccess}
-                />
-              </CardContent>
-            </Card>
-          </Box>
-        )}
+        <Dialog
+          open={checkInModalOpen}
+          onClose={handleCloseCheckIn}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              minWidth: 400
+            }
+          }}
+        >
+          <DialogTitle>
+            Check In Guest
+          </DialogTitle>
+          <DialogContent>
+            {checkInGuest && (
+              <GuestCheckIn 
+                event={event} 
+                guest={checkInGuest} 
+                onClose={handleCloseCheckIn} 
+                onInventoryChange={onInventoryChange}
+                onCheckInSuccess={handleCheckInSuccess}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Add Guest Modal */}
         <AddGuest

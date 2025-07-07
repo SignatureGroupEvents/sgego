@@ -120,7 +120,7 @@ exports.uploadInventory = async (req, res) => {
 exports.updateInventoryCount = async (req, res) => {
   try {
     const { inventoryId } = req.params;
-    const { newCount, qtyWarehouse, qtyOnSite, reason, action } = req.body;
+    const { newCount, qtyWarehouse, qtyOnSite, qtyBeforeEvent, postEventCount, reason, action } = req.body;
 
     const inventoryItem = await Inventory.findById(inventoryId);
     if (!inventoryItem) {
@@ -132,16 +132,21 @@ exports.updateInventoryCount = async (req, res) => {
     const previousWarehouse = inventoryItem.qtyWarehouse;
     const previousOnSite = inventoryItem.qtyOnSite;
 
-    // Update other fields if provided
+    // Update fields if provided - handle both old and new field names
     if (typeof qtyWarehouse !== 'undefined') inventoryItem.qtyWarehouse = Number(qtyWarehouse);
     if (typeof qtyOnSite !== 'undefined') inventoryItem.qtyOnSite = Number(qtyOnSite);
+    if (typeof qtyBeforeEvent !== 'undefined') inventoryItem.qtyOnSite = Number(qtyBeforeEvent); // Map qtyBeforeEvent to qtyOnSite
+    if (typeof postEventCount !== 'undefined') inventoryItem.postEventCount = postEventCount ? Number(postEventCount) : null;
 
-    await inventoryItem.updateInventory(
-      newCount,
-      action || 'manual_adjustment',
-      req.user.id,
-      reason
-    );
+    // Only update currentInventory if newCount is provided (for manual adjustments)
+    if (typeof newCount !== 'undefined') {
+      await inventoryItem.updateInventory(
+        newCount,
+        action || 'manual_adjustment',
+        req.user.id,
+        reason
+      );
+    }
 
     // Save the updated fields
     await inventoryItem.save();
@@ -163,6 +168,7 @@ exports.updateInventoryCount = async (req, res) => {
         newWarehouse: inventoryItem.qtyWarehouse,
         previousOnSite: previousOnSite,
         newOnSite: inventoryItem.qtyOnSite,
+        previousPostEventCount: inventoryItem.postEventCount,
         action: action || 'manual_adjustment',
         reason: reason
       },
@@ -355,6 +361,91 @@ exports.updateInventoryAllocation = async (req, res) => {
     
     res.json({ success: true, inventoryItem });
   } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Add individual inventory item
+exports.addInventoryItem = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const {
+      type,
+      style,
+      size,
+      gender,
+      qtyWarehouse,
+      qtyBeforeEvent,
+      postEventCount
+    } = req.body;
+
+    // Validate required fields
+    if (!type || !style) {
+      return res.status(400).json({ message: 'Type and Style are required fields' });
+    }
+
+    // Check if event exists
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    // Create new inventory item
+    const inventoryItem = new Inventory({
+      eventId,
+      type: type.trim(),
+      style: style.trim(),
+      size: size ? size.trim() : '',
+      gender: gender || 'N/A',
+      qtyWarehouse: Number(qtyWarehouse) || 0,
+      qtyOnSite: Number(qtyBeforeEvent) || 0, // Map qtyBeforeEvent to qtyOnSite
+      currentInventory: Number(qtyBeforeEvent) || 0, // Initial current inventory
+      postEventCount: postEventCount ? Number(postEventCount) : null,
+      allocatedEvents: [eventId], // Default allocation to this event
+      inventoryHistory: [{
+        action: 'initial',
+        quantity: Number(qtyBeforeEvent) || 0,
+        previousCount: 0,
+        newCount: Number(qtyBeforeEvent) || 0,
+        performedBy: req.user.id,
+        reason: 'Individual item addition'
+      }]
+    });
+
+    await inventoryItem.save();
+
+    // Log the inventory addition
+    await ActivityLog.create({
+      eventId,
+      type: 'inventory_add',
+      performedBy: req.user.id,
+      details: {
+        inventoryId: inventoryItem._id,
+        type: inventoryItem.type,
+        style: inventoryItem.style,
+        size: inventoryItem.size,
+        gender: inventoryItem.gender,
+        qtyWarehouse: inventoryItem.qtyWarehouse,
+        qtyBeforeEvent: inventoryItem.qtyOnSite,
+        postEventCount: inventoryItem.postEventCount,
+        action: 'individual_addition'
+      },
+      timestamp: new Date()
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Inventory item added successfully',
+      inventoryItem
+    });
+
+  } catch (error) {
+    if (error.code === 11000) {
+      // Duplicate key error (type, style, size, gender combination already exists)
+      return res.status(400).json({ 
+        message: 'An inventory item with this type, style, size, and gender combination already exists for this event' 
+      });
+    }
     res.status(400).json({ message: error.message });
   }
 };

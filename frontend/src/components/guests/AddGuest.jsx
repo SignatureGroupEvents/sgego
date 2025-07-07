@@ -152,7 +152,7 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
           )}
 
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="First Name *"
@@ -163,7 +163,7 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
               />
             </Grid>
             
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Last Name *"
@@ -174,7 +174,7 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
               />
             </Grid>
             
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Email"
@@ -186,7 +186,7 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
               />
             </Grid>
             
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Job Title"
@@ -197,7 +197,7 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
               />
             </Grid>
             
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Company"
@@ -208,7 +208,7 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
               />
             </Grid>
             
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <FormControl fullWidth>
                 <InputLabel>Attendee Type</InputLabel>
                 <Select
@@ -216,6 +216,13 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
                   onChange={(e) => handleInputChange('attendeeType', e.target.value)}
                   label="Attendee Type"
                   disabled={loading}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        zIndex: 9999
+                      }
+                    }
+                  }}
                 >
                   <MenuItem value="">
                     <em>Select type (optional)</em>
@@ -229,7 +236,7 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
               </FormControl>
             </Grid>
             
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <TextField
                 fullWidth
                 label="Notes"

@@ -9,7 +9,7 @@ const activityLogSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['checkin', 'inventory_update', 'allocation_update', 'note', 'event_create', 'event_update', 'test', 'other']
+    enum: ['checkin', 'inventory_update', 'inventory_add', 'allocation_update', 'note', 'event_create', 'event_update', 'test', 'other']
   },
   performedBy: {
     type: mongoose.Schema.Types.ObjectId,
