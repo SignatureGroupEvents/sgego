@@ -5,45 +5,27 @@ import { CheckCircle as CheckCircleIcon, Person as PersonIcon, Groups as GroupsI
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import api, { fetchInventory } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import MainNavigation from '../MainNavigation';
+import MainNavigation from '../layout/MainNavigation';
 import AddSecondaryEventModal from './AddSecondaryEventModal';
+import AddGuest from '../guests/AddGuest';
+import InventoryPage from '../inventory/InventoryPage';
+import GuestCheckIn from '../guests/GuestCheckIn';
+import BasicAnalytics from '../dashboard/BasicAnalytics';
 import { getEvent } from '../../services/events';
-import InventoryPage from '../Inventory/InventoryPage';
-import GuestCheckIn from '../Guest/GuestCheckIn';
-import { format } from 'date-fns';
-import { useTheme } from '@mui/material/styles';
-import ActivityFeedList from '../Analytics/ActivityFeedList';
-import axios from 'axios';
 import { getEventActivityFeed } from '../../services/api';
 
-const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
-  <Card>
-    <CardContent>
-      <Box display="flex" alignItems="center" justifyContent="space-between">
-        <Box>
-          <Typography color="textSecondary" gutterBottom variant="h6">
-            {title}
-          </Typography>
-          <Typography variant="h3" component="div" color={color}>
-            {value}
-          </Typography>
-          {subtitle && (
-            <Typography variant="body2" color="textSecondary">
-              {subtitle}
-            </Typography>
-          )}
-        </Box>
-        <Box sx={{ backgroundColor: `${color}.light`, borderRadius: 2, p: 1.5 }}>
-          {React.cloneElement(icon, { sx: { fontSize: 28, color: `${color}.main` } })}
-        </Box>
-      </Box>
-    </CardContent>
-  </Card>
-);
 
 const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const { isOperationsManager, isAdmin, user: currentUser } = useAuth();
+  
+  // Determine if user can modify events
+  const canModifyEvents = isOperationsManager || isAdmin;
+  // Staff can perform check-ins and gift assignments but not modify guest lists
+  const canPerformCheckins = isOperationsManager || isAdmin || currentUser?.role === 'staff';
+  // Staff can add guests manually but not upload bulk
+  const canAddGuests = isOperationsManager || isAdmin || currentUser?.role === 'staff';
 
   const handleOpenCheckIn = (guest) => {
     setCheckInGuest(guest);
@@ -107,22 +89,28 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
               Guest List ({guests.length})
             </Typography>
             <Box display="flex" gap={1}>
-              <Button
-                variant="outlined"
-                startIcon={<UploadIcon />}
-                onClick={onUploadGuests}
-                size="small"
-              >
-                Upload More
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<PersonAddIcon />}
-                onClick={onAddGuest}
-                size="small"
-              >
-                Add Guest
-              </Button>
+              {canModifyEvents && (
+                <Button
+                  variant="outlined"
+                  startIcon={<UploadIcon />}
+                  onClick={onUploadGuests}
+                  size="small"
+                  sx={{ borderRadius: 2, fontWeight: 600 }}
+                >
+                  Upload More
+                </Button>
+              )}
+              {canAddGuests && (
+                <Button
+                  variant="outlined"
+                  startIcon={<PersonAddIcon />}
+                  onClick={onAddGuest}
+                  size="small"
+                  sx={{ borderRadius: 2, fontWeight: 600 }}
+                >
+                  Add Guest
+                </Button>
+              )}
             </Box>
           </Box>
           <TableContainer component={Paper} variant="outlined">
@@ -142,14 +130,16 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                 {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => (
                   <TableRow key={guest._id} hover>
                     <TableCell>
-                      <Button
-                        variant="contained"
-                        color="success"
-                        size="small"
-                        onClick={() => handleOpenCheckIn(guest)}
-                      >
-                        Check In
-                      </Button>
+                      {canPerformCheckins && (
+                        <Button
+                          variant="contained"
+                          color="success"
+                          size="small"
+                          onClick={() => handleOpenCheckIn(guest)}
+                        >
+                          Check In
+                        </Button>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Typography variant="subtitle2">
@@ -883,12 +873,6 @@ const AdvancedView = ({ event, guests, secondaryEvents, inventory = [], onInvent
               </IconButton>
             </Tooltip>
           </Box>
-          <ActivityFeedList 
-            logs={feedLogs} 
-            loading={feedLoading} 
-            filterType={feedType} 
-            onFilterTypeChange={setFeedType} 
-          />
         </Box>
       )}
     </Box>
@@ -935,7 +919,7 @@ const EventDashboardWrapper = () => {
 
 const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inventoryError = '', onInventoryChange }) => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, isOperationsManager, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState(null);
   const [guests, setGuests] = useState([]);
@@ -951,6 +935,10 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const [viewMode, setViewMode] = useState('basic'); // 'basic' or 'advanced'
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [checkInModalOpen, setCheckInModalOpen] = useState(false);
+  const [addGuestModalOpen, setAddGuestModalOpen] = useState(false);
+
+  // Determine if user can modify events
+  const canModifyEvents = isOperationsManager || isAdmin;
 
   const handleOpenCheckIn = (guest) => {
     setCheckInGuest(guest);
@@ -1017,7 +1005,12 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     navigate(`/events/${eventId}/upload`);
   };
   const handleAddGuest = () => {
-    navigate(`/events/${eventId}/add-guest`);
+    setAddGuestModalOpen(true);
+  };
+
+  const handleGuestAdded = (newGuest) => {
+    // Add the new guest to the current list
+    setGuests(prev => [...prev, newGuest]);
   };
 
   if (loading) {
@@ -1054,7 +1047,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 2 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, gap: 2 }}>
           <Box flexGrow={1}>
             <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
@@ -1090,84 +1083,51 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         </Box>
         
         {/* Event Overview Section */}
-        <Card sx={{ mb: 4, p: 2, borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
-          <CardHeader
-            title={
-              <Typography variant="h6" fontWeight={600} sx={{ color: '#1a1a1a' }}>
-                Event Overview {viewMode === 'advanced' && '(Advanced View)'}
-              </Typography>
-            }
-            subheader={
-              <Typography variant="body2" color="textSecondary">
-                {viewMode === 'basic' 
-                  ? 'Key metrics and statistics for this event'
-                  : 'Detailed analytics and insights for this event'
-                }
-              </Typography>
-            }
-          />
-          {/* Stat Cards (modern, clean look) */}
-          <Box sx={{ display: 'flex', gap: 4, mb: 4, flexWrap: 'wrap' }}>
-            <Card sx={{ flex: 1, minWidth: 220, maxWidth: 400, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', borderRadius: 3, p: 3, display: 'flex', alignItems: 'center', height: 120 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-                <GroupsIcon sx={{ fontSize: 40, color: '#1976d2' }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight={700} sx={{ color: '#222', lineHeight: 1 }}>{totalGuests}</Typography>
-                <Typography variant="subtitle1" sx={{ color: '#444', fontWeight: 500 }}>Total Guests</Typography>
-              </Box>
-            </Card>
-            <Card sx={{ flex: 1, minWidth: 220, maxWidth: 400, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', borderRadius: 3, p: 3, display: 'flex', alignItems: 'center', height: 120 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-                <CheckCircleIcon sx={{ fontSize: 40, color: '#43a047' }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight={700} sx={{ color: '#222', lineHeight: 1 }}>{checkedInGuests}</Typography>
-                <Typography variant="subtitle1" sx={{ color: '#444', fontWeight: 500 }}>Checked In</Typography>
-              </Box>
-            </Card>
-            <Card sx={{ flex: 1, minWidth: 220, maxWidth: 400, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', borderRadius: 3, p: 3, display: 'flex', alignItems: 'center', height: 120 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-                <PersonIcon sx={{ fontSize: 40, color: '#ff9800' }} />
-              </Box>
-              <Box>
-                <Typography variant="h4" fontWeight={700} sx={{ color: '#222', lineHeight: 1 }}>{pendingGuests}</Typography>
-                <Typography variant="subtitle1" sx={{ color: '#444', fontWeight: 500 }}>Pending</Typography>
-              </Box>
-            </Card>
-          </Box>
-          {/* ViewMode switch and tab content remain below */}
-          {viewMode === 'basic' ? (
-            // Basic View - Simple stats
-            <div>
-              {/* Gift Tracker for Basic View */}
-              <EventGiftDashboard 
-                eventId={eventId} 
-                event={event} 
-                inventory={inventory}
-                loading={inventoryLoading}
-                error={inventoryError}
-                onInventoryChange={onInventoryChange}
-              />
-            </div>
-          ) : (
-            <AdvancedView event={event} guests={guests} secondaryEvents={secondaryEvents} inventory={inventory} onInventoryChange={onInventoryChange} />
-          )}
-        </Card>
+        <Box sx={{ width: '100%', px: 3, py: 4, backgroundColor: '#fdf9f6' }}>
+  {viewMode === 'basic' ? (
+    <BasicAnalytics 
+      event={event}
+      guests={guests}
+      inventory={inventory}
+    />
+  ) : (
+    <AdvancedView 
+      event={event}
+      guests={guests}
+      secondaryEvents={secondaryEvents}
+      inventory={inventory}
+      onInventoryChange={onInventoryChange}
+    />
+  )}
+</Box>
+
+
         {/* Add Secondary Event Button and Modal */}
-        <AddSecondaryEventModal
-          open={secondaryModalOpen}
-          onClose={() => setSecondaryModalOpen(false)}
-          parentEventId={eventId}
-          parentContractNumber={event.eventContractNumber}
-          parentEventStart={event.eventStart}
-          parentEventEnd={event.eventEnd}
-          onEventAdded={() => {
-            setSecondaryModalOpen(false);
-            // Refresh secondary events after add
-            api.get(`/events?parentEventId=${eventId}`).then(res => setSecondaryEvents(res.data.events || res.data));
-          }}
-        />
+        {canModifyEvents && (
+          <Button
+            variant="contained"
+            startIcon={<EventIcon />}
+            onClick={() => setSecondaryModalOpen(true)}
+            sx={{ mb: 4, borderRadius: 2, fontWeight: 600 }}
+          >
+            ➕ Add Additional Event
+          </Button>
+        )}
+        {secondaryModalOpen && (
+          <AddSecondaryEventModal
+            open={secondaryModalOpen}
+            onClose={() => setSecondaryModalOpen(false)}
+            parentEventId={eventId}
+            parentContractNumber={event.eventContractNumber}
+            parentEventStart={event.eventStart}
+            parentEventEnd={event.eventEnd}
+            onEventAdded={() => {
+              setSecondaryModalOpen(false);
+              // Refresh secondary events after add
+              api.get(`/events?parentEventId=${eventId}`).then(res => setSecondaryEvents(res.data.events || res.data));
+            }}
+          />
+        )}
         
         {/* Guest Table */}
         <Card elevation={2} sx={{ borderRadius: 3, p: 2, mb: 4 }}>
@@ -1176,15 +1136,17 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
               Guest List ({guests.length})
             </Typography>
             <Box display="flex" gap={1}>
-              <Button
-                variant="outlined"
-                startIcon={<UploadIcon />}
-                onClick={handleUploadGuests}
-                size="small"
-                sx={{ borderRadius: 2, fontWeight: 600 }}
-              >
-                Upload More
-              </Button>
+              {canModifyEvents && (
+                <Button
+                  variant="outlined"
+                  startIcon={<UploadIcon />}
+                  onClick={handleUploadGuests}
+                  size="small"
+                  sx={{ borderRadius: 2, fontWeight: 600 }}
+                >
+                  Upload More
+                </Button>
+              )}
               <Button
                 variant="outlined"
                 startIcon={<PersonAddIcon />}
@@ -1303,14 +1265,6 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             </Grid>
           </Card>
         )}
-        <Button
-          variant="contained"
-          startIcon={<EventIcon />}
-          onClick={() => setSecondaryModalOpen(true)}
-          sx={{ mb: 4, borderRadius: 2, fontWeight: 600 }}
-        >
-          ➕ Add Additional Event
-        </Button>
 
         {/* Check-in Modal */}
         {checkInModalOpen && checkInGuest && (
@@ -1331,6 +1285,14 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             </Card>
           </Box>
         )}
+
+        {/* Add Guest Modal */}
+        <AddGuest
+          open={addGuestModalOpen}
+          onClose={() => setAddGuestModalOpen(false)}
+          eventId={mainEvent._id}
+          onGuestAdded={handleGuestAdded}
+        />
       </Box>
     </Box>
   );

@@ -64,7 +64,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
 import { format } from 'date-fns';
-import TopNavBar from '../TopNavBar';
+import TopNavBar from '../layout/TopNavBar';
 
 const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
   <Card>

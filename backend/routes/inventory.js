@@ -48,15 +48,18 @@ router.get('/test', (req, res) => {
 
 router.use(protect); // Protect all inventory routes
 
-router.post('/upload', requireOperationsOrAdmin, upload.single('file'), uploadInventory);
+// View routes - allow all authenticated users (including staff)
 router.get('/:eventId', getInventory);
+router.get('/:inventoryId/history', getInventoryHistory);
+router.get('/:eventId/export/csv', exportInventoryCSV);
+router.get('/:eventId/export/excel', exportInventoryExcel);
+
+// Modification routes - restrict to operations manager and admin
+router.post('/upload', requireOperationsOrAdmin, upload.single('file'), uploadInventory);
 router.put('/:inventoryId', requireOperationsOrAdmin, updateInventoryCount);
 router.put('/:inventoryId/deactivate', requireOperationsOrAdmin, deactivateInventoryItem);
-router.get('/:inventoryId/history', getInventoryHistory);
 router.delete('/:inventoryId', requireOperationsOrAdmin, deleteInventoryItem);
 router.delete('/bulk/:eventId', requireOperationsOrAdmin, bulkDeleteInventory);
 router.put('/:inventoryId/allocation', requireOperationsOrAdmin, updateInventoryAllocation);
-router.get('/:eventId/export/csv', exportInventoryCSV);
-router.get('/:eventId/export/excel', exportInventoryExcel);
 
 module.exports = router;

@@ -137,6 +137,33 @@ export const inviteUser = (inviteData) => {
   return api.post('/users/invite', inviteData);
 };
 
+// Admin Actions API functions
+export const resetUserPassword = (userId, newPassword) => {
+  return api.put(`/users/${userId}/reset-password`, { newPassword });
+};
+
+export const resendUserInvite = (userId) => {
+  return api.post(`/users/${userId}/resend-invite`);
+};
+
+export const sendPasswordResetLink = (userId) => {
+  return api.post(`/auth/send-reset-link/${userId}`);
+};
+
+// Invite validation API function
+export const validateInviteToken = (token) => {
+  return api.get(`/auth/validate-invite/${token}`);
+};
+
+// Password reset API functions
+export const validateResetToken = (token) => {
+  return api.get(`/auth/validate-reset/${token}`);
+};
+
+export const resetPassword = (token, password) => {
+  return api.post(`/auth/reset-password/${token}`, { password });
+};
+
 // Activity Feed API functions
 export const getGlobalActivityFeed = (filters = {}) => {
   const params = new URLSearchParams();
@@ -158,4 +185,25 @@ export const getEventActivityFeed = (eventId, filters = {}) => {
 
 export const createTestActivityLog = (eventId = null) => {
   return api.post('/analytics/activity/test', { eventId });
+};
+
+// Guest Management API functions
+export const getGuests = (eventId) => {
+  return api.get(`/guests?eventId=${eventId}`);
+};
+
+export const createGuest = (guestData) => {
+  return api.post('/guests', guestData);
+};
+
+export const deleteGuest = (guestId) => {
+  return api.delete(`/guests/${guestId}`);
+};
+
+export const bulkAddGuests = (eventId, guests) => {
+  return api.post('/guests/bulk-add', { eventId, guests });
+};
+
+export const bulkDeleteGuests = (eventId, guestIds) => {
+  return api.post('/guests/bulk-delete', { eventId, guestIds });
 };

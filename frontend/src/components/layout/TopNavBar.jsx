@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { AppBar, Toolbar, IconButton, Typography, Box, Button, Avatar, Breadcrumbs, Link } from '@mui/material';
 import { ArrowBack as ArrowBackIcon, Logout as LogoutIcon, Person as PersonIcon } from '@mui/icons-material';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const TopNavBar = ({ breadcrumbs = [], leftAction }) => {
     const navigate = useNavigate();
@@ -46,7 +46,7 @@ const TopNavBar = ({ breadcrumbs = [], leftAction }) => {
                             color="inherit" 
                             startIcon={<PersonIcon />} 
                             component={RouterLink}
-                            to="/profile"
+                            to="/account"
                             sx={{ textTransform: 'none' }}
                         >
                             Profile

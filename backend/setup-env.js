@@ -12,6 +12,12 @@ JWT_EXPIRE=7d
 CORS_ORIGIN=http://localhost:3000
 CLIENT_URL=http://localhost:3000
 FRONTEND_URL=http://localhost:3000
+
+# Email Configuration (for development - using Gmail)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-app-password
 `;
 
 async function setupEnvironment() {

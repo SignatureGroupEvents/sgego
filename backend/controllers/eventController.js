@@ -114,12 +114,8 @@ exports.updateEvent = async (req, res) => {
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    // Check if user is operations manager or admin or event creator
-    if (req.user.role !== 'admin' && 
-        req.user.role !== 'operations_manager' && 
-        event.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+    // Role checks are now handled by route middleware (requireOperationsOrAdmin)
+    // This ensures only operations managers and admins can access this endpoint
 
     const updatedEvent = await Event.findByIdAndUpdate(
       req.params.id,

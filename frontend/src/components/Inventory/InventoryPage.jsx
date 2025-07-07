@@ -3,7 +3,7 @@ import { Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell
 import { Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon, Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon } from '@mui/icons-material';
 import { uploadInventoryCSV, fetchInventory, updateInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
-import MainNavigation from '../MainNavigation';
+import MainNavigation from '../layout/MainNavigation';
 import { getEvent, getEvents } from '../../services/events';
 import EventIcon from '@mui/icons-material/Event';
 import { useAuth } from '../../contexts/AuthContext';
@@ -25,6 +25,9 @@ const InventoryPage = ({ eventId }) => {
   const [eventsLoading, setEventsLoading] = useState(true);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const { isOperationsManager, isAdmin } = (typeof useAuth === 'function' ? useAuth() : { isOperationsManager: false, isAdmin: false });
+  
+  // Determine if user can modify inventory
+  const canModifyInventory = isOperationsManager || isAdmin;
 
   const loadInventory = async () => {
     setLoading(true);
@@ -209,24 +212,29 @@ const InventoryPage = ({ eventId }) => {
           </Button>
         </Box>
         <Typography variant="body2" color="textSecondary" mb={2}>
-          Upload a CSV file to import inventory for this event. The table below shows all inventory items for this event.
+          {canModifyInventory 
+            ? 'Upload a CSV file to import inventory for this event. The table below shows all inventory items for this event.'
+            : 'The table below shows all inventory items for this event.'
+          }
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<UploadIcon />}
-          component="label"
-          disabled={uploading}
-          sx={{ mb: 3 }}
-        >
-          {uploading ? 'Uploading...' : 'Upload Inventory CSV'}
-          <input
-            type="file"
-            accept=".csv"
-            hidden
-            ref={fileInputRef}
-            onChange={handleFileChange}
-          />
-        </Button>
+        {canModifyInventory && (
+          <Button
+            variant="contained"
+            startIcon={<UploadIcon />}
+            component="label"
+            disabled={uploading}
+            sx={{ mb: 3 }}
+          >
+            {uploading ? 'Uploading...' : 'Upload Inventory CSV'}
+            <input
+              type="file"
+              accept=".csv"
+              hidden
+              ref={fileInputRef}
+              onChange={handleFileChange}
+            />
+          </Button>
+        )}
         
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         {success && <Snackbar open autoHideDuration={3000} onClose={() => setSuccess('')} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
@@ -311,7 +319,7 @@ const InventoryPage = ({ eventId }) => {
                           <TableCell>
                             {eventsLoading ? (
                               <CircularProgress size={20} />
-                            ) : (isOperationsManager || isAdmin) ? (
+                            ) : (canModifyInventory) ? (
                               <Autocomplete
                                 multiple
                                 size="small"
@@ -337,16 +345,18 @@ const InventoryPage = ({ eventId }) => {
                             )}
                           </TableCell>
                           <TableCell align="center">
-                            {editRowId === item._id ? (
-                              <>
-                                <IconButton color="success" onClick={() => handleEditSave(item)} size="small"><SaveIcon /></IconButton>
-                                <IconButton color="inherit" onClick={handleEditCancel} size="small"><CancelIcon /></IconButton>
-                              </>
-                            ) : (
-                              <>
-                                <IconButton color="primary" onClick={() => handleEditClick(item)} size="small"><EditIcon /></IconButton>
-                                <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small"><DeleteIcon /></IconButton>
-                              </>
+                            {canModifyInventory && (
+                              editRowId === item._id ? (
+                                <>
+                                  <IconButton color="success" onClick={() => handleEditSave(item)} size="small"><SaveIcon /></IconButton>
+                                  <IconButton color="inherit" onClick={handleEditCancel} size="small"><CancelIcon /></IconButton>
+                                </>
+                              ) : (
+                                <>
+                                  <IconButton color="primary" onClick={() => handleEditClick(item)} size="small"><EditIcon /></IconButton>
+                                  <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small"><DeleteIcon /></IconButton>
+                                </>
+                              )
                             )}
                           </TableCell>
                         </TableRow>

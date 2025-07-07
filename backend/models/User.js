@@ -41,6 +41,14 @@ const userSchema = new mongoose.Schema({
   lastLogin: {
     type: Date,
     default: null
+  },
+  resetToken: {
+    type: String,
+    default: null
+  },
+  resetTokenExpires: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
@@ -49,12 +57,28 @@ const userSchema = new mongoose.Schema({
 
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
+  
+  console.log('🔐 Pre-save hook: Hashing password...');
+  console.log('📏 Raw password length:', this.password ? this.password.length : 0);
+  
   this.password = await bcrypt.hash(this.password, 12);
+  
+  console.log('✅ Pre-save hook: Password hashed successfully');
+  console.log('📏 Hashed password length:', this.password ? this.password.length : 0);
+  
   next();
 });
 
 userSchema.methods.comparePassword = async function(candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
+  console.log('🔍 Password comparison initiated');
+  console.log('📝 Candidate password provided:', candidatePassword ? '[MASKED]' : '[MISSING]');
+  console.log('💾 Stored password exists:', !!this.password);
+  console.log('📏 Stored password length:', this.password ? this.password.length : 0);
+  
+  const result = await bcrypt.compare(candidatePassword, this.password);
+  console.log('🔐 Password comparison result:', result ? 'MATCH' : 'NO MATCH');
+  
+  return result;
 };
 
 module.exports = mongoose.model('User', userSchema);

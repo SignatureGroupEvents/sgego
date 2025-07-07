@@ -46,7 +46,7 @@ import {
   TableChart as TableChartIcon
 } from '@mui/icons-material';
 import api from '../../services/api';
-import MainNavigation from '../MainNavigation';
+import MainNavigation from '../layout/MainNavigation';
 import HomeIcon from '@mui/icons-material/Home';
 import EventIcon from '@mui/icons-material/Event';
 import { getEvent } from '../../services/events';
