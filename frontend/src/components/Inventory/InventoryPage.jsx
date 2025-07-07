@@ -344,7 +344,6 @@ const InventoryPage = ({ eventId }) => {
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <MainNavigation />
-<<<<<<< HEAD
       <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
         <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
           Inventory Management
@@ -401,7 +400,6 @@ const InventoryPage = ({ eventId }) => {
             onClick={handleExportCSV}
             sx={{ borderRadius: 2 }}
           >
->>>>>>> origin/byoung
             Export CSV
           </Button>
           <Button
@@ -413,7 +411,6 @@ const InventoryPage = ({ eventId }) => {
             Export Excel
           </Button>
         </Box>
-<<<<<<< HEAD
 
         {/* Inventory Table */}
         <Card sx={{ borderRadius: 3 }}>
@@ -444,7 +441,6 @@ const InventoryPage = ({ eventId }) => {
             ) : (
               <TableContainer component={Paper} variant="outlined">
                 <Table>
->>>>>>> origin/byoung
                   <TableHead>
                     <TableRow>
                       <TableCell>Item</TableCell>

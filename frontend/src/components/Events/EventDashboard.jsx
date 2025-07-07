@@ -8,7 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import MainNavigation from '../layout/MainNavigation';
 import AddSecondaryEventModal from './AddSecondaryEventModal';
 import AddGuest from '../guests/AddGuest';
-import InventoryPage from '../Inventory/InventoryPage';
+import InventoryPage from '../inventory/InventoryPage';
 import GuestCheckIn from '../guests/GuestCheckIn';
 import BasicAnalytics from '../dashboard/BasicAnalytics';
 import { getEvent } from '../../services/events';
@@ -1096,10 +1096,6 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         ? { ...guest, hasCheckedIn: true }
         : guest
     ));
-  };
-
-  const handleCheckInSuccess = (checkedInGuest) => {
-    // Update the guest's check-in status in the local state
     setGuests(prev => prev.map(guest => 
       guest._id === checkedInGuest._id 
         ? { ...guest, hasCheckedIn: true }
@@ -1266,11 +1262,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                 </TableRow>
               </TableHead>
               <TableBody>
-<<<<<<< HEAD
-                {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
-=======
                 {localGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
->>>>>>> origin/byoung
                   // Find the selected gift from inventory
                   const selectedGift = guest.giftSelection ? inventory.find(item => item._id === guest.giftSelection) : null;
                   
