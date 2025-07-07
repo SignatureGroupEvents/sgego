@@ -8,7 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import MainNavigation from '../layout/MainNavigation';
 import AddSecondaryEventModal from './AddSecondaryEventModal';
 import AddGuest from '../guests/AddGuest';
-import InventoryPage from '../inventory/InventoryPage';
+import InventoryPage from '../Inventory/InventoryPage';
 import GuestCheckIn from '../guests/GuestCheckIn';
 import BasicAnalytics from '../dashboard/BasicAnalytics';
 import { getEvent } from '../../services/events';
@@ -117,69 +117,90 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell /> {/* Check-in action column */}
+                  <TableCell />
                   <TableCell>Name</TableCell>
                   <TableCell>Email</TableCell>
-                  <TableCell>Company</TableCell>
+                  <TableCell>Selected Gift</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Tags</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => (
-                  <TableRow key={guest._id} hover>
-                    <TableCell>
-                      {canPerformCheckins && (
+                {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
+                  // Find the selected gift from inventory
+                  const selectedGift = guest.giftSelection ? inventory.find(item => item._id === guest.giftSelection) : null;
+                  
+                  return (
+                    <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                      <TableCell>
                         <Button
                           variant="contained"
                           color="success"
                           size="small"
+                          sx={{ borderRadius: 2, fontWeight: 600 }}
                           onClick={() => handleOpenCheckIn(guest)}
                         >
                           Check In
                         </Button>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2">
-                        {guest.firstName} {guest.lastName}
-                      </Typography>
-                      {guest.jobTitle && (
-                        <Typography variant="caption" color="textSecondary">
-                          {guest.jobTitle}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>{guest.email || 'No email'}</TableCell>
-                    <TableCell>{guest.company || '-'}</TableCell>
-                    <TableCell>{guest.attendeeType || 'General'}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
-                        color={guest.hasCheckedIn ? 'success' : 'default'}
-                        size="small"
-                        icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Box display="flex" gap={0.5} flexWrap="wrap">
-                        {guest.tags?.map((tag, index) => (
-                          <Chip
-                            key={index}
-                            label={tag.name}
-                            size="small"
-                            sx={{
-                              backgroundColor: tag.color,
-                              color: 'white',
-                              fontSize: '0.7rem'
-                            }}
-                          />
-                        ))}
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
+                        {guest.jobTitle && (
+                          <Typography variant="caption" color="textSecondary">
+                            {guest.jobTitle}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{guest.email || 'No email'}</TableCell>
+                      <TableCell>
+                        {selectedGift ? (
+                          <Box>
+                            <Typography variant="body2" fontWeight={500}>
+                              {selectedGift.type}
+                            </Typography>
+                            {selectedGift.style && (
+                              <Typography variant="caption" color="textSecondary">
+                                {selectedGift.style}
+                              </Typography>
+                            )}
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="textSecondary">
+                            No gift selected
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{guest.attendeeType || 'General'}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
+                          color={guest.hasCheckedIn ? 'success' : 'default'}
+                          size="small"
+                          icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
+                          sx={{ borderRadius: 1 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box display="flex" gap={0.5} flexWrap="wrap">
+                          {guest.tags?.map((tag, index) => (
+                            <Chip
+                              key={index}
+                              label={tag.name}
+                              size="small"
+                              sx={{
+                                backgroundColor: tag.color,
+                                color: 'white',
+                                fontSize: '0.7rem',
+                                borderRadius: 1
+                              }}
+                            />
+                          ))}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>
@@ -950,6 +971,15 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     setCheckInModalOpen(false);
   };
 
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
   useEffect(() => {
     const fetchEventData = async () => {
       try {
@@ -1011,6 +1041,15 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const handleGuestAdded = (newGuest) => {
     // Add the new guest to the current list
     setGuests(prev => [...prev, newGuest]);
+  };
+
+  const handleCheckInSuccess = (checkedInGuest) => {
+    // Update the guest's check-in status in the local state
+    setGuests(prev => prev.map(guest => 
+      guest._id === checkedInGuest._id 
+        ? { ...guest, hasCheckedIn: true }
+        : guest
+    ));
   };
 
   if (loading) {
@@ -1165,68 +1204,101 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                   <TableCell />
                   <TableCell>Name</TableCell>
                   <TableCell>Email</TableCell>
-                  <TableCell>Company</TableCell>
+                  <TableCell>Selected Gift</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Tags</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {guests.slice(0, 10).map((guest) => (
-                  <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
-                    <TableCell>
-                      <Button
-                        variant="contained"
-                        color="success"
-                        size="small"
-                        sx={{ borderRadius: 2, fontWeight: 600 }}
-                        onClick={() => handleOpenCheckIn(guest)}
-                      >
-                        Check In
-                      </Button>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
-                      {guest.jobTitle && (
-                        <Typography variant="caption" color="textSecondary">
-                          {guest.jobTitle}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>{guest.email || 'No email'}</TableCell>
-                    <TableCell>{guest.company || '-'}</TableCell>
-                    <TableCell>{guest.attendeeType || 'General'}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
-                        color={guest.hasCheckedIn ? 'success' : 'default'}
-                        size="small"
-                        icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
-                        sx={{ borderRadius: 1 }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Box display="flex" gap={0.5} flexWrap="wrap">
-                        {guest.tags?.map((tag, index) => (
-                          <Chip
-                            key={index}
-                            label={tag.name}
-                            size="small"
-                            sx={{
-                              backgroundColor: tag.color,
-                              color: 'white',
-                              fontSize: '0.7rem',
-                              borderRadius: 1
-                            }}
-                          />
-                        ))}
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
+                  // Find the selected gift from inventory
+                  const selectedGift = guest.giftSelection ? inventory.find(item => item._id === guest.giftSelection) : null;
+                  
+                  return (
+                    <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                      <TableCell>
+                        <Button
+                          variant="contained"
+                          color="success"
+                          size="small"
+                          sx={{ borderRadius: 2, fontWeight: 600 }}
+                          onClick={() => handleOpenCheckIn(guest)}
+                        >
+                          Check In
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
+                        {guest.jobTitle && (
+                          <Typography variant="caption" color="textSecondary">
+                            {guest.jobTitle}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{guest.email || 'No email'}</TableCell>
+                      <TableCell>
+                        {selectedGift ? (
+                          <Box>
+                            <Typography variant="body2" fontWeight={500}>
+                              {selectedGift.type}
+                            </Typography>
+                            {selectedGift.style && (
+                              <Typography variant="caption" color="textSecondary">
+                                {selectedGift.style}
+                              </Typography>
+                            )}
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="textSecondary">
+                            No gift selected
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{guest.attendeeType || 'General'}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
+                          color={guest.hasCheckedIn ? 'success' : 'default'}
+                          size="small"
+                          icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
+                          sx={{ borderRadius: 1 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box display="flex" gap={0.5} flexWrap="wrap">
+                          {guest.tags?.map((tag, index) => (
+                            <Chip
+                              key={index}
+                              label={tag.name}
+                              size="small"
+                              sx={{
+                                backgroundColor: tag.color,
+                                color: 'white',
+                                fontSize: '0.7rem',
+                                borderRadius: 1
+                              }}
+                            />
+                          ))}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={guests.length}
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            rowsPerPageOptions={[10, 25, 50]}
+            labelRowsPerPage="Guests per page"
+            sx={{ mt: 2 }}
+          />
         </Card>
         {/* --- ADDITIONAL EVENTS SECTION --- */}
         {secondaryEvents.length > 0 && (
@@ -1280,6 +1352,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                   guest={checkInGuest} 
                   onClose={handleCloseCheckIn} 
                   onInventoryChange={onInventoryChange}
+                  onCheckInSuccess={handleCheckInSuccess}
                 />
               </CardContent>
             </Card>

@@ -14,6 +14,11 @@ export const getEvent = async (eventId) => {
   return res.data.event;
 };
 
+export const updateEvent = async (eventId, eventData) => {
+  const res = await api.put(`/events/${eventId}`, eventData);
+  return res.data;
+};
+
 export const getEventAnalytics = async (eventId) => {
   const res = await api.get(`/events/${eventId}/analytics`);
   return res.data.analytics;

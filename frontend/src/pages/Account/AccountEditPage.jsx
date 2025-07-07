@@ -10,9 +10,9 @@ import LockIcon from '@mui/icons-material/Lock';
 import EmailIcon from '@mui/icons-material/Email';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
-import api, { resetUserPassword, resendUserInvite, sendPasswordResetLink, updateUserRole } from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
-import MainNavigation from '../components/layout/MainNavigation';
+import api, { resetUserPassword, resendUserInvite, sendPasswordResetLink, updateUserRole } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import MainNavigation from '../../components/layout/MainNavigation';
 import toast from 'react-hot-toast';
 
 const fields = [

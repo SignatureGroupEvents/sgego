@@ -52,8 +52,8 @@ import {
   Search as SearchIcon
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import MainNavigation from '../components/layout/MainNavigation';
+import { useAuth } from '../../contexts/AuthContext';
+import MainNavigation from '../../components/layout/MainNavigation';
 import toast from 'react-hot-toast';
 import {
   getUserProfile,
@@ -67,10 +67,10 @@ import {
   deleteUser,
   inviteUser,
   sendPasswordResetLink
-} from '../services/api';
+} from '../../services/api';
 import HomeIcon from '@mui/icons-material/Home';
 import PersonIcon2 from '@mui/icons-material/Person';
-import api from '../services/api';
+import api from '../../services/api';
 
 const SIDEBAR_ITEMS = [
   { label: 'Dashboard', key: 'dashboard' },

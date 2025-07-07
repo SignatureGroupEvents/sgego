@@ -11,9 +11,9 @@ import {
   Container
 } from '@mui/material';
 import { Add as AddIcon, Search as SearchIcon } from '@mui/icons-material';
-import GiftAnalytics from '../components/dashboard/AdvancedDashboardTabs/GiftAnalytics';
-import EventAnalytics from '../components/dashboard/AdvancedDashboardTabs/EventAnalytics';
-import ActivityFeed from '../components/dashboard/AdvancedDashboardTabs/ActivityFeed';
+import GiftAnalytics from '../../components/dashboard/AdvancedDashboardTabs/GiftAnalytics';
+import EventAnalytics from '../../components/dashboard/AdvancedDashboardTabs/EventAnalytics';
+import ActivityFeed from '../../components/dashboard/AdvancedDashboardTabs/ActivityFeed';
 
 const AdvancedDashboard = () => {
   const [tabValue, setTabValue] = useState(0);

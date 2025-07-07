@@ -8,7 +8,6 @@ import { getEvent, getEvents } from '../../services/events';
 import EventIcon from '@mui/icons-material/Event';
 import { useAuth } from '../../contexts/AuthContext';
 
-
 const InventoryPage = ({ eventId }) => {
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -198,197 +197,247 @@ const InventoryPage = ({ eventId }) => {
     }
   };
 
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', height: '100vh' }}>
+        <MainNavigation />
+        <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <CircularProgress />
+        </Box>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
-        <Typography variant="h4" gutterBottom>Inventory</Typography>
-        <Box display="flex" gap={2} mb={2}>
-          <Button variant="contained" color="primary" onClick={handleExportCSV} startIcon={<FileDownloadIcon />}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
+        {/* Header */}
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
+            Inventory Management
+          </Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            {event?.eventName} - {event?.eventContractNumber}
+          </Typography>
+        </Box>
+
+        {/* Alerts */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
+        {success && (
+          <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>
+            {success}
+          </Alert>
+        )}
+
+        {/* Actions */}
+        <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          {canModifyInventory && (
+            <>
+              <Button
+                variant="contained"
+                startIcon={<UploadIcon />}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                sx={{ borderRadius: 2, fontWeight: 600 }}
+              >
+                {uploading ? 'Uploading...' : 'Upload CSV/Excel'}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleFileChange}
+                style={{ display: 'none' }}
+              />
+            </>
+          )}
+          <Button
+            variant="outlined"
+            startIcon={<FileDownloadIcon />}
+            onClick={handleExportCSV}
+            sx={{ borderRadius: 2 }}
+          >
             Export CSV
           </Button>
-          <Button variant="contained" color="secondary" onClick={handleExportExcel} startIcon={<FileDownloadIcon />}>
+          <Button
+            variant="outlined"
+            startIcon={<FileDownloadIcon />}
+            onClick={handleExportExcel}
+            sx={{ borderRadius: 2 }}
+          >
             Export Excel
           </Button>
         </Box>
-        <Typography variant="body2" color="textSecondary" mb={2}>
-          {canModifyInventory 
-            ? 'Upload a CSV file to import inventory for this event. The table below shows all inventory items for this event.'
-            : 'The table below shows all inventory items for this event.'
-          }
-        </Typography>
-        {canModifyInventory && (
-          <Button
-            variant="contained"
-            startIcon={<UploadIcon />}
-            component="label"
-            disabled={uploading}
-            sx={{ mb: 3 }}
-          >
-            {uploading ? 'Uploading...' : 'Upload Inventory CSV'}
-            <input
-              type="file"
-              accept=".csv"
-              hidden
-              ref={fileInputRef}
-              onChange={handleFileChange}
-            />
-          </Button>
-        )}
-        
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-        {success && <Snackbar open autoHideDuration={3000} onClose={() => setSuccess('')} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-          <Alert onClose={() => setSuccess('')} severity="success" sx={{ width: '100%' }}>{success}</Alert>
-        </Snackbar>}
-        {loading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px"><CircularProgress /></Box>
-        ) : (
-          <Card>
-            <CardContent>
-              <TableContainer component={Paper}>
-                <Table size="small">
+
+        {/* Inventory Table */}
+        <Card sx={{ borderRadius: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Inventory Items ({inventory.length})
+            </Typography>
+            
+            {inventory.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 6 }}>
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  No inventory items
+                </Typography>
+                <Typography color="textSecondary" paragraph>
+                  Upload a CSV or Excel file to get started.
+                </Typography>
+                {canModifyInventory && (
+                  <Button
+                    variant="contained"
+                    startIcon={<UploadIcon />}
+                    onClick={() => fileInputRef.current?.click()}
+                    sx={{ borderRadius: 2, fontWeight: 600 }}
+                  >
+                    Upload Inventory
+                  </Button>
+                )}
+              </Box>
+            ) : (
+              <TableContainer component={Paper} variant="outlined">
+                <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Type</TableCell>
+                      <TableCell>Item</TableCell>
                       <TableCell>Style</TableCell>
                       <TableCell>Size</TableCell>
-                      <TableCell>Gender</TableCell>
-                      <TableCell>Qty Warehouse</TableCell>
-                      <TableCell>Qty On Site</TableCell>
-                      <TableCell>Current Inventory</TableCell>
-                      <TableCell>Post Event Count</TableCell>
-                      <TableCell>Allocated Events</TableCell>
-                      <TableCell align="center">Actions</TableCell>
+                      <TableCell>Warehouse</TableCell>
+                      <TableCell>On Site</TableCell>
+                      <TableCell>Current</TableCell>
+                      {canModifyInventory && <TableCell>Actions</TableCell>}
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {inventory.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={10} align="center">No inventory found.</TableCell>
-                      </TableRow>
-                    ) : (
-                      inventory.map(item => (
-                        <TableRow key={item._id}>
-                          <TableCell>{item.type}</TableCell>
-                          <TableCell>{item.style}</TableCell>
-                          <TableCell>{item.size}</TableCell>
-                          <TableCell>{item.gender}</TableCell>
+                    {inventory.map((item) => (
+                      <TableRow key={item._id} hover>
+                        <TableCell>
+                          <Typography variant="subtitle2" fontWeight={600}>
+                            {item.item}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>{item.style || '-'}</TableCell>
+                        <TableCell>{item.size || '-'}</TableCell>
+                        <TableCell>
+                          {editRowId === item._id ? (
+                            <TextField
+                              type="number"
+                              value={editValues.qtyWarehouse}
+                              onChange={(e) => handleEditChange('qtyWarehouse', e.target.value)}
+                              size="small"
+                              sx={{ width: 80 }}
+                            />
+                          ) : (
+                            item.qtyWarehouse || 0
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editRowId === item._id ? (
+                            <TextField
+                              type="number"
+                              value={editValues.qtyOnSite}
+                              onChange={(e) => handleEditChange('qtyOnSite', e.target.value)}
+                              size="small"
+                              sx={{ width: 80 }}
+                            />
+                          ) : (
+                            item.qtyOnSite || 0
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editRowId === item._id ? (
+                            <TextField
+                              type="number"
+                              value={editValues.currentInventory}
+                              onChange={(e) => handleEditChange('currentInventory', e.target.value)}
+                              size="small"
+                              sx={{ width: 80 }}
+                            />
+                          ) : (
+                            <Typography 
+                              variant="body2" 
+                              color={item.currentInventory > 0 ? 'success.main' : 'error.main'}
+                              fontWeight={600}
+                            >
+                              {item.currentInventory || 0}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        {canModifyInventory && (
                           <TableCell>
                             {editRowId === item._id ? (
-                              <input
-                                type="number"
-                                min="0"
-                                required
-                                value={editValues.qtyWarehouse}
-                                onChange={e => handleEditChange('qtyWarehouse', e.target.value)}
-                                style={{ width: 70 }}
-                              />
+                              <Box sx={{ display: 'flex', gap: 1 }}>
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => handleEditSave(item)}
+                                >
+                                  <SaveIcon />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  color="default"
+                                  onClick={handleEditCancel}
+                                >
+                                  <CancelIcon />
+                                </IconButton>
+                              </Box>
                             ) : (
-                              item.qtyWarehouse
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {editRowId === item._id ? (
-                              <input
-                                type="number"
-                                min="0"
-                                required
-                                value={editValues.qtyOnSite}
-                                onChange={e => handleEditChange('qtyOnSite', e.target.value)}
-                                style={{ width: 70 }}
-                              />
-                            ) : (
-                              item.qtyOnSite
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {editRowId === item._id ? (
-                              <input
-                                type="number"
-                                min="0"
-                                required
-                                value={editValues.currentInventory}
-                                onChange={e => handleEditChange('currentInventory', e.target.value)}
-                                style={{ width: 70 }}
-                              />
-                            ) : (
-                              item.currentInventory
-                            )}
-                          </TableCell>
-                          <TableCell>{item.postEventCount ?? '-'}</TableCell>
-                          <TableCell>
-                            {eventsLoading ? (
-                              <CircularProgress size={20} />
-                            ) : (canModifyInventory) ? (
-                              <Autocomplete
-                                multiple
-                                size="small"
-                                options={filteredEvents}
-                                getOptionLabel={option => option.eventName}
-                                value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
-                                onChange={(_, newValue) => handleAllocationChange(item, newValue)}
-                                renderInput={params => <TextField {...params} variant="outlined" label="Allocated Events" />}
-                                renderTags={(value, getTagProps) =>
-                                  value.map((option, index) => (
-                                    <Chip label={option.eventName} {...getTagProps({ index })} key={option._id} />
-                                  ))
-                                }
-                                disableCloseOnSelect
-                                sx={{ minWidth: 200 }}
-                              />
-                            ) : (
-                              <Box display="flex" flexWrap="wrap" gap={0.5}>
-                                {filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id)).map(ev => (
-                                  <Chip key={ev._id} label={ev.eventName} size="small" />
-                                ))}
+                              <Box sx={{ display: 'flex', gap: 1 }}>
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => handleEditClick(item)}
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleDeleteClick(item._id)}
+                                >
+                                  <DeleteIcon />
+                                </IconButton>
                               </Box>
                             )}
                           </TableCell>
-                          <TableCell align="center">
-                            {canModifyInventory && (
-                              editRowId === item._id ? (
-                                <>
-                                  <IconButton color="success" onClick={() => handleEditSave(item)} size="small"><SaveIcon /></IconButton>
-                                  <IconButton color="inherit" onClick={handleEditCancel} size="small"><CancelIcon /></IconButton>
-                                </>
-                              ) : (
-                                <>
-                                  <IconButton color="primary" onClick={() => handleEditClick(item)} size="small"><EditIcon /></IconButton>
-                                  <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small"><DeleteIcon /></IconButton>
-                                </>
-                              )
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
+                        )}
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </TableContainer>
-              {deletingId && (
-                <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Card sx={{ minWidth: 300, p: 2 }}>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>Delete Inventory Item?</Typography>
-                      <Typography variant="body2" color="textSecondary" gutterBottom>
-                        Are you sure you want to delete this inventory item? This action cannot be undone.
-                      </Typography>
-                      <Box display="flex" gap={2} justifyContent="flex-end" mt={2}>
-                        <Button onClick={handleDeleteCancel} variant="outlined">Cancel</Button>
-                        <Button onClick={handleDeleteConfirm} color="error" variant="contained">Delete</Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Delete Confirmation Dialog */}
+        <Snackbar
+          open={!!deletingId}
+          message="Are you sure you want to delete this item?"
+          action={
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button color="inherit" size="small" onClick={handleDeleteCancel}>
+                Cancel
+              </Button>
+              <Button color="error" size="small" onClick={handleDeleteConfirm}>
+                Delete
+              </Button>
+            </Box>
+          }
+        />
       </Box>
     </Box>
   );
 };
 
+// Wrapper component for use in routes
 function InventoryPageWrapper() {
   const { eventId } = useParams();
   return <InventoryPage eventId={eventId} />;

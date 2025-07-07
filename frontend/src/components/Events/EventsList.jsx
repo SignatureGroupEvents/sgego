@@ -24,7 +24,8 @@ import {
   CardContent,
   Skeleton,
   Fade,
-  useForkRef
+  useForkRef,
+  TextField
 } from '@mui/material';
 import MainNavigation from '../layout/MainNavigation';
 import { getEvents } from '../../services/events';
@@ -255,96 +256,83 @@ const EventsList = () => {
     );
   }
 
+  if (error) {
+    return (
+      <Box sx={{ display: 'flex', height: '100vh' }}>
+        <MainNavigation />
+        <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        </Box>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <MainNavigation />
       <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
-        {/* Header Section */}
+        {/* Header */}
         <Box sx={{ mb: 4 }}>
-          <Typography 
-            variant={isMobile ? "h5" : "h4"} 
-            fontWeight={700} 
-            color="primary.main" 
-            gutterBottom
-          >
+          <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
             Events
           </Typography>
-          <Typography 
-            variant="body1" 
-            color="text.secondary" 
-            sx={{ mb: 3, display: { xs: 'none', sm: 'block' } }}
-          >
-            {canModifyEvents 
-              ? 'Manage and view all events in the system'
-              : 'View events and perform guest check-ins'
-            }
+          <Typography variant="subtitle1" color="text.secondary">
+            Manage and view all your events
           </Typography>
         </Box>
 
-        {/* Search and Actions Bar */}
+        {/* Search and Create */}
         <Box sx={{ 
           display: 'flex', 
-          alignItems: 'center', 
-          mb: 3, 
+          flexDirection: { xs: 'column', sm: 'row' }, 
           gap: 2, 
-          flexWrap: 'wrap',
-          p: { xs: 1.5, md: 2 },
-          bgcolor: 'background.paper',
-          borderRadius: 2,
-          boxShadow: 1
+          mb: 3,
+          alignItems: { xs: 'stretch', sm: 'center' }
         }}>
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            bgcolor: 'grey.50', 
-            borderRadius: 2, 
-            px: 2, 
-            py: 1,
-            flex: 1,
-            minWidth: { xs: '100%', sm: 300 }
-          }}>
-            <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
-            <input
-              type="text"
-              placeholder={isMobile ? "Search events..." : "Search events by name or contract number..."}
+          <Box sx={{ flex: 1, position: 'relative' }}>
+            <TextField
+              fullWidth
+              placeholder="Search events by name or contract number..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ 
-                border: 'none', 
-                outline: 'none', 
-                background: 'transparent', 
-                fontSize: 16, 
-                width: '100%',
-                padding: '4px 0'
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
+                ),
               }}
-              aria-label="Search events"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  backgroundColor: 'background.paper',
+                }
+              }}
             />
           </Box>
           {canModifyEvents && (
-            <Button 
-              variant="contained" 
-              color="primary" 
+            <Button
+              variant="contained"
               startIcon={<AddIcon />}
+              onClick={handleCreateEvent}
               sx={{ 
                 borderRadius: 2, 
                 fontWeight: 600,
-                px: { xs: 2, md: 3 },
-                py: 1.5,
-                minWidth: { xs: 'auto', sm: 'fit-content' }
-              }} 
-              onClick={handleCreateEvent}
-              aria-label="Create new event"
+                minWidth: { xs: '100%', sm: 'auto' }
+              }}
             >
-              {isMobile ? 'Create' : 'Create Event'}
+              Create Event
             </Button>
           )}
         </Box>
 
-        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-
         {/* Events Table */}
         {mainEvents.length === 0 ? (
-          <EmptyState searchTerm={search} onCreateEvent={handleCreateEvent} canModifyEvents={canModifyEvents} />
+          <EmptyState 
+            searchTerm={search} 
+            onCreateEvent={handleCreateEvent}
+            canModifyEvents={canModifyEvents}
+          />
         ) : (
           <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
             <TableContainer>
@@ -352,29 +340,32 @@ const EventsList = () => {
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'grey.50' }}>
                     <TableCell width={50}></TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>
+                    <TableCell>
                       <TableSortLabel
                         active={sortBy === 'eventName'}
                         direction={sortBy === 'eventName' ? sortOrder : 'asc'}
                         onClick={() => handleSort('eventName')}
+                        sx={{ fontWeight: 600 }}
                       >
                         Event Name
                       </TableSortLabel>
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>
+                    <TableCell>
                       <TableSortLabel
                         active={sortBy === 'eventContractNumber'}
                         direction={sortBy === 'eventContractNumber' ? sortOrder : 'asc'}
                         onClick={() => handleSort('eventContractNumber')}
+                        sx={{ fontWeight: 600 }}
                       >
                         Contract #
                       </TableSortLabel>
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>
+                    <TableCell>
                       <TableSortLabel
                         active={sortBy === 'eventStart'}
                         direction={sortBy === 'eventStart' ? sortOrder : 'asc'}
                         onClick={() => handleSort('eventStart')}
+                        sx={{ fontWeight: 600 }}
                       >
                         Dates
                       </TableSortLabel>
@@ -386,244 +377,166 @@ const EventsList = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {paginatedMainEvents.map(parent => {
-                    const children = secondaryEvents(parent._id);
-                    const hasChildren = children.length > 0;
-                    const isSelected = selectedEvent === parent._id;
+                  {paginatedMainEvents.map((event) => {
+                    const hasSecondaryEvents = secondaryEvents(event._id).length > 0;
+                    const isExpanded = expanded[event._id];
                     
-                    return [
-                      <TableRow
-                        key={parent._id}
-                        hover
-                        selected={isSelected}
-                        sx={{ 
-                          cursor: 'pointer',
-                          '&:hover': {
-                            bgcolor: 'grey.50'
-                          },
-                          '&.Mui-selected': {
-                            bgcolor: 'primary.light',
-                            '&:hover': {
-                              bgcolor: 'primary.light'
-                            }
-                          }
-                        }}
-                        onClick={() => handleRowClick(parent._id)}
-                        onKeyPress={(e) => handleRowKeyPress(e, parent._id)}
-                        tabIndex={0}
-                        role="button"
-                        aria-label={`View details for ${parent.eventName}`}
-                      >
-                        <TableCell align="center">
-                          {hasChildren ? (
-                            <Tooltip title={expanded[parent._id] ? "Collapse secondary events" : "Expand secondary events"}>
-                              <IconButton 
-                                size="small" 
-                                onClick={(e) => handleExpand(parent._id, e)}
-                                sx={{ 
-                                  color: 'primary.main',
-                                  '&:hover': { bgcolor: 'primary.light', color: 'white' }
-                                }}
-                                aria-label={expanded[parent._id] ? "Collapse secondary events" : "Expand secondary events"}
-                              >
-                                {expanded[parent._id] ? <ExpandLess /> : <ExpandMore />}
-                              </IconButton>
-                            </Tooltip>
-                          ) : null}
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="subtitle1" fontWeight={600} color="primary.main">
-                            {parent.eventName}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="text.secondary">
-                            {parent.eventContractNumber}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {parent.eventStart} - {parent.eventEnd}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={parent.type || (parent.isMainEvent ? 'Main' : 'Secondary')} 
-                            size="small" 
-                            color={parent.isMainEvent ? 'primary' : 'secondary'}
-                            variant="outlined"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={parent.status || 'Active'} 
-                            color={parent.status === 'Inactive' ? 'default' : 'success'} 
-                            size="small" 
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Stack direction="row" spacing={0.5} justifyContent="center">
-                            {parent.hasGifts && (
-                              <Tooltip title="This event has gifts configured">
-                                <Chip 
-                                  icon={<GiftIcon fontSize="small" />} 
-                                  label="Gifts" 
-                                  size="small" 
-                                  variant="outlined" 
-                                  color="secondary"
-                                />
-                              </Tooltip>
-                            )}
-                            {parent.includeStyles && (
-                              <Tooltip title="Style selection is enabled for this event">
-                                <Chip 
-                                  icon={<StyleIcon fontSize="small" />} 
-                                  label="Styles" 
-                                  size="small" 
-                                  variant="outlined" 
-                                  color="primary"
-                                />
-                              </Tooltip>
-                            )}
-                            {parent.allowMultipleGifts && (
-                              <Tooltip title="Multiple gift selection is allowed">
-                                <Chip 
-                                  icon={<CheckCircleIcon fontSize="small" />} 
-                                  label="Multi-Gift" 
-                                  size="small" 
-                                  variant="outlined" 
-                                  color="success"
-                                />
-                              </Tooltip>
-                            )}
-                          </Stack>
-                        </TableCell>
-                        <TableCell align="center">
-                          {hasChildren && (
-                            <Tooltip title={`${children.length} secondary event${children.length > 1 ? 's' : ''}`}>
-                              <Chip 
-                                label={children.length} 
-                                color="secondary" 
-                                size="small" 
-                                sx={{ fontWeight: 600 }}
-                              />
-                            </Tooltip>
-                          )}
-                        </TableCell>
-                      </TableRow>,
-                      expanded[parent._id] && children.map(child => (
-                        <TableRow
-                          key={child._id}
-                          hover
+                    return (
+                      <React.Fragment key={event._id}>
+                        <TableRow 
+                          hover 
+                          onClick={() => handleRowClick(event._id)}
+                          onKeyPress={(e) => handleRowKeyPress(e, event._id)}
                           sx={{ 
-                            bgcolor: 'grey.25',
                             cursor: 'pointer',
-                            '&:hover': {
-                              bgcolor: 'grey.100'
-                            }
+                            '&:hover': { backgroundColor: 'action.hover' },
+                            ...(selectedEvent === event._id && {
+                              backgroundColor: 'primary.light',
+                              '&:hover': { backgroundColor: 'primary.light' }
+                            })
                           }}
-                          onClick={() => handleRowClick(child._id)}
-                          onKeyPress={(e) => handleRowKeyPress(e, child._id)}
                           tabIndex={0}
-                          role="button"
-                          aria-label={`View details for ${child.eventName}`}
                         >
-                          <TableCell></TableCell>
-                          <TableCell sx={{ pl: 6 }}>
-                            <Typography variant="subtitle2" fontWeight={600} color="secondary.main">
-                              {child.eventName}
+                          <TableCell>
+                            {hasSecondaryEvents && (
+                              <IconButton
+                                size="small"
+                                onClick={(e) => handleExpand(event._id, e)}
+                                sx={{ p: 0.5 }}
+                              >
+                                {isExpanded ? <ExpandLess /> : <ExpandMore />}
+                              </IconButton>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="subtitle2" fontWeight={600}>
+                              {event.eventName}
                             </Typography>
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2" color="text.secondary">
-                              {child.eventContractNumber}
+                              {event.eventContractNumber}
                             </Typography>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2">
-                              {child.eventStart} - {child.eventEnd}
-                            </Typography>
+                            <Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                {new Date(event.eventStart).toLocaleDateString()}
+                              </Typography>
+                              {event.eventEnd && event.eventEnd !== event.eventStart && (
+                                <Typography variant="caption" color="text.secondary">
+                                  to {new Date(event.eventEnd).toLocaleDateString()}
+                                </Typography>
+                              )}
+                            </Box>
                           </TableCell>
                           <TableCell>
                             <Chip 
-                              label={child.type || 'Secondary'} 
+                              label={event.isMainEvent ? 'Main Event' : 'Secondary Event'} 
                               size="small" 
-                              color="secondary"
-                              variant="outlined"
+                              color={event.isMainEvent ? 'primary' : 'secondary'}
+                              sx={{ borderRadius: 1 }}
                             />
                           </TableCell>
                           <TableCell>
                             <Chip 
-                              label={child.status || 'Active'} 
-                              color={child.status === 'Inactive' ? 'default' : 'secondary'} 
+                              label={event.status || 'Active'} 
                               size="small" 
+                              color={event.status === 'Completed' ? 'success' : 'default'}
+                              sx={{ borderRadius: 1 }}
                             />
                           </TableCell>
                           <TableCell align="center">
-                            <Stack direction="row" spacing={0.5} justifyContent="center">
-                              {child.hasGifts && (
-                                <Tooltip title="This event has gifts configured">
-                                  <Chip 
-                                    icon={<GiftIcon fontSize="small" />} 
-                                    label="Gifts" 
-                                    size="small" 
-                                    variant="outlined" 
-                                    color="secondary"
-                                  />
+                            <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                              {event.hasGifts && (
+                                <Tooltip title="Has Gift Management">
+                                  <GiftIcon color="primary" fontSize="small" />
                                 </Tooltip>
                               )}
-                              {child.includeStyles && (
-                                <Tooltip title="Style selection is enabled for this event">
-                                  <Chip 
-                                    icon={<StyleIcon fontSize="small" />} 
-                                    label="Styles" 
-                                    size="small" 
-                                    variant="outlined" 
-                                    color="primary"
-                                  />
+                              {event.hasCheckins && (
+                                <Tooltip title="Has Check-in System">
+                                  <CheckCircleIcon color="success" fontSize="small" />
                                 </Tooltip>
                               )}
-                              {child.allowMultipleGifts && (
-                                <Tooltip title="Multiple gift selection is allowed">
-                                  <Chip 
-                                    icon={<CheckCircleIcon fontSize="small" />} 
-                                    label="Multi-Gift" 
-                                    size="small" 
-                                    variant="outlined" 
-                                    color="success"
-                                  />
+                              {event.hasInventory && (
+                                <Tooltip title="Has Inventory Management">
+                                  <StyleIcon color="info" fontSize="small" />
                                 </Tooltip>
                               )}
-                            </Stack>
+                            </Box>
                           </TableCell>
-                          <TableCell align="center"></TableCell>
+                          <TableCell align="center">
+                            {hasSecondaryEvents ? (
+                              <Chip 
+                                label={`${secondaryEvents(event._id).length} events`} 
+                                size="small" 
+                                color="secondary"
+                                sx={{ borderRadius: 1 }}
+                              />
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                -
+                              </Typography>
+                            )}
+                          </TableCell>
                         </TableRow>
-                      ))
-                    ];
+                        
+                        {/* Secondary Events */}
+                        {isExpanded && hasSecondaryEvents && (
+                          <TableRow>
+                            <TableCell colSpan={8} sx={{ p: 0, border: 0 }}>
+                              <Box sx={{ pl: 4, pr: 2, py: 2, bgcolor: 'grey.50' }}>
+                                <Typography variant="subtitle2" fontWeight={600} mb={2}>
+                                  Secondary Events:
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+                                  {secondaryEvents(event._id).map((secondaryEvent) => (
+                                    <Button
+                                      key={secondaryEvent._id}
+                                      variant="outlined"
+                                      size="small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/events/${secondaryEvent._id}/dashboard`);
+                                      }}
+                                      sx={{
+                                        borderRadius: 2,
+                                        textTransform: 'none',
+                                        fontSize: '0.8rem'
+                                      }}
+                                    >
+                                      {secondaryEvent.eventName}
+                                    </Button>
+                                  ))}
+                                </Stack>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    );
                   })}
                 </TableBody>
               </Table>
             </TableContainer>
+            
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <Box sx={{ p: 2, display: 'flex', justifyContent: 'center' }}>
+                <Pagination 
+                  count={totalPages} 
+                  page={page} 
+                  onChange={handlePageChange}
+                  color="primary"
+                  size={isMobile ? 'small' : 'medium'}
+                />
+              </Box>
+            )}
           </Paper>
-        )}
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-            <Pagination 
-              count={totalPages} 
-              page={page} 
-              onChange={handlePageChange}
-              color="primary"
-              showFirstButton 
-              showLastButton
-              size={isMobile ? "small" : "medium"}
-            />
-          </Box>
         )}
       </Box>
     </Box>
   );
 };
 
-export default EventsList;
+export default EventsList; 

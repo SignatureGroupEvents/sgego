@@ -258,33 +258,36 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid item xs={12} md={2}>
+                  <Grid item xs={12} md={3}>
                     <Button
                       variant="outlined"
-                      onClick={() => addTag(values, setFieldValue)}
                       startIcon={<AddIcon />}
-                      fullWidth
+                      onClick={() => addTag(values, setFieldValue)}
+                      sx={{ height: 56 }}
                     >
-                      Add
+                      Add Tag
                     </Button>
                   </Grid>
                 </Grid>
                 
-                <Box sx={{ mt: 2 }}>
-                  {values.availableTags.map((tag, index) => (
-                    <Chip
-                      key={index}
-                      label={tag.name}
-                      onDelete={() => removeTag(index, values, setFieldValue)}
-                      sx={{ 
-                        mr: 1, 
-                        mb: 1, 
-                        backgroundColor: tag.color,
-                        color: 'white'
-                      }}
-                    />
-                  ))}
-                </Box>
+                {/* Display existing tags */}
+                {values.availableTags.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2" gutterBottom>
+                      Current Tags:
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {values.availableTags.map((tag, index) => (
+                        <Chip
+                          key={index}
+                          label={tag.name}
+                          onDelete={() => removeTag(index, values, setFieldValue)}
+                          sx={{ backgroundColor: tag.color, color: 'white' }}
+                        />
+                      ))}
+                    </Box>
+                  </Box>
+                )}
               </CardContent>
             </Card>
 
@@ -295,7 +298,7 @@ const CreateEvent = () => {
                   Attendee Types
                 </Typography>
                 <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12}>
+                  <Grid item xs={12} md={4}>
                     <Field name="currentTypeName">
                       {({ field }) => (
                         <TextField
@@ -306,7 +309,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid item xs={12} md={4}>
                     <Field name="currentTypeDescription">
                       {({ field }) => (
                         <TextField
@@ -324,7 +327,8 @@ const CreateEvent = () => {
                           control={
                             <Switch
                               checked={field.value}
-                              onChange={(e) => setFieldValue('currentTypeIsDefault', e.target.checked)}
+                              onChange={field.onChange}
+                              name={field.name}
                             />
                           }
                           label="Default"
@@ -335,26 +339,34 @@ const CreateEvent = () => {
                   <Grid item xs={12} md={2}>
                     <Button
                       variant="outlined"
-                      onClick={() => addAttendeeType(values, setFieldValue)}
                       startIcon={<AddIcon />}
-                      fullWidth
+                      onClick={() => addAttendeeType(values, setFieldValue)}
+                      sx={{ height: 56 }}
                     >
-                      Add
+                      Add Type
                     </Button>
                   </Grid>
                 </Grid>
                 
-                <Box sx={{ mt: 2 }}>
-                  {values.attendeeTypes.map((type, index) => (
-                    <Chip
-                      key={index}
-                      label={`${type.name}${type.isDefault ? ' (Default)' : ''}`}
-                      onDelete={() => removeAttendeeType(index, values, setFieldValue)}
-                      color={type.isDefault ? "primary" : "default"}
-                      sx={{ mr: 1, mb: 1 }}
-                    />
-                  ))}
-                </Box>
+                {/* Display existing types */}
+                {values.attendeeTypes.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2" gutterBottom>
+                      Current Types:
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {values.attendeeTypes.map((type, index) => (
+                        <Chip
+                          key={index}
+                          label={`${type.name}${type.isDefault ? ' (Default)' : ''}`}
+                          onDelete={() => removeAttendeeType(index, values, setFieldValue)}
+                          color="primary"
+                          variant="outlined"
+                        />
+                      ))}
+                    </Box>
+                  </Box>
+                )}
               </CardContent>
             </Card>
           </Box>
@@ -364,47 +376,42 @@ const CreateEvent = () => {
         return (
           <Box>
             <Typography variant="h6" gutterBottom>
-              Gift Configuration
+              Gift Settings
             </Typography>
-            
-            <Card>
-              <CardContent>
-                <Field name="includeStyles">
-                  {({ field }) => (
-                    <FormControlLabel
-                      control={
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Field name="includeStyles">
+                      {({ field }) => (
                         <Switch
                           checked={field.value}
-                          onChange={(e) => setFieldValue('includeStyles', e.target.checked)}
+                          onChange={field.onChange}
+                          name={field.name}
                         />
-                      }
-                      label="Include Styles"
-                      sx={{ mb: 2 }}
-                    />
-                  )}
-                </Field>
-                <Typography variant="body2" color="textSecondary" paragraph>
-                  When enabled, staff can select specific gift styles. When disabled, staff select generic gift types.
-                </Typography>
-
-                <Field name="allowMultipleGifts">
-                  {({ field }) => (
-                    <FormControlLabel
-                      control={
+                      )}
+                    </Field>
+                  }
+                  label="Include style selection for gifts"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Field name="allowMultipleGifts">
+                      {({ field }) => (
                         <Switch
                           checked={field.value}
-                          onChange={(e) => setFieldValue('allowMultipleGifts', e.target.checked)}
+                          onChange={field.onChange}
+                          name={field.name}
                         />
-                      }
-                      label="Allow Multiple Gifts"
-                    />
-                  )}
-                </Field>
-                <Typography variant="body2" color="textSecondary">
-                  When enabled, guests can receive multiple gifts through secondary events.
-                </Typography>
-              </CardContent>
-            </Card>
+                      )}
+                    </Field>
+                  }
+                  label="Allow multiple gift selection"
+                />
+              </Grid>
+            </Grid>
           </Box>
         );
 
@@ -416,99 +423,89 @@ const CreateEvent = () => {
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
-        <Container maxWidth="md">
-          <Box sx={{ my: 4 }}>
-            <Paper sx={{ p: 4 }}>
-              <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-                {steps.map((label) => (
-                  <Step key={label}>
-                    <StepLabel>{label}</StepLabel>
-                  </Step>
-                ))}
-              </Stepper>
-
-              {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-
-              <Formik
-                initialValues={initialValues}
-                validationSchema={validationSchema}
-                onSubmit={handleSubmit}
-              >
-                {({
-                  values,
-                  setFieldValue,
-                  errors,
-                  touched,
-                  validateForm,
-                  setTouched,
-                  submitForm
-                }) => (
-                  <Form
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                      }
-                    }}
-                  >
-                    <StepContent 
-                      values={values} 
-                      setFieldValue={setFieldValue}
-                      errors={errors}
-                      touched={touched}
-                    />
-
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-                      <Button
-                        type="button"
-                        disabled={activeStep === 0}
-                        onClick={() => setActiveStep(activeStep - 1)}
-                      >
-                        Back
-                      </Button>
-                      
-                      {activeStep === steps.length - 1 ? (
-                        <Button
-                          type="button"
-                          variant="contained"
-                          disabled={loading}
-                          onClick={submitForm}
-                        >
-                          {loading ? 'Creating...' : 'Create Event'}
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="contained"
-                          onClick={async () => {
-                            if (activeStep === 0) {
-                              const errors = await validateForm();
-                              setTouched({
-                                eventName: true,
-                                eventContractNumber: true,
-                                eventStart: true,
-                              });
-                              if (!errors.eventName && !errors.eventContractNumber && !errors.eventStart) {
-                                setActiveStep(activeStep + 1);
-                              }
-                            } else if (activeStep === 1) {
-                              setActiveStep(activeStep + 1);
-                            }
-                          }}
-                        >
-                          Next
-                        </Button>
-                      )}
-                    </Box>
-                  </Form>
-                )}
-              </Formik>
-            </Paper>
+      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
+        {/* Header */}
+        <Box sx={{ mb: 4 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+            <IconButton onClick={() => navigate('/events')}>
+              <ArrowBackIcon />
+            </IconButton>
+            <Typography variant="h4" fontWeight={700} color="primary.main">
+              Create New Event
+            </Typography>
           </Box>
-        </Container>
+          <Typography variant="subtitle1" color="text.secondary">
+            Set up a new event with all the details
+          </Typography>
+        </Box>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
+
+        <Paper elevation={2} sx={{ borderRadius: 3, p: 3 }}>
+          <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+            {steps.map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
+
+          <Formik
+            initialValues={initialValues}
+            validationSchema={validationSchema}
+            onSubmit={handleSubmit}
+          >
+            {({ values, setFieldValue, errors, touched, isValid }) => (
+              <Form>
+                <StepContent 
+                  values={values} 
+                  setFieldValue={setFieldValue} 
+                  errors={errors} 
+                  touched={touched} 
+                />
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+                  <Button
+                    disabled={activeStep === 0}
+                    onClick={() => setActiveStep((prev) => prev - 1)}
+                    variant="outlined"
+                  >
+                    Back
+                  </Button>
+                  
+                  <Box>
+                    {activeStep === steps.length - 1 ? (
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        disabled={loading || !isValid}
+                        sx={{ borderRadius: 2, fontWeight: 600 }}
+                      >
+                        {loading ? 'Creating...' : 'Create Event'}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="contained"
+                        onClick={() => setActiveStep((prev) => prev + 1)}
+                        disabled={!isValid}
+                        sx={{ borderRadius: 2, fontWeight: 600 }}
+                      >
+                        Next
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+              </Form>
+            )}
+          </Formik>
+        </Paper>
       </Box>
     </Box>
   );
 };
 
-export default CreateEvent;
+export default CreateEvent; 
