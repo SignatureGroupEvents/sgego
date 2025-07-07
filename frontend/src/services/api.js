@@ -50,7 +50,7 @@ export const updateInventoryItem = (inventoryId, data) => {
 };
 
 export const addInventoryItem = (eventId, data) => {
-  return api.post(`/events/${eventId}/inventory`, data);
+  return api.post(`/inventory/${eventId}`, data);
 };
 
 export const deleteInventoryItem = (inventoryId) => {

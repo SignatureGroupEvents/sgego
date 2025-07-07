@@ -33,8 +33,7 @@ const InventoryPage = ({ eventId }) => {
     size: '',
     gender: '',
     qtyWarehouse: 0,
-    qtyOnSite: 0,
-    currentInventory: 0,
+    qtyBeforeEvent: 0,
     postEventCount: 0
   });
   const { isOperationsManager, isAdmin } = (typeof useAuth === 'function' ? useAuth() : { isOperationsManager: false, isAdmin: false });
@@ -154,9 +153,8 @@ const InventoryPage = ({ eventId }) => {
     const initialEditValues = {};
     inventory.forEach(item => {
       initialEditValues[item._id] = {
-        qtyWarehouse: item.qtyWarehouse,
-        qtyOnSite: item.qtyOnSite,
-        currentInventory: item.currentInventory,
+        qtyBeforeEvent: item.qtyBeforeEvent || item.qtyOnSite || 0,
+        postEventCount: item.postEventCount || 0,
       };
     });
     setEditValuesMap(initialEditValues);
@@ -182,18 +180,16 @@ const InventoryPage = ({ eventId }) => {
       // Save all changes
       const savePromises = Object.entries(editValuesMap).map(([itemId, values]) => {
         const numericValues = {
-          qtyWarehouse: Number(values.qtyWarehouse),
-          qtyOnSite: Number(values.qtyOnSite),
-          currentInventory: Number(values.currentInventory),
+          qtyBeforeEvent: Number(values.qtyBeforeEvent),
+          postEventCount: Number(values.postEventCount),
         };
         
         // Validate values
         if (
-          isNaN(numericValues.qtyWarehouse) ||
-          isNaN(numericValues.qtyOnSite) ||
-          isNaN(numericValues.currentInventory) ||
-          numericValues.currentInventory === null ||
-          numericValues.currentInventory === undefined
+          isNaN(numericValues.qtyBeforeEvent) ||
+          isNaN(numericValues.postEventCount) ||
+          numericValues.qtyBeforeEvent < 0 ||
+          numericValues.postEventCount < 0
         ) {
           throw new Error(`Invalid values for item ${itemId}`);
         }
@@ -282,8 +278,7 @@ const InventoryPage = ({ eventId }) => {
       size: '',
       gender: '',
       qtyWarehouse: 0,
-      qtyOnSite: 0,
-      currentInventory: 0,
+      qtyBeforeEvent: 0,
       postEventCount: 0
     });
   };
@@ -296,8 +291,7 @@ const InventoryPage = ({ eventId }) => {
       size: '',
       gender: '',
       qtyWarehouse: 0,
-      qtyOnSite: 0,
-      currentInventory: 0,
+      qtyBeforeEvent: 0,
       postEventCount: 0
     });
   };
@@ -321,17 +315,18 @@ const InventoryPage = ({ eventId }) => {
       const itemData = {
         ...newItem,
         qtyWarehouse: Number(newItem.qtyWarehouse),
-        qtyOnSite: Number(newItem.qtyOnSite),
-        currentInventory: Number(newItem.currentInventory),
+        qtyBeforeEvent: Number(newItem.qtyBeforeEvent),
         postEventCount: Number(newItem.postEventCount)
       };
 
       // Validate numeric values
       if (
         isNaN(itemData.qtyWarehouse) ||
-        isNaN(itemData.qtyOnSite) ||
-        isNaN(itemData.currentInventory) ||
-        isNaN(itemData.postEventCount)
+        isNaN(itemData.qtyBeforeEvent) ||
+        isNaN(itemData.postEventCount) ||
+        itemData.qtyWarehouse < 0 ||
+        itemData.qtyBeforeEvent < 0 ||
+        itemData.postEventCount < 0
       ) {
         setError('All quantity fields must be valid numbers.');
         return;
@@ -427,7 +422,7 @@ const InventoryPage = ({ eventId }) => {
                       <TableCell>Size</TableCell>
                       <TableCell>Gender</TableCell>
                       <TableCell>Qty Warehouse</TableCell>
-                      <TableCell>Qty On Site</TableCell>
+                      <TableCell>Qty Before Event</TableCell>
                       <TableCell>Current Inventory</TableCell>
                       <TableCell>Post Event Count</TableCell>
                       <TableCell>Allocated Events</TableCell>
@@ -447,18 +442,7 @@ const InventoryPage = ({ eventId }) => {
                           <TableCell>{item.size}</TableCell>
                           <TableCell>{item.gender}</TableCell>
                           <TableCell>
-                            {isEditMode ? (
-                              <input
-                                type="number"
-                                min="0"
-                                required
-                                value={editValuesMap[item._id]?.qtyWarehouse || item.qtyWarehouse}
-                                onChange={e => handleEditValueChange(item._id, 'qtyWarehouse', e.target.value)}
-                                style={{ width: 70 }}
-                              />
-                            ) : (
-                              item.qtyWarehouse
-                            )}
+                            {item.qtyWarehouse}
                           </TableCell>
                           <TableCell>
                             {isEditMode ? (
@@ -466,13 +450,16 @@ const InventoryPage = ({ eventId }) => {
                                 type="number"
                                 min="0"
                                 required
-                                value={editValuesMap[item._id]?.qtyOnSite || item.qtyOnSite}
-                                onChange={e => handleEditValueChange(item._id, 'qtyOnSite', e.target.value)}
+                                value={editValuesMap[item._id]?.qtyBeforeEvent || item.qtyBeforeEvent || item.qtyOnSite || 0}
+                                onChange={e => handleEditValueChange(item._id, 'qtyBeforeEvent', e.target.value)}
                                 style={{ width: 70 }}
                               />
                             ) : (
-                              item.qtyOnSite
+                              item.qtyBeforeEvent || item.qtyOnSite || 0
                             )}
+                          </TableCell>
+                          <TableCell>
+                            {item.currentInventory}
                           </TableCell>
                           <TableCell>
                             {isEditMode ? (
@@ -480,15 +467,14 @@ const InventoryPage = ({ eventId }) => {
                                 type="number"
                                 min="0"
                                 required
-                                value={editValuesMap[item._id]?.currentInventory || item.currentInventory}
-                                onChange={e => handleEditValueChange(item._id, 'currentInventory', e.target.value)}
+                                value={editValuesMap[item._id]?.postEventCount || item.postEventCount || 0}
+                                onChange={e => handleEditValueChange(item._id, 'postEventCount', e.target.value)}
                                 style={{ width: 70 }}
                               />
                             ) : (
-                              item.currentInventory
+                              item.postEventCount || 0
                             )}
                           </TableCell>
-                          <TableCell>{item.postEventCount ?? '-'}</TableCell>
                           <TableCell>
                             {eventsLoading ? (
                               <CircularProgress size={20} />
@@ -590,18 +576,10 @@ const InventoryPage = ({ eventId }) => {
                     inputProps={{ min: 0 }}
                   />
                   <TextField
-                    label="Qty On Site"
+                    label="Qty Before Event"
                     type="number"
-                    value={newItem.qtyOnSite}
-                    onChange={(e) => handleNewItemChange('qtyOnSite', e.target.value)}
-                    fullWidth
-                    inputProps={{ min: 0 }}
-                  />
-                  <TextField
-                    label="Current Inventory"
-                    type="number"
-                    value={newItem.currentInventory}
-                    onChange={(e) => handleNewItemChange('currentInventory', e.target.value)}
+                    value={newItem.qtyBeforeEvent}
+                    onChange={(e) => handleNewItemChange('qtyBeforeEvent', e.target.value)}
                     fullWidth
                     inputProps={{ min: 0 }}
                   />

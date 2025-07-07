@@ -10,7 +10,8 @@ const {
   bulkDeleteInventory,
   updateInventoryAllocation,
   exportInventoryCSV,
-  exportInventoryExcel
+  exportInventoryExcel,
+  addInventoryItem
 } = require('../controllers/inventoryController');
 const { protect, requireOperationsOrAdmin } = require('../middleware/auth');
 
@@ -56,6 +57,7 @@ router.get('/:eventId/export/excel', exportInventoryExcel);
 
 // Modification routes - restrict to operations manager and admin
 router.post('/upload', requireOperationsOrAdmin, upload.single('file'), uploadInventory);
+router.post('/:eventId', requireOperationsOrAdmin, addInventoryItem);
 router.put('/:inventoryId', requireOperationsOrAdmin, updateInventoryCount);
 router.put('/:inventoryId/deactivate', requireOperationsOrAdmin, deactivateInventoryItem);
 router.delete('/:inventoryId', requireOperationsOrAdmin, deleteInventoryItem);
