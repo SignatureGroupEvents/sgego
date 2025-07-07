@@ -42,6 +42,7 @@ import {
   Assignment as AssignmentIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { getEvent, updateEvent, deleteEvent } from '../../services/events';
 import MainNavigation from '../layout/MainNavigation';
 import toast from 'react-hot-toast';
@@ -49,7 +50,7 @@ import toast from 'react-hot-toast';
 const EventDetails = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { isOperationsManager, isAdmin } = useAuth();
+  const { isOperationsManager, isAdmin } = usePermissions();
   
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);

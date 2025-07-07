@@ -14,6 +14,8 @@ import api, { resetUserPassword, resendUserInvite, sendPasswordResetLink, update
 import { useAuth } from '../../contexts/AuthContext';
 import MainNavigation from '../../components/layout/MainNavigation';
 import toast from 'react-hot-toast';
+import { usePermissions } from '../../hooks/usePermissions';
+
 
 const fields = [
   { key: 'firstName', label: 'First Name' },
@@ -25,8 +27,9 @@ const fields = [
 const AccountEditPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const { isAdmin, isOperationsManager, user: currentUser } = useAuth();
-  const [user, setUser] = useState(null);
+  const { user: currentUser } = useAuth();
+  const { isAdmin, isOperationsManager } = usePermissions();
+    const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editingField, setEditingField] = useState(null);
   const [editValue, setEditValue] = useState('');

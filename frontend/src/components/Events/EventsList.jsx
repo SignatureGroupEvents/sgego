@@ -30,7 +30,9 @@ import {
 import MainNavigation from '../layout/MainNavigation';
 import { getEvents } from '../../services/events';
 import { useNavigate } from 'react-router-dom';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useAuth } from '../../contexts/AuthContext';
+
 import { 
   ExpandMore, 
   ExpandLess, 
@@ -130,7 +132,8 @@ const EventsList = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   
   const rowsPerPage = isMobile ? 5 : isTablet ? 8 : 10;
-  const { isOperationsManager, isAdmin, user: currentUser } = useAuth();
+  const { isOperationsManager, isAdmin } = usePermissions();
+  const { user: currentUser } = useAuth(); // still valid for user info
   const navigate = useNavigate();
   
   // Determine if user can create/modify events

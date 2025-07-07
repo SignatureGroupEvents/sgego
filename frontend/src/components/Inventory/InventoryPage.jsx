@@ -1,12 +1,24 @@
 import React, { useState, useRef } from 'react';
-import { Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete, TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import { Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon, Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon } from '@mui/icons-material';
+import {
+  Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete,
+  TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
+  DialogContent, DialogActions
+} from '@mui/material';
+import {
+  Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
+  Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon
+} from '@mui/icons-material';
 import { uploadInventoryCSV, fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
 import MainNavigation from '../layout/MainNavigation';
 import { getEvent, getEvents } from '../../services/events';
 import EventIcon from '@mui/icons-material/Event';
-import { useAuth } from '../../contexts/AuthContext';
+
+// ✅ Use usePermissions only
+import { usePermissions } from '../../hooks/usePermissions';
+
+
 
 
 const InventoryPage = ({ eventId }) => {
@@ -36,7 +48,7 @@ const InventoryPage = ({ eventId }) => {
     qtyBeforeEvent: 0,
     postEventCount: 0
   });
-  const { isOperationsManager, isAdmin } = (typeof useAuth === 'function' ? useAuth() : { isOperationsManager: false, isAdmin: false });
+  const { isOperationsManager, isAdmin } = usePermissions();
   
   // Determine if user can modify inventory
   const canModifyInventory = isOperationsManager || isAdmin;

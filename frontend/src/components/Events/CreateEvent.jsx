@@ -27,6 +27,7 @@ import {
   ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import api from '../../services/api';
 import MainNavigation from '../layout/MainNavigation';
 import HomeIcon from '@mui/icons-material/Home';
@@ -44,7 +45,7 @@ const CreateEvent = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { isOperationsManager, isAdmin } = useAuth();
+  const { isOperationsManager, isAdmin } = usePermissions();
   const navigate = useNavigate();
 
   if (!isOperationsManager && !isAdmin) {

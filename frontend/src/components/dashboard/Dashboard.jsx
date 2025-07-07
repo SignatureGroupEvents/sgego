@@ -14,10 +14,12 @@ import {
   CircularProgress
 } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import api from '../../services/api';
 
 const Dashboard = ({ selectedEvent }) => {
-  const { user, logout, isOperationsManager, isAdmin, user: currentUser } = useAuth();
+  const { user, logout } = useAuth();
+  const { isOperationsManager, isAdmin } = usePermissions();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');

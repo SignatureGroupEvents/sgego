@@ -5,6 +5,7 @@ import { CheckCircleOutline as CheckCircleIcon, Person as PersonIcon, Groups as 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import api, { fetchInventory } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import MainNavigation from '../layout/MainNavigation';
 import AddSecondaryEventModal from './AddSecondaryEventModal';
 import AddGuest from '../guests/AddGuest';
@@ -18,7 +19,8 @@ import { getEventActivityFeed } from '../../services/api';
 const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const { isOperationsManager, isAdmin, user: currentUser } = useAuth();
+  const { isOperationsManager, isAdmin } = usePermissions();
+  const { user: currentUser } = useAuth();
   
   // Determine if user can modify events
   const canModifyEvents = isOperationsManager || isAdmin;
@@ -979,7 +981,8 @@ const EventDashboardWrapper = () => {
 
 const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inventoryError = '', onInventoryChange }) => {
   const navigate = useNavigate();
-  const { user, logout, isOperationsManager, isAdmin } = useAuth();
+  const { user, logout } = useAuth();
+  const { isOperationsManager, isAdmin } = usePermissions();
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState(null);
   const [guests, setGuests] = useState([]);
