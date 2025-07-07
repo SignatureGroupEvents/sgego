@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
 import { getCheckinContext, singleEventCheckin, multiEventCheckin } from '../../services/api';
-// import MainNavigation from '../MainNavigation'; // Removed
+import { 
+  Box, 
+  Button, 
+  TextField, 
+  Typography, 
+  Alert, 
+  CircularProgress
+} from '@mui/material';
+import { CheckCircleOutline as CheckCircleIcon } from '@mui/icons-material';
 import HomeIcon from '@mui/icons-material/Home';
-import { Box } from '@mui/material';
 
 const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onInventoryChange }) => {
   const [qrData, setQrData] = useState('');
@@ -12,6 +19,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [isCheckedIn, setIsCheckedIn] = useState(false);
 
   React.useEffect(() => {
     // Always fetch check-in context for the event
@@ -20,6 +28,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
     setError('');
     setGiftSelections({});
     setGuest(propGuest || null);
+    setIsCheckedIn(false);
     if (event?._id) {
       setLoading(true);
       getCheckinContext(event._id)
@@ -75,11 +84,25 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
         const selectedGifts = giftSelections[event._id] ? [giftSelections[event._id]] : [];
         await singleEventCheckin(guest._id, event._id, selectedGifts);
       }
+      
+      // Update local state to show success
+      setIsCheckedIn(true);
       setSuccess('Guest checked in successfully!');
       setGiftSelections({});
-      if (onClose) onClose();
-      if (onCheckinSuccess) onCheckinSuccess();
+      
+      // Update the guest object to reflect check-in status
+      const updatedGuest = { ...guest, hasCheckedIn: true };
+      setGuest(updatedGuest);
+      
+      // Call callbacks to update parent components
+      if (onCheckinSuccess) onCheckinSuccess(updatedGuest);
       if (onInventoryChange) onInventoryChange();
+      
+      // Auto-close after a short delay
+      setTimeout(() => {
+        if (onClose) onClose();
+      }, 2000);
+      
     } catch (err) {
       setError(err.response?.data?.message || 'Check-in failed.');
     } finally {
@@ -87,46 +110,108 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
     }
   };
 
+  // If guest is already checked in, show success state
+  if (isCheckedIn || (guest && guest.hasCheckedIn)) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <CheckCircleIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
+        <Typography variant="h6" color="success.main" gutterBottom>
+          Checked In Successfully!
+        </Typography>
+        <Typography variant="body1" gutterBottom>
+          {guest?.firstName} {guest?.lastName} has been checked in.
+        </Typography>
+        <Button 
+          variant="outlined" 
+          onClick={onClose}
+          sx={{ mt: 2 }}
+        >
+          Close
+        </Button>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ p: 4 }}>
-      <h3>Guest Check-In</h3>
+      <Typography variant="h6" gutterBottom>Guest Check-In</Typography>
+      
       {!propGuest && (
-        <>
-          <input
-            type="text"
-            placeholder="Enter or scan QR"
+        <Box sx={{ mb: 3 }}>
+          <TextField
+            fullWidth
+            label="Enter or scan QR code"
             value={qrData}
             onChange={(e) => setQrData(e.target.value)}
             disabled={loading}
+            sx={{ mb: 2 }}
           />
-          <button onClick={handleScan} disabled={loading}>Find Guest</button>
-        </>
+          <Button 
+            variant="contained" 
+            onClick={handleScan} 
+            disabled={loading}
+            fullWidth
+          >
+            Find Guest
+          </Button>
+        </Box>
       )}
-      {error && <div style={{ color: 'red', marginTop: 8 }}>{error}</div>}
-      {success && <div style={{ color: 'green', marginTop: 8 }}>{success}</div>}
+      
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+      
       {guest && context && (
-        <div style={{ marginTop: 24 }}>
-          <h4>{guest.firstName} {guest.lastName}</h4>
-          <p>Email: {guest.email}</p>
-          <p>Type: {guest.type}</p>
-          {context.availableEvents.map(ev => (
-            <div key={ev._id} style={{ marginBottom: 16 }}>
-              <label><b>{ev.eventName} Gift:</b></label>
-              <select
-                value={giftSelections[ev._id]?.inventoryId || ''}
-                onChange={e => handleGiftChange(ev._id, e.target.value)}
-              >
-                <option value="">Select a gift</option>
-                {(context.inventoryByEvent?.[ev._id] || []).map(gift => (
-                  <option key={gift._id} value={gift._id}>
-                    {gift.style} ({gift.size})
-                  </option>
-                ))}
-              </select>
-            </div>
-          ))}
-          <button onClick={handleCheckIn} disabled={loading}>Check In Guest</button>
-        </div>
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            {guest.firstName} {guest.lastName}
+          </Typography>
+          <Typography variant="body2" color="textSecondary" gutterBottom>
+            Email: {guest.email}
+          </Typography>
+          <Typography variant="body2" color="textSecondary" gutterBottom>
+            Type: {guest.type || 'General'}
+          </Typography>
+          
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Select Gifts:
+            </Typography>
+            {context.availableEvents.map(ev => (
+              <Box key={ev._id} sx={{ mb: 2 }}>
+                <Typography variant="body2" fontWeight={500} gutterBottom>
+                  {ev.eventName} Gift:
+                </Typography>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  value={giftSelections[ev._id]?.inventoryId || ''}
+                  onChange={e => handleGiftChange(ev._id, e.target.value)}
+                  label="Select a gift"
+                >
+                  <option value="">Select a gift</option>
+                  {(context.inventoryByEvent?.[ev._id] || []).map(gift => (
+                    <option key={gift._id} value={gift._id}>
+                      {gift.style} ({gift.size})
+                    </option>
+                  ))}
+                </TextField>
+              </Box>
+            ))}
+          </Box>
+          
+          <Button 
+            variant="contained" 
+            color="success"
+            onClick={handleCheckIn} 
+            disabled={loading}
+            fullWidth
+            sx={{ mt: 3 }}
+            startIcon={loading ? <CircularProgress size={20} /> : null}
+          >
+            {loading ? 'Checking In...' : 'Check In Guest'}
+          </Button>
+        </Box>
       )}
     </Box>
   );
