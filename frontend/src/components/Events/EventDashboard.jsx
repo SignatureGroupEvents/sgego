@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField, Autocomplete, Tooltip } from '@mui/material';
+import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField, Autocomplete, Tooltip, Dialog, DialogTitle, DialogContent } from '@mui/material';
 import { CheckCircleOutline as CheckCircleIcon, Person as PersonIcon, Groups as GroupsIcon, Assessment as AssessmentIcon, Event as EventIcon, Home as HomeIcon, Menu as MenuIcon, Upload as UploadIcon, PersonAdd as PersonAddIcon, Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon, PeopleAlt as PeopleAltIcon, HourglassEmpty as HourglassEmptyIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, CardGiftcard as GiftIcon, Search as SearchIcon, Inventory as InventoryIcon, Save as SaveIcon, Cancel as CancelIcon, Edit as EditIcon, Info as InfoIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import api, { fetchInventory } from '../../services/api';
@@ -231,19 +231,31 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
         sx={{ mt: 2 }}
       />
       {/* Check-in Modal */}
-      {modalOpen && checkInGuest && (
-        <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Card sx={{ minWidth: 400, p: 2 }}>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">Check In Guest</Typography>
-                <Button onClick={handleCloseCheckIn} size="small">Close</Button>
-              </Box>
-              <GuestCheckIn event={event} guest={checkInGuest} onClose={handleCloseCheckIn} onInventoryChange={onInventoryChange} />
-            </CardContent>
-          </Card>
-        </Box>
-      )}
+      <Dialog
+        open={modalOpen}
+        onClose={handleCloseCheckIn}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            minWidth: 400
+          }
+        }}
+      >
+        <DialogTitle>
+          Check In Guest
+        </DialogTitle>
+        <DialogContent>
+          {checkInGuest && (
+            <GuestCheckIn 
+              event={event} 
+              guest={checkInGuest} 
+              onClose={handleCloseCheckIn} 
+              onInventoryChange={onInventoryChange}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
@@ -603,6 +615,13 @@ const GuestListWithGifts = ({ guests = [], inventory = [] }) => {
               value={filterGiftType}
               label="Gift Type"
               onChange={(e) => setFilterGiftType(e.target.value)}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    zIndex: 9999
+                  }
+                }
+              }}
             >
               <MenuItem value="all">All Types</MenuItem>
               {giftTypes.map(type => (
@@ -616,6 +635,13 @@ const GuestListWithGifts = ({ guests = [], inventory = [] }) => {
               value={filterStatus}
               label="Status"
               onChange={(e) => setFilterStatus(e.target.value)}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    zIndex: 9999
+                  }
+                }
+              }}
             >
               <MenuItem value="all">All Status</MenuItem>
               <MenuItem value="checked-in">Checked In</MenuItem>
@@ -1372,25 +1398,32 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         )}
 
         {/* Check-in Modal */}
-        {checkInModalOpen && checkInGuest && (
-          <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Card sx={{ minWidth: 400, p: 2 }}>
-              <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                  <Typography variant="h6">Check In Guest</Typography>
-                  <Button onClick={handleCloseCheckIn} size="small">Close</Button>
-                </Box>
-                <GuestCheckIn 
-                  event={event} 
-                  guest={checkInGuest} 
-                  onClose={handleCloseCheckIn} 
-                  onInventoryChange={onInventoryChange}
-                  onCheckInSuccess={handleCheckInSuccess}
-                />
-              </CardContent>
-            </Card>
-          </Box>
-        )}
+        <Dialog
+          open={checkInModalOpen}
+          onClose={handleCloseCheckIn}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              minWidth: 400
+            }
+          }}
+        >
+          <DialogTitle>
+            Check In Guest
+          </DialogTitle>
+          <DialogContent>
+            {checkInGuest && (
+              <GuestCheckIn 
+                event={event} 
+                guest={checkInGuest} 
+                onClose={handleCloseCheckIn} 
+                onInventoryChange={onInventoryChange}
+                onCheckInSuccess={handleCheckInSuccess}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Add Guest Modal */}
         <AddGuest

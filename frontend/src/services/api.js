@@ -42,7 +42,7 @@ export const uploadInventoryCSV = (eventId, file) => {
 };
 
 export const fetchInventory = (eventId) => {
-  return api.get(`/events/${eventId}/inventory`);
+  return api.get(`/inventory/${eventId}`);
 };
 
 export const updateInventoryItem = (inventoryId, data) => {

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete, TextField, Chip } from '@mui/material';
+import { Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete, TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon, Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon } from '@mui/icons-material';
 import { uploadInventoryCSV, fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
@@ -514,96 +514,125 @@ const InventoryPage = ({ eventId }) => {
                   </TableBody>
                 </Table>
               </TableContainer>
-              {deletingId && (
-                <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Card sx={{ minWidth: 300, p: 2 }}>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>Delete Inventory Item?</Typography>
-                      <Typography variant="body2" color="textSecondary" gutterBottom>
-                        Are you sure you want to delete this inventory item? This action cannot be undone.
-                      </Typography>
-                      <Box display="flex" gap={2} justifyContent="flex-end" mt={2}>
-                        <Button onClick={handleDeleteCancel} variant="outlined">Cancel</Button>
-                        <Button onClick={handleDeleteConfirm} color="error" variant="contained">Delete</Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Box>
-              )}
+              {/* Delete Confirmation Dialog */}
+              <Dialog
+                open={!!deletingId}
+                onClose={handleDeleteCancel}
+                maxWidth="sm"
+                fullWidth
+              >
+                <DialogTitle>Delete Inventory Item?</DialogTitle>
+                <DialogContent>
+                  <Typography variant="body2" color="textSecondary" gutterBottom>
+                    Are you sure you want to delete this inventory item? This action cannot be undone.
+                  </Typography>
+                </DialogContent>
+                <DialogActions>
+                  <Button onClick={handleDeleteCancel} variant="outlined">
+                    Cancel
+                  </Button>
+                  <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+                    Delete
+                  </Button>
+                </DialogActions>
+              </Dialog>
             </CardContent>
           </Card>
         )}
         
         {/* Add Item Modal */}
-        {addItemModalOpen && (
-          <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Card sx={{ minWidth: 500, maxWidth: 600, p: 3 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>Add Inventory Item</Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
-                  <TextField
-                    label="Type *"
-                    value={newItem.type}
-                    onChange={(e) => handleNewItemChange('type', e.target.value)}
-                    required
-                    fullWidth
-                  />
-                  <TextField
-                    label="Style *"
-                    value={newItem.style}
-                    onChange={(e) => handleNewItemChange('style', e.target.value)}
-                    required
-                    fullWidth
-                  />
-                  <TextField
-                    label="Size"
-                    value={newItem.size}
-                    onChange={(e) => handleNewItemChange('size', e.target.value)}
-                    fullWidth
-                  />
-                  <TextField
-                    label="Gender"
-                    value={newItem.gender}
-                    onChange={(e) => handleNewItemChange('gender', e.target.value)}
-                    fullWidth
-                  />
-                  <TextField
-                    label="Qty Warehouse"
-                    type="number"
-                    value={newItem.qtyWarehouse}
-                    onChange={(e) => handleNewItemChange('qtyWarehouse', e.target.value)}
-                    fullWidth
-                    inputProps={{ min: 0 }}
-                  />
-                  <TextField
-                    label="Qty Before Event"
-                    type="number"
-                    value={newItem.qtyBeforeEvent}
-                    onChange={(e) => handleNewItemChange('qtyBeforeEvent', e.target.value)}
-                    fullWidth
-                    inputProps={{ min: 0 }}
-                  />
-                  <TextField
-                    label="Post Event Count"
-                    type="number"
-                    value={newItem.postEventCount}
-                    onChange={(e) => handleNewItemChange('postEventCount', e.target.value)}
-                    fullWidth
-                    inputProps={{ min: 0 }}
-                  />
-                </Box>
-                <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
-                  <Button onClick={handleCloseAddItemModal} variant="outlined">
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddItem} variant="contained" color="primary">
-                    Add Item
-                  </Button>
-                </Box>
-              </CardContent>
-            </Card>
-          </Box>
-        )}
+        <Dialog 
+          open={addItemModalOpen} 
+          onClose={handleCloseAddItemModal}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              minWidth: 500,
+              maxWidth: 600
+            }
+          }}
+        >
+          <DialogTitle>Add Inventory Item</DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
+              <TextField
+                label="Type *"
+                value={newItem.type}
+                onChange={(e) => handleNewItemChange('type', e.target.value)}
+                required
+                fullWidth
+              />
+              <TextField
+                label="Style *"
+                value={newItem.style}
+                onChange={(e) => handleNewItemChange('style', e.target.value)}
+                required
+                fullWidth
+              />
+              <TextField
+                label="Size"
+                value={newItem.size}
+                onChange={(e) => handleNewItemChange('size', e.target.value)}
+                fullWidth
+              />
+              <FormControl fullWidth>
+                <InputLabel>Gender</InputLabel>
+                <Select
+                  value={newItem.gender}
+                  onChange={(e) => handleNewItemChange('gender', e.target.value)}
+                  label="Gender"
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        zIndex: 9999
+                      }
+                    }
+                  }}
+                >
+                  <MenuItem value="">
+                    <em>Select gender (optional)</em>
+                  </MenuItem>
+                  <MenuItem value="M">Male (M)</MenuItem>
+                  <MenuItem value="W">Female (W)</MenuItem>
+                  <MenuItem value="N/A">Not Applicable (N/A)</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                label="Qty Warehouse"
+                type="number"
+                value={newItem.qtyWarehouse}
+                onChange={(e) => handleNewItemChange('qtyWarehouse', e.target.value)}
+                fullWidth
+                inputProps={{ min: 0 }}
+              />
+              <TextField
+                label="Qty Before Event"
+                type="number"
+                value={newItem.qtyBeforeEvent}
+                onChange={(e) => handleNewItemChange('qtyBeforeEvent', e.target.value)}
+                fullWidth
+                inputProps={{ min: 0 }}
+              />
+              <TextField
+                label="Post Event Count"
+                type="number"
+                value={newItem.postEventCount}
+                onChange={(e) => handleNewItemChange('postEventCount', e.target.value)}
+                fullWidth
+                inputProps={{ min: 0 }}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseAddItemModal} variant="outlined">
+              Cancel
+            </Button>
+            <Button onClick={handleAddItem} variant="contained" color="primary">
+              Add Item
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Box>
   );

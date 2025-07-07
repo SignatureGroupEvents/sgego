@@ -6,7 +6,11 @@ import {
   TextField, 
   Typography, 
   Alert, 
-  CircularProgress
+  CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import { CheckCircleOutline as CheckCircleIcon } from '@mui/icons-material';
 import HomeIcon from '@mui/icons-material/Home';
@@ -181,21 +185,32 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
                 <Typography variant="body2" fontWeight={500} gutterBottom>
                   {ev.eventName} Gift:
                 </Typography>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  value={giftSelections[ev._id]?.inventoryId || ''}
-                  onChange={e => handleGiftChange(ev._id, e.target.value)}
-                  label="Select a gift"
-                >
-                  <option value="">Select a gift</option>
-                  {(context.inventoryByEvent?.[ev._id] || []).map(gift => (
-                    <option key={gift._id} value={gift._id}>
-                      {gift.style} ({gift.size})
-                    </option>
-                  ))}
-                </TextField>
+                <FormControl fullWidth size="small">
+                  <InputLabel id={`${ev._id}-gift-label`}>Select a gift</InputLabel>
+                  <Select
+                    labelId={`${ev._id}-gift-label`}
+                    id={`${ev._id}-gift`}
+                    value={giftSelections[ev._id]?.inventoryId || ''}
+                    label="Select a gift"
+                    onChange={e => handleGiftChange(ev._id, e.target.value)}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          zIndex: 9999
+                        }
+                      }
+                    }}
+                  >
+                    <MenuItem value="">
+                      <em>None</em>
+                    </MenuItem>
+                    {(context.inventoryByEvent?.[ev._id] || []).map(gift => (
+                      <MenuItem key={gift._id} value={gift._id}>
+                        {gift.style} ({gift.size})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </Box>
             ))}
           </Box>
