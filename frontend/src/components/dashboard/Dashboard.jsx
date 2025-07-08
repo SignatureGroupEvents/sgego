@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Container,
   Typography,
   Button,
   Alert,
@@ -15,6 +14,7 @@ import {
 } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
+import MainLayout from '../layout/MainLayout';
 import api from '../../services/api';
 
 const Dashboard = ({ selectedEvent }) => {
@@ -66,8 +66,8 @@ const Dashboard = ({ selectedEvent }) => {
   }, []);
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ my: 4 }}>
+    <MainLayout>
+      <Box sx={{ my: 2 }}>
         {selectedEvent && (
           <Alert severity="info" sx={{ mb: 2 }}>
             Viewing event: <strong>{selectedEvent.eventName}</strong>
@@ -77,9 +77,6 @@ const Dashboard = ({ selectedEvent }) => {
           <Typography variant="h4">
             Welcome, {user?.username}! 👋
           </Typography>
-          <Button variant="outlined" onClick={logout}>
-            Logout
-          </Button>
         </Box>
 
         {message && (
@@ -89,7 +86,7 @@ const Dashboard = ({ selectedEvent }) => {
         )}
 
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+          <Grid xs={12} md={6}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -110,7 +107,7 @@ const Dashboard = ({ selectedEvent }) => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid xs={12} md={6}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -131,7 +128,7 @@ const Dashboard = ({ selectedEvent }) => {
             </Card>
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid xs={12}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -157,7 +154,7 @@ const Dashboard = ({ selectedEvent }) => {
             </Card>
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid xs={12}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -172,7 +169,7 @@ const Dashboard = ({ selectedEvent }) => {
           </Grid>
         </Grid>
       </Box>
-    </Container>
+    </MainLayout>
   );
 };
 

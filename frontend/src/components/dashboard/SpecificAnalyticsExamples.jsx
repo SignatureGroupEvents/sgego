@@ -93,25 +93,25 @@ const SpecificAnalyticsExamples = ({ eventId: propEventId }) => {
             1. Event Statistics - Specific Data Points
           </Typography>
           <Grid container spacing={2}>
-            <Grid item xs={12} md={3}>
+            <Grid xs={12} md={3}>
               <Typography variant="subtitle2" color="text.secondary">Total Guests</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
                 {eventStats.totalGuests}
               </Typography>
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid xs={12} md={3}>
               <Typography variant="subtitle2" color="text.secondary">Checked In</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
                 {eventStats.checkedInGuests}
               </Typography>
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid xs={12} md={3}>
               <Typography variant="subtitle2" color="text.secondary">Pending</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
                 {eventStats.pendingGuests}
               </Typography>
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid xs={12} md={3}>
               <Typography variant="subtitle2" color="text.secondary">Check-in Rate</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700, color: 'info.main' }}>
                 {eventStats.checkInPercentage}%
@@ -133,19 +133,19 @@ const SpecificAnalyticsExamples = ({ eventId: propEventId }) => {
             2. Gift Analytics - Specific Data Points
           </Typography>
           <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <Typography variant="subtitle2" color="text.secondary">Total Gifts Distributed</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
                 {giftSummary.totalGiftsDistributed}
               </Typography>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <Typography variant="subtitle2" color="text.secondary">Average per Guest</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
                 {giftSummary.averageGiftsPerGuest}
               </Typography>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <Typography variant="subtitle2" color="text.secondary">Unique Items</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
                 {giftSummary.uniqueItemsDistributed}
@@ -160,25 +160,25 @@ const SpecificAnalyticsExamples = ({ eventId: propEventId }) => {
                 Top Performing Gift:
               </Typography>
               <Grid container spacing={2}>
-                <Grid item xs={12} md={3}>
+                <Grid xs={12} md={3}>
                   <Typography variant="body2" color="text.secondary">Name</Typography>
                   <Typography variant="body1" sx={{ fontWeight: 600 }}>
                     {topGift.name}
                   </Typography>
                 </Grid>
-                <Grid item xs={12} md={3}>
+                <Grid xs={12} md={3}>
                   <Typography variant="body2" color="text.secondary">Type</Typography>
                   <Typography variant="body1" sx={{ fontWeight: 600 }}>
                     {topGift.type}
                   </Typography>
                 </Grid>
-                <Grid item xs={12} md={3}>
+                <Grid xs={12} md={3}>
                   <Typography variant="body2" color="text.secondary">Quantity</Typography>
                   <Typography variant="body1" sx={{ fontWeight: 600 }}>
                     {topGift.totalQuantity}
                   </Typography>
                 </Grid>
-                <Grid item xs={12} md={3}>
+                <Grid xs={12} md={3}>
                   <Typography variant="body2" color="text.secondary">Unique Guests</Typography>
                   <Typography variant="body1" sx={{ fontWeight: 600 }}>
                     {topGift.uniqueGuestCount}
@@ -212,19 +212,19 @@ const SpecificAnalyticsExamples = ({ eventId: propEventId }) => {
             3. Inventory Analytics - Specific Data Points
           </Typography>
           <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <Typography variant="subtitle2" color="text.secondary">Total Inventory Items</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
                 {inventorySummary.totalInventoryItems}
               </Typography>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <Typography variant="subtitle2" color="text.secondary">Utilization Rate</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
                 {inventorySummary.averageUtilizationRate}%
               </Typography>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <Typography variant="subtitle2" color="text.secondary">Low Stock Items</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
                 {inventorySummary.lowStockItems}
@@ -248,13 +248,13 @@ const SpecificAnalyticsExamples = ({ eventId: propEventId }) => {
                 Today's Activity ({today}):
               </Typography>
               <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
+                <Grid xs={12} md={6}>
                   <Typography variant="body2" color="text.secondary">Check-ins</Typography>
                   <Typography variant="h5" sx={{ fontWeight: 600, color: 'primary.main' }}>
                     {todayData.checkIns}
                   </Typography>
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid xs={12} md={6}>
                   <Typography variant="body2" color="text.secondary">Gifts Distributed</Typography>
                   <Typography variant="h5" sx={{ fontWeight: 600, color: 'success.main' }}>
                     {todayData.giftsDistributed}

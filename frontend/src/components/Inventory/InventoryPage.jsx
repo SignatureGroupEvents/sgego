@@ -11,7 +11,7 @@ import {
 } from '@mui/icons-material';
 import { uploadInventoryCSV, fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
-import MainNavigation from '../layout/MainNavigation';
+import MainLayout from '../layout/MainLayout';
 import { getEvent, getEvents } from '../../services/events';
 import EventIcon from '@mui/icons-material/Event';
 
@@ -21,7 +21,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 
 
 
-const InventoryPage = ({ eventId }) => {
+const InventoryPage = ({ eventId, eventName }) => {
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -355,10 +355,8 @@ const InventoryPage = ({ eventId }) => {
   };
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
-      <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
-        <Typography variant="h4" gutterBottom>Inventory</Typography>
+    <MainLayout eventName={eventName}>
+      <Typography variant="h4" gutterBottom>Inventory</Typography>
         <Box display="flex" gap={2} mb={2}>
           {canModifyInventory && (
             isEditMode ? (
@@ -645,14 +643,17 @@ const InventoryPage = ({ eventId }) => {
             </Button>
           </DialogActions>
         </Dialog>
-      </Box>
-    </Box>
-  );
+      </MainLayout>
+    );
 };
 
 function InventoryPageWrapper() {
   const { eventId } = useParams();
-  return <InventoryPage eventId={eventId} />;
+  const [event, setEvent] = React.useState(null);
+  React.useEffect(() => {
+    getEvent(eventId).then(setEvent);
+  }, [eventId]);
+  return <InventoryPage eventId={eventId} eventName={event?.eventName || 'Loading Event...'} />;
 }
 
 export default InventoryPageWrapper; 

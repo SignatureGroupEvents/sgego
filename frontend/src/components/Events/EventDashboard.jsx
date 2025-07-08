@@ -7,7 +7,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 import api, { fetchInventory } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
-import MainNavigation from '../layout/MainNavigation';
+import MainLayout from '../layout/MainLayout';
 import AddSecondaryEventModal from './AddSecondaryEventModal';
 import AddGuest from '../guests/AddGuest';
 import InventoryPage from '../../components/inventory/InventoryPage';
@@ -15,6 +15,7 @@ import GuestCheckIn from '../guests/GuestCheckIn';
 import BasicAnalytics from '../dashboard/BasicAnalytics';
 import { getEvent } from '../../services/events';
 import { getEventActivityFeed } from '../../services/api';
+import MainNavigation from '../layout/MainNavigation';
 
 
 const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange }) => {
@@ -1115,23 +1116,19 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <MainNavigation />
-        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <MainLayout eventName={event?.eventName || 'Loading Event...'}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
           <CircularProgress size={60} />
         </Box>
-      </Box>
+      </MainLayout>
     );
   }
 
   if (error || !event) {
     return (
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <MainNavigation />
-        <Box sx={{ flex: 1, p: 4 }}>
-          <Alert severity="error">{error || 'Event not found'}</Alert>
-        </Box>
-      </Box>
+      <MainLayout eventName={event?.eventName || 'Loading Event...'}>
+        <Alert severity="error">{error || 'Event not found'}</Alert>
+      </MainLayout>
     );
   }
 
@@ -1145,21 +1142,19 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const mainEvent = event && event.isMainEvent ? event : parentEvent || event;
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
-      <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 2 } }}>
-        <Box
-          sx={{
-            background: '#f0f4f8',
-            borderRadius: 3,
-            px: 3,
-            py: 2,
-            mb: 1,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-          }}
-        >
+    <MainLayout eventName={event.eventName || 'Loading Event...'}>
+      <Box
+        sx={{
+          background: '#f0f4f8',
+          borderRadius: 3,
+          px: 3,
+          py: 2,
+          mb: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+        }}
+      >
           <Box flexGrow={1}>
             <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
               {event.eventName} Dashboard
@@ -1445,9 +1440,8 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
           eventId={mainEvent._id}
           onGuestAdded={handleGuestAdded}
         />
-      </Box>
-    </Box>
-  );
+      </MainLayout>
+    );
 };
 
 export default EventDashboardWrapper;

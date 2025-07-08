@@ -118,6 +118,7 @@ const getUserProfile = async (req, res) => {
 
 const updateUserProfile = async (req, res) => {
   try {
+    console.log('PUT /users/profile body:', req.body);
     const { userId } = req.params;
     const { email, username, currentPassword, newPassword } = req.body;
     const targetUserId = userId || req.user.id;

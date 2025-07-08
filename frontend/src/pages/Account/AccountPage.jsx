@@ -40,7 +40,7 @@ import {
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
-import MainNavigation from '../../components/layout/MainNavigation';
+import MainLayout from '../../components/layout/MainLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import InviteUserForm from '../../components/account/InviteUserForm';
@@ -188,21 +188,21 @@ const AccountPage = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <MainNavigation />
-        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <MainLayout>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
           <CircularProgress size={60} />
         </Box>
-      </Box>
+      </MainLayout>
     );
   }
 
   return (
-    <Box display="flex" minHeight="100vh" bgcolor="#fef8f4">
-      <MainNavigation />
-      <Box flex={1} px={6} py={4}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-          <Typography variant="h5" fontWeight={700} letterSpacing={2}>Account Details</Typography>
+    <MainLayout userName={user?.username}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+        <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
+          Account Details
+        </Typography>
+       
           <Button
             variant="contained"
             sx={{ backgroundColor: '#1bcddc', color: '#fff', fontWeight: 700, px: 3, borderRadius: 2, boxShadow: 'none', '&:hover': { backgroundColor: '#17b3c0' } }}
@@ -317,24 +317,23 @@ const AccountPage = () => {
             />
           </TableContainer>
         </Card>
-      </Box>
 
-      <Dialog
-        open={showInviteModal}
-        onClose={() => setShowInviteModal(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Invite a New User</DialogTitle>
-        <DialogContent>
-          <InviteUserForm
-            onSubmit={handleInviteUser}
-            onCancel={() => setShowInviteModal(false)}
-          />
-        </DialogContent>
-      </Dialog>
-    </Box>
-  );
+        <Dialog
+          open={showInviteModal}
+          onClose={() => setShowInviteModal(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Invite a New User</DialogTitle>
+          <DialogContent>
+            <InviteUserForm
+              onSubmit={handleInviteUser}
+              onCancel={() => setShowInviteModal(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      </MainLayout>
+    );
 };
 
 export default AccountPage;

@@ -20,6 +20,7 @@ import AccountPage from "./pages/Account/AccountPage";
 import AccountEditPage from "./pages/Account/AccountEditPage";
 import AuthPage from "./pages/Auth/AuthPage";
 import AdvancedDashboard from "./pages/Dashboard/AdvancedDashboard";
+import HelpPage from "./pages/HelpPage";
 
 // Analytics Test Components
 import SpecificAnalyticsExamples from './components/dashboard/SpecificAnalyticsExamples';
@@ -113,6 +114,11 @@ function App() {
                 <AccountEditPage />
               </ProtectedRoute>
             } />
+            <Route path="/help" element={
+              <ProtectedRoute>
+                <HelpPage />
+              </ProtectedRoute>
+            } />
             <Route path="/analytics" element={
               <ProtectedRoute>
                 <Navigate to="/dashboard/advanced" replace />
@@ -140,6 +146,7 @@ function App() {
                 <SpecificAnalyticsExamples />
               </ProtectedRoute>
             } />
+ 
           </Routes>
         </Router>
       </AuthProvider>

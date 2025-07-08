@@ -44,7 +44,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { getEvent, updateEvent, deleteEvent } from '../../services/events';
-import MainNavigation from '../layout/MainNavigation';
+import MainLayout from '../layout/MainLayout';
 import toast from 'react-hot-toast';
 
 const EventDetails = () => {
@@ -135,41 +135,33 @@ const EventDetails = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <MainNavigation />
-        <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <MainLayout eventName={event?.eventName}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
           <CircularProgress />
         </Box>
-      </Box>
+      </MainLayout>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <MainNavigation />
-        <Box sx={{ flex: 1, p: 3 }}>
-          <Alert severity="error">{error}</Alert>
-        </Box>
-      </Box>
+      <MainLayout>
+        <Alert severity="error">{error}</Alert>
+      </MainLayout>
     );
   }
 
   if (!event) {
     return (
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <MainNavigation />
-        <Box sx={{ flex: 1, p: 3 }}>
-          <Alert severity="warning">Event not found</Alert>
-        </Box>
-      </Box>
+      <MainLayout>
+        <Alert severity="warning">Event not found</Alert>
+      </MainLayout>
     );
   }
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
-      <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
+    <MainLayout eventName={event.eventName}>
+      <Box sx={{ flex: 1, overflow: 'auto' }}>
         {/* Header */}
         <Box sx={{ mb: 4 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
@@ -232,7 +224,7 @@ const EventDetails = () => {
 
         {/* Event Information */}
         <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
+          <Grid xs={12} md={8}>
             <Card sx={{ borderRadius: 3 }}>
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -241,7 +233,7 @@ const EventDetails = () => {
                 </Typography>
                 
                 <Grid container spacing={2}>
-                  <Grid item xs={12}>
+                  <Grid xs={12}>
                     {editing ? (
                       <TextField
                         fullWidth
@@ -257,7 +249,7 @@ const EventDetails = () => {
                     )}
                   </Grid>
                   
-                  <Grid item xs={12} md={6}>
+                  <Grid xs={12} md={6}>
                     {editing ? (
                       <TextField
                         fullWidth
@@ -273,7 +265,7 @@ const EventDetails = () => {
                     )}
                   </Grid>
                   
-                  <Grid item xs={12} md={6}>
+                  <Grid xs={12} md={6}>
                     {editing ? (
                       <FormControl fullWidth>
                         <InputLabel>Status</InputLabel>
@@ -299,7 +291,7 @@ const EventDetails = () => {
                     )}
                   </Grid>
                   
-                  <Grid item xs={12} md={6}>
+                  <Grid xs={12} md={6}>
                     {editing ? (
                       <TextField
                         fullWidth
@@ -319,7 +311,7 @@ const EventDetails = () => {
                     )}
                   </Grid>
                   
-                  <Grid item xs={12} md={6}>
+                  <Grid xs={12} md={6}>
                     {editing ? (
                       <TextField
                         fullWidth
@@ -343,7 +335,7 @@ const EventDetails = () => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} md={4}>
+          <Grid xs={12} md={4}>
             <Card sx={{ borderRadius: 3 }}>
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -443,8 +435,8 @@ const EventDetails = () => {
           </DialogActions>
         </Dialog>
       </Box>
-    </Box>
-  );
+    </MainLayout>
+    );
 };
 
 export default EventDetails; 

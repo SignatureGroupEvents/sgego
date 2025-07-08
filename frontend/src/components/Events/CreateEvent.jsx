@@ -29,7 +29,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import api from '../../services/api';
-import MainNavigation from '../layout/MainNavigation';
+import MainLayout from '../layout/MainLayout';
 import HomeIcon from '@mui/icons-material/Home';
 import EventIcon from '@mui/icons-material/Event';
 
@@ -150,7 +150,7 @@ const CreateEvent = () => {
               Event Information
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12}>
+              <Grid xs={12}>
                 <Field name="eventName">
                   {({ field }) => (
                     <TextField
@@ -164,7 +164,7 @@ const CreateEvent = () => {
                   )}
                 </Field>
               </Grid>
-              <Grid item xs={12}>
+              <Grid xs={12}>
                 <Field name="eventContractNumber">
                   {({ field }) => (
                     <TextField
@@ -178,7 +178,7 @@ const CreateEvent = () => {
                   )}
                 </Field>
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid xs={12} md={6}>
                 <Field name="eventStart">
                   {({ field }) => (
                     <TextField
@@ -194,7 +194,7 @@ const CreateEvent = () => {
                   )}
                 </Field>
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid xs={12} md={6}>
                 <Field name="eventEnd">
                   {({ field }) => (
                     <TextField
@@ -225,7 +225,7 @@ const CreateEvent = () => {
                   Event Tags
                 </Typography>
                 <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12}>
+                  <Grid xs={12}>
                     <Field name="currentTagName">
                       {({ field }) => (
                         <TextField
@@ -236,7 +236,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid xs={12} md={3}>
                     <Field name="currentTagColor">
                       {({ field }) => (
                         <TextField
@@ -248,7 +248,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid xs={12} md={3}>
                     <Field name="currentTagDescription">
                       {({ field }) => (
                         <TextField
@@ -259,7 +259,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid xs={12} md={3}>
                     <Button
                       variant="outlined"
                       startIcon={<AddIcon />}
@@ -299,7 +299,7 @@ const CreateEvent = () => {
                   Attendee Types
                 </Typography>
                 <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} md={4}>
+                  <Grid xs={12} md={4}>
                     <Field name="currentTypeName">
                       {({ field }) => (
                         <TextField
@@ -310,7 +310,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid item xs={12} md={4}>
+                  <Grid xs={12} md={4}>
                     <Field name="currentTypeDescription">
                       {({ field }) => (
                         <TextField
@@ -321,7 +321,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid item xs={12} md={2}>
+                  <Grid xs={12} md={2}>
                     <Field name="currentTypeIsDefault">
                       {({ field }) => (
                         <FormControlLabel
@@ -337,7 +337,7 @@ const CreateEvent = () => {
                       )}
                     </Field>
                   </Grid>
-                  <Grid item xs={12} md={2}>
+                  <Grid xs={12} md={2}>
                     <Button
                       variant="outlined"
                       startIcon={<AddIcon />}
@@ -380,7 +380,7 @@ const CreateEvent = () => {
               Gift Settings
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12}>
+              <Grid xs={12}>
                 <FormControlLabel
                   control={
                     <Field name="includeStyles">
@@ -396,7 +396,7 @@ const CreateEvent = () => {
                   label="Include style selection for gifts"
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid xs={12}>
                 <FormControlLabel
                   control={
                     <Field name="allowMultipleGifts">
@@ -422,9 +422,8 @@ const CreateEvent = () => {
   };
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
-      <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
+    <MainLayout>
+      <Box sx={{ flex: 1, overflow: 'auto' }}>
         {/* Header */}
         <Box sx={{ mb: 4 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
@@ -505,8 +504,8 @@ const CreateEvent = () => {
           </Formik>
         </Paper>
       </Box>
-    </Box>
-  );
+    </MainLayout>
+    );
 };
 
 export default CreateEvent; 

@@ -27,7 +27,7 @@ import {
   useForkRef,
   TextField
 } from '@mui/material';
-import MainNavigation from '../layout/MainNavigation';
+import MainLayout from '../layout/MainLayout';
 import { getEvents } from '../../services/events';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -216,75 +216,67 @@ const EventsList = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <MainNavigation />
-        <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
-          {/* Header Skeleton */}
-          <Box sx={{ mb: 4 }}>
-            <Skeleton variant="text" width={200} height={40} sx={{ mb: 1 }} />
-            <Skeleton variant="text" width={300} height={24} />
-          </Box>
-          
-          {/* Search Bar Skeleton */}
-          <Box sx={{ mb: 3 }}>
-            <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 2 }} />
-          </Box>
-          
-          {/* Table Skeleton */}
-          <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: 'grey.50' }}>
-                    <TableCell width={50}></TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Event Name</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Contract #</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Dates</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 600 }}>Features</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 600 }}>Secondary Events</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {Array.from({ length: rowsPerPage }).map((_, index) => (
-                    <TableRowSkeleton key={index} />
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
+      <MainLayout>
+        {/* Header Skeleton */}
+        <Box sx={{ mb: 4 }}>
+          <Skeleton variant="text" width={200} height={40} sx={{ mb: 1 }} />
+          <Skeleton variant="text" width={300} height={24} />
         </Box>
-      </Box>
+        
+        {/* Search Bar Skeleton */}
+        <Box sx={{ mb: 3 }}>
+          <Skeleton variant="rectangular" height={60} sx={{ borderRadius: 2 }} />
+        </Box>
+        
+        {/* Table Skeleton */}
+        <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                  <TableCell width={50}></TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Event Name</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Contract #</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Dates</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600 }}>Features</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600 }}>Secondary Events</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {Array.from({ length: rowsPerPage }).map((_, index) => (
+                  <TableRowSkeleton key={index} />
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      </MainLayout>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <MainNavigation />
-        <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        </Box>
-      </Box>
+      <MainLayout>
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      </MainLayout>
     );
   }
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
-      <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
-        {/* Header */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
-            Events
-          </Typography>
-          <Typography variant="subtitle1" color="text.secondary">
-            Manage and view all your events
-          </Typography>
-        </Box>
+    <MainLayout>
+      {/* Header */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
+          Events
+        </Typography>
+        <Typography variant="subtitle1" color="text.secondary">
+          Manage and view all your events
+        </Typography>
+      </Box>
 
         {/* Search and Create */}
         <Box sx={{ 
@@ -537,9 +529,8 @@ const EventsList = () => {
             )}
           </Paper>
         )}
-      </Box>
-    </Box>
-  );
+      </MainLayout>
+    );
 };
 
 export default EventsList; 

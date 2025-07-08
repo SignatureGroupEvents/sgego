@@ -104,8 +104,8 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
       </Typography>
       
       {/* Event Statistics */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={3}>
+      <Grid container spacing={2} sx={{ mb: 4 }}>
+        <Grid xs={12} md={3}>
           <Card elevation={3}>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h3" sx={{ fontWeight: 700, color: 'primary.main' }}>
@@ -118,7 +118,7 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
           </Card>
         </Grid>
         
-        <Grid item xs={12} md={3}>
+        <Grid xs={12} md={3}>
           <Card elevation={3}>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h3" sx={{ fontWeight: 700, color: 'success.main' }}>
@@ -137,7 +137,7 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
           </Card>
         </Grid>
         
-        <Grid item xs={12} md={3}>
+        <Grid xs={12} md={3}>
           <Card elevation={3}>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h3" sx={{ fontWeight: 700, color: 'warning.main' }}>
@@ -150,7 +150,7 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
           </Card>
         </Grid>
         
-        <Grid item xs={12} md={3}>
+        <Grid xs={12} md={3}>
           <Card elevation={3}>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h3" sx={{ fontWeight: 700, color: 'info.main' }}>
@@ -167,7 +167,7 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
       {/* Charts Section */}
       <Grid container spacing={3}>
         {/* Top Gifts Bar Chart */}
-        <Grid item xs={12} md={6}>
+        <Grid xs={12} md={6}>
           <Card elevation={3}>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
@@ -196,7 +196,7 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
         </Grid>
 
         {/* Gift Categories Pie Chart */}
-        <Grid item xs={12} md={6}>
+        <Grid xs={12} md={6}>
           <Card elevation={3}>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
@@ -225,7 +225,7 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
         </Grid>
 
         {/* Check-in Timeline */}
-        <Grid item xs={12}>
+        <Grid xs={12}>
           <Card elevation={3}>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
@@ -260,7 +260,7 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
       {/* Detailed Tables */}
       <Grid container spacing={3} sx={{ mt: 2 }}>
         {/* Top Gifts Table */}
-        <Grid item xs={12} md={6}>
+        <Grid xs={12} md={6}>
           <Card elevation={3}>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
@@ -291,7 +291,7 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
         </Grid>
 
         {/* Inventory Summary */}
-        <Grid item xs={12} md={6}>
+        <Grid xs={12} md={6}>
           <Card elevation={3}>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Tabs,
@@ -11,12 +11,21 @@ import {
   Container
 } from '@mui/material';
 import { Add as AddIcon, Search as SearchIcon } from '@mui/icons-material';
+import MainLayout from '../../components/layout/MainLayout';
 import GiftAnalytics from '../../components/dashboard/AdvancedDashboardTabs/GiftAnalytics';
 import EventAnalytics from '../../components/dashboard/AdvancedDashboardTabs/EventAnalytics';
 import ActivityFeed from '../../components/dashboard/AdvancedDashboardTabs/ActivityFeed';
+import { useParams } from 'react-router-dom';
+import { getEvent } from '../../services/events';
 
 const AdvancedDashboard = () => {
+  const { eventId } = useParams();
+  const [event, setEvent] = useState(null);
   const [tabValue, setTabValue] = useState(0);
+
+  useEffect(() => {
+    if (eventId) getEvent(eventId).then(setEvent);
+  }, [eventId]);
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -36,9 +45,10 @@ const AdvancedDashboard = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
-      {/* Header Section */}
-      <Paper elevation={1} sx={{ p: 3, mb: 3, backgroundColor: '#fdf9f6' }}>
+    <MainLayout eventName={event?.eventName || 'Loading Event...'}>
+      <Container maxWidth="xl" sx={{ py: 3 }}>
+        {/* Header Section */}
+        <Paper elevation={1} sx={{ p: 3, mb: 3, backgroundColor: '#fdf9f6' }}>
         <Grid container alignItems="center" justifyContent="space-between">
           <Grid item>
             <Typography variant="h4" component="h1" gutterBottom>
@@ -97,7 +107,8 @@ const AdvancedDashboard = () => {
       <Box sx={{ minHeight: '500px' }}>
         {renderTabContent()}
       </Box>
-    </Container>
+      </Container>
+    </MainLayout>
   );
 };
 
