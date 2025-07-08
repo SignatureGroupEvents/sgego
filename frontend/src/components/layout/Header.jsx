@@ -112,16 +112,16 @@ const Header = () => {
         {!isMobile && (
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
-              startIcon={<EventIcon />}
+              startIcon={<EventIcon sx={{ color: isActive('/events') ? 'white' : 'inherit' }} />}
               onClick={() => navigate('/events')}
               sx={{
-                color: isActive('/events') ? 'primary.main' : 'text.secondary',
-                backgroundColor: isActive('/events') ? 'primary.light' : 'transparent',
+                color: isActive('/events') ? 'white' : 'text.secondary',
+                backgroundColor: isActive('/events') ? '#25c6da' : 'transparent',
                 '&:hover': {
-                  backgroundColor: isActive('/events') ? 'primary.main' : 'action.hover',
-                  color: isActive('/events') ? 'primary.contrastText' : 'text.primary'
+                  backgroundColor: isActive('/events') ? '#1ba9b5' : 'action.hover',
+                  color: isActive('/events') ? 'white' : 'text.primary'
                 },
-                fontWeight: isActive('/events') ? 600 : 400,
+                fontWeight: 600,
                 borderRadius: 2,
                 px: 2,
                 py: 1
@@ -130,16 +130,16 @@ const Header = () => {
               Events
             </Button>
             <Button
-              startIcon={<PersonIcon />}
+              startIcon={<PersonIcon sx={{ color: isActive('/account') ? 'white' : 'inherit' }} />}
               onClick={() => navigate('/account')}
               sx={{
-                color: isActive('/account') ? 'primary.main' : 'text.secondary',
-                backgroundColor: isActive('/account') ? 'primary.light' : 'transparent',
+                color: isActive('/account') ? 'white' : 'text.secondary',
+                backgroundColor: isActive('/account') ? '#25c6da' : 'transparent',
                 '&:hover': {
-                  backgroundColor: isActive('/account') ? 'primary.main' : 'action.hover',
-                  color: isActive('/account') ? 'primary.contrastText' : 'text.primary'
+                  backgroundColor: isActive('/account') ? '#1ba9b5' : 'action.hover',
+                  color: isActive('/account') ? 'white' : 'text.primary'
                 },
-                fontWeight: isActive('/account') ? 600 : 400,
+                fontWeight: 600,
                 borderRadius: 2,
                 px: 2,
                 py: 1
@@ -148,16 +148,16 @@ const Header = () => {
               Account
             </Button>
             <Button
-              startIcon={<HelpIcon />}
+              startIcon={<HelpIcon sx={{ color: isActive('/help') ? 'white' : 'inherit' }} />}
               onClick={() => navigate('/help')}
               sx={{
-                color: isActive('/help') ? 'primary.main' : 'text.secondary',
-                backgroundColor: isActive('/help') ? 'primary.light' : 'transparent',
+                color: isActive('/help') ? 'white' : 'text.secondary',
+                backgroundColor: isActive('/help') ? '#25c6da' : 'transparent',
                 '&:hover': {
-                  backgroundColor: isActive('/help') ? 'primary.main' : 'action.hover',
-                  color: isActive('/help') ? 'primary.contrastText' : 'text.primary'
+                  backgroundColor: isActive('/help') ? '#1ba9b5' : 'action.hover',
+                  color: isActive('/help') ? 'white' : 'text.primary'
                 },
-                fontWeight: isActive('/help') ? 600 : 400,
+                fontWeight: 600,
                 borderRadius: 2,
                 px: 2,
                 py: 1
