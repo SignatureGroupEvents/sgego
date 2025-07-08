@@ -14,39 +14,55 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  CircularProgress,
+  Alert
 } from '@mui/material';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTheme } from '@mui/material/styles';
 
-const GiftAnalytics = ({ inventory = [] }) => {
+const GiftAnalytics = ({ guests = [], inventory = [] }) => {
   const theme = useTheme();
   const [filterType, setFilterType] = useState('all');
 
-  // 🎯 Group by type+style with counts
-  const grouped = useMemo(() => {
+  // 🔢 Count gifts by inventoryId from guest selections
+  const giftCounts = useMemo(() => {
     const map = {};
-    for (const item of inventory) {
-      if (!item.type || !item.style) continue;
-      if (filterType !== 'all' && item.type !== filterType) continue;
 
-      const key = `${item.type} - ${item.style}`;
-      map[key] = (map[key] || 0) + (item.currentInventory || 0);
-    }
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [inventory, filterType]);
+    guests.forEach((guest) => {
+      const id = guest?.giftSelection?.inventoryId;
+      if (!id) return;
+      map[id] = (map[id] || 0) + 1;
+    });
 
-  // 🎯 Raw table version
+  // Include all inventory, even if not selected
+return inventory.map((inv) => {
+  const inventoryId = inv._id;
+  const count = map[inventoryId] || 0;
+
+  return {
+    inventoryId,
+    type: inv?.type || 'Unknown',
+    style: inv?.style || 'Unknown',
+    size: inv?.size || '—',
+    count,
+    name: `${inv?.type || 'Unknown'} - ${inv?.style || 'Unknown'}`
+  };
+});
+
+  }, [guests, inventory]);
+
+  // 🧼 Filtered + grouped for pie chart
+  const grouped = useMemo(() => {
+    return giftCounts
+      .filter((g) => filterType === 'all' || g.type === filterType)
+      .map(({ name, count }) => ({ name, value: count }));
+  }, [giftCounts, filterType]);
+
+  // 📋 Table version
   const tableData = useMemo(() => {
-    return inventory
-      .filter(item => item.type && item.style)
-      .filter(item => filterType === 'all' || item.type === filterType)
-      .map(item => ({
-        type: item.type,
-        style: item.style,
-        quantity: item.currentInventory || 0
-      }));
-  }, [inventory, filterType]);
+    return giftCounts.filter((g) => filterType === 'all' || g.type === filterType);
+  }, [giftCounts, filterType]);
 
   const pieColors = [
     theme.palette.primary.main,
@@ -57,14 +73,14 @@ const GiftAnalytics = ({ inventory = [] }) => {
     '#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00C49F'
   ];
 
-  const uniqueTypes = Array.from(new Set(inventory.map(i => i.type).filter(Boolean)));
+  const uniqueTypes = Array.from(new Set(giftCounts.map(i => i.type).filter(Boolean)));
 
   return (
     <Card sx={{ mb: 4 }}>
       <CardContent>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <Typography variant="h6" fontWeight={600}>
-            Gift Selection Breakdown
+            Gift Selections Breakdown
           </Typography>
           <FormControl size="small" sx={{ minWidth: 200 }}>
             <InputLabel>Filter by Type</InputLabel>
@@ -74,54 +90,69 @@ const GiftAnalytics = ({ inventory = [] }) => {
               label="Filter by Type"
             >
               <MenuItem value="all">All Types</MenuItem>
-              {uniqueTypes.map(type => (
-                <MenuItem key={type} value={type}>{type}</MenuItem>
+              {uniqueTypes.map((type) => (
+                <MenuItem key={type} value={type}>
+                  {type}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
         </Box>
 
+        {/* 🚫 Empty State */}
+        {!giftCounts.length && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            No gift selections found for this event yet.
+          </Alert>
+        )}
+
         {/* 📋 Table */}
-        <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ backgroundColor: 'grey.50' }}>
-                <TableCell sx={{ fontWeight: 600 }}>Gift Type</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Style</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Quantity</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {tableData.map((row, idx) => (
-                <TableRow key={idx} hover>
-                  <TableCell>{row.type}</TableCell>
-                  <TableCell>{row.style}</TableCell>
-                  <TableCell align="right">{row.quantity}</TableCell>
+        {giftCounts.length > 0 && (
+          <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ backgroundColor: 'grey.50' }}>
+                  <TableCell sx={{ fontWeight: 600 }}>Gift Type</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Style</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Size</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600 }}>Total Selected</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {tableData.map((row, idx) => (
+                  <TableRow key={idx} hover>
+                    <TableCell>{row.type}</TableCell>
+                    <TableCell>{row.style}</TableCell>
+                    <TableCell>{row.size}</TableCell>
+                    <TableCell align="right">{row.count}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
 
         {/* 📊 Pie Chart */}
-        <ResponsiveContainer width="100%" height={300}>
-          <PieChart>
-            <Pie
-              data={grouped}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={100}
-              label
-            >
-              {grouped.map((entry, idx) => (
-                <Cell key={`cell-${idx}`} fill={pieColors[idx % pieColors.length]} />
-              ))}
-            </Pie>
-            <Tooltip />
-          </PieChart>
-        </ResponsiveContainer>
+        {grouped.length > 0 && (
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={grouped}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={100}
+                label
+              >
+                {grouped.map((entry, idx) => (
+                  <Cell key={`cell-${idx}`} fill={pieColors[idx % pieColors.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   );

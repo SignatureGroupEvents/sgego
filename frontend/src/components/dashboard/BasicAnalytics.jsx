@@ -177,6 +177,41 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
         <Typography variant="body2" color="text.secondary">
           {pendingGuests} guests pending
         </Typography>
+        {/* Advanced Analytics Button - now grouped below stats */}
+        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', width: '100%' }}>
+          <Box
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 1,
+              px: 4,
+              py: 2,
+              borderRadius: 3,
+              cursor: 'pointer',
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+              color: 'white',
+              fontWeight: 700,
+              fontSize: '1rem',
+              letterSpacing: 0.5,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
+                background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+              },
+              '&:active': {
+                transform: 'translateY(0)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+              }
+            }}
+            onClick={() =>
+              window.location.href = `/events/${event?._id || 'demo'}/dashboard/advanced`
+            }
+          >
+           Advanced Analytics →
+          </Box>
+        </Box>
       </Paper>
 
       {/* Gift Types Bar Chart */}
@@ -229,42 +264,6 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
           </Box>
         )}
       </Paper>
-
-      {/* View Advanced Analytics Button */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', width: '100%', mt: 2 }}>
-        <Box
-          sx={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 1,
-            px: 4,
-            py: 2,
-            borderRadius: 3,
-            cursor: 'pointer',
-            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-            color: 'white',
-            fontWeight: 700,
-            fontSize: '1rem',
-            letterSpacing: 0.5,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            transition: 'all 0.3s ease',
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
-              background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-            },
-            '&:active': {
-              transform: 'translateY(0)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-            }
-          }}
-          onClick={() =>
-            window.location.href = `/events/${event?._id || 'demo'}/dashboard/advanced`
-          }
-        >
-          View Advanced Analytics →
-        </Box>
-      </Box>
     </Box>
   );
 };

@@ -16,6 +16,7 @@ import BasicAnalytics from '../dashboard/BasicAnalytics';
 import { getEvent } from '../../services/events';
 import { getEventActivityFeed } from '../../services/api';
 import MainNavigation from '../layout/MainNavigation';
+import ManageSection from './ManageSection';
 
 
 const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange }) => {
@@ -1162,14 +1163,6 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500, mb: 1 }}>
               Contract: {event.eventContractNumber}
             </Typography>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => navigate(`/events/${eventId}/inventory`)}
-              sx={{ borderRadius: 2, fontWeight: 600 }}
-            >
-              View Inventory
-            </Button>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {/* Additional Events Dropdown - now in the header */}
@@ -1228,36 +1221,14 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   )}
 </Box>
 
+<ManageSection
+  onInventory={() => navigate(`/events/${eventId}/inventory`)}
+  onUpload={handleUploadGuests}
+  onAddGuest={handleAddGuest}
+  onAddEvent={() => setSecondaryModalOpen(true)}
+  canModify={canModifyEvents}
+/>
 
-        {/* Add Secondary Event Button and Modal */}
-        {canModifyEvents && (
-          <Button
-            variant="contained"
-            startIcon={<EventIcon />}
-            onClick={() => setSecondaryModalOpen(true)}
-            sx={{ mb: 4, borderRadius: 2, fontWeight: 600 }}
-          >
-            ➕ Add Additional Event
-          </Button>
-        )}
-        {secondaryModalOpen && (
-          <AddSecondaryEventModal
-            open={secondaryModalOpen}
-            onClose={() => setSecondaryModalOpen(false)}
-            parentEventId={eventId}
-            parentContractNumber={event.eventContractNumber}
-            parentEventStart={event.eventStart}
-            parentEventEnd={event.eventEnd}
-            onEventAdded={() => {
-              setSecondaryModalOpen(false);
-              // Refresh secondary events after add using the same logic
-              setTimeout(() => {
-                fetchSecondaryEvents();
-              }, 100);
-            }}
-          />
-        )}
-        
         {/* Guest Table */}
         <Card elevation={2} sx={{ borderRadius: 3, p: 2, mb: 4 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
