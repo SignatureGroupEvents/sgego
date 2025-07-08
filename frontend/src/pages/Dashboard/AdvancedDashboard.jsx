@@ -15,16 +15,58 @@ import MainLayout from '../../components/layout/MainLayout';
 import GiftAnalytics from '../../components/dashboard/AdvancedDashboardTabs/GiftAnalytics';
 import EventAnalytics from '../../components/dashboard/AdvancedDashboardTabs/EventAnalytics';
 import ActivityFeed from '../../components/dashboard/AdvancedDashboardTabs/ActivityFeed';
+import EventHeader from '../../components/events/EventHeader';
 import { useParams } from 'react-router-dom';
 import { getEvent } from '../../services/events';
+import { getGuests, fetchInventory } from '../../services/api';
+import api from '../../services/api';
 
 const AdvancedDashboard = () => {
   const { eventId } = useParams();
   const [event, setEvent] = useState(null);
+  const [parentEvent, setParentEvent] = useState(null);
+  const [secondaryEvents, setSecondaryEvents] = useState([]);
   const [tabValue, setTabValue] = useState(0);
+  const [guests, setGuests] = useState([]);
+  const [inventory, setInventory] = useState([]);
 
   useEffect(() => {
-    if (eventId) getEvent(eventId).then(setEvent);
+    if (eventId) {
+      const fetchAllData = async () => {
+        try {
+          // Fetch event data first
+          const eventData = await getEvent(eventId);
+          setEvent(eventData);
+          
+          // Fetch parent event if this is a secondary event
+          let mainEvent = eventData;
+          if (eventData.parentEventId) {
+            const parent = await getEvent(eventData.parentEventId);
+            setParentEvent(parent);
+            mainEvent = parent;
+          } else {
+            setParentEvent(eventData);
+          }
+
+          // Fetch secondary events for the main event
+          const response = await api.get(`/events?parentEventId=${mainEvent._id}`);
+          setSecondaryEvents(response.data.events || response.data);
+
+          // Fetch guests and inventory in parallel
+          const [guestsRes, inventoryRes] = await Promise.all([
+            getGuests(eventId),
+            fetchInventory(eventId)
+          ]);
+          
+          setGuests(guestsRes.data?.guests || guestsRes.data || []);
+          setInventory(inventoryRes.data?.inventory || inventoryRes.data || []);
+        } catch (error) {
+          console.error('Error fetching data:', error);
+        }
+      };
+
+      fetchAllData();
+    }
   }, [eventId]);
 
   const handleTabChange = (event, newValue) => {
@@ -34,51 +76,20 @@ const AdvancedDashboard = () => {
   const renderTabContent = () => {
     switch (tabValue) {
       case 0:
-        return <GiftAnalytics />;
+        return <GiftAnalytics guests={guests} inventory={inventory} />;
       case 1:
         return <EventAnalytics />;
       case 2:
         return <ActivityFeed />;
       default:
-        return <GiftAnalytics />;
+        return <GiftAnalytics guests={guests} inventory={inventory} />;
     }
   };
 
   return (
-    <MainLayout eventName={event?.eventName || 'Loading Event...'}>
+    <MainLayout eventName={event?.eventName || 'Loading Event...'} parentEventName={parentEvent && parentEvent._id !== event?._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event?._id ? parentEvent._id : null}>
+      <EventHeader event={event} mainEvent={parentEvent} secondaryEvents={secondaryEvents} />
       <Container maxWidth="xl" sx={{ py: 3 }}>
-        {/* Header Section */}
-        <Paper elevation={1} sx={{ p: 3, mb: 3, backgroundColor: '#fdf9f6' }}>
-        <Grid container alignItems="center" justifyContent="space-between">
-          <Grid item>
-            <Typography variant="h4" component="h1" gutterBottom>
-              TECH CONFERENCE 2025 DASHBOARD
-            </Typography>
-            <Typography variant="h6" color="text.secondary">
-              CONTRACT: TECH2025
-            </Typography>
-          </Grid>
-          <Grid item>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <TextField
-                placeholder="Search..."
-                size="small"
-                InputProps={{
-                  startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-                }}
-                sx={{ minWidth: 200 }}
-              />
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                sx={{ backgroundColor: '#1976d2', '&:hover': { backgroundColor: '#1565c0' } }}
-              >
-                Add/Edit Inventory
-              </Button>
-            </Box>
-          </Grid>
-        </Grid>
-      </Paper>
 
       {/* Tabs Section */}
       <Paper elevation={1} sx={{ mb: 3 }}>

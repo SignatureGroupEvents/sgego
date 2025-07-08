@@ -40,7 +40,7 @@ const MAIN_PAGES = [
   '/dashboard/advanced',
 ];
 
-const BreadcrumbsNav = ({ eventName, userName }) => {
+const BreadcrumbsNav = ({ eventName, userName, parentEventName, parentEventId }) => {
   const location = useLocation();
   const params = useParams();
   const navigate = useNavigate();
@@ -76,7 +76,23 @@ const BreadcrumbsNav = ({ eventName, userName }) => {
     (pathnames.length === 2 || (pathnames.length === 3 && pathnames[2] === 'dashboard'))
   ) {
     const eventLabel = eventName || 'Loading Event...';
-    // Not a link, bold
+    
+    // If we have a parent event name, show the hierarchy
+    if (parentEventName && parentEventName !== eventLabel) {
+      return (
+        <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2, mt: 1 }}>
+          <Link color="inherit" underline="hover" onClick={() => navigate('/events')} sx={{ cursor: 'pointer', fontWeight: 500 }}>
+            Events
+          </Link>
+          <Link color="inherit" underline="hover" onClick={() => navigate(`/events/${parentEventId || params.eventId}`)} sx={{ cursor: 'pointer', fontWeight: 500 }}>
+            {parentEventName}
+          </Link>
+          <Typography color="text.primary" fontWeight={700}>{eventLabel}</Typography>
+        </Breadcrumbs>
+      );
+    }
+    
+    // No parent event, show simple breadcrumb
     return (
       <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2, mt: 1 }}>
         <Link color="inherit" underline="hover" onClick={() => navigate('/events')} sx={{ cursor: 'pointer', fontWeight: 500 }}>
@@ -96,6 +112,28 @@ const BreadcrumbsNav = ({ eventName, userName }) => {
     let subpageIdx = 2;
     if (pathnames[2] === 'dashboard' && pathnames.length > 3) subpageIdx = 3;
     const subpage = routeNameMap[pathnames[subpageIdx]] || pathnames[subpageIdx];
+    
+    // If we have a parent event name, show the hierarchy
+    if (parentEventName && parentEventName !== eventLabel) {
+      return (
+        <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2, mt: 1 }}>
+          <Link color="inherit" underline="hover" onClick={() => navigate('/events')} sx={{ cursor: 'pointer', fontWeight: 500 }}>
+            Events
+          </Link>
+          <Link color="inherit" underline="hover" onClick={() => navigate(`/events/${parentEventId || eventId}`)} sx={{ cursor: 'pointer', fontWeight: 500 }}>
+            {parentEventName}
+          </Link>
+          <Link color="inherit" underline="hover" onClick={() => navigate(`/events/${eventId}`)} sx={{ cursor: 'pointer', fontWeight: 500 }}>
+            {eventLabel}
+          </Link>
+          {subpage && (
+            <Typography color="text.primary" fontWeight={700}>{subpage}</Typography>
+          )}
+        </Breadcrumbs>
+      );
+    }
+    
+    // No parent event, show simple breadcrumb
     return (
       <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2, mt: 1 }}>
         <Link color="inherit" underline="hover" onClick={() => navigate('/events')} sx={{ cursor: 'pointer', fontWeight: 500 }}>

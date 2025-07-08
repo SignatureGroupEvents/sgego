@@ -214,6 +214,8 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
         </Box>
       </Paper>
 
+      
+
       {/* Gift Types Bar Chart */}
       <Paper
         elevation={3}

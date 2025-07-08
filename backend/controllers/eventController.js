@@ -235,7 +235,7 @@ exports.deleteSecondaryEvent = async (req, res) => {
 // Analytics endpoint for comprehensive event and gift analytics
 exports.getEventAnalytics = async (req, res) => {
   try {
-    const { eventId } = req.params;
+    const { id: eventId } = req.params;
     
     const event = await Event.findById(eventId);
     if (!event) {

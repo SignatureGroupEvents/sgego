@@ -17,6 +17,7 @@ import { getEvent } from '../../services/events';
 import { getEventActivityFeed } from '../../services/api';
 import MainNavigation from '../layout/MainNavigation';
 import ManageSection from './ManageSection';
+import EventHeader from './EventHeader';
 
 
 const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange }) => {
@@ -808,7 +809,7 @@ const AdvancedView = ({ event, guests, secondaryEvents, inventory = [], onInvent
     setFeedLoading(true);
     try {
       const res = await getEventActivityFeed(event._id, feedType ? { type: feedType } : {});
-      console.log('Event feed logs loaded:', res.data.logs);
+              // Event feed logs loaded
       setFeedLogs(res.data.logs || []);
     } catch (err) {
       console.error('Error loading event feed:', err);
@@ -827,7 +828,7 @@ const AdvancedView = ({ event, guests, secondaryEvents, inventory = [], onInvent
     if (activeTab === 2) { // Only refresh if on activity feed tab
       fetchFeed();
     }
-  }, [inventory]); // Refresh when inventory changes
+  }, [inventory, activeTab]); // Refresh when inventory or active tab changes
 
   // Group inventory by type+style for analytics
   const groupedByTypeStyle = inventory.reduce((acc, item) => {
@@ -1082,15 +1083,21 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
       }
     };
 
-    fetchEventData().then(() => {
-      // Wait for event to be set
-      setTimeout(() => {
-        const mainEventId = event && event.isMainEvent ? event._id : event?.parentEventId || eventId;
-        fetchGuests(mainEventId);
-        // Fetch secondary events after event data is loaded
-        fetchSecondaryEvents();
-      }, 0);
-    });
+    const fetchAllData = async () => {
+      try {
+        await fetchEventData();
+        // Use the eventId directly since we just fetched the event data
+        const mainEventId = eventId;
+        await Promise.all([
+          fetchGuests(mainEventId),
+          fetchSecondaryEvents()
+        ]);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+    
+    fetchAllData();
   }, [eventId]);
 
   const handleUploadGuests = () => {
@@ -1143,64 +1150,8 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const mainEvent = event && event.isMainEvent ? event : parentEvent || event;
 
   return (
-    <MainLayout eventName={event.eventName || 'Loading Event...'}>
-      <Box
-        sx={{
-          background: '#f0f4f8',
-          borderRadius: 3,
-          px: 3,
-          py: 2,
-          mb: 1,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2,
-        }}
-      >
-          <Box flexGrow={1}>
-            <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
-              {event.eventName} Dashboard
-            </Typography>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500, mb: 1 }}>
-              Contract: {event.eventContractNumber}
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            {/* Additional Events Dropdown - now in the header */}
-            <FormControl size="small" sx={{ minWidth: 200 }}>
-              <InputLabel id="secondary-event-label">Additional Events</InputLabel>
-              <Select
-                labelId="secondary-event-label"
-                label="Additional Events"
-                value=""
-                onChange={e => {
-                  const selectedId = e.target.value;
-                  if (selectedId) {
-                    navigate(`/events/${selectedId}/dashboard`);
-                  }
-                }}
-              >
-                {/* Show main event first, labeled as "(Main)" */}
-                {mainEvent && (
-                  <MenuItem key={mainEvent._id} value={mainEvent._id}>
-                    {mainEvent.eventName} (Main)
-                  </MenuItem>
-                )}
-                {/* Show secondary events */}
-                {secondaryEvents.length > 0 ? (
-                  secondaryEvents.map(ev => (
-                    <MenuItem key={ev._id} value={ev._id}>
-                      {ev.eventName}
-                    </MenuItem>
-                  ))
-                ) : (
-                  <MenuItem disabled>
-                    No additional events
-                  </MenuItem>
-                )}
-              </Select>
-            </FormControl>
-          </Box>
-        </Box>
+    <MainLayout eventName={event.eventName || 'Loading Event...'} parentEventName={parentEvent && parentEvent._id !== event._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event._id ? parentEvent._id : null}>
+      <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={true} />
         
         {/* Event Overview Section */}
         <Box sx={{ width: '100%', px: 2, py: 2, backgroundColor: '#fdf9f6' }}>

@@ -11,7 +11,7 @@ import Dashboard from './components/dashboard/Dashboard';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import EventsList from './components/events/EventsList';
 import CreateEvent from './components/Events/CreateEvent';
-import EventDetails from './components/Events/EventDetails';
+import EventDetails from './components/events/EventDetails';
 import UploadGuest from './components/guests/UploadGuest';
 import DashboardLayout from './components/layout/DashboardLayout';
 import EventDashboard from './components/events/EventDashboard';
@@ -119,16 +119,7 @@ function App() {
                 <HelpPage />
               </ProtectedRoute>
             } />
-            <Route path="/analytics" element={
-              <ProtectedRoute>
-                <Navigate to="/dashboard/advanced" replace />
-              </ProtectedRoute>
-            } />
-            <Route path="/dashboard/advanced" element={
-              <ProtectedRoute>
-                <AdvancedDashboard />
-              </ProtectedRoute>
-            } />
+            {/* Remove duplicate routes - these are handled by the event-specific routes above */}
 
             {/* 🧪 TEST ROUTES for Analytics Components */}
             <Route path="/test-analytics/:eventId" element={

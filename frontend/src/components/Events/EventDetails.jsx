@@ -44,8 +44,10 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { getEvent, updateEvent, deleteEvent } from '../../services/events';
+import api from '../../services/api';
 import MainLayout from '../layout/MainLayout';
 import toast from 'react-hot-toast';
+import EventHeader from './EventHeader';
 
 const EventDetails = () => {
   const { eventId } = useParams();
@@ -60,6 +62,8 @@ const EventDetails = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [parentEvent, setParentEvent] = useState(null);
+  const [secondaryEvents, setSecondaryEvents] = useState([]);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -76,6 +80,21 @@ const EventDetails = () => {
           allowMultipleGifts: eventData.allowMultipleGifts || false,
           status: eventData.status || 'Active'
         });
+
+        // Fetch parent event if this is a secondary event
+        let mainEvent = eventData;
+        if (eventData.parentEventId) {
+          const parent = await getEvent(eventData.parentEventId);
+          setParentEvent(parent);
+          mainEvent = parent;
+        } else {
+          setParentEvent(eventData);
+        }
+
+        // Fetch all secondary events for the main event
+        const response = await api.get(`/events?parentEventId=${mainEvent._id}`);
+        const siblings = response.data.events || response.data;
+        setSecondaryEvents(siblings);
       } catch (err) {
         setError('Failed to load event details');
       } finally {
@@ -160,7 +179,8 @@ const EventDetails = () => {
   }
 
   return (
-    <MainLayout eventName={event.eventName}>
+    <MainLayout eventName={event.eventName} parentEventName={parentEvent && parentEvent._id !== event._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event._id ? parentEvent._id : null}>
+      <EventHeader event={event} mainEvent={parentEvent} secondaryEvents={secondaryEvents} />
       <Box sx={{ flex: 1, overflow: 'auto' }}>
         {/* Header */}
         <Box sx={{ mb: 4 }}>

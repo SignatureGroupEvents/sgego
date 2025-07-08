@@ -50,6 +50,7 @@ import MainLayout from '../layout/MainLayout';
 import HomeIcon from '@mui/icons-material/Home';
 import EventIcon from '@mui/icons-material/Event';
 import { getEvent } from '../../services/events';
+import EventHeader from '../events/EventHeader';
 
 const UploadGuest = () => {
   const { eventId } = useParams();
@@ -327,7 +328,8 @@ const UploadGuest = () => {
   ];
 
   return (
-    <MainLayout eventName={event?.eventName || 'Loading Event...'}>
+    <MainLayout eventName={event?.eventName || 'Loading Event...'} parentEventName={event?.parentEventId ? 'Main Event' : null} parentEventId={event?.parentEventId || null}>
+      <EventHeader event={event} />
       <Box sx={{ flex: 1, overflow: 'auto' }}>
         <Container maxWidth="lg">
           <Box sx={{ my: 4 }}>

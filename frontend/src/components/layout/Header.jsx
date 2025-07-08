@@ -95,7 +95,7 @@ const Header = () => {
         {/* Logo/Brand */}
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <Typography 
-            variant="h6" 
+            variant="h5" 
             component="div" 
             sx={{ 
               fontWeight: 600,
@@ -104,8 +104,7 @@ const Header = () => {
             }}
             onClick={() => navigate('/dashboard')}
           >
-            Event Check-in
-          </Typography>
+SGEGO         </Typography>
         </Box>
 
         {/* Desktop Navigation */}

@@ -20,8 +20,9 @@ const ManageSection = ({
       mb: 4,
       px: { xs: 1, sm: 3 },
       py: 2,
-      borderRadius: 8,
+      borderRadius: 5,
       backgroundColor: '#f5f6f7',
+      border: '1px solid #e0e0e0',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'flex-start',
@@ -47,7 +48,7 @@ const ManageSection = ({
         startIcon={<InventoryIcon />}
         onClick={onInventory}
         sx={{
-          borderRadius: 8,
+          borderRadius: 5,
           fontWeight: 600,
           minWidth: BUTTON_SIZE,
           width: BUTTON_SIZE,
@@ -62,7 +63,7 @@ const ManageSection = ({
           startIcon={<UploadIcon />}
           onClick={onUpload}
           sx={{
-            borderRadius: 8,
+            borderRadius: 5,
             fontWeight: 600,
             minWidth: BUTTON_SIZE,
             width: BUTTON_SIZE,
@@ -77,7 +78,7 @@ const ManageSection = ({
         startIcon={<PersonAddIcon />}
         onClick={onAddGuest}
         sx={{
-          borderRadius: 8,
+          borderRadius: 5,
           fontWeight: 600,
           minWidth: BUTTON_SIZE,
           width: BUTTON_SIZE,
@@ -92,7 +93,7 @@ const ManageSection = ({
           startIcon={<EventIcon />}
           onClick={onAddEvent}
           sx={{
-            borderRadius: 8,
+            borderRadius: 5,
             fontWeight: 600,
             minWidth: { xs: '100%', sm: 300 },
             width: { xs: '100%', sm: 300 },

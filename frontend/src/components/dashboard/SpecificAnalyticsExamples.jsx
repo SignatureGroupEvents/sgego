@@ -152,41 +152,44 @@ const SpecificAnalyticsExamples = ({ eventId: propEventId }) => {
               </Typography>
             </Grid>
           </Grid>
-          
-          {/* Top Gift Details */}
-          {topGift && (
-            <Box sx={{ mt: 3 }}>
-              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
-                Top Performing Gift:
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid xs={12} md={3}>
-                  <Typography variant="body2" color="text.secondary">Name</Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {topGift.name}
-                  </Typography>
+          {/* Top Gifts Details - always show up to 5 */}
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
+              Top Gifts:
+            </Typography>
+            <Grid container spacing={2}>
+              {(topGifts && topGifts.length > 0
+                ? topGifts.slice(0, 5)
+                : (inventory || []).slice(0, 5).map(inv => ({
+                    name: inv.style || inv.name || 'Unknown',
+                    type: inv.type || 'Unknown',
+                    totalQuantity: inv.currentInventory ?? 0,
+                    uniqueGuestCount: 0
+                  }))
+              ).map((gift, idx) => (
+                <Grid item xs={12} md={2.4} key={idx}>
+                  <Box sx={{ p: 2, border: '1px solid #eee', borderRadius: 2, textAlign: 'center', background: '#fafbfc' }}>
+                    <Typography variant="body2" color="text.secondary">Name</Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                      {gift.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">Type</Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                      {gift.type}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">Quantity</Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                      {gift.totalQuantity ?? 0}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">Unique Guests</Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                      {gift.uniqueGuestCount ?? 0}
+                    </Typography>
+                  </Box>
                 </Grid>
-                <Grid xs={12} md={3}>
-                  <Typography variant="body2" color="text.secondary">Type</Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {topGift.type}
-                  </Typography>
-                </Grid>
-                <Grid xs={12} md={3}>
-                  <Typography variant="body2" color="text.secondary">Quantity</Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {topGift.totalQuantity}
-                  </Typography>
-                </Grid>
-                <Grid xs={12} md={3}>
-                  <Typography variant="body2" color="text.secondary">Unique Guests</Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {topGift.uniqueGuestCount}
-                  </Typography>
-                </Grid>
-              </Grid>
-            </Box>
-          )}
+              ))}
+            </Grid>
+          </Box>
 
           {/* Category Breakdown */}
           {topCategory && (
@@ -351,22 +354,22 @@ const SpecificAnalyticsExamples = ({ eventId: propEventId }) => {
               const topGiftName = topGift.name;
               const topGiftQuantity = topGift.totalQuantity;
             </Typography>
-            <Typography variant="body2" gutterBottom>
-              {/* Access category data */}
-              const categories = Object.keys(analytics.categoryTotals);
-              const topCategory = Object.entries(analytics.categoryTotals)
-                .sort(([,a], [,b]) =&gt; b - a)[0];
+            <Typography variant="body2" component="pre">
+              {`// Access category data
+const categories = Object.keys(analytics.categoryTotals);
+const topCategory = Object.entries(analytics.categoryTotals)
+  .sort(([,a], [,b]) => b - a)[0];`}
             </Typography>
             <Typography variant="body2" gutterBottom>
               {/* Access inventory data */}
-              const lowStockCount = analytics.inventorySummary.lowStockItems;
-              const utilizationRate = analytics.inventorySummary.averageUtilizationRate;
+              {`const lowStockCount = analytics.inventorySummary.lowStockItems;
+const utilizationRate = analytics.inventorySummary.averageUtilizationRate;`}
             </Typography>
-            <Typography variant="body2">
-              {/* Access timeline data */}
-              const todayData = analytics.checkInTimeline.find(item =&gt; 
-                item._id.date === new Date().toISOString().split('T')[0]
-              );
+            <Typography variant="body2" component="pre">
+              {`// Access timeline data
+const todayData = analytics.checkInTimeline.find(item => 
+  item._id.date === new Date().toISOString().split('T')[0]
+);`}
             </Typography>
           </Box>
         </CardContent>

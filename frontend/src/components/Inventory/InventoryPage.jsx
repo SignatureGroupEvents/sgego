@@ -12,8 +12,10 @@ import {
 import { uploadInventoryCSV, fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
 import MainLayout from '../layout/MainLayout';
-import { getEvent, getEvents } from '../../services/events';
+import { getEvent } from '../../services/events';
+import api from '../../services/api';
 import EventIcon from '@mui/icons-material/Event';
+import EventHeader from '../events/EventHeader';
 
 // ✅ Use usePermissions only
 import { usePermissions } from '../../hooks/usePermissions';
@@ -79,8 +81,8 @@ const InventoryPage = ({ eventId, eventName }) => {
     });
     // Fetch all events for allocation dropdown
     setEventsLoading(true);
-    getEvents().then(res => {
-      const all = res.events || res;
+    api.get('/events').then(res => {
+      const all = res.data.events || res.data;
       setAllEvents(all);
       // Filter: main event and its children
       let mainEvent = all.find(ev => ev._id === eventId) || all.find(ev => ev._id === (event && event._id));
@@ -355,7 +357,8 @@ const InventoryPage = ({ eventId, eventName }) => {
   };
 
   return (
-    <MainLayout eventName={eventName}>
+    <MainLayout eventName={eventName} parentEventName={parentEvent && parentEvent._id !== event?._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event?._id ? parentEvent._id : null}>
+      <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={allEvents.filter(ev => (parentEvent ? ev.parentEventId === (parentEvent._id) : ev.parentEventId === (event && event._id)) && ev._id !== (parentEvent ? parentEvent._id : event && event._id))} />
       <Typography variant="h4" gutterBottom>Inventory</Typography>
         <Box display="flex" gap={2} mb={2}>
           {canModifyInventory && (

@@ -4,7 +4,7 @@ import Header from './Header';
 import Footer from './Footer';
 import BreadcrumbsNav from './BreadcrumbsNav';
 
-const MainLayout = ({ children, eventName, userName }) => {
+const MainLayout = ({ children, eventName, userName, parentEventName, parentEventId }) => {
   return (
     <Box sx={{ 
       display: 'flex', 
@@ -33,7 +33,7 @@ const MainLayout = ({ children, eventName, userName }) => {
           }}
         >
           {/* Breadcrumbs */}
-          <BreadcrumbsNav eventName={eventName} userName={userName} />
+          <BreadcrumbsNav eventName={eventName} userName={userName} parentEventName={parentEventName} parentEventId={parentEventId} />
           
           {/* Page Content */}
           <Box sx={{ flex: 1 }}>

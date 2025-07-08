@@ -11,18 +11,18 @@ const Footer = () => {
         py: 3,
         px: 2,
         mt: 'auto',
-        backgroundColor: 'background.paper',
+        backgroundColor: '#31365E',
         borderTop: 1,
-        borderColor: 'divider',
+        borderColor: '#31365E',
         textAlign: 'center'
       }}
     >
       <Container maxWidth="lg">
-        <Typography variant="body2" color="text.secondary">
-          © {currentYear} Event Check-in System. All rights reserved.
+        <Typography variant="body2" sx={{ color: 'white' }}>
+          © {currentYear} SGEGO. All rights reserved.
         </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-          Powered by Signature Group Events
+        <Typography variant="caption" sx={{ color: 'white', display: 'block', mt: 0.5 }}>
+          Powered by Signature Group Events 
         </Typography>
       </Container>
     </Box>
