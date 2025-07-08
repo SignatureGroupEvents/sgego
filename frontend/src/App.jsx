@@ -21,6 +21,10 @@ import AccountEditPage from "./pages/Account/AccountEditPage";
 import AuthPage from "./pages/Auth/AuthPage";
 import AdvancedDashboard from "./pages/Dashboard/AdvancedDashboard";
 
+// Analytics Test Components
+import SpecificAnalyticsExamples from './components/dashboard/SpecificAnalyticsExamples';
+import ComprehensiveAnalytics from './components/dashboard/ComprehensiveAnalytics';
+
 function InviteRedirect() {
   const { token } = useParams();
   return <Navigate to={`/auth?view=register&token=${token}`} replace />;
@@ -117,6 +121,23 @@ function App() {
             <Route path="/dashboard/advanced" element={
               <ProtectedRoute>
                 <AdvancedDashboard />
+              </ProtectedRoute>
+            } />
+
+            {/* 🧪 TEST ROUTES for Analytics Components */}
+            <Route path="/test-analytics/:eventId" element={
+              <ProtectedRoute>
+                <SpecificAnalyticsExamples />
+              </ProtectedRoute>
+            } />
+            <Route path="/comprehensive-analytics/:eventId" element={
+              <ProtectedRoute>
+                <ComprehensiveAnalytics />
+              </ProtectedRoute>
+            } />
+            <Route path="/events/:eventId/analytics" element={
+              <ProtectedRoute>
+                <SpecificAnalyticsExamples />
               </ProtectedRoute>
             } />
           </Routes>

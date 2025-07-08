@@ -232,7 +232,7 @@ exports.deleteSecondaryEvent = async (req, res) => {
   }
 };
 
-// Analytics endpoint for gift distribution
+// Analytics endpoint for comprehensive event and gift analytics
 exports.getEventAnalytics = async (req, res) => {
   try {
     const { eventId } = req.params;
@@ -244,6 +244,7 @@ exports.getEventAnalytics = async (req, res) => {
 
     const Checkin = require('../models/Checkin');
     const Inventory = require('../models/Inventory');
+    const Guest = require('../models/Guest');
 
     // Get all check-ins for this event and its secondary events
     const eventIds = [eventId];
@@ -252,7 +253,29 @@ exports.getEventAnalytics = async (req, res) => {
       eventIds.push(...secondaryEvents.map(e => e._id));
     }
 
-    // Aggregate gift distribution data
+    // 1. EVENT ANALYTICS - Guest Check-in Statistics
+    const guestStats = await Guest.aggregate([
+      { 
+        $match: { 
+          eventId: { $in: eventIds.map(id => id.toString()) }
+        } 
+      },
+      {
+        $group: {
+          _id: null,
+          totalGuests: { $sum: 1 },
+          checkedInGuests: { $sum: { $cond: ['$hasCheckedIn', 1, 0] } },
+          pendingGuests: { $sum: { $cond: ['$hasCheckedIn', 0, 1] } }
+        }
+      }
+    ]);
+
+    const eventStats = guestStats[0] || { totalGuests: 0, checkedInGuests: 0, pendingGuests: 0 };
+    const checkInPercentage = eventStats.totalGuests > 0 
+      ? Math.round((eventStats.checkedInGuests / eventStats.totalGuests) * 100) 
+      : 0;
+
+    // 2. GIFT ANALYTICS - Distribution Data
     const giftDistribution = await Checkin.aggregate([
       { 
         $match: { 
@@ -279,7 +302,8 @@ exports.getEventAnalytics = async (req, res) => {
             size: '$inventoryItem.size'
           },
           totalQuantity: { $sum: '$giftsDistributed.quantity' },
-          distributedCount: { $sum: 1 }
+          distributedCount: { $sum: 1 },
+          uniqueGuests: { $addToSet: '$guestId' }
         }
       },
       {
@@ -290,7 +314,8 @@ exports.getEventAnalytics = async (req, res) => {
           type: '$_id.type',
           size: '$_id.size',
           totalQuantity: 1,
-          distributedCount: 1
+          distributedCount: 1,
+          uniqueGuestCount: { $size: '$uniqueGuests' }
         }
       },
       { $sort: { totalQuantity: -1 } }
@@ -306,28 +331,159 @@ exports.getEventAnalytics = async (req, res) => {
         type: item.type,
         size: item.size,
         totalQuantity: item.totalQuantity,
-        distributedCount: item.distributedCount
+        distributedCount: item.distributedCount,
+        uniqueGuestCount: item.uniqueGuestCount
       };
     });
 
-    // Calculate basic category totals
+    // 3. GIFT ANALYTICS - Category Breakdown
     const categoryTotals = {};
     giftDistribution.forEach(item => {
       const category = getGiftCategory(item.style, item.type);
       categoryTotals[category] = (categoryTotals[category] || 0) + item.totalQuantity;
     });
 
+    // 4. GIFT ANALYTICS - Top Performing Items
+    const topGifts = giftDistribution
+      .slice(0, 10)
+      .map(item => ({
+        name: `${item.style} ${item.size ? `(${item.size})` : ''}`.trim(),
+        type: item.type,
+        style: item.style,
+        size: item.size,
+        totalQuantity: item.totalQuantity,
+        distributedCount: item.distributedCount,
+        uniqueGuestCount: item.uniqueGuestCount
+      }));
+
+    // 5. INVENTORY ANALYTICS - Current Stock Levels
+    const inventoryAnalytics = await Inventory.aggregate([
+      { 
+        $match: { 
+          eventId: { $in: eventIds.map(id => id.toString()) },
+          isActive: true 
+        } 
+      },
+      {
+        $group: {
+          _id: {
+            type: '$type',
+            style: '$style'
+          },
+          totalWarehouse: { $sum: '$qtyWarehouse' },
+          totalOnSite: { $sum: '$qtyOnSite' },
+          currentInventory: { $sum: '$currentInventory' },
+          itemCount: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          type: '$_id.type',
+          style: '$_id.style',
+          totalWarehouse: 1,
+          totalOnSite: 1,
+          currentInventory: 1,
+          itemCount: 1,
+          utilizationRate: {
+            $cond: {
+              if: { $gt: [{ $add: ['$totalWarehouse', '$totalOnSite'] }, 0] },
+              then: {
+                $multiply: [
+                  {
+                    $divide: [
+                      { $subtract: [{ $add: ['$totalWarehouse', '$totalOnSite'] }, '$currentInventory'] },
+                      { $add: ['$totalWarehouse', '$totalOnSite'] }
+                    ]
+                  },
+                  100
+                ]
+              },
+              else: 0
+            }
+          }
+        }
+      },
+      { $sort: { currentInventory: -1 } }
+    ]);
+
+    // 6. EVENT ANALYTICS - Check-in Timeline (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const checkInTimeline = await Checkin.aggregate([
+      { 
+        $match: { 
+          eventId: { $in: eventIds.map(id => id.toString()) },
+          isValid: true,
+          createdAt: { $gte: sevenDaysAgo }
+        } 
+      },
+      {
+        $group: {
+          _id: {
+            date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }
+          },
+          checkIns: { $sum: 1 },
+          giftsDistributed: { $sum: { $size: '$giftsDistributed' } }
+        }
+      },
+      { $sort: { '_id.date': 1 } }
+    ]);
+
+    // 7. COMPREHENSIVE SUMMARY
+    const totalGiftsDistributed = giftDistribution.reduce((sum, item) => sum + item.totalQuantity, 0);
+    const uniqueItemsDistributed = giftDistribution.length;
+    const totalInventoryItems = inventoryAnalytics.length;
+    const averageUtilizationRate = inventoryAnalytics.length > 0 
+      ? inventoryAnalytics.reduce((sum, item) => sum + item.utilizationRate, 0) / inventoryAnalytics.length 
+      : 0;
+
     res.json({
       success: true,
       analytics: {
+        // Event Analytics
+        eventStats: {
+          totalGuests: eventStats.totalGuests,
+          checkedInGuests: eventStats.checkedInGuests,
+          pendingGuests: eventStats.pendingGuests,
+          checkInPercentage: checkInPercentage,
+          eventName: event.eventName,
+          eventContractNumber: event.eventContractNumber,
+          isMainEvent: event.isMainEvent
+        },
+        
+        // Gift Analytics
         giftDistribution: giftDistributionMap,
         categoryTotals,
-        totalGiftsDistributed: giftDistribution.reduce((sum, item) => sum + item.totalQuantity, 0),
-        uniqueItemsDistributed: giftDistribution.length
+        topGifts,
+        giftSummary: {
+          totalGiftsDistributed,
+          uniqueItemsDistributed,
+          averageGiftsPerGuest: eventStats.checkedInGuests > 0 
+            ? Math.round((totalGiftsDistributed / eventStats.checkedInGuests) * 100) / 100 
+            : 0
+        },
+        
+        // Inventory Analytics
+        inventoryAnalytics,
+        inventorySummary: {
+          totalInventoryItems,
+          averageUtilizationRate: Math.round(averageUtilizationRate * 100) / 100,
+          lowStockItems: inventoryAnalytics.filter(item => item.currentInventory < 5).length
+        },
+        
+        // Timeline Analytics
+        checkInTimeline,
+        
+        // Raw Data for Advanced Processing
+        rawGiftDistribution: giftDistribution,
+        secondaryEvents: event.isMainEvent ? await Event.find({ parentEventId: eventId }).select('eventName eventContractNumber') : []
       }
     });
 
   } catch (error) {
+    console.error('Analytics Error:', error);
     res.status(400).json({ message: error.message });
   }
 };
