@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField, Autocomplete, Tooltip, Dialog, DialogTitle, DialogContent } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { CheckCircleOutline as CheckCircleIcon, Person as PersonIcon, Groups as GroupsIcon, Assessment as AssessmentIcon, Event as EventIcon, Home as HomeIcon, Menu as MenuIcon, Upload as UploadIcon, PersonAdd as PersonAddIcon, Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon, PeopleAlt as PeopleAltIcon, HourglassEmpty as HourglassEmptyIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, CardGiftcard as GiftIcon, Search as SearchIcon, Inventory as InventoryIcon, Save as SaveIcon, Cancel as CancelIcon, Edit as EditIcon, Info as InfoIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import api, { fetchInventory } from '../../services/api';
@@ -1062,7 +1063,17 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
 
     const fetchSecondaryEvents = async () => {
       try {
-        const response = await api.get(`/events?parentEventId=${eventId}`);
+        // Determine the main event ID to fetch secondary events for
+        let mainEventId = eventId;
+        if (event && event.parentEventId) {
+          // If we're viewing a secondary event, fetch secondary events for the parent
+          mainEventId = event.parentEventId;
+        } else if (event && event.isMainEvent) {
+          // If we're viewing a main event, fetch its secondary events
+          mainEventId = event._id;
+        }
+        
+        const response = await api.get(`/events?parentEventId=${mainEventId}`);
         setSecondaryEvents(response.data.events || response.data);
       } catch (error) {
         // ignore for now
@@ -1074,9 +1085,10 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
       setTimeout(() => {
         const mainEventId = event && event.isMainEvent ? event._id : event?.parentEventId || eventId;
         fetchGuests(mainEventId);
+        // Fetch secondary events after event data is loaded
+        fetchSecondaryEvents();
       }, 0);
     });
-    fetchSecondaryEvents();
   }, [eventId]);
 
   const handleUploadGuests = () => {
@@ -1136,42 +1148,74 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <MainNavigation />
       <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 2 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, gap: 2 }}>
+        <Box
+          sx={{
+            background: '#f0f4f8',
+            borderRadius: 3,
+            px: 3,
+            py: 2,
+            mb: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+          }}
+        >
           <Box flexGrow={1}>
             <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
               {event.eventName} Dashboard
             </Typography>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500 }}>
-              📋 Contract: {event.eventContractNumber}
+            <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500, mb: 1 }}>
+              Contract: {event.eventContractNumber}
             </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="body2" color="textSecondary">Basic</Typography>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={viewMode === 'advanced'}
-                    onChange={(e) => setViewMode(e.target.checked ? 'advanced' : 'basic')}
-                    color="primary"
-                  />
-                }
-                label=""
-              />
-              <Typography variant="body2" color="textSecondary">Advanced</Typography>
-            </Box>
             <Button
               variant="outlined"
+              size="small"
               onClick={() => navigate(`/events/${eventId}/inventory`)}
               sx={{ borderRadius: 2, fontWeight: 600 }}
             >
               View Inventory
             </Button>
           </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {/* Additional Events Dropdown - now in the header */}
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel id="secondary-event-label">Additional Events</InputLabel>
+              <Select
+                labelId="secondary-event-label"
+                label="Additional Events"
+                value=""
+                onChange={e => {
+                  const selectedId = e.target.value;
+                  if (selectedId) {
+                    navigate(`/events/${selectedId}/dashboard`);
+                  }
+                }}
+              >
+                {/* Show main event first, labeled as "(Main)" */}
+                {mainEvent && (
+                  <MenuItem key={mainEvent._id} value={mainEvent._id}>
+                    {mainEvent.eventName} (Main)
+                  </MenuItem>
+                )}
+                {/* Show secondary events */}
+                {secondaryEvents.length > 0 ? (
+                  secondaryEvents.map(ev => (
+                    <MenuItem key={ev._id} value={ev._id}>
+                      {ev.eventName}
+                    </MenuItem>
+                  ))
+                ) : (
+                  <MenuItem disabled>
+                    No additional events
+                  </MenuItem>
+                )}
+              </Select>
+            </FormControl>
+          </Box>
         </Box>
         
         {/* Event Overview Section */}
-        <Box sx={{ width: '100%', px: 3, py: 4, backgroundColor: '#fdf9f6' }}>
+        <Box sx={{ width: '100%', px: 2, py: 2, backgroundColor: '#fdf9f6' }}>
   {viewMode === 'basic' ? (
     <BasicAnalytics 
       event={event}
@@ -1211,8 +1255,10 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             parentEventEnd={event.eventEnd}
             onEventAdded={() => {
               setSecondaryModalOpen(false);
-              // Refresh secondary events after add
-              api.get(`/events?parentEventId=${eventId}`).then(res => setSecondaryEvents(res.data.events || res.data));
+              // Refresh secondary events after add using the same logic
+              setTimeout(() => {
+                fetchSecondaryEvents();
+              }, 100);
             }}
           />
         )}
@@ -1362,43 +1408,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             sx={{ mt: 2 }}
           />
         </Card>
-        {/* --- ADDITIONAL EVENTS SECTION --- */}
-        {secondaryEvents.length > 0 && (
-          <Card elevation={2} sx={{ mb: 3, borderRadius: 3, p: 2, background: 'linear-gradient(135deg, #FFFAF6 0%, #f8f9fa 100%)', border: '1px solid #e9ecef', boxShadow: 2 }}>
-            <Typography variant="subtitle1" fontWeight={700} color="primary.main" gutterBottom>
-              📅 Additional Events
-            </Typography>
-            <Grid container spacing={1}>
-              {secondaryEvents.map((secondaryEvent) => (
-                <Grid item key={secondaryEvent._id}>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => navigate(`/events/${secondaryEvent._id}/dashboard`)}
-                    sx={{
-                      fontSize: '0.85rem',
-                      borderRadius: 2,
-                      borderColor: 'primary.main',
-                      color: 'primary.main',
-                      fontWeight: 600,
-                      textTransform: 'none',
-                      px: 2,
-                      py: 0.5,
-                      '&:hover': {
-                        backgroundColor: 'primary.main',
-                        color: '#fff',
-                        boxShadow: 2
-                      },
-                      transition: 'all 0.2s ease-in-out'
-                    }}
-                  >
-                    {secondaryEvent.eventName}
-                  </Button>
-                </Grid>
-              ))}
-            </Grid>
-          </Card>
-        )}
+        
 
         {/* Check-in Modal */}
         <Dialog
