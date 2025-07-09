@@ -170,6 +170,23 @@ const AccountPage = () => {
     }
   };
 
+  const handleDeleteUser = async (userId) => {
+    try {
+      const response = await deleteUser(userId);
+      if (response && response.status >= 200 && response.status < 300) {
+        toast.success('User deleted successfully!');
+        loadAllUsers(); // Refresh the users list
+      } else {
+        const errorMessage = response?.data?.message || 'Failed to delete user.';
+        toast.error(errorMessage);
+      }
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to delete user.';
+      toast.error(errorMessage);
+      console.error('Delete user error:', err);
+    }
+  };
+
   const filteredUsers = allUsers.filter((user) => {
     if (filterStatus === 'pending') {
       if (!(user.isInvited === true && user.isActive === false)) return false;
@@ -200,9 +217,9 @@ const AccountPage = () => {
     <MainLayout userName={user?.username}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
         <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
-          Account Details
+          Account Settings
         </Typography>
-       
+        <Box>
           <Button
             variant="contained"
             sx={{ backgroundColor: '#1bcddc', color: '#fff', fontWeight: 700, px: 3, borderRadius: 2, boxShadow: 'none', '&:hover': { backgroundColor: '#17b3c0' } }}
@@ -211,6 +228,7 @@ const AccountPage = () => {
             INVITE USERS
           </Button>
         </Box>
+      </Box>
 
         <Card sx={{ borderRadius: 3, boxShadow: '0 2px 8px #eee', p: 3 }}>
   <AccountFilters
@@ -220,7 +238,8 @@ const AccountPage = () => {
     setFilterRole={setFilterRole}
     searchQuery={searchQuery}
     setSearchQuery={setSearchQuery}
-    onCreateRole={() => setCreateRoleModal(true)}
+    searchValue={searchValue}
+    setSearchValue={setSearchValue}
     canModifyUsers={isAdmin || isOperationsManager}
   />
 

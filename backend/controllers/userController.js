@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const InvitationToken = require('../models/InvitationToken');
 const sendEmail = require('../utils/sendEmail');
+const UserMyEvent = require('../models/UserMyEvent');
 
 const resendInvite = async (req, res) => {
   try {
@@ -413,6 +414,96 @@ const sendPasswordResetLink = async (req, res) => {
   }
 };
 
+// Get user's My Events board
+const getMyEvents = async (req, res) => {
+  try {
+    const myEvents = await UserMyEvent.find({ userId: req.user.id })
+      .populate('eventId', 'eventName eventContractNumber eventStart eventEnd isMainEvent parentEventId')
+      .sort({ position: 1, addedAt: -1 });
+    
+    res.json({ myEvents: myEvents.map(f => f.eventId) });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Add event to My Events board
+const addToMyEvents = async (req, res) => {
+  try {
+    const { eventId } = req.body;
+    
+    // Check if event exists
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    
+    // Get current max position
+    const maxPosition = await UserMyEvent.findOne({ userId: req.user.id })
+      .sort({ position: -1 })
+      .select('position');
+    
+    const newPosition = (maxPosition?.position || -1) + 1;
+    
+    const myEvent = await UserMyEvent.create({
+      userId: req.user.id,
+      eventId,
+      position: newPosition
+    });
+    
+    await myEvent.populate('eventId', 'eventName eventContractNumber eventStart eventEnd isMainEvent parentEventId');
+    
+    res.status(201).json({ myEvent: myEvent.eventId });
+  } catch (error) {
+    if (error.code === 11000) {
+      res.status(400).json({ message: 'Event is already on your board' });
+    } else {
+      res.status(400).json({ message: error.message });
+    }
+  }
+};
+
+// Remove event from My Events board
+const removeFromMyEvents = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    
+    const result = await UserMyEvent.findOneAndDelete({
+      userId: req.user.id,
+      eventId
+    });
+    
+    if (!result) {
+      return res.status(404).json({ message: 'Event not found on your board' });
+    }
+    
+    res.json({ message: 'Event removed from your board' });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Update My Events positions (for drag and drop reordering)
+const updateMyEventsPositions = async (req, res) => {
+  try {
+    const { positions } = req.body; // Array of { eventId, position }
+    
+    const updatePromises = positions.map(({ eventId, position }) =>
+      UserMyEvent.findOneAndUpdate(
+        { userId: req.user.id, eventId },
+        { position },
+        { new: true }
+      )
+    );
+    
+    await Promise.all(updatePromises);
+    
+    res.json({ message: 'Event order updated successfully' });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
 module.exports = {
   resendInvite,
   inviteUser,
@@ -427,5 +518,9 @@ module.exports = {
   deactivateUser,
   deleteUser,
   resetUserPassword,
-  sendPasswordResetLink
+  sendPasswordResetLink,
+  getMyEvents,
+  addToMyEvents,
+  removeFromMyEvents,
+  updateMyEventsPositions
 };

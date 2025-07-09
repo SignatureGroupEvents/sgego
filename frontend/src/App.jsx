@@ -23,8 +23,8 @@ import AdvancedDashboard from "./pages/Dashboard/AdvancedDashboard";
 import HelpPage from "./pages/HelpPage";
 
 // Analytics Test Components
-import SpecificAnalyticsExamples from './components/dashboard/SpecificAnalyticsExamples';
-import ComprehensiveAnalytics from './components/dashboard/ComprehensiveAnalytics';
+import SpecificAnalyticsExamples from './components/analytics/SpecificAnalyticsExamples';
+import ComprehensiveAnalytics from './components/analytics/ComprehensiveAnalytics';
 
 function InviteRedirect() {
   const { token } = useParams();

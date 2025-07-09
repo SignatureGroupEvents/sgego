@@ -179,6 +179,10 @@ mongoose.connect(process.env.MONGODB_URI)
     require('./models/UserAssignment');
     console.log('✅ UserAssignment model loaded');
     
+    console.log('Loading UserMyEvent model...');
+    require('./models/UserMyEvent');
+    console.log('✅ UserMyEvent model loaded');
+    
     console.log('✅ All models loaded successfully');
   } catch (error) {
     console.error('❌ Error loading models:', error.message);
@@ -197,6 +201,7 @@ mongoose.connect(process.env.MONGODB_URI)
     require('./models/Inventory');
     require('./models/Checkin');
     require('./models/UserAssignment');
+    require('./models/UserMyEvent');
     console.log('✅ Models loaded (database connection disabled)');
   } catch (error) {
     console.error('❌ Error loading models:', error.message);

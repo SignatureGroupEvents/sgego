@@ -78,7 +78,7 @@ const AdvancedDashboard = () => {
       case 0:
         return <GiftAnalytics guests={guests} inventory={inventory} />;
       case 1:
-        return <EventAnalytics />;
+        return <EventAnalytics eventId={eventId} />;
       case 2:
         return <ActivityFeed />;
       default:

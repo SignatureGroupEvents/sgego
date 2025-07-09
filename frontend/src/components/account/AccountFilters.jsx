@@ -19,7 +19,8 @@ const AccountFilters = ({
   setFilterRole,
   searchQuery,
   setSearchQuery,
-  onCreateRole,
+  searchValue,
+  setSearchValue,
   canModifyUsers
 }) => {
   return (
@@ -56,8 +57,8 @@ const AccountFilters = ({
           <TextField
             size="small"
             label="Search User"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
             sx={{ width: 250 }}
           />
         </Box>

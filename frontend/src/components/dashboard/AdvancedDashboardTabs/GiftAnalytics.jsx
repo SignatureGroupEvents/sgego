@@ -33,6 +33,34 @@ const UNKNOWN_LABEL = 'Unlabeled';
 
 const GiftAnalytics = ({ guests = [], inventory = [] }) => {
   const theme = useTheme();
+  
+  // Debug logging for data validation
+  console.log('🎁 GiftAnalytics Debug:', {
+    guestCount: guests.length,
+    inventoryCount: inventory.length,
+    hasGuestData: guests.length > 0,
+    hasInventoryData: inventory.length > 0,
+    sampleGuest: guests[0] || 'No guests',
+    sampleInventory: inventory[0] || 'No inventory'
+  });
+
+  // Error handling for missing data
+  if (!guests || !inventory) {
+    console.error('❌ GiftAnalytics Error: Missing required data props');
+    return (
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="h6" color="error" gutterBottom>
+            ⚠️ Data Loading Error
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Unable to load gift analytics data. Please refresh the page or contact support.
+          </Typography>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // Use theme palette colors for the pie/bar chart
   const PIE_COLORS = useMemo(() => [
     theme.palette.primary.main,      // #00B2C0
@@ -66,7 +94,7 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
       countMap[id] = (countMap[id] || 0) + 1;
     });
 
-    return inventory.map((inv) => {
+    const processedData = inventory.map((inv) => {
       const inventoryId = inv._id;
       const count = countMap[inventoryId] || 0;
       return {
@@ -80,6 +108,16 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
         count,
       };
     });
+
+    // Debug logging for data processing
+    console.log('📊 Gift Counts Processing:', {
+      totalGifts: processedData.length,
+      giftsWithSelections: processedData.filter(item => item.count > 0).length,
+      totalSelections: processedData.reduce((sum, item) => sum + item.count, 0),
+      topGift: processedData.reduce((max, item) => item.count > max.count ? item : max, { count: 0 })
+    });
+
+    return processedData;
   }, [guests, inventory]);
 
   const chartData = useMemo(() => {
@@ -97,10 +135,20 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
       });
     }
 
-    return Object.entries(groupMap).map(([name, value]) => ({
+    const chartDataResult = Object.entries(groupMap).map(([name, value]) => ({
       name,
       value
     }));
+
+    // Debug logging for chart data
+    console.log('📈 Chart Data Processing:', {
+      groupBy,
+      totalCategories: chartDataResult.length,
+      totalValue: chartDataResult.reduce((sum, item) => sum + item.value, 0),
+      categories: chartDataResult.map(item => ({ name: item.name, value: item.value }))
+    });
+
+    return chartDataResult;
   }, [giftCounts, groupBy]);
 
   const allZero = useMemo(() => {
@@ -117,11 +165,17 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
     const clicked = displayChartData[index]?.name;
     if (!clicked) return;
     setActiveFilter(prev => (prev === clicked ? null : clicked));
+    
+    // Debug logging for user interactions
+    console.log('🖱️ Pie Chart Click:', {
+      clickedCategory: clicked,
+      previousFilter: activeFilter,
+      newFilter: activeFilter === clicked ? null : clicked
+    });
   };
 
   const renderLegend = () => (
     <Box display="flex" alignItems="center" gap={2} mb={3} flexWrap="wrap">
-      <Typography variant="h6" sx={{ fontWeight: 700, mr: 1 }} color="primary.main">Gift Count</Typography>
       {displayChartData.map((entry, idx) => {
         const isHidden = hiddenCategories.includes(entry.name);
         return (
@@ -164,12 +218,50 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
   return (
     <Card sx={{ mb: 4 }}>
       <CardContent>
-        <Typography variant="h6" fontWeight={700} mb={3} color="primary.main">
-          Gift Inventory
+        <Typography variant="h6" fontWeight={700} mb={1} color="primary.main">
+          Gift Inventory Analytics Dashboard
+        </Typography>
+        <Typography variant="body2" color="text.secondary" mb={3}>
+          Track gift distribution, inventory levels, and guest preferences across all events
         </Typography>
 
-        {/* Inventory Table (row 1) */}
+        {/* Quick Summary Stats */}
+        <Box mb={3} p={2} bgcolor="grey.50" borderRadius={2}>
+          <Typography variant="subtitle2" fontWeight={600} mb={1} color="primary.main">
+            📈 Quick Summary
+          </Typography>
+          <Box display="flex" gap={3} flexWrap="wrap">
+            <Box>
+              <Typography variant="caption" color="text.secondary">Total Gift Items</Typography>
+              <Typography variant="h6" fontWeight={700}>{inventory.length}</Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Total Guests</Typography>
+              <Typography variant="h6" fontWeight={700}>{guests.length}</Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Gifts Selected</Typography>
+              <Typography variant="h6" fontWeight={700}>
+                {guests.filter(g => g?.giftSelection?.inventoryId).length}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Selection Rate</Typography>
+              <Typography variant="h6" fontWeight={700}>
+                {guests.length > 0 ? `${Math.round((guests.filter(g => g?.giftSelection?.inventoryId).length / guests.length) * 100)}%` : '0%'}
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+
+        {/* SECTION 1: Detailed Inventory Table - Shows all gift items with selection counts */}
         <Box mb={4}>
+          <Typography variant="subtitle1" fontWeight={600} mb={2} color="primary.main">
+            📋 Inventory Summary Table
+          </Typography>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Complete overview of all gift items, their current inventory levels, and how many times each item was selected by guests
+          </Typography>
           <TableContainer component={Paper} variant="outlined" sx={{ minWidth: 600, overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
@@ -199,7 +291,7 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
             </Table>
           </TableContainer>
         </Box>
-        {/* Group By Toggle row */}
+        {/* SECTION 2: Chart Controls */}
         <Box mb={2} pb={2} display="flex" alignItems="center" justifyContent="space-between">
           <ButtonGroup variant="outlined" size="small">
             <Button
@@ -228,12 +320,16 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
             </IconButton>
           </MuiTooltip>
         </Box>
+        {/* SECTION 3: Data Visualization Charts */}
         <Box mb={4}>
           <Box display="flex" flexDirection={{ xs: 'column', lg: 'row' }} gap={{ xs: 2, lg: 4 }} sx={{ minHeight: 400 }}>
-            {/* Top Gifts (left) as Bar Graph */}
+            {/* CHART 1: Top Gifts Bar Chart - Shows most popular gifts */}
             <Box flex={1} minWidth={0}>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }} color="primary.main">
-                Top 5 Gifts
+                🏆 Top 5 Most Popular Gifts
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+                Horizontal bar chart showing the most frequently selected gifts by guests
               </Typography>
               <BarResponsiveContainer width="100%" height={220}>
                 <BarChart
@@ -300,8 +396,14 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
                 borderWidth: '1px'
               }}
             />
-            {/* Pie Chart and Legend (right) */}
+            {/* CHART 2: Distribution Pie Chart - Shows gift distribution by category */}
             <Box flex={1} minWidth={0}>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }} color="primary.main">
+                🥧 Gift Distribution by Category
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+                Pie chart showing how gifts are distributed across different categories (Style or Type)
+              </Typography>
               {renderLegend()}
               <Box
                 sx={{
