@@ -42,7 +42,6 @@ const EventAnalytics = ({ eventId }) => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [groupBy, setGroupBy] = useState('date');
   const [activeFilter, setActiveFilter] = useState(null);
   const [hiddenCategories, setHiddenCategories] = useState([]);
 
@@ -384,7 +383,7 @@ const EventAnalytics = ({ eventId }) => {
                       label={({ name, value }) => `${name}: ${value}`}
                       isAnimationActive={false}
                     >
-                      {guestStatusData.map((entry, idx) => (
+                      {guestStatusData.map((entry) => (
                         <Cell key={entry.name} fill={entry.color} />
                       ))}
                     </Pie>

@@ -44,23 +44,6 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
     sampleInventory: inventory[0] || 'No inventory'
   });
 
-  // Error handling for missing data
-  if (!guests || !inventory) {
-    console.error('❌ GiftAnalytics Error: Missing required data props');
-    return (
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" color="error" gutterBottom>
-            ⚠️ Data Loading Error
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Unable to load gift analytics data. Please refresh the page or contact support.
-          </Typography>
-        </CardContent>
-      </Card>
-    );
-  }
-
   // Use theme palette colors for the pie/bar chart
   const PIE_COLORS = useMemo(() => [
     theme.palette.primary.main,      // #00B2C0
@@ -85,6 +68,23 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
   const [groupBy, setGroupBy] = useState('style');
   const [activeFilter, setActiveFilter] = useState(null);
   const [hiddenCategories, setHiddenCategories] = useState([]);
+
+  // Error handling for missing data
+  if (!guests || !inventory) {
+    console.error('❌ GiftAnalytics Error: Missing required data props');
+    return (
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="h6" color="error" gutterBottom>
+            ⚠️ Data Loading Error
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Unable to load gift analytics data. Please refresh the page or contact support.
+          </Typography>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const giftCounts = useMemo(() => {
     const countMap = {};

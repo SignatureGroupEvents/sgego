@@ -7,10 +7,9 @@ import { Toaster } from 'react-hot-toast';
 import theme from './styles/theme';
 
 // Components
-import Dashboard from './components/dashboard/Dashboard';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import EventsList from './components/events/EventsList';
-import CreateEvent from './components/Events/CreateEvent';
+import CreateEvent from './components/events/CreateEvent';
 import EventDetails from './components/events/EventDetails';
 import UploadGuest from './components/guests/UploadGuest';
 import DashboardLayout from './components/layout/DashboardLayout';
