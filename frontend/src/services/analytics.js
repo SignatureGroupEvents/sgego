@@ -44,13 +44,69 @@ export const getGiftTypeAnalytics = async (filters = {}) => {
   }
 };
 
-// Get event-specific gift analytics for Gift Tracker
+// Get comprehensive event-specific analytics (both event and gift analytics)
 export const getEventGiftAnalytics = async (eventId) => {
   try {
     const response = await api.get(`/events/${eventId}/analytics`);
     return response.data;
   } catch (error) {
     console.error('Error fetching event gift analytics:', error);
+    throw error;
+  }
+};
+
+// Get event-specific analytics only
+export const getEventAnalytics = async (eventId) => {
+  try {
+    const response = await api.get(`/events/${eventId}/analytics`);
+    return {
+      eventStats: response.data.analytics.eventStats,
+      checkInTimeline: response.data.analytics.checkInTimeline,
+      inventorySummary: response.data.analytics.inventorySummary
+    };
+  } catch (error) {
+    console.error('Error fetching event analytics:', error);
+    throw error;
+  }
+};
+
+// Get gift-specific analytics only
+export const getGiftAnalytics = async (eventId) => {
+  try {
+    const response = await api.get(`/events/${eventId}/analytics`);
+    return {
+      giftDistribution: response.data.analytics.giftDistribution,
+      categoryTotals: response.data.analytics.categoryTotals,
+      topGifts: response.data.analytics.topGifts,
+      giftSummary: response.data.analytics.giftSummary
+    };
+  } catch (error) {
+    console.error('Error fetching gift analytics:', error);
+    throw error;
+  }
+};
+
+// Get inventory-specific analytics only
+export const getInventoryAnalytics = async (eventId) => {
+  try {
+    const response = await api.get(`/events/${eventId}/analytics`);
+    return {
+      inventoryAnalytics: response.data.analytics.inventoryAnalytics,
+      inventorySummary: response.data.analytics.inventorySummary
+    };
+  } catch (error) {
+    console.error('Error fetching inventory analytics:', error);
+    throw error;
+  }
+};
+
+// Get all analytics data for advanced dashboard
+export const getAllEventAnalytics = async (eventId) => {
+  try {
+    const response = await api.get(`/events/${eventId}/analytics`);
+    return response.data.analytics;
+  } catch (error) {
+    console.error('Error fetching all event analytics:', error);
     throw error;
   }
 };

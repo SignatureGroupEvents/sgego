@@ -46,10 +46,11 @@ import {
   TableChart as TableChartIcon
 } from '@mui/icons-material';
 import api from '../../services/api';
-import MainNavigation from '../layout/MainNavigation';
+import MainLayout from '../layout/MainLayout';
 import HomeIcon from '@mui/icons-material/Home';
 import EventIcon from '@mui/icons-material/Event';
 import { getEvent } from '../../services/events';
+import EventHeader from '../events/EventHeader';
 
 const UploadGuest = () => {
   const { eventId } = useParams();
@@ -74,7 +75,7 @@ const UploadGuest = () => {
   const [copyError, setCopyError] = useState('');
 
   React.useEffect(() => {
-    getEvent(eventId).then(setEvent).catch(() => setEvent(null));
+    getEvent(eventId).then(setEvent);
   }, [eventId]);
 
   // Expected columns for guest data
@@ -327,9 +328,9 @@ const UploadGuest = () => {
   ];
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
-      <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
+    <MainLayout eventName={event?.eventName || 'Loading Event...'} parentEventName={event?.parentEventId ? 'Main Event' : null} parentEventId={event?.parentEventId || null}>
+      <EventHeader event={event} />
+      <Box sx={{ flex: 1, overflow: 'auto' }}>
         <Container maxWidth="lg">
           <Box sx={{ my: 4 }}>
             {/* Header */}
@@ -545,8 +546,8 @@ const UploadGuest = () => {
                   </Typography>
                   
                   {/* Summary */}
-                  <Grid container spacing={2} sx={{ mb: 3 }}>
-                    <Grid item xs={12} md={4}>
+                  <Grid container spacing={2}>
+                    <Grid xs={12} md={4}>
                       <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'primary.light' }}>
                         <Typography variant="h3" color="primary.main" gutterBottom>
                           {parsedData.data.length}
@@ -556,7 +557,7 @@ const UploadGuest = () => {
                         </Typography>
                       </Paper>
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid xs={12} md={4}>
                       <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'success.light' }}>
                         <Typography variant="h3" color="success.main" gutterBottom>
                           {Object.values(columnMapping).filter(v => v && v !== 'ignore').length}
@@ -566,7 +567,7 @@ const UploadGuest = () => {
                         </Typography>
                       </Paper>
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid xs={12} md={4}>
                       <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'warning.light' }}>
                         <Typography variant="h3" color="warning.main" gutterBottom>
                           {warnings.length}
@@ -651,8 +652,8 @@ const UploadGuest = () => {
                     Upload Complete!
                   </Typography>
                   
-                  <Grid container spacing={2} justifyContent="center" sx={{ mb: 4 }}>
-                    <Grid item>
+                  <Grid container spacing={2}>
+                    <Grid xs={12}>
                       <Paper sx={{ p: 3 }}>
                         <Typography variant="h4" color="success.main" gutterBottom>
                           {uploadResults.successful || 0}
@@ -663,7 +664,7 @@ const UploadGuest = () => {
                       </Paper>
                     </Grid>
                     {uploadResults.duplicates > 0 && (
-                      <Grid item>
+                      <Grid xs={12}>
                         <Paper sx={{ p: 3 }}>
                           <Typography variant="h4" color="warning.main" gutterBottom>
                             {uploadResults.duplicates}
@@ -675,7 +676,7 @@ const UploadGuest = () => {
                       </Grid>
                     )}
                     {uploadResults.errors > 0 && (
-                      <Grid item>
+                      <Grid xs={12}>
                         <Paper sx={{ p: 3 }}>
                           <Typography variant="h4" color="error.main" gutterBottom>
                             {uploadResults.errors}
@@ -764,8 +765,8 @@ const UploadGuest = () => {
           </Box>
         </Container>
       </Box>
-    </Box>
-  );
+    </MainLayout>
+    );
 };
 
 export default UploadGuest;

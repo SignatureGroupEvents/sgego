@@ -59,9 +59,7 @@ export const AuthProvider = ({ children }) => {
       login,
       logout,
       loading,
-      isAuthenticated: !!user,
-      isOperationsManager: user?.role === 'operations_manager',
-      isAdmin: user?.role === 'admin'
+      isAuthenticated: !!user
     }}>
       {children}
     </AuthContext.Provider>

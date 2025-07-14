@@ -15,35 +15,33 @@ import {
   Dashboard as DashboardIcon,
   Person as ProfileIcon,
   Info as InfoIcon,
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  ExpandLess,
+  ExpandMore,
+  List as ListIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import Collapse from '@mui/material/Collapse';
+import ListItemButton from '@mui/material/ListItemButton';
 
 const MainNavigation = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
 
-  const menuItems = [
-    {
-      label: 'Dashboard',
-      icon: <DashboardIcon />,
-      path: '/dashboard'
-    },
-    {
-      label: 'Events',
-      icon: <EventIcon />,
-      path: '/events'
-    },
-    {
-      label: 'Account',
-      icon: <ProfileIcon />,
-      path: '/account'
-    }
-  ];
+  const [eventsOpen, setEventsOpen] = React.useState(false);
+
+  const handleEventsClick = () => {
+    setEventsOpen((prev) => !prev);
+  };
 
   const isActive = (path) => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
+
+  const isEventSubpage = (subPath) => {
+    // Checks if current route matches any event subpage
+    return location.pathname.startsWith(subPath.replace(':id', ''));
   };
 
   const handleLogout = () => {
@@ -73,30 +71,49 @@ const MainNavigation = () => {
       
       {/* Navigation Items */}
       <List sx={{ flexGrow: 1 }}>
-        {menuItems.map((item) => (
-          <ListItem 
-            key={item.path}
-            button 
-            onClick={() => navigate(item.path)}
-            sx={{
-              backgroundColor: isActive(item.path) ? 'primary.light' : 'transparent',
-              color: isActive(item.path) ? 'primary.contrastText' : 'inherit',
-              '&:hover': {
-                backgroundColor: isActive(item.path) ? 'primary.main' : 'action.hover'
-              }
-            }}
-          >
-            <ListItemIcon sx={{ color: isActive(item.path) ? 'inherit' : 'primary.main' }}>
-              {item.icon}
-            </ListItemIcon>
-            <ListItemText 
-              primary={item.label} 
-              sx={{ 
-                fontWeight: isActive(item.path) ? 600 : 400 
-              }}
-            />
-          </ListItem>
-        ))}
+        {/* Dashboard */}
+        <ListItemButton 
+          selected={isActive('/dashboard')}
+          onClick={() => navigate('/dashboard')}
+        >
+          <ListItemIcon>
+            <DashboardIcon />
+          </ListItemIcon>
+          <ListItemText primary="Dashboard" />
+        </ListItemButton>
+
+        {/* Events Dropdown */}
+        <ListItemButton onClick={handleEventsClick} selected={isActive('/events') || isEventSubpage('/events/:id')}>
+          <ListItemIcon>
+            <EventIcon />
+          </ListItemIcon>
+          <ListItemText primary="Events" />
+          {eventsOpen ? <ExpandLess /> : <ExpandMore />}
+        </ListItemButton>
+        <Collapse in={eventsOpen} timeout="auto" unmountOnExit>
+          <List component="div" disablePadding>
+            <ListItemButton sx={{ pl: 4 }} selected={location.pathname === '/events'} onClick={() => navigate('/events')}>
+              <ListItemText primary="Events List" />
+            </ListItemButton>
+            <ListItemButton sx={{ pl: 4 }} selected={location.pathname.includes('/inventory')} onClick={() => navigate('/events/:id/inventory')}>
+              <ListItemText primary="Inventory" />
+            </ListItemButton>
+            <ListItemButton sx={{ pl: 4 }} selected={location.pathname.includes('/upload')} onClick={() => navigate('/events/:id/upload')}>
+              <ListItemText primary="Upload Guests" />
+            </ListItemButton>
+            <ListItemButton sx={{ pl: 4 }} selected={location.pathname.includes('/dashboard/advanced')} onClick={() => navigate('/events/:id/dashboard/advanced')}>
+              <ListItemText primary="Advanced Analytics" />
+            </ListItemButton>
+          </List>
+        </Collapse>
+
+        {/* Account */}
+        <ListItemButton selected={isActive('/account')} onClick={() => navigate('/account')}>
+          <ListItemIcon>
+            <ProfileIcon />
+          </ListItemIcon>
+          <ListItemText primary="Account" />
+        </ListItemButton>
       </List>
 
       {/* Logout Button */}

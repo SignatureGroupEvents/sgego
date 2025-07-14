@@ -1,15 +1,29 @@
 import React, { useState, useRef } from 'react';
-import { Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete, TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import { Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon, Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon } from '@mui/icons-material';
+import {
+  Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete,
+  TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
+  DialogContent, DialogActions
+} from '@mui/material';
+import {
+  Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
+  Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon
+} from '@mui/icons-material';
 import { uploadInventoryCSV, fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
-import MainNavigation from '../layout/MainNavigation';
-import { getEvent, getEvents } from '../../services/events';
+import MainLayout from '../layout/MainLayout';
+import { getEvent } from '../../services/events';
+import api from '../../services/api';
 import EventIcon from '@mui/icons-material/Event';
-import { useAuth } from '../../contexts/AuthContext';
+import EventHeader from '../events/EventHeader';
+
+// ✅ Use usePermissions only
+import { usePermissions } from '../../hooks/usePermissions';
 
 
-const InventoryPage = ({ eventId }) => {
+
+
+const InventoryPage = ({ eventId, eventName }) => {
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -36,7 +50,7 @@ const InventoryPage = ({ eventId }) => {
     qtyBeforeEvent: 0,
     postEventCount: 0
   });
-  const { isOperationsManager, isAdmin } = (typeof useAuth === 'function' ? useAuth() : { isOperationsManager: false, isAdmin: false });
+  const { isOperationsManager, isAdmin } = usePermissions();
   
   // Determine if user can modify inventory
   const canModifyInventory = isOperationsManager || isAdmin;
@@ -67,8 +81,8 @@ const InventoryPage = ({ eventId }) => {
     });
     // Fetch all events for allocation dropdown
     setEventsLoading(true);
-    getEvents().then(res => {
-      const all = res.events || res;
+    api.get('/events').then(res => {
+      const all = res.data.events || res.data;
       setAllEvents(all);
       // Filter: main event and its children
       let mainEvent = all.find(ev => ev._id === eventId) || all.find(ev => ev._id === (event && event._id));
@@ -343,10 +357,9 @@ const InventoryPage = ({ eventId }) => {
   };
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
-      <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
-        <Typography variant="h4" gutterBottom>Inventory</Typography>
+    <MainLayout eventName={eventName} parentEventName={parentEvent && parentEvent._id !== event?._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event?._id ? parentEvent._id : null}>
+      <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={allEvents.filter(ev => (parentEvent ? ev.parentEventId === (parentEvent._id) : ev.parentEventId === (event && event._id)) && ev._id !== (parentEvent ? parentEvent._id : event && event._id))} />
+      <Typography variant="h4" gutterBottom>Inventory</Typography>
         <Box display="flex" gap={2} mb={2}>
           {canModifyInventory && (
             isEditMode ? (
@@ -633,14 +646,17 @@ const InventoryPage = ({ eventId }) => {
             </Button>
           </DialogActions>
         </Dialog>
-      </Box>
-    </Box>
-  );
+      </MainLayout>
+    );
 };
 
 function InventoryPageWrapper() {
   const { eventId } = useParams();
-  return <InventoryPage eventId={eventId} />;
+  const [event, setEvent] = React.useState(null);
+  React.useEffect(() => {
+    getEvent(eventId).then(setEvent);
+  }, [eventId]);
+  return <InventoryPage eventId={eventId} eventName={event?.eventName || 'Loading Event...'} />;
 }
 
 export default InventoryPageWrapper; 

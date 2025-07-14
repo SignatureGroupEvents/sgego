@@ -5,6 +5,18 @@ const csv = require('csv-parser');
 const fs = require('fs');
 const { Parser } = require('json2csv');
 
+// Helper function to emit analytics update
+const emitAnalyticsUpdate = (eventId) => {
+  if (global.io) {
+    global.io.to(`event-${eventId}`).emit('analytics:update', {
+      eventId,
+      timestamp: new Date().toISOString(),
+      type: 'inventory_update'
+    });
+    console.log(`📊 Emitted analytics:update for event ${eventId} (inventory)`);
+  }
+};
+
 exports.getInventory = async (req, res) => {
   try {
     const { eventId } = req.params;
@@ -94,6 +106,9 @@ exports.uploadInventory = async (req, res) => {
           // Clean up file
           fs.unlinkSync(file.path);
 
+          // Emit WebSocket update for analytics
+          emitAnalyticsUpdate(eventId);
+
           res.json({
             success: true,
             message: `${insertedItems.length} inventory items imported`,
@@ -174,6 +189,9 @@ exports.updateInventoryCount = async (req, res) => {
       },
       timestamp: new Date()
     });
+
+    // Emit WebSocket update for analytics
+    emitAnalyticsUpdate(inventoryItem.eventId);
 
     res.json({
       success: true,
