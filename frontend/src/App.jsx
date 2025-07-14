@@ -1,12 +1,12 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider } from './contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
+import theme from './styles/theme';
 
 // Components
-import Dashboard from './components/dashboard/Dashboard';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import EventsList from './components/events/EventsList';
 import CreateEvent from './components/events/CreateEvent';
@@ -15,47 +15,15 @@ import UploadGuest from './components/guests/UploadGuest';
 import DashboardLayout from './components/layout/DashboardLayout';
 import EventDashboard from './components/events/EventDashboard';
 import InventoryPageWrapper from './components/inventory/InventoryPage';
-import AccountPage from './pages/AccountPage';
+import AccountPage from "./pages/Account/AccountPage";
+import AccountEditPage from "./pages/Account/AccountEditPage";
+import AuthPage from "./pages/Auth/AuthPage";
+import AdvancedDashboard from "./pages/Dashboard/AdvancedDashboard";
+import HelpPage from "./pages/HelpPage";
 
-import AccountEditPage from './pages/AccountEditPage.jsx';
-import AuthPage from './pages/AuthPage';
-import AdvancedDashboard from './pages/AdvancedDashboard';
-
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#00B2C0',      // Your main brand color
-      contrastText: '#FFFAF6', // For text on primary backgrounds
-    },
-    secondary: {
-      main: '#31365E',      // Your dark brand color
-      contrastText: '#FFFAF6',
-    },
-    background: {
-      default: '#FFFAF6',   // Your background color
-      paper: '#FFFFFF',
-    },
-    warning: {
-      main: '#CB1033',      // Your warning color
-    },
-    success: {
-      main: '#00B2C0',      // You can use your main color or another for success
-    },
-    info: {
-      main: '#FAA951',      // Accent as info, or adjust as needed
-    },
-    accent: {
-      main: '#FAA951',      // Not standard in MUI, but you can use it in your custom components
-    },
-    text: {
-      primary: '#31365E',   // Your font color
-      secondary: '#31365E',
-    },
-  },
-  typography: {
-    fontFamily: "'Work Sans', Arial, sans-serif",
-  },
-});
+// Analytics Test Components
+import SpecificAnalyticsExamples from './components/analytics/SpecificAnalyticsExamples';
+import ComprehensiveAnalytics from './components/analytics/ComprehensiveAnalytics';
 
 function InviteRedirect() {
   const { token } = useParams();
@@ -74,15 +42,14 @@ function App() {
       <AuthProvider>
         <Router>
           <Routes>
-            {/* New centralized auth route */}
+            {/* Auth routes */}
             <Route path="/auth" element={<AuthPage />} />
-            
-            {/* Redirect old auth routes to new structure */}
             <Route path="/login" element={<Navigate to="/auth?view=login" replace />} />
             <Route path="/invite/:token" element={<InviteRedirect />} />
             <Route path="/reset-password" element={<Navigate to="/auth?view=forgot-password" replace />} />
             <Route path="/reset-password/:token" element={<ResetPasswordTokenRedirect />} />
-            
+
+            {/* Dashboard + event routes */}
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <DashboardLayout />
@@ -108,6 +75,14 @@ function App() {
                 <EventDashboard />
               </ProtectedRoute>
             } />
+            
+            {/* ✅ NEW ROUTE for advanced view */}
+            <Route path="/events/:eventId/dashboard/advanced" element={
+              <ProtectedRoute>
+                <AdvancedDashboard />
+              </ProtectedRoute>
+            } />
+            
             <Route path="/events/:eventId/details" element={
               <ProtectedRoute>
                 <EventDetails />
@@ -133,24 +108,39 @@ function App() {
                 <AccountPage />
               </ProtectedRoute>
             } />
-            <Route path="/analytics" element={
-              <ProtectedRoute>
-                <Navigate to="/dashboard/advanced" replace />
-              </ProtectedRoute>
-            } />
             <Route path="/account/edit/:userId" element={
               <ProtectedRoute>
                 <AccountEditPage />
               </ProtectedRoute>
             } />
-            <Route path="/dashboard/advanced" element={
+            <Route path="/help" element={
               <ProtectedRoute>
-                <AdvancedDashboard />
+                <HelpPage />
               </ProtectedRoute>
             } />
+            {/* Remove duplicate routes - these are handled by the event-specific routes above */}
+
+            {/* 🧪 TEST ROUTES for Analytics Components */}
+            <Route path="/test-analytics/:eventId" element={
+              <ProtectedRoute>
+                <SpecificAnalyticsExamples />
+              </ProtectedRoute>
+            } />
+            <Route path="/comprehensive-analytics/:eventId" element={
+              <ProtectedRoute>
+                <ComprehensiveAnalytics />
+              </ProtectedRoute>
+            } />
+            <Route path="/events/:eventId/analytics" element={
+              <ProtectedRoute>
+                <SpecificAnalyticsExamples />
+              </ProtectedRoute>
+            } />
+ 
           </Routes>
         </Router>
       </AuthProvider>
+
       <Toaster 
         position="top-center"
         toastOptions={{

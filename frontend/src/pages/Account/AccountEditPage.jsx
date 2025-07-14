@@ -10,10 +10,12 @@ import LockIcon from '@mui/icons-material/Lock';
 import EmailIcon from '@mui/icons-material/Email';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
-import api, { resetUserPassword, resendUserInvite, sendPasswordResetLink, updateUserRole } from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
-import MainNavigation from '../components/layout/MainNavigation';
+import api, { resetUserPassword, resendUserInvite, sendPasswordResetLink, updateUserRole } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import MainLayout from '../../components/layout/MainLayout';
 import toast from 'react-hot-toast';
+import { usePermissions } from '../../hooks/usePermissions';
+
 
 const fields = [
   { key: 'firstName', label: 'First Name' },
@@ -25,8 +27,9 @@ const fields = [
 const AccountEditPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const { isAdmin, isOperationsManager, user: currentUser } = useAuth();
-  const [user, setUser] = useState(null);
+  const { user: currentUser } = useAuth();
+  const { isAdmin, isOperationsManager } = usePermissions();
+    const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editingField, setEditingField] = useState(null);
   const [editValue, setEditValue] = useState('');
@@ -240,23 +243,19 @@ const AccountEditPage = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <MainNavigation />
-        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <MainLayout userName={user?.username}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
           <CircularProgress size={60} />
         </Box>
-      </Box>
+      </MainLayout>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <MainNavigation />
-        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <Alert severity="error">{error}</Alert>
-        </Box>
-      </Box>
+      <MainLayout>
+        <Alert severity="error">{error}</Alert>
+      </MainLayout>
     );
   }
 
@@ -272,11 +271,9 @@ const AccountEditPage = () => {
   const statusLabel = user.isActive ? 'Active' : 'Pending';
 
   return (
-    <Box display="flex" minHeight="100vh" bgcolor="#fef8f4">
-      <MainNavigation />
-      <Box flex={1} px={6} py={4}>
-        {/* Header with Return Button */}
-        <Box display="flex" alignItems="center" mb={4}>
+    <MainLayout userName={user?.username}>
+      {/* Header with Return Button */}
+      <Box display="flex" alignItems="center" mb={4}>
           <Button
             variant="contained"
             startIcon={<ArrowBackIcon />}
@@ -430,9 +427,8 @@ const AccountEditPage = () => {
              'Account updated successfully!'}
           </Alert>
         </Snackbar>
-      </Box>
-    </Box>
-  );
+      </MainLayout>
+    );
 };
 
 export default AccountEditPage; 

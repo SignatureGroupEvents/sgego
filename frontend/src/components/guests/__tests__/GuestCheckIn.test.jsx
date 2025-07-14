@@ -12,7 +12,7 @@ vi.mock('../../../services/api', () => ({
 }))
 
 // Mock TopNavBar component
-vi.mock('../../TopNavBar', () => ({
+vi.mock('../../layout/TopNavBar', () => ({
   default: () => <div data-testid="top-nav-bar">TopNavBar</div>
 }))
 

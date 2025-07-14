@@ -1,9 +1,9 @@
 import React from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import LoginForm from '../components/auth/LoginForm';
-import RegisterForm from '../components/auth/RegisterForm';
-import ResetPasswordForm from '../components/auth/ResetPasswordForm';
-import ForgotPasswordForm from '../components/auth/ForgotPasswordForm';
+import LoginForm from '../../components/auth/LoginForm';
+import RegisterForm from '../../components/auth/RegisterForm';
+import ResetPasswordForm from '../../components/auth/ResetPasswordForm';
+import ForgotPasswordForm from '../../components/auth/ForgotPasswordForm';
 
 const AuthPage = () => {
   const [searchParams] = useSearchParams();
@@ -86,4 +86,4 @@ const AuthPage = () => {
   }
 };
 
-export default AuthPage;
+export default AuthPage; 

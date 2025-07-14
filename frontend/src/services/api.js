@@ -42,11 +42,15 @@ export const uploadInventoryCSV = (eventId, file) => {
 };
 
 export const fetchInventory = (eventId) => {
-  return api.get(`/events/${eventId}/inventory`);
+  return api.get(`/inventory/${eventId}`);
 };
 
 export const updateInventoryItem = (inventoryId, data) => {
   return api.put(`/inventory/${inventoryId}`, data);
+};
+
+export const addInventoryItem = (eventId, data) => {
+  return api.post(`/inventory/${eventId}`, data);
 };
 
 export const deleteInventoryItem = (inventoryId) => {
@@ -206,4 +210,21 @@ export const bulkAddGuests = (eventId, guests) => {
 
 export const bulkDeleteGuests = (eventId, guestIds) => {
   return api.post('/guests/bulk-delete', { eventId, guestIds });
+};
+
+// My Events API functions
+export const getMyEvents = () => {
+  return api.get('/users/my-events');
+};
+
+export const addToMyEvents = (eventId) => {
+  return api.post('/users/my-events', { eventId });
+};
+
+export const removeFromMyEvents = (eventId) => {
+  return api.delete(`/users/my-events/${eventId}`);
+};
+
+export const updateMyEventsPositions = (positions) => {
+  return api.put('/users/my-events/positions', { positions });
 };

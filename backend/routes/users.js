@@ -15,7 +15,11 @@ const {
   deactivateUser,
   deleteUser,
   resetUserPassword,
-  sendPasswordResetLink
+  sendPasswordResetLink,
+  getMyEvents,
+  addToMyEvents,
+  removeFromMyEvents,
+  updateMyEventsPositions
 } = require('../controllers/userController');
 
 const { protect, requireRole, requireOperationsOrAdmin } = require('../middleware/auth');
@@ -57,6 +61,12 @@ router.delete('/:userId', requireRole('admin'), deleteUser);
 router.put('/:userId/reset-password', requireRole('admin'), resetUserPassword);
 router.post('/:userId/resend-invite', requireRole('admin'), resendInvite);
 router.post('/:userId/send-reset-link', requireRole('admin'), sendPasswordResetLink);
+
+// My Events routes
+router.get('/my-events', getMyEvents);
+router.post('/my-events', addToMyEvents);
+router.delete('/my-events/:eventId', removeFromMyEvents);
+router.put('/my-events/positions', updateMyEventsPositions);
 
 module.exports = router;
 

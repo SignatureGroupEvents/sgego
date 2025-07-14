@@ -58,3 +58,21 @@ ul, ol {
   padding: 0;
   list-style: none;
 }
+
+/* Material-UI Select dropdown fixes */
+.MuiMenu-paper {
+  z-index: 9999 !important;
+}
+
+.MuiPopover-paper {
+  z-index: 9999 !important;
+}
+
+/* Ensure modals and dialogs render above everything */
+.MuiDialog-root {
+  z-index: 9999 !important;
+}
+
+.MuiModal-root {
+  z-index: 9999 !important;
+}

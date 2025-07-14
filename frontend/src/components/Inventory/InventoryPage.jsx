@@ -1,15 +1,29 @@
 import React, { useState, useRef } from 'react';
-import { Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete, TextField, Chip } from '@mui/material';
-import { Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon, Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon } from '@mui/icons-material';
-import { uploadInventoryCSV, fetchInventory, updateInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
+import {
+  Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete,
+  TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
+  DialogContent, DialogActions
+} from '@mui/material';
+import {
+  Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
+  Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon
+} from '@mui/icons-material';
+import { uploadInventoryCSV, fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
-import MainNavigation from '../layout/MainNavigation';
-import { getEvent, getEvents } from '../../services/events';
+import MainLayout from '../layout/MainLayout';
+import { getEvent } from '../../services/events';
+import api from '../../services/api';
 import EventIcon from '@mui/icons-material/Event';
-import { useAuth } from '../../contexts/AuthContext';
+import EventHeader from '../events/EventHeader';
+
+// ✅ Use usePermissions only
+import { usePermissions } from '../../hooks/usePermissions';
 
 
-const InventoryPage = ({ eventId }) => {
+
+
+const InventoryPage = ({ eventId, eventName }) => {
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -24,7 +38,19 @@ const InventoryPage = ({ eventId }) => {
   const [allEvents, setAllEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [filteredEvents, setFilteredEvents] = useState([]);
-  const { isOperationsManager, isAdmin } = (typeof useAuth === 'function' ? useAuth() : { isOperationsManager: false, isAdmin: false });
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editValuesMap, setEditValuesMap] = useState({});
+  const [addItemModalOpen, setAddItemModalOpen] = useState(false);
+  const [newItem, setNewItem] = useState({
+    type: '',
+    style: '',
+    size: '',
+    gender: '',
+    qtyWarehouse: 0,
+    qtyBeforeEvent: 0,
+    postEventCount: 0
+  });
+  const { isOperationsManager, isAdmin } = usePermissions();
   
   // Determine if user can modify inventory
   const canModifyInventory = isOperationsManager || isAdmin;
@@ -55,8 +81,8 @@ const InventoryPage = ({ eventId }) => {
     });
     // Fetch all events for allocation dropdown
     setEventsLoading(true);
-    getEvents().then(res => {
-      const all = res.events || res;
+    api.get('/events').then(res => {
+      const all = res.data.events || res.data;
       setAllEvents(all);
       // Filter: main event and its children
       let mainEvent = all.find(ev => ev._id === eventId) || all.find(ev => ev._id === (event && event._id));
@@ -135,6 +161,66 @@ const InventoryPage = ({ eventId }) => {
     setEditValues({});
   };
 
+  const handleEnterEditMode = () => {
+    setIsEditMode(true);
+    // Initialize edit values for all inventory items
+    const initialEditValues = {};
+    inventory.forEach(item => {
+      initialEditValues[item._id] = {
+        qtyBeforeEvent: item.qtyBeforeEvent || item.qtyOnSite || 0,
+        postEventCount: item.postEventCount || 0,
+      };
+    });
+    setEditValuesMap(initialEditValues);
+  };
+
+  const handleExitEditMode = () => {
+    setIsEditMode(false);
+    setEditValuesMap({});
+  };
+
+  const handleEditValueChange = (itemId, field, value) => {
+    setEditValuesMap(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleSaveAllChanges = async () => {
+    try {
+      // Save all changes
+      const savePromises = Object.entries(editValuesMap).map(([itemId, values]) => {
+        const numericValues = {
+          qtyBeforeEvent: Number(values.qtyBeforeEvent),
+          postEventCount: Number(values.postEventCount),
+        };
+        
+        // Validate values
+        if (
+          isNaN(numericValues.qtyBeforeEvent) ||
+          isNaN(numericValues.postEventCount) ||
+          numericValues.qtyBeforeEvent < 0 ||
+          numericValues.postEventCount < 0
+        ) {
+          throw new Error(`Invalid values for item ${itemId}`);
+        }
+        
+        return updateInventoryItem(itemId, numericValues);
+      });
+      
+      await Promise.all(savePromises);
+      setSuccess('All inventory items updated successfully!');
+      setIsEditMode(false);
+      setEditValuesMap({});
+      loadInventory();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update inventory items.');
+    }
+  };
+
   const handleDeleteClick = (itemId) => {
     setDeletingId(itemId);
   };
@@ -198,12 +284,99 @@ const InventoryPage = ({ eventId }) => {
     }
   };
 
+  const handleOpenAddItemModal = () => {
+    setAddItemModalOpen(true);
+    setNewItem({
+      type: '',
+      style: '',
+      size: '',
+      gender: '',
+      qtyWarehouse: 0,
+      qtyBeforeEvent: 0,
+      postEventCount: 0
+    });
+  };
+
+  const handleCloseAddItemModal = () => {
+    setAddItemModalOpen(false);
+    setNewItem({
+      type: '',
+      style: '',
+      size: '',
+      gender: '',
+      qtyWarehouse: 0,
+      qtyBeforeEvent: 0,
+      postEventCount: 0
+    });
+  };
+
+  const handleNewItemChange = (field, value) => {
+    setNewItem(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleAddItem = async () => {
+    try {
+      // Validate required fields
+      if (!newItem.type || !newItem.style) {
+        setError('Type and Style are required fields.');
+        return;
+      }
+
+      // Convert numeric fields
+      const itemData = {
+        ...newItem,
+        qtyWarehouse: Number(newItem.qtyWarehouse),
+        qtyBeforeEvent: Number(newItem.qtyBeforeEvent),
+        postEventCount: Number(newItem.postEventCount)
+      };
+
+      // Validate numeric values
+      if (
+        isNaN(itemData.qtyWarehouse) ||
+        isNaN(itemData.qtyBeforeEvent) ||
+        isNaN(itemData.postEventCount) ||
+        itemData.qtyWarehouse < 0 ||
+        itemData.qtyBeforeEvent < 0 ||
+        itemData.postEventCount < 0
+      ) {
+        setError('All quantity fields must be valid numbers.');
+        return;
+      }
+
+      // Add the new item to the inventory
+      await addInventoryItem(eventId, itemData);
+      setSuccess('Inventory item added successfully!');
+      handleCloseAddItemModal();
+      loadInventory();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to add inventory item.');
+    }
+  };
+
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
-      <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: 4 }}>
-        <Typography variant="h4" gutterBottom>Inventory</Typography>
+    <MainLayout eventName={eventName} parentEventName={parentEvent && parentEvent._id !== event?._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event?._id ? parentEvent._id : null}>
+      <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={allEvents.filter(ev => (parentEvent ? ev.parentEventId === (parentEvent._id) : ev.parentEventId === (event && event._id)) && ev._id !== (parentEvent ? parentEvent._id : event && event._id))} />
+      <Typography variant="h4" gutterBottom>Inventory</Typography>
         <Box display="flex" gap={2} mb={2}>
+          {canModifyInventory && (
+            isEditMode ? (
+              <>
+                <Button variant="contained" color="success" onClick={handleSaveAllChanges} startIcon={<SaveIcon />}>
+                  Save All Changes
+                </Button>
+                <Button variant="outlined" onClick={handleExitEditMode} startIcon={<CancelIcon />}>
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button variant="contained" color="primary" onClick={handleEnterEditMode} startIcon={<EditIcon />}>
+                Edit
+              </Button>
+            )
+          )}
           <Button variant="contained" color="primary" onClick={handleExportCSV} startIcon={<FileDownloadIcon />}>
             Export CSV
           </Button>
@@ -218,22 +391,30 @@ const InventoryPage = ({ eventId }) => {
           }
         </Typography>
         {canModifyInventory && (
-          <Button
-            variant="contained"
-            startIcon={<UploadIcon />}
-            component="label"
-            disabled={uploading}
-            sx={{ mb: 3 }}
-          >
-            {uploading ? 'Uploading...' : 'Upload Inventory CSV'}
-            <input
-              type="file"
-              accept=".csv"
-              hidden
-              ref={fileInputRef}
-              onChange={handleFileChange}
-            />
-          </Button>
+          <Box sx={{ display: 'flex', gap: 2, mb: 3, justifyContent: 'space-between' }}>
+            <Button
+              variant="contained"
+              startIcon={<UploadIcon />}
+              component="label"
+              disabled={uploading}
+            >
+              {uploading ? 'Uploading...' : 'Upload Inventory CSV'}
+              <input
+                type="file"
+                accept=".csv"
+                hidden
+                ref={fileInputRef}
+                onChange={handleFileChange}
+              />
+            </Button>
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={handleOpenAddItemModal}
+            >
+              Add Item
+            </Button>
+          </Box>
         )}
         
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -254,7 +435,7 @@ const InventoryPage = ({ eventId }) => {
                       <TableCell>Size</TableCell>
                       <TableCell>Gender</TableCell>
                       <TableCell>Qty Warehouse</TableCell>
-                      <TableCell>Qty On Site</TableCell>
+                      <TableCell>Qty Before Event</TableCell>
                       <TableCell>Current Inventory</TableCell>
                       <TableCell>Post Event Count</TableCell>
                       <TableCell>Allocated Events</TableCell>
@@ -274,48 +455,39 @@ const InventoryPage = ({ eventId }) => {
                           <TableCell>{item.size}</TableCell>
                           <TableCell>{item.gender}</TableCell>
                           <TableCell>
-                            {editRowId === item._id ? (
+                            {item.qtyWarehouse}
+                          </TableCell>
+                          <TableCell>
+                            {isEditMode ? (
                               <input
                                 type="number"
                                 min="0"
                                 required
-                                value={editValues.qtyWarehouse}
-                                onChange={e => handleEditChange('qtyWarehouse', e.target.value)}
+                                value={editValuesMap[item._id]?.qtyBeforeEvent || item.qtyBeforeEvent || item.qtyOnSite || 0}
+                                onChange={e => handleEditValueChange(item._id, 'qtyBeforeEvent', e.target.value)}
                                 style={{ width: 70 }}
                               />
                             ) : (
-                              item.qtyWarehouse
+                              item.qtyBeforeEvent || item.qtyOnSite || 0
                             )}
                           </TableCell>
                           <TableCell>
-                            {editRowId === item._id ? (
-                              <input
-                                type="number"
-                                min="0"
-                                required
-                                value={editValues.qtyOnSite}
-                                onChange={e => handleEditChange('qtyOnSite', e.target.value)}
-                                style={{ width: 70 }}
-                              />
-                            ) : (
-                              item.qtyOnSite
-                            )}
+                            {item.currentInventory}
                           </TableCell>
                           <TableCell>
-                            {editRowId === item._id ? (
+                            {isEditMode ? (
                               <input
                                 type="number"
                                 min="0"
                                 required
-                                value={editValues.currentInventory}
-                                onChange={e => handleEditChange('currentInventory', e.target.value)}
+                                value={editValuesMap[item._id]?.postEventCount || item.postEventCount || 0}
+                                onChange={e => handleEditValueChange(item._id, 'postEventCount', e.target.value)}
                                 style={{ width: 70 }}
                               />
                             ) : (
-                              item.currentInventory
+                              item.postEventCount || 0
                             )}
                           </TableCell>
-                          <TableCell>{item.postEventCount ?? '-'}</TableCell>
                           <TableCell>
                             {eventsLoading ? (
                               <CircularProgress size={20} />
@@ -345,18 +517,8 @@ const InventoryPage = ({ eventId }) => {
                             )}
                           </TableCell>
                           <TableCell align="center">
-                            {canModifyInventory && (
-                              editRowId === item._id ? (
-                                <>
-                                  <IconButton color="success" onClick={() => handleEditSave(item)} size="small"><SaveIcon /></IconButton>
-                                  <IconButton color="inherit" onClick={handleEditCancel} size="small"><CancelIcon /></IconButton>
-                                </>
-                              ) : (
-                                <>
-                                  <IconButton color="primary" onClick={() => handleEditClick(item)} size="small"><EditIcon /></IconButton>
-                                  <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small"><DeleteIcon /></IconButton>
-                                </>
-                              )
+                            {canModifyInventory && !isEditMode && (
+                              <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small"><DeleteIcon /></IconButton>
                             )}
                           </TableCell>
                         </TableRow>
@@ -365,33 +527,136 @@ const InventoryPage = ({ eventId }) => {
                   </TableBody>
                 </Table>
               </TableContainer>
-              {deletingId && (
-                <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Card sx={{ minWidth: 300, p: 2 }}>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>Delete Inventory Item?</Typography>
-                      <Typography variant="body2" color="textSecondary" gutterBottom>
-                        Are you sure you want to delete this inventory item? This action cannot be undone.
-                      </Typography>
-                      <Box display="flex" gap={2} justifyContent="flex-end" mt={2}>
-                        <Button onClick={handleDeleteCancel} variant="outlined">Cancel</Button>
-                        <Button onClick={handleDeleteConfirm} color="error" variant="contained">Delete</Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Box>
-              )}
+              {/* Delete Confirmation Dialog */}
+              <Dialog
+                open={!!deletingId}
+                onClose={handleDeleteCancel}
+                maxWidth="sm"
+                fullWidth
+              >
+                <DialogTitle>Delete Inventory Item?</DialogTitle>
+                <DialogContent>
+                  <Typography variant="body2" color="textSecondary" gutterBottom>
+                    Are you sure you want to delete this inventory item? This action cannot be undone.
+                  </Typography>
+                </DialogContent>
+                <DialogActions>
+                  <Button onClick={handleDeleteCancel} variant="outlined">
+                    Cancel
+                  </Button>
+                  <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+                    Delete
+                  </Button>
+                </DialogActions>
+              </Dialog>
             </CardContent>
           </Card>
         )}
-      </Box>
-    </Box>
-  );
+        
+        {/* Add Item Modal */}
+        <Dialog 
+          open={addItemModalOpen} 
+          onClose={handleCloseAddItemModal}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              minWidth: 500,
+              maxWidth: 600
+            }
+          }}
+        >
+          <DialogTitle>Add Inventory Item</DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
+              <TextField
+                label="Type *"
+                value={newItem.type}
+                onChange={(e) => handleNewItemChange('type', e.target.value)}
+                required
+                fullWidth
+              />
+              <TextField
+                label="Style *"
+                value={newItem.style}
+                onChange={(e) => handleNewItemChange('style', e.target.value)}
+                required
+                fullWidth
+              />
+              <TextField
+                label="Size"
+                value={newItem.size}
+                onChange={(e) => handleNewItemChange('size', e.target.value)}
+                fullWidth
+              />
+              <FormControl fullWidth>
+                <InputLabel>Gender</InputLabel>
+                <Select
+                  value={newItem.gender}
+                  onChange={(e) => handleNewItemChange('gender', e.target.value)}
+                  label="Gender"
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        zIndex: 9999
+                      }
+                    }
+                  }}
+                >
+                  <MenuItem value="">
+                    <em>Select gender (optional)</em>
+                  </MenuItem>
+                  <MenuItem value="M">Male (M)</MenuItem>
+                  <MenuItem value="W">Female (W)</MenuItem>
+                  <MenuItem value="N/A">Not Applicable (N/A)</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                label="Qty Warehouse"
+                type="number"
+                value={newItem.qtyWarehouse}
+                onChange={(e) => handleNewItemChange('qtyWarehouse', e.target.value)}
+                fullWidth
+                inputProps={{ min: 0 }}
+              />
+              <TextField
+                label="Qty Before Event"
+                type="number"
+                value={newItem.qtyBeforeEvent}
+                onChange={(e) => handleNewItemChange('qtyBeforeEvent', e.target.value)}
+                fullWidth
+                inputProps={{ min: 0 }}
+              />
+              <TextField
+                label="Post Event Count"
+                type="number"
+                value={newItem.postEventCount}
+                onChange={(e) => handleNewItemChange('postEventCount', e.target.value)}
+                fullWidth
+                inputProps={{ min: 0 }}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseAddItemModal} variant="outlined">
+              Cancel
+            </Button>
+            <Button onClick={handleAddItem} variant="contained" color="primary">
+              Add Item
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </MainLayout>
+    );
 };
 
 function InventoryPageWrapper() {
   const { eventId } = useParams();
-  return <InventoryPage eventId={eventId} />;
+  const [event, setEvent] = React.useState(null);
+  React.useEffect(() => {
+    getEvent(eventId).then(setEvent);
+  }, [eventId]);
+  return <InventoryPage eventId={eventId} eventName={event?.eventName || 'Loading Event...'} />;
 }
 
 export default InventoryPageWrapper; 

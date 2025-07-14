@@ -1,24 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField, Autocomplete, Tooltip } from '@mui/material';
-import { CheckCircle as CheckCircleIcon, Person as PersonIcon, Groups as GroupsIcon, Assessment as AssessmentIcon, Event as EventIcon, Home as HomeIcon, Menu as MenuIcon, Upload as UploadIcon, PersonAdd as PersonAddIcon, Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon, PeopleAlt as PeopleAltIcon, HourglassEmpty as HourglassEmptyIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, CardGiftcard as GiftIcon, Search as SearchIcon, Inventory as InventoryIcon, Save as SaveIcon, Cancel as CancelIcon, Edit as EditIcon, Info as InfoIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField, Autocomplete, Tooltip, Dialog, DialogTitle, DialogContent } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { CheckCircleOutline as CheckCircleIcon, Person as PersonIcon, Groups as GroupsIcon, Assessment as AssessmentIcon, Event as EventIcon, Home as HomeIcon, Menu as MenuIcon, Upload as UploadIcon, PersonAdd as PersonAddIcon, Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon, PeopleAlt as PeopleAltIcon, HourglassEmpty as HourglassEmptyIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, CardGiftcard as GiftIcon, Search as SearchIcon, Inventory as InventoryIcon, Save as SaveIcon, Cancel as CancelIcon, Edit as EditIcon, Info as InfoIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import api, { fetchInventory } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import MainNavigation from '../layout/MainNavigation';
+import { usePermissions } from '../../hooks/usePermissions';
+import MainLayout from '../layout/MainLayout';
 import AddSecondaryEventModal from './AddSecondaryEventModal';
 import AddGuest from '../guests/AddGuest';
-import InventoryPage from '../inventory/InventoryPage';
+import InventoryPage from '../../components/inventory/InventoryPage';
 import GuestCheckIn from '../guests/GuestCheckIn';
 import BasicAnalytics from '../dashboard/BasicAnalytics';
 import { getEvent } from '../../services/events';
 import { getEventActivityFeed } from '../../services/api';
+import MainNavigation from '../layout/MainNavigation';
+import ManageSection from './ManageSection';
+import EventHeader from './EventHeader';
 
 
 const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const { isOperationsManager, isAdmin, user: currentUser } = useAuth();
+  const { isOperationsManager, isAdmin } = usePermissions();
+  const { user: currentUser } = useAuth();
   
   // Determine if user can modify events
   const canModifyEvents = isOperationsManager || isAdmin;
@@ -117,69 +123,103 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell /> {/* Check-in action column */}
+                  <TableCell />
                   <TableCell>Name</TableCell>
                   <TableCell>Email</TableCell>
-                  <TableCell>Company</TableCell>
+                  <TableCell>Selected Gift</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Tags</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => (
-                  <TableRow key={guest._id} hover>
-                    <TableCell>
-                      {canPerformCheckins && (
-                        <Button
-                          variant="contained"
-                          color="success"
-                          size="small"
-                          onClick={() => handleOpenCheckIn(guest)}
-                        >
-                          Check In
-                        </Button>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2">
-                        {guest.firstName} {guest.lastName}
-                      </Typography>
-                      {guest.jobTitle && (
-                        <Typography variant="caption" color="textSecondary">
-                          {guest.jobTitle}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>{guest.email || 'No email'}</TableCell>
-                    <TableCell>{guest.company || '-'}</TableCell>
-                    <TableCell>{guest.attendeeType || 'General'}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
-                        color={guest.hasCheckedIn ? 'success' : 'default'}
-                        size="small"
-                        icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Box display="flex" gap={0.5} flexWrap="wrap">
-                        {guest.tags?.map((tag, index) => (
-                          <Chip
-                            key={index}
-                            label={tag.name}
+                {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
+                  // Find the selected gift from inventory
+                  const selectedGift = guest.giftSelection ? inventory.find(item => item._id === guest.giftSelection) : null;
+                  
+                  return (
+                    <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                      <TableCell>
+                        {guest.hasCheckedIn ? (
+                          <Button
+                            variant="outlined"
+                            color="success"
                             size="small"
-                            sx={{
-                              backgroundColor: tag.color,
-                              color: 'white',
-                              fontSize: '0.7rem'
-                            }}
-                          />
-                        ))}
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                            startIcon={<CheckCircleIcon />}
+                            disabled
+                            sx={{ borderRadius: 2, fontWeight: 600 }}
+                          >
+                            Checked In
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="contained"
+                            color="success"
+                            size="small"
+                            sx={{ borderRadius: 2, fontWeight: 600 }}
+                            onClick={() => handleOpenCheckIn(guest)}
+                          >
+                            Check In
+                          </Button>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
+                        {guest.jobTitle && (
+                          <Typography variant="caption" color="textSecondary">
+                            {guest.jobTitle}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{guest.email || 'No email'}</TableCell>
+                      <TableCell>
+                        {selectedGift ? (
+                          <Box>
+                            <Typography variant="body2" fontWeight={500}>
+                              {selectedGift.type}
+                            </Typography>
+                            {selectedGift.style && (
+                              <Typography variant="caption" color="textSecondary">
+                                {selectedGift.style}
+                              </Typography>
+                            )}
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="textSecondary">
+                            No gift selected
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{guest.attendeeType || 'General'}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
+                          color={guest.hasCheckedIn ? 'success' : 'default'}
+                          size="small"
+                          icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
+                          sx={{ borderRadius: 1 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box display="flex" gap={0.5} flexWrap="wrap">
+                          {guest.tags?.map((tag, index) => (
+                            <Chip
+                              key={index}
+                              label={tag.name}
+                              size="small"
+                              sx={{
+                                backgroundColor: tag.color,
+                                color: 'white',
+                                fontSize: '0.7rem',
+                                borderRadius: 1
+                              }}
+                            />
+                          ))}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>
@@ -197,19 +237,31 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
         sx={{ mt: 2 }}
       />
       {/* Check-in Modal */}
-      {modalOpen && checkInGuest && (
-        <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Card sx={{ minWidth: 400, p: 2 }}>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">Check In Guest</Typography>
-                <Button onClick={handleCloseCheckIn} size="small">Close</Button>
-              </Box>
-              <GuestCheckIn event={event} guest={checkInGuest} onClose={handleCloseCheckIn} onInventoryChange={onInventoryChange} />
-            </CardContent>
-          </Card>
-        </Box>
-      )}
+      <Dialog
+        open={modalOpen}
+        onClose={handleCloseCheckIn}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            minWidth: 400
+          }
+        }}
+      >
+        <DialogTitle>
+          Check In Guest
+        </DialogTitle>
+        <DialogContent>
+          {checkInGuest && (
+            <GuestCheckIn 
+              event={event} 
+              guest={checkInGuest} 
+              onClose={handleCloseCheckIn} 
+              onInventoryChange={onInventoryChange}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
@@ -569,6 +621,13 @@ const GuestListWithGifts = ({ guests = [], inventory = [] }) => {
               value={filterGiftType}
               label="Gift Type"
               onChange={(e) => setFilterGiftType(e.target.value)}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    zIndex: 9999
+                  }
+                }
+              }}
             >
               <MenuItem value="all">All Types</MenuItem>
               {giftTypes.map(type => (
@@ -582,6 +641,13 @@ const GuestListWithGifts = ({ guests = [], inventory = [] }) => {
               value={filterStatus}
               label="Status"
               onChange={(e) => setFilterStatus(e.target.value)}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    zIndex: 9999
+                  }
+                }
+              }}
             >
               <MenuItem value="all">All Status</MenuItem>
               <MenuItem value="checked-in">Checked In</MenuItem>
@@ -743,7 +809,7 @@ const AdvancedView = ({ event, guests, secondaryEvents, inventory = [], onInvent
     setFeedLoading(true);
     try {
       const res = await getEventActivityFeed(event._id, feedType ? { type: feedType } : {});
-      console.log('Event feed logs loaded:', res.data.logs);
+              // Event feed logs loaded
       setFeedLogs(res.data.logs || []);
     } catch (err) {
       console.error('Error loading event feed:', err);
@@ -762,7 +828,7 @@ const AdvancedView = ({ event, guests, secondaryEvents, inventory = [], onInvent
     if (activeTab === 2) { // Only refresh if on activity feed tab
       fetchFeed();
     }
-  }, [inventory]); // Refresh when inventory changes
+  }, [inventory, activeTab]); // Refresh when inventory or active tab changes
 
   // Group inventory by type+style for analytics
   const groupedByTypeStyle = inventory.reduce((acc, item) => {
@@ -919,10 +985,12 @@ const EventDashboardWrapper = () => {
 
 const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inventoryError = '', onInventoryChange }) => {
   const navigate = useNavigate();
-  const { user, logout, isOperationsManager, isAdmin } = useAuth();
+  const { user, logout } = useAuth();
+  const { isOperationsManager, isAdmin } = usePermissions();
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState(null);
   const [guests, setGuests] = useState([]);
+  const [localGuests, setLocalGuests] = useState([]);
   const [error, setError] = useState('');
   const [secondaryModalOpen, setSecondaryModalOpen] = useState(false);
   const [secondaryEvents, setSecondaryEvents] = useState([]);
@@ -937,6 +1005,11 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const [checkInModalOpen, setCheckInModalOpen] = useState(false);
   const [addGuestModalOpen, setAddGuestModalOpen] = useState(false);
 
+  // Update local guests when props change
+  React.useEffect(() => {
+    setLocalGuests(guests);
+  }, [guests]);
+
   // Determine if user can modify events
   const canModifyEvents = isOperationsManager || isAdmin;
 
@@ -948,6 +1021,15 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const handleCloseCheckIn = () => {
     setCheckInGuest(null);
     setCheckInModalOpen(false);
+  };
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
   };
 
   useEffect(() => {
@@ -984,21 +1066,38 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
 
     const fetchSecondaryEvents = async () => {
       try {
-        const response = await api.get(`/events?parentEventId=${eventId}`);
+        // Determine the main event ID to fetch secondary events for
+        let mainEventId = eventId;
+        if (event && event.parentEventId) {
+          // If we're viewing a secondary event, fetch secondary events for the parent
+          mainEventId = event.parentEventId;
+        } else if (event && event.isMainEvent) {
+          // If we're viewing a main event, fetch its secondary events
+          mainEventId = event._id;
+        }
+        
+        const response = await api.get(`/events?parentEventId=${mainEventId}`);
         setSecondaryEvents(response.data.events || response.data);
       } catch (error) {
         // ignore for now
       }
     };
 
-    fetchEventData().then(() => {
-      // Wait for event to be set
-      setTimeout(() => {
-        const mainEventId = event && event.isMainEvent ? event._id : event?.parentEventId || eventId;
-        fetchGuests(mainEventId);
-      }, 0);
-    });
-    fetchSecondaryEvents();
+    const fetchAllData = async () => {
+      try {
+        await fetchEventData();
+        // Use the eventId directly since we just fetched the event data
+        const mainEventId = eventId;
+        await Promise.all([
+          fetchGuests(mainEventId),
+          fetchSecondaryEvents()
+        ]);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+    
+    fetchAllData();
   }, [eventId]);
 
   const handleUploadGuests = () => {
@@ -1011,27 +1110,33 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const handleGuestAdded = (newGuest) => {
     // Add the new guest to the current list
     setGuests(prev => [...prev, newGuest]);
+    setLocalGuests(prev => [...prev, newGuest]);
+  };
+
+  const handleCheckInSuccess = (checkedInGuest) => {
+    // Update the guest's check-in status in the local state
+    setLocalGuests(prev => prev.map(guest => 
+      guest._id === checkedInGuest._id 
+        ? { ...guest, hasCheckedIn: true }
+        : guest
+    ));
   };
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <MainNavigation />
-        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <MainLayout eventName={event?.eventName || 'Loading Event...'}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
           <CircularProgress size={60} />
         </Box>
-      </Box>
+      </MainLayout>
     );
   }
 
   if (error || !event) {
     return (
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <MainNavigation />
-        <Box sx={{ flex: 1, p: 4 }}>
-          <Alert severity="error">{error || 'Event not found'}</Alert>
-        </Box>
-      </Box>
+      <MainLayout eventName={event?.eventName || 'Loading Event...'}>
+        <Alert severity="error">{error || 'Event not found'}</Alert>
+      </MainLayout>
     );
   }
 
@@ -1045,45 +1150,11 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const mainEvent = event && event.isMainEvent ? event : parentEvent || event;
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
-      <MainNavigation />
-      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 2 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, gap: 2 }}>
-          <Box flexGrow={1}>
-            <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
-              {event.eventName} Dashboard
-            </Typography>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500 }}>
-              📋 Contract: {event.eventContractNumber}
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="body2" color="textSecondary">Basic</Typography>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={viewMode === 'advanced'}
-                    onChange={(e) => setViewMode(e.target.checked ? 'advanced' : 'basic')}
-                    color="primary"
-                  />
-                }
-                label=""
-              />
-              <Typography variant="body2" color="textSecondary">Advanced</Typography>
-            </Box>
-            <Button
-              variant="outlined"
-              onClick={() => navigate(`/events/${eventId}/inventory`)}
-              sx={{ borderRadius: 2, fontWeight: 600 }}
-            >
-              View Inventory
-            </Button>
-          </Box>
-        </Box>
+    <MainLayout eventName={event.eventName || 'Loading Event...'} parentEventName={parentEvent && parentEvent._id !== event._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event._id ? parentEvent._id : null}>
+      <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={true} />
         
         {/* Event Overview Section */}
-        <Box sx={{ width: '100%', px: 3, py: 4, backgroundColor: '#fdf9f6' }}>
+        <Box sx={{ width: '100%', px: 2, py: 2, backgroundColor: '#fdf9f6' }}>
   {viewMode === 'basic' ? (
     <BasicAnalytics 
       event={event}
@@ -1101,39 +1172,19 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   )}
 </Box>
 
+<ManageSection
+  onInventory={() => navigate(`/events/${eventId}/inventory`)}
+  onUpload={handleUploadGuests}
+  onAddGuest={handleAddGuest}
+  onAddEvent={() => setSecondaryModalOpen(true)}
+  canModify={canModifyEvents}
+/>
 
-        {/* Add Secondary Event Button and Modal */}
-        {canModifyEvents && (
-          <Button
-            variant="contained"
-            startIcon={<EventIcon />}
-            onClick={() => setSecondaryModalOpen(true)}
-            sx={{ mb: 4, borderRadius: 2, fontWeight: 600 }}
-          >
-            ➕ Add Additional Event
-          </Button>
-        )}
-        {secondaryModalOpen && (
-          <AddSecondaryEventModal
-            open={secondaryModalOpen}
-            onClose={() => setSecondaryModalOpen(false)}
-            parentEventId={eventId}
-            parentContractNumber={event.eventContractNumber}
-            parentEventStart={event.eventStart}
-            parentEventEnd={event.eventEnd}
-            onEventAdded={() => {
-              setSecondaryModalOpen(false);
-              // Refresh secondary events after add
-              api.get(`/events?parentEventId=${eventId}`).then(res => setSecondaryEvents(res.data.events || res.data));
-            }}
-          />
-        )}
-        
         {/* Guest Table */}
         <Card elevation={2} sx={{ borderRadius: 3, p: 2, mb: 4 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="h6" fontWeight={600} color="primary.main">
-              Guest List ({guests.length})
+              Guest List ({localGuests.length})
             </Typography>
             <Box display="flex" gap={1}>
               {canModifyEvents && (
@@ -1165,126 +1216,144 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                   <TableCell />
                   <TableCell>Name</TableCell>
                   <TableCell>Email</TableCell>
-                  <TableCell>Company</TableCell>
+                  <TableCell>Selected Gift</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Tags</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {guests.slice(0, 10).map((guest) => (
-                  <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
-                    <TableCell>
-                      <Button
-                        variant="contained"
-                        color="success"
-                        size="small"
-                        sx={{ borderRadius: 2, fontWeight: 600 }}
-                        onClick={() => handleOpenCheckIn(guest)}
-                      >
-                        Check In
-                      </Button>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
-                      {guest.jobTitle && (
-                        <Typography variant="caption" color="textSecondary">
-                          {guest.jobTitle}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>{guest.email || 'No email'}</TableCell>
-                    <TableCell>{guest.company || '-'}</TableCell>
-                    <TableCell>{guest.attendeeType || 'General'}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
-                        color={guest.hasCheckedIn ? 'success' : 'default'}
-                        size="small"
-                        icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
-                        sx={{ borderRadius: 1 }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Box display="flex" gap={0.5} flexWrap="wrap">
-                        {guest.tags?.map((tag, index) => (
-                          <Chip
-                            key={index}
-                            label={tag.name}
+                {localGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
+                  // Find the selected gift from inventory
+                  const selectedGift = guest.giftSelection ? inventory.find(item => item._id === guest.giftSelection) : null;
+                  
+                  return (
+                    <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                      <TableCell>
+                        {guest.hasCheckedIn ? (
+                          <Button
+                            variant="outlined"
+                            color="success"
                             size="small"
-                            sx={{
-                              backgroundColor: tag.color,
-                              color: 'white',
-                              fontSize: '0.7rem',
-                              borderRadius: 1
-                            }}
-                          />
-                        ))}
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                            startIcon={<CheckCircleIcon />}
+                            disabled
+                            sx={{ borderRadius: 2, fontWeight: 600 }}
+                          >
+                            Checked In
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="contained"
+                            color="success"
+                            size="small"
+                            sx={{ borderRadius: 2, fontWeight: 600 }}
+                            onClick={() => handleOpenCheckIn(guest)}
+                          >
+                            Check In
+                          </Button>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
+                        {guest.jobTitle && (
+                          <Typography variant="caption" color="textSecondary">
+                            {guest.jobTitle}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{guest.email || 'No email'}</TableCell>
+                      <TableCell>
+                        {selectedGift ? (
+                          <Box>
+                            <Typography variant="body2" fontWeight={500}>
+                              {selectedGift.type}
+                            </Typography>
+                            {selectedGift.style && (
+                              <Typography variant="caption" color="textSecondary">
+                                {selectedGift.style}
+                              </Typography>
+                            )}
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="textSecondary">
+                            No gift selected
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{guest.attendeeType || 'General'}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
+                          color={guest.hasCheckedIn ? 'success' : 'default'}
+                          size="small"
+                          icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
+                          sx={{ borderRadius: 1 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box display="flex" gap={0.5} flexWrap="wrap">
+                          {guest.tags?.map((tag, index) => (
+                            <Chip
+                              key={index}
+                              label={tag.name}
+                              size="small"
+                              sx={{
+                                backgroundColor: tag.color,
+                                color: 'white',
+                                fontSize: '0.7rem',
+                                borderRadius: 1
+                              }}
+                            />
+                          ))}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={localGuests.length}
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            rowsPerPageOptions={[10, 25, 50]}
+            labelRowsPerPage="Guests per page"
+            sx={{ mt: 2 }}
+          />
         </Card>
-        {/* --- ADDITIONAL EVENTS SECTION --- */}
-        {secondaryEvents.length > 0 && (
-          <Card elevation={2} sx={{ mb: 3, borderRadius: 3, p: 2, background: 'linear-gradient(135deg, #FFFAF6 0%, #f8f9fa 100%)', border: '1px solid #e9ecef', boxShadow: 2 }}>
-            <Typography variant="subtitle1" fontWeight={700} color="primary.main" gutterBottom>
-              📅 Additional Events
-            </Typography>
-            <Grid container spacing={1}>
-              {secondaryEvents.map((secondaryEvent) => (
-                <Grid item key={secondaryEvent._id}>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => navigate(`/events/${secondaryEvent._id}/dashboard`)}
-                    sx={{
-                      fontSize: '0.85rem',
-                      borderRadius: 2,
-                      borderColor: 'primary.main',
-                      color: 'primary.main',
-                      fontWeight: 600,
-                      textTransform: 'none',
-                      px: 2,
-                      py: 0.5,
-                      '&:hover': {
-                        backgroundColor: 'primary.main',
-                        color: '#fff',
-                        boxShadow: 2
-                      },
-                      transition: 'all 0.2s ease-in-out'
-                    }}
-                  >
-                    {secondaryEvent.eventName}
-                  </Button>
-                </Grid>
-              ))}
-            </Grid>
-          </Card>
-        )}
+        
 
         {/* Check-in Modal */}
-        {checkInModalOpen && checkInGuest && (
-          <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', bgcolor: 'rgba(0,0,0,0.2)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Card sx={{ minWidth: 400, p: 2 }}>
-              <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                  <Typography variant="h6">Check In Guest</Typography>
-                  <Button onClick={handleCloseCheckIn} size="small">Close</Button>
-                </Box>
-                <GuestCheckIn 
-                  event={event} 
-                  guest={checkInGuest} 
-                  onClose={handleCloseCheckIn} 
-                  onInventoryChange={onInventoryChange}
-                />
-              </CardContent>
-            </Card>
-          </Box>
-        )}
+        <Dialog
+          open={checkInModalOpen}
+          onClose={handleCloseCheckIn}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              minWidth: 400
+            }
+          }}
+        >
+          <DialogTitle>
+            Check In Guest
+          </DialogTitle>
+          <DialogContent>
+            {checkInGuest && (
+              <GuestCheckIn 
+                event={event} 
+                guest={checkInGuest} 
+                onClose={handleCloseCheckIn} 
+                onInventoryChange={onInventoryChange}
+                onCheckInSuccess={handleCheckInSuccess}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Add Guest Modal */}
         <AddGuest
@@ -1293,9 +1362,8 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
           eventId={mainEvent._id}
           onGuestAdded={handleGuestAdded}
         />
-      </Box>
-    </Box>
-  );
+      </MainLayout>
+    );
 };
 
 export default EventDashboardWrapper;
