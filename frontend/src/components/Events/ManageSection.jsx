@@ -5,7 +5,7 @@ import UploadIcon from '@mui/icons-material/Upload';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventIcon from '@mui/icons-material/Event';
 
-const BUTTON_SIZE = { xs: '100%', sm: 180 };
+const BUTTON_SIZE = { xs: '100%', sm: 250 };
 
 const ManageSection = ({
   onInventory,
@@ -30,7 +30,7 @@ const ManageSection = ({
     }}
   >
     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2, ml: 1 }}>
-      Manage
+      Manage Your Event
     </Typography>
     <Box
       sx={{
@@ -70,7 +70,7 @@ const ManageSection = ({
             height: 40,
           }}
         >
-          Upload More
+          Upload More Guests
         </Button>
       )}
       <Button
@@ -85,7 +85,7 @@ const ManageSection = ({
           height: 40,
         }}
       >
-        Add Guest
+        Add Single Guest
       </Button>
       {canModify && (
         <Button

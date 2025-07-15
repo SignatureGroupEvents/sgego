@@ -1,0 +1,254 @@
+import React, { useState } from 'react';
+import { 
+  Box, 
+  Typography, 
+  Card, 
+  CardContent, 
+  Button, 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableContainer, 
+  TablePagination, 
+  TableHead, 
+  TableRow, 
+  Paper, 
+  Chip, 
+  Dialog, 
+  DialogTitle, 
+  DialogContent 
+} from '@mui/material';
+import { 
+  CheckCircleOutline as CheckCircleIcon, 
+  Person as PersonIcon, 
+  Groups as GroupsIcon, 
+  Upload as UploadIcon, 
+  PersonAdd as PersonAddIcon 
+} from '@mui/icons-material';
+import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
+import GuestCheckIn from './GuestCheckIn';
+
+const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange, inventory = [] }) => {
+  const [checkInGuest, setCheckInGuest] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const { isOperationsManager, isAdmin } = usePermissions();
+  const { user: currentUser } = useAuth();
+  
+  // Determine if user can modify events
+  const canModifyEvents = isOperationsManager || isAdmin;
+  // Staff can perform check-ins and gift assignments but not modify guest lists
+  const canPerformCheckins = isOperationsManager || isAdmin || currentUser?.role === 'staff';
+  // Staff can add guests manually but not upload bulk
+  const canAddGuests = isOperationsManager || isAdmin || currentUser?.role === 'staff';
+
+  const handleOpenCheckIn = (guest) => {
+    setCheckInGuest(guest);
+    setModalOpen(true);
+  };
+  const handleCloseCheckIn = () => {
+    setCheckInGuest(null);
+    setModalOpen(false);
+  };
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  if (guests.length === 0) {
+    return (
+      <Card>
+        <CardContent sx={{ textAlign: 'center', py: 6 }}>
+          <GroupsIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" gutterBottom>
+            No guests added yet
+          </Typography>
+          <Typography color="textSecondary" paragraph>
+            Get started by uploading a guest list or adding guests manually.
+          </Typography>
+          <Box display="flex" gap={2} justifyContent="center">
+            <Button
+              variant="contained"
+              startIcon={<UploadIcon />}
+              onClick={onUploadGuests}
+            >
+              Upload CSV/Excel
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<PersonAddIcon />}
+              onClick={onAddGuest}
+            >
+              Add Guest Manually
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card>
+        <CardContent>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6">
+              Guest List ({guests.length})
+            </Typography>
+          </Box>
+          <TableContainer component={Paper} variant="outlined">
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell />
+                  <TableCell>Name</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>Selected Gift</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Tags</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
+                  // Find the selected gift from inventory
+                  const selectedGift = guest.giftSelection ? inventory.find(item => item._id === guest.giftSelection) : null;
+                  
+                  return (
+                    <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                      <TableCell>
+                        {guest.hasCheckedIn ? (
+                          <Button
+                            variant="outlined"
+                            color="success"
+                            size="small"
+                            sx={{ justifyContent: 'center', width: '75%', borderRadius: 2, fontWeight: 600, color: 'white' }}
+                            startIcon={<CheckCircleIcon />}
+                            disabled
+                          >
+                            Picked Up
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="contained"
+                            color="success"
+                            size="medium"
+                            sx={{ justifyContent: 'center', width: '75%', borderRadius: 2, fontWeight: 600 }}
+                            startIcon={<CheckCircleIcon />} 
+                            onClick={() => handleOpenCheckIn(guest)}
+                          >
+                          </Button>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
+                        {guest.jobTitle && (
+                          <Typography variant="caption" color="textSecondary">
+                            {guest.jobTitle}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{guest.email || 'No email'}</TableCell>
+                      <TableCell>
+                        {selectedGift ? (
+                          <Box>
+                            <Typography variant="body2" fontWeight={500}>
+                              {selectedGift.type}
+                            </Typography>
+                            {selectedGift.style && (
+                              <Typography variant="caption" color="textSecondary">
+                                {selectedGift.style}
+                              </Typography>
+                            )}
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="textSecondary">
+                            No gift selected
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{guest.attendeeType || 'General'}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
+                          color={guest.hasCheckedIn ? 'success' : 'default'}
+                          size="small"
+                          icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
+                          sx={{ borderRadius: 1 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box display="flex" gap={0.5} flexWrap="wrap">
+                          {guest.tags?.map((tag, index) => (
+                            <Chip
+                              key={index}
+                              label={tag.name}
+                              size="small"
+                              sx={{
+                                backgroundColor: tag.color,
+                                color: 'white',
+                                fontSize: '0.7rem',
+                                borderRadius: 1
+                              }}
+                            />
+                          ))}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
+      <TablePagination
+        component="div"
+        count={guests.length}
+        page={page}
+        onPageChange={handleChangePage}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        rowsPerPageOptions={[10, 25, 50]}
+        labelRowsPerPage="Guests per page"
+        sx={{ mt: 2 }}
+      />
+      {/* Check-in Modal */}
+      <Dialog
+        open={modalOpen}
+        onClose={handleCloseCheckIn}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            minWidth: 400
+          }
+        }}
+      >
+        <DialogTitle>
+          Check In Guest
+        </DialogTitle>
+        <DialogContent>
+          {checkInGuest && (
+            <GuestCheckIn 
+              event={event} 
+              guest={checkInGuest} 
+              onClose={handleCloseCheckIn} 
+              onInventoryChange={onInventoryChange}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
+
+export default GuestTable;

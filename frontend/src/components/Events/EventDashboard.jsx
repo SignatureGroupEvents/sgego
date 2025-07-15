@@ -17,460 +17,11 @@ import { getEvent } from '../../services/events';
 import { getEventActivityFeed } from '../../services/api';
 import MainNavigation from '../layout/MainNavigation';
 import ManageSection from './ManageSection';
-import EventHeader from './EventHeader';
+import EventHeader from '../events/EventHeader';
+import StandaloneGiftTracker from '../Gifts/StandaloneGiftTracker';
+import EventGiftDashboard from '../Gifts/EventGiftDashboard';
+import GuestTable from '../guests/GuestTable';
 
-
-const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange }) => {
-  const [checkInGuest, setCheckInGuest] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const { isOperationsManager, isAdmin } = usePermissions();
-  const { user: currentUser } = useAuth();
-  
-  // Determine if user can modify events
-  const canModifyEvents = isOperationsManager || isAdmin;
-  // Staff can perform check-ins and gift assignments but not modify guest lists
-  const canPerformCheckins = isOperationsManager || isAdmin || currentUser?.role === 'staff';
-  // Staff can add guests manually but not upload bulk
-  const canAddGuests = isOperationsManager || isAdmin || currentUser?.role === 'staff';
-
-  const handleOpenCheckIn = (guest) => {
-    setCheckInGuest(guest);
-    setModalOpen(true);
-  };
-  const handleCloseCheckIn = () => {
-    setCheckInGuest(null);
-    setModalOpen(false);
-  };
-
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
-  if (guests.length === 0) {
-    return (
-      <Card>
-        <CardContent sx={{ textAlign: 'center', py: 6 }}>
-          <GroupsIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
-          <Typography variant="h6" gutterBottom>
-            No guests added yet
-          </Typography>
-          <Typography color="textSecondary" paragraph>
-            Get started by uploading a guest list or adding guests manually.
-          </Typography>
-          <Box display="flex" gap={2} justifyContent="center">
-            <Button
-              variant="contained"
-              startIcon={<UploadIcon />}
-              onClick={onUploadGuests}
-            >
-              Upload CSV/Excel
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<PersonAddIcon />}
-              onClick={onAddGuest}
-            >
-              Add Guest Manually
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <>
-      <Card>
-        <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6">
-              Guest List ({guests.length})
-            </Typography>
-            <Box display="flex" gap={1}>
-              {canModifyEvents && (
-                <Button
-                  variant="outlined"
-                  startIcon={<UploadIcon />}
-                  onClick={onUploadGuests}
-                  size="small"
-                  sx={{ borderRadius: 2, fontWeight: 600 }}
-                >
-                  Upload More
-                </Button>
-              )}
-              {canAddGuests && (
-                <Button
-                  variant="outlined"
-                  startIcon={<PersonAddIcon />}
-                  onClick={onAddGuest}
-                  size="small"
-                  sx={{ borderRadius: 2, fontWeight: 600 }}
-                >
-                  Add Guest
-                </Button>
-              )}
-            </Box>
-          </Box>
-          <TableContainer component={Paper} variant="outlined">
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell />
-                  <TableCell>Name</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Selected Gift</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Tags</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
-                  // Find the selected gift from inventory
-                  const selectedGift = guest.giftSelection ? inventory.find(item => item._id === guest.giftSelection) : null;
-                  
-                  return (
-                    <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
-                      <TableCell>
-                        {guest.hasCheckedIn ? (
-                          <Button
-                            variant="outlined"
-                            color="success"
-                            size="small"
-                            startIcon={<CheckCircleIcon />}
-                            disabled
-                            sx={{ borderRadius: 2, fontWeight: 600 }}
-                          >
-                            Checked In
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="contained"
-                            color="success"
-                            size="small"
-                            sx={{ borderRadius: 2, fontWeight: 600 }}
-                            onClick={() => handleOpenCheckIn(guest)}
-                          >
-                            Check In
-                          </Button>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
-                        {guest.jobTitle && (
-                          <Typography variant="caption" color="textSecondary">
-                            {guest.jobTitle}
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>{guest.email || 'No email'}</TableCell>
-                      <TableCell>
-                        {selectedGift ? (
-                          <Box>
-                            <Typography variant="body2" fontWeight={500}>
-                              {selectedGift.type}
-                            </Typography>
-                            {selectedGift.style && (
-                              <Typography variant="caption" color="textSecondary">
-                                {selectedGift.style}
-                              </Typography>
-                            )}
-                          </Box>
-                        ) : (
-                          <Typography variant="body2" color="textSecondary">
-                            No gift selected
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>{guest.attendeeType || 'General'}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
-                          color={guest.hasCheckedIn ? 'success' : 'default'}
-                          size="small"
-                          icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
-                          sx={{ borderRadius: 1 }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Box display="flex" gap={0.5} flexWrap="wrap">
-                          {guest.tags?.map((tag, index) => (
-                            <Chip
-                              key={index}
-                              label={tag.name}
-                              size="small"
-                              sx={{
-                                backgroundColor: tag.color,
-                                color: 'white',
-                                fontSize: '0.7rem',
-                                borderRadius: 1
-                              }}
-                            />
-                          ))}
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
-      <TablePagination
-        component="div"
-        count={guests.length}
-        page={page}
-        onPageChange={handleChangePage}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-        rowsPerPageOptions={[10, 25, 50]}
-        labelRowsPerPage="Guests per page"
-        sx={{ mt: 2 }}
-      />
-      {/* Check-in Modal */}
-      <Dialog
-        open={modalOpen}
-        onClose={handleCloseCheckIn}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
-            minWidth: 400
-          }
-        }}
-      >
-        <DialogTitle>
-          Check In Guest
-        </DialogTitle>
-        <DialogContent>
-          {checkInGuest && (
-            <GuestCheckIn 
-              event={event} 
-              guest={checkInGuest} 
-              onClose={handleCloseCheckIn} 
-              onInventoryChange={onInventoryChange}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-};
-
-// Standalone Gift Tracker Component that can be used independently
-export const StandaloneGiftTracker = ({ inventory = [], loading = false, error = '', onInventoryChange }) => {
-  // Group inventory by type and sum currentInventory
-  const grouped = inventory.reduce((acc, item) => {
-    if (!acc[item.type]) acc[item.type] = 0;
-    acc[item.type] += item.currentInventory || 0;
-    return acc;
-  }, {});
-
-  const hasGiftData = Object.keys(grouped).length > 0;
-  const totalGiftsAvailable = Object.values(grouped).reduce((a, b) => a + b, 0);
-
-  return (
-    <Accordion defaultExpanded={true} sx={{ mt: 2 }}>
-      <AccordionSummary
-        expandIcon={<ExpandMoreIcon />}
-        sx={{
-          '& .MuiAccordionSummary-content': {
-            alignItems: 'center',
-            gap: 1
-          }
-        }}
-      >
-        <GiftIcon color="primary" />
-        <Typography variant="h6" fontWeight={600} color="primary.main">
-          Gift Tracker
-        </Typography>
-        <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            {loading ? 'Loading...' : `${totalGiftsAvailable} gifts available`}
-          </Typography>
-        </Box>
-      </AccordionSummary>
-      <AccordionDetails>
-        {loading ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <CircularProgress />
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Loading inventory data...
-            </Typography>
-          </Box>
-        ) : error ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <Typography color="error" gutterBottom>
-              {error}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Please try refreshing the page or contact support if the issue persists.
-            </Typography>
-          </Box>
-        ) : !hasGiftData ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <GiftIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="body1" color="text.secondary" gutterBottom>
-              No inventory available
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Gift inventory data will appear here once items are added to this event.
-            </Typography>
-          </Box>
-        ) : (
-          <>
-            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: 'grey.50' }}>
-                    <TableCell sx={{ fontWeight: 600 }}>Gift Type</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>Quantity Remaining</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {Object.entries(grouped)
-                    .sort(([,a], [,b]) => b - a)
-                    .map(([giftType, quantity]) => (
-                      <TableRow key={giftType} hover>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={500}>
-                            {giftType}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="body2" fontWeight={600} color="primary.main">
-                            {quantity}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                Total gifts available: <strong>{totalGiftsAvailable}</strong>
-              </Typography>
-            </Box>
-          </>
-        )}
-      </AccordionDetails>
-    </Accordion>
-  );
-};
-
-// Event Gift Dashboard Component that accepts inventory as props
-const EventGiftDashboard = ({ eventId, event, inventory = [], loading = false, error = '', onInventoryChange }) => {
-  // Group inventory by type and sum currentInventory
-  const grouped = inventory.reduce((acc, item) => {
-    // Only group real inventory items (skip if missing required fields, e.g. no type/style/size)
-    if (!item.type || !item.style) return acc;
-    if (!acc[item.type]) acc[item.type] = 0;
-    acc[item.type] += item.currentInventory || 0;
-    return acc;
-  }, {});
-
-  const hasGiftData = Object.keys(grouped).length > 0;
-  const totalGiftsAvailable = Object.values(grouped).reduce((a, b) => a + b, 0);
-
-  return (
-    <Accordion defaultExpanded={false} sx={{ mt: 2 }}>
-      <AccordionSummary
-        expandIcon={<ExpandMoreIcon />}
-        sx={{
-          '& .MuiAccordionSummary-content': {
-            alignItems: 'center',
-            gap: 1
-          }
-        }}
-      >
-        <GiftIcon color="primary" />
-        <Typography variant="h6" fontWeight={600} color="primary.main">
-          Gift Tracker
-        </Typography>
-        <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            {loading ? 'Loading...' : `${totalGiftsAvailable} gifts available`}
-          </Typography>
-        </Box>
-      </AccordionSummary>
-      <AccordionDetails>
-        {loading ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <CircularProgress />
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Loading inventory data...
-            </Typography>
-          </Box>
-        ) : error ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <Typography color="error" gutterBottom>
-              {error}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Please try refreshing the page or contact support if the issue persists.
-            </Typography>
-          </Box>
-        ) : !hasGiftData ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <GiftIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="body1" color="text.secondary" gutterBottom>
-              No inventory available
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Gift inventory data will appear here once items are added to this event.
-            </Typography>
-          </Box>
-        ) : (
-          <>
-            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: 'grey.50' }}>
-                    <TableCell sx={{ fontWeight: 600 }}>Gift Type</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>Quantity Remaining</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {Object.entries(grouped)
-                    .sort(([,a], [,b]) => b - a)
-                    .map(([giftType, quantity]) => (
-                      <TableRow key={giftType} hover>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={500}>
-                            {giftType}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="body2" fontWeight={600} color="primary.main">
-                            {quantity}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                Total gifts available: <strong>{totalGiftsAvailable}</strong>
-              </Typography>
-            </Box>
-          </>
-        )}
-      </AccordionDetails>
-    </Accordion>
-  );
-};
 
 const GiftStyleBreakdownTable = () => {
   const mockGiftData = [
@@ -563,138 +114,6 @@ const FulfillmentInventoryTable = ({ inventory = [] }) => {
                   <TableCell align="right">{item.currentInventory}</TableCell>
                 </TableRow>
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </CardContent>
-    </Card>
-  );
-};
-
-// Guest List with Gift Details using real data
-const GuestListWithGifts = ({ guests = [], inventory = [] }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterGiftType, setFilterGiftType] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
-
-  // Map inventoryId to {type, style}
-  const inventoryMap = inventory.reduce((acc, item) => {
-    acc[item._id] = item;
-    return acc;
-  }, {});
-
-  // Filtering logic (if you have guest.giftSelection, adjust as needed)
-  const filteredGuests = guests.filter(guest => {
-    const matchesSearch = `${guest.firstName} ${guest.lastName}`.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesGiftType = filterGiftType === 'all' || (guest.giftSelection && inventoryMap[guest.giftSelection]?.type === filterGiftType);
-    const matchesStatus = filterStatus === 'all' || guest.hasCheckedIn === (filterStatus === 'checked-in');
-    return matchesSearch && matchesGiftType && matchesStatus;
-  });
-
-  // Unique gift types for filter dropdown
-  const giftTypes = Array.from(new Set(inventory.map(item => item.type))).filter(Boolean);
-
-  return (
-    <Card sx={{ mb: 4 }}>
-      <CardContent>
-        <Typography variant="h6" fontWeight={600} gutterBottom>
-          Guest List with Gift Details
-        </Typography>
-        <Box display="flex" gap={2} mb={3}>
-          <TextField
-            size="small"
-            placeholder="Search by name..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ minWidth: 200 }}
-          />
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Gift Type</InputLabel>
-            <Select
-              value={filterGiftType}
-              label="Gift Type"
-              onChange={(e) => setFilterGiftType(e.target.value)}
-              MenuProps={{
-                PaperProps: {
-                  sx: {
-                    zIndex: 9999
-                  }
-                }
-              }}
-            >
-              <MenuItem value="all">All Types</MenuItem>
-              {giftTypes.map(type => (
-                <MenuItem key={type} value={type}>{type}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={filterStatus}
-              label="Status"
-              onChange={(e) => setFilterStatus(e.target.value)}
-              MenuProps={{
-                PaperProps: {
-                  sx: {
-                    zIndex: 9999
-                  }
-                }
-              }}
-            >
-              <MenuItem value="all">All Status</MenuItem>
-              <MenuItem value="checked-in">Checked In</MenuItem>
-              <MenuItem value="pending">Pending</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
-        <TableContainer component={Paper} variant="outlined">
-          <Table>
-            <TableHead>
-              <TableRow sx={{ bgcolor: 'grey.50' }}>
-                <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Check-in Status</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Gift Selected</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Style</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredGuests.map((guest) => {
-                const gift = guest.giftSelection ? inventoryMap[guest.giftSelection] : null;
-                return (
-                  <TableRow key={guest._id} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={500}>{guest.firstName} {guest.lastName}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">{guest.email || 'No email'}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
-                        color={guest.hasCheckedIn ? 'success' : 'default'}
-                        size="small"
-                        icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
-                        sx={{ borderRadius: 1 }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={500}>{gift ? gift.type : 'No gift selected'}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">{gift ? gift.style : '-'}</Typography>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
             </TableBody>
           </Table>
         </TableContainer>
@@ -809,7 +228,7 @@ const AdvancedView = ({ event, guests, secondaryEvents, inventory = [], onInvent
     setFeedLoading(true);
     try {
       const res = await getEventActivityFeed(event._id, feedType ? { type: feedType } : {});
-              // Event feed logs loaded
+      // Event feed logs loaded
       setFeedLogs(res.data.logs || []);
     } catch (err) {
       console.error('Error loading event feed:', err);
@@ -954,7 +373,7 @@ const EventDashboardWrapper = () => {
 
   const loadInventory = async () => {
     if (!eventId) return;
-    
+
     setInventoryLoading(true);
     setInventoryError('');
     try {
@@ -973,7 +392,7 @@ const EventDashboardWrapper = () => {
   }, [eventId]);
 
   return (
-    <EventDashboard 
+    <EventDashboard
       eventId={eventId}
       inventory={inventory}
       inventoryLoading={inventoryLoading}
@@ -1075,7 +494,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
           // If we're viewing a main event, fetch its secondary events
           mainEventId = event._id;
         }
-        
+
         const response = await api.get(`/events?parentEventId=${mainEventId}`);
         setSecondaryEvents(response.data.events || response.data);
       } catch (error) {
@@ -1096,7 +515,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         console.error('Error fetching data:', error);
       }
     };
-    
+
     fetchAllData();
   }, [eventId]);
 
@@ -1115,8 +534,8 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
 
   const handleCheckInSuccess = (checkedInGuest) => {
     // Update the guest's check-in status in the local state
-    setLocalGuests(prev => prev.map(guest => 
-      guest._id === checkedInGuest._id 
+    setLocalGuests(prev => prev.map(guest =>
+      guest._id === checkedInGuest._id
         ? { ...guest, hasCheckedIn: true }
         : guest
     ));
@@ -1152,218 +571,81 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   return (
     <MainLayout eventName={event.eventName || 'Loading Event...'} parentEventName={parentEvent && parentEvent._id !== event._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event._id ? parentEvent._id : null}>
       <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={true} />
-        
-        {/* Event Overview Section */}
-        <Box sx={{ width: '100%', px: 2, py: 2, backgroundColor: '#fdf9f6' }}>
-  {viewMode === 'basic' ? (
-    <BasicAnalytics 
-      event={event}
-      guests={guests}
-      inventory={inventory}
-    />
-  ) : (
-    <AdvancedView 
-      event={event}
-      guests={guests}
-      secondaryEvents={secondaryEvents}
-      inventory={inventory}
-      onInventoryChange={onInventoryChange}
-    />
-  )}
-</Box>
 
-<ManageSection
-  onInventory={() => navigate(`/events/${eventId}/inventory`)}
-  onUpload={handleUploadGuests}
-  onAddGuest={handleAddGuest}
-  onAddEvent={() => setSecondaryModalOpen(true)}
-  canModify={canModifyEvents}
-/>
-
-        {/* Guest Table */}
-        <Card elevation={2} sx={{ borderRadius: 3, p: 2, mb: 4 }}>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6" fontWeight={600} color="primary.main">
-              Guest List ({localGuests.length})
-            </Typography>
-            <Box display="flex" gap={1}>
-              {canModifyEvents && (
-                <Button
-                  variant="outlined"
-                  startIcon={<UploadIcon />}
-                  onClick={handleUploadGuests}
-                  size="small"
-                  sx={{ borderRadius: 2, fontWeight: 600 }}
-                >
-                  Upload More
-                </Button>
-              )}
-              <Button
-                variant="outlined"
-                startIcon={<PersonAddIcon />}
-                onClick={handleAddGuest}
-                size="small"
-                sx={{ borderRadius: 2, fontWeight: 600 }}
-              >
-                Add Guest
-              </Button>
-            </Box>
-          </Box>
-          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell />
-                  <TableCell>Name</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Selected Gift</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Tags</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {localGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
-                  // Find the selected gift from inventory
-                  const selectedGift = guest.giftSelection ? inventory.find(item => item._id === guest.giftSelection) : null;
-                  
-                  return (
-                    <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
-                      <TableCell>
-                        {guest.hasCheckedIn ? (
-                          <Button
-                            variant="outlined"
-                            color="success"
-                            size="small"
-                            startIcon={<CheckCircleIcon />}
-                            disabled
-                            sx={{ borderRadius: 2, fontWeight: 600 }}
-                          >
-                            Checked In
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="contained"
-                            color="success"
-                            size="small"
-                            sx={{ borderRadius: 2, fontWeight: 600 }}
-                            onClick={() => handleOpenCheckIn(guest)}
-                          >
-                            Check In
-                          </Button>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
-                        {guest.jobTitle && (
-                          <Typography variant="caption" color="textSecondary">
-                            {guest.jobTitle}
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>{guest.email || 'No email'}</TableCell>
-                      <TableCell>
-                        {selectedGift ? (
-                          <Box>
-                            <Typography variant="body2" fontWeight={500}>
-                              {selectedGift.type}
-                            </Typography>
-                            {selectedGift.style && (
-                              <Typography variant="caption" color="textSecondary">
-                                {selectedGift.style}
-                              </Typography>
-                            )}
-                          </Box>
-                        ) : (
-                          <Typography variant="body2" color="textSecondary">
-                            No gift selected
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>{guest.attendeeType || 'General'}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={guest.hasCheckedIn ? 'Checked In' : 'Pending'}
-                          color={guest.hasCheckedIn ? 'success' : 'default'}
-                          size="small"
-                          icon={guest.hasCheckedIn ? <CheckCircleIcon /> : <PersonIcon />}
-                          sx={{ borderRadius: 1 }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Box display="flex" gap={0.5} flexWrap="wrap">
-                          {guest.tags?.map((tag, index) => (
-                            <Chip
-                              key={index}
-                              label={tag.name}
-                              size="small"
-                              sx={{
-                                backgroundColor: tag.color,
-                                color: 'white',
-                                fontSize: '0.7rem',
-                                borderRadius: 1
-                              }}
-                            />
-                          ))}
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          <TablePagination
-            component="div"
-            count={localGuests.length}
-            page={page}
-            onPageChange={handleChangePage}
-            rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={handleChangeRowsPerPage}
-            rowsPerPageOptions={[10, 25, 50]}
-            labelRowsPerPage="Guests per page"
-            sx={{ mt: 2 }}
+      {/* Event Overview Section */}
+      <Box sx={{ width: '100%', px: 2, py: 2, backgroundColor: '#fdf9f6' }}>
+        {viewMode === 'basic' ? (
+          <BasicAnalytics
+            event={event}
+            guests={guests}
+            inventory={inventory}
           />
-        </Card>
-        
+        ) : (
+          <AdvancedView
+            event={event}
+            guests={guests}
+            secondaryEvents={secondaryEvents}
+            inventory={inventory}
+            onInventoryChange={onInventoryChange}
+          />
+        )}
+      </Box>
 
-        {/* Check-in Modal */}
-        <Dialog
-          open={checkInModalOpen}
-          onClose={handleCloseCheckIn}
-          maxWidth="md"
-          fullWidth
-          PaperProps={{
-            sx: {
-              minWidth: 400
-            }
-          }}
-        >
-          <DialogTitle>
-            Check In Guest
-          </DialogTitle>
-          <DialogContent>
-            {checkInGuest && (
-              <GuestCheckIn 
-                event={event} 
-                guest={checkInGuest} 
-                onClose={handleCloseCheckIn} 
-                onInventoryChange={onInventoryChange}
-                onCheckInSuccess={handleCheckInSuccess}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
+      <ManageSection
+        onInventory={() => navigate(`/events/${eventId}/inventory`)}
+        onUpload={handleUploadGuests}
+        onAddGuest={handleAddGuest}
+        onAddEvent={() => setSecondaryModalOpen(true)}
+        canModify={canModifyEvents}
+      />
 
-        {/* Add Guest Modal */}
-        <AddGuest
-          open={addGuestModalOpen}
-          onClose={() => setAddGuestModalOpen(false)}
-          eventId={mainEvent._id}
-          onGuestAdded={handleGuestAdded}
-        />
-      </MainLayout>
-    );
+      {/* Guest Table */}
+      <GuestTable
+        guests={localGuests}
+        onAddGuest={handleAddGuest}
+        onUploadGuests={handleUploadGuests}
+        event={event}
+        onInventoryChange={onInventoryChange}
+        inventory={inventory}
+      />
+
+      {/* Check-in Modal */}
+      <Dialog
+        open={checkInModalOpen}
+        onClose={handleCloseCheckIn}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            minWidth: 400
+          }
+        }}
+      >
+        <DialogTitle>
+          Check In Guest
+        </DialogTitle>
+        <DialogContent>
+          {checkInGuest && (
+            <GuestCheckIn
+              event={event}
+              guest={checkInGuest}
+              onClose={handleCloseCheckIn}
+              onInventoryChange={onInventoryChange}
+              onCheckInSuccess={handleCheckInSuccess}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Guest Modal */}
+      <AddGuest
+        open={addGuestModalOpen}
+        onClose={() => setAddGuestModalOpen(false)}
+        eventId={mainEvent._id}
+        onGuestAdded={handleGuestAdded}
+      />
+    </MainLayout>
+  );
 };
 
 export default EventDashboardWrapper;
