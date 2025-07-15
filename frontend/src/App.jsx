@@ -13,7 +13,7 @@ import CreateEvent from './components/events/CreateEvent';
 import EventDetails from './components/events/EventDetails';
 import UploadGuest from './components/guests/UploadGuest';
 import DashboardLayout from './components/layout/DashboardLayout';
-import EventDashboard from './components/events/EventDashboard';
+import EventDashboardWrapper from './components/Events/EventDashboardWrapper';
 import InventoryPageWrapper from './components/inventory/InventoryPage';
 import AccountPage from "./pages/Account/AccountPage";
 import AccountEditPage from "./pages/Account/AccountEditPage";
@@ -67,12 +67,12 @@ function App() {
             } />
             <Route path="/events/:eventId" element={
               <ProtectedRoute>
-                <EventDashboard />
+                <EventDashboardWrapper />
               </ProtectedRoute>
             } />
             <Route path="/events/:eventId/dashboard" element={
               <ProtectedRoute>
-                <EventDashboard />
+                <EventDashboardWrapper />
               </ProtectedRoute>
             } />
             
