@@ -221,7 +221,11 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         guests={localGuests}
         onAddGuest={handleAddGuest}
         onUploadGuests={handleUploadGuests}
-        event={event}
+        event={{
+          ...event,
+          parentEvent: parentEvent,
+          secondaryEvents: secondaryEvents
+        }}
         onInventoryChange={onInventoryChange}
         inventory={inventory}
       />

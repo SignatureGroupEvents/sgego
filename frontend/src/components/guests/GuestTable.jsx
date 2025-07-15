@@ -113,7 +113,7 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                   <TableCell />
                   <TableCell>Name</TableCell>
                   <TableCell>Email</TableCell>
-                  <TableCell>Selected Gift</TableCell>
+                  <TableCell>Gift Selections</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Tags</TableCell>
@@ -122,15 +122,53 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
               </TableHead>
               <TableBody>
                 {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
-                  // Find the selected gift from inventory
-                  const selectedGift = guest.giftSelection ? inventory.find(item => item._id === guest.giftSelection) : null;
                   const isInherited = guest.isInherited;
+                  
+                  // Get gift selections for each event
+                  const getGiftSelectionsForEvent = (eventId) => {
+                    const checkin = guest.eventCheckins?.find(ec => 
+                      ec.eventId?.toString() === eventId?.toString()
+                    );
+                    return checkin?.giftsReceived || [];
+                  };
 
+                  // Get main event and secondary events
+                  const mainEvent = event?.isMainEvent ? event : event?.parentEvent;
+                  const secondaryEvents = event?.secondaryEvents || [];
+                  const allEvents = mainEvent ? [mainEvent, ...secondaryEvents] : [event];
+
+                  // Format gift selections for display
+                  const formatGiftSelections = (eventId, eventName) => {
+                    const gifts = getGiftSelectionsForEvent(eventId);
+                    if (gifts.length === 0) {
+                      return `${eventName} - No gift selected`;
+                    }
+                    
+                    const giftDetails = gifts.map(gift => {
+                      // Handle both populated and unpopulated inventory items
+                      let inventoryItem;
+                      if (gift.inventoryId && typeof gift.inventoryId === 'object') {
+                        // Populated inventory item
+                        inventoryItem = gift.inventoryId;
+                      } else {
+                        // Unpopulated inventory item, find in inventory array
+                        inventoryItem = inventory.find(item => item._id === gift.inventoryId);
+                      }
+                      
+                      if (inventoryItem) {
+                        return `${inventoryItem.type}${inventoryItem.style ? ` (${inventoryItem.style})` : ''}${gift.quantity > 1 ? ` x${gift.quantity}` : ''}`;
+                      }
+                      return 'Unknown gift';
+                    }).join(', ');
+                    
+                    return `${eventName} - ${giftDetails}`;
+                  };
+                  
                   return (
-                    <TableRow
-                      key={guest._id}
-                      hover
-                      sx={{
+                    <TableRow 
+                      key={guest._id} 
+                      hover 
+                      sx={{ 
                         '&:hover': { backgroundColor: 'action.hover' },
                         ...(isInherited && {
                           backgroundColor: 'rgba(25, 118, 210, 0.04)',
@@ -156,7 +194,7 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                             color="success"
                             size="medium"
                             sx={{ justifyContent: 'center', width: '75%', borderRadius: 2, fontWeight: 600 }}
-                            startIcon={<CheckCircleIcon />}
+                            startIcon={<CheckCircleIcon />} 
                             onClick={() => handleOpenCheckIn(guest)}
                           >
                           </Button>
@@ -174,22 +212,26 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                       </TableCell>
                       <TableCell>{guest.email || 'No email'}</TableCell>
                       <TableCell>
-                        {selectedGift ? (
-                          <Box>
-                            <Typography variant="body2" fontWeight={500}>
-                              {selectedGift.type}
-                            </Typography>
-                            {selectedGift.style && (
-                              <Typography variant="caption" color="textSecondary">
-                                {selectedGift.style}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                          {allEvents.length > 0 ? (
+                            allEvents.map((ev, index) => (
+                              <Typography 
+                                key={ev._id} 
+                                variant="body2" 
+                                sx={{ 
+                                  fontSize: '0.8rem',
+                                  color: index === 0 ? 'text.primary' : 'text.secondary'
+                                }}
+                              >
+                                {formatGiftSelections(ev._id, ev.eventName)}
                               </Typography>
-                            )}
-                          </Box>
-                        ) : (
-                          <Typography variant="body2" color="textSecondary">
-                            No gift selected
-                          </Typography>
-                        )}
+                            ))
+                          ) : (
+                            <Typography variant="body2" color="textSecondary">
+                              No event information available
+                            </Typography>
+                          )}
+                        </Box>
                       </TableCell>
                       <TableCell>{guest.attendeeType || 'General'}</TableCell>
                       <TableCell>

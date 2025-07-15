@@ -25,6 +25,8 @@ exports.getGuests = async (req, res) => {
 
     const guests = await Guest.find({ eventId: { $in: guestEventIds } })
       .populate('eventId', 'eventName isMainEvent')
+      .populate('eventCheckins.eventId', 'eventName isMainEvent')
+      .populate('eventCheckins.giftsReceived.inventoryId', 'type style size')
       .sort({ createdAt: -1 });
 
     // Add a flag to indicate which guests are inherited vs. directly assigned
@@ -133,7 +135,11 @@ exports.createGuest = async (req, res) => {
       hasExistingQR: false
     });
 
-    await guest.populate('eventId', 'eventName isMainEvent');
+    await guest.populate([
+      { path: 'eventId', select: 'eventName isMainEvent' },
+      { path: 'eventCheckins.eventId', select: 'eventName isMainEvent' },
+      { path: 'eventCheckins.giftsReceived.inventoryId', select: 'type style size' }
+    ]);
 
     res.status(201).json({
       success: true,
@@ -281,7 +287,8 @@ exports.getGuestCheckinStatus = async (req, res) => {
     
     const guest = await Guest.findById(guestId)
       .populate('eventId', 'eventName isMainEvent')
-      .populate('eventCheckins.eventId', 'eventName isMainEvent');
+      .populate('eventCheckins.eventId', 'eventName isMainEvent')
+      .populate('eventCheckins.giftsReceived.inventoryId', 'type style size');
 
     if (!guest) {
       return res.status(404).json({ message: 'Guest not found' });
