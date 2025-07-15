@@ -1,166 +1,90 @@
-# 🎪 Event Check-in Management System
+# Event Check-in App
 
-A comprehensive, enterprise-level event management platform with multi-event check-ins, real-time inventory tracking, and advanced guest management.
+A comprehensive event management system for handling guest check-ins, gift distribution, and event analytics.
 
-## ✨ Features
+## Features
 
-### 🔐 **Authentication & Authorization**
-- Role-based access control (Operations Manager, Staff, Admin)
-- JWT token authentication
-- Protected routes and API endpoints
+### Event Management
+- Create main events and secondary events
+- **Guest List Inheritance**: Secondary events automatically inherit the guest list from their parent main event
+- Guest management with CSV/Excel upload support
+- Real-time check-in tracking
 
-### 🎪 **Event Management**
-- Main events with contract numbers
-- Secondary events (nested under main events)
-- Custom tags and attendee types
-- Flexible gift management system
+### Guest Management
+- **Inherited Guest Lists**: When viewing a secondary event, you'll see all guests from both the secondary event and its parent main event
+- Visual indicators distinguish between directly assigned guests and inherited guests
+- Bulk guest upload via CSV/Excel
+- Individual guest management
+- QR code generation for each guest
 
-### 👥 **Enhanced Guest Management**
-- Comprehensive guest profiles (Job Title, Company, Attendee Type, Tags, Notes)
-- CSV/Excel upload with smart column mapping
-- Bulk guest addition with duplicate detection
-- QR code support (existing + auto-generated)
+### Check-in System
+- Multi-event check-in support
+- Gift selection and distribution tracking
+- Real-time status updates
+- Activity logging
 
-### 📦 **Advanced Inventory System**
-- CSV upload with full audit trail
-- Real-time inventory tracking
-- Shared inventory pool across events
-- Manual count adjustments with history
+### Analytics
+- Comprehensive event analytics
+- Gift distribution tracking
+- Check-in statistics
+- Activity feeds
 
-### ✅ **Revolutionary Check-in System**
-- **Multi-Event Mode**: Check guests into multiple events simultaneously
-- **Single-Event Mode**: Focused check-in for specific events
-- Real-time inventory deduction
-- Gift selection per event
-- Undo functionality with reason tracking
+### Inventory Management
+- Gift inventory tracking
+- Style and size management
+- Allocation to specific events
+- Export functionality
 
-## 🛠️ **Tech Stack**
+## Guest List Inheritance
 
-### Backend
-- **Node.js** with Express.js
-- **MongoDB** with Mongoose ODM
-- **JWT** for authentication
-- **Multer** for file uploads
-- **CSV-Parser** for data processing
+The app now supports guest list inheritance from main events to secondary events:
 
-### Frontend
-- **React** with Vite
-- **Material-UI (MUI)** for components
-- **React Router** for navigation
-- **Axios** for API calls
+- **Main Events**: Contain the primary guest list
+- **Secondary Events**: Automatically inherit guests from their parent main event
+- **Visual Indicators**: Inherited guests are marked with an icon and different styling
+- **Duplicate Prevention**: The system prevents adding duplicate guests across main and secondary events
+- **Flexible Management**: You can still add guests directly to secondary events
 
-## 🚀 **Getting Started**
+### How It Works
 
-### Prerequisites
-- Node.js (v16 or higher)
-- MongoDB (local or Atlas)
-- Git
+1. When viewing a secondary event, the system fetches guests from both:
+   - The secondary event itself
+   - The parent main event
 
-### Installation
+2. Inherited guests are visually distinguished with:
+   - A tree icon next to their name
+   - Light blue background highlighting
+   - "Inherited" chip in the Source column
+   - Tooltip showing the original event name
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/brittanybyoung/sevent.git
-   cd sevent
+3. Guest management operations:
+   - Adding guests to a secondary event checks for duplicates in the parent event
+   - Uploading guests respects the inheritance structure
+   - Check-ins work seamlessly with inherited guests
 
-2. **Backend Setup**
-   bash cd backend
-   npm install
+## Installation
 
-create .env file
-   NODE_ENV=development
-   PORT=3001
-   MONGODB_URI=your_mongodb_connection_string
-   JWT_SECRET=your_super_secret_jwt_key
-   JWT_EXPIRE=7d
-   CORS_ORIGIN=http://localhost:3000
+### Backend Setup
+```bash
+cd backend
+npm install
+npm start
+```
 
-3. **Front End Set Up**
-   bash
-      cd ../frontend
-      npm install 
-   create .env file
-      VITE_API_URL=http://localhost:3001/api
-      VITE_APP_NAME=Event Check-in System
-4. **Start Development**
-         # Terminal 1 - Backend
-      cd backend
-      npm run dev
+### Frontend Setup
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-      # Terminal 2 - Frontend  
-      cd frontend
-      npm run dev
+## API Endpoints
 
-📖 Usage
-Operations Manager Workflow
+### Guest Management
+- `GET /guests?eventId={id}&includeInherited=true` - Get guests with inheritance support
+- `POST /guests` - Create guest (handles inheritance checks)
+- `POST /guests/bulk-add` - Bulk add guests (handles inheritance checks)
 
-Create main event with contract number
-Upload inventory CSV with gift options
-Create secondary events for different sessions
-Upload guest list with enhanced fields
-Staff handles multi-event check-ins
+## Contributing
 
-Staff Check-in Process
-
-Main Event Booth: Check guests into multiple events simultaneously
-Specific Event Booth: Focus on single event check-ins
-Real-time inventory updates as gifts are distributed
-
-🗂️ Project Structure
-sevent/
-├── backend/                 # Node.js API
-│   ├── controllers/        # Route handlers
-│   ├── models/            # Database schemas
-│   ├── routes/            # API routes
-│   ├── middleware/        # Authentication & validation
-│   └── uploads/           # File uploads
-├── frontend/              # React application
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── contexts/      # React contexts
-│   │   └── services/      # API services
-└── README.md
-
-🔄 API Endpoints
-
-Authentication
-
-POST /api/auth/register - Register new user
-POST /api/auth/login - User login
-GET /api/auth/profile - Get user profile
-
-Events
-
-GET /api/events - List all events
-POST /api/events - Create new event
-GET /api/events/:id - Get event details
-PUT /api/events/:id - Update event
-DELETE /api/events/:id - Delete event
-
-Guests
-
-GET /api/guests?eventId=:id - List event guests
-POST /api/guests - Create guest
-POST /api/guests/bulk-add - Bulk add guests
-DELETE /api/guests/:id - Delete guest
-
-Inventory
-
-GET /api/inventory/:eventId - Get event inventory
-POST /api/inventory/upload - Upload inventory CSV
-PUT /api/inventory/:id - Update inventory count
-
-Check-ins
-
-GET /api/checkins/context/:eventId - Get check-in context
-POST /api/checkins/multi - Multi-event check-in
-POST /api/checkins/single - Single event check-in
-
-🤝 Contributing
-Fork the repository
-Create a feature branch (git checkout -b feature/amazing-feature)
-Commit your changes (git commit -m 'Add amazing feature')
-Push to the branch (git push origin feature/amazing-feature)
-Open a Pull Request
-
-Made with ❤️ by Brittany Young & Alyssa Herrera 
+Please read our contributing guidelines before submitting pull requests. 

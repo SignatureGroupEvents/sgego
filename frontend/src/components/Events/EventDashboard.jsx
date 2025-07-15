@@ -12,7 +12,7 @@ import InventoryPage from '../../components/inventory/InventoryPage';
 import GuestCheckIn from '../guests/GuestCheckIn';
 import BasicAnalytics from '../dashboard/BasicAnalytics';
 import { getEvent } from '../../services/events';
-import { getEventActivityFeed } from '../../services/api';
+import { getEventActivityFeed, getGuests } from '../../services/api';
 import ManageSection from './ManageSection';
 import EventHeader from '../events/EventHeader';
 import GuestTable from '../guests/GuestTable';
@@ -92,8 +92,8 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
 
     const fetchGuests = async (mainEventId) => {
       try {
-        // Updated API call to match backend route
-        const response = await api.get(`/guests?eventId=${mainEventId}`);
+        // Updated API call to match backend route with inheritance support
+        const response = await getGuests(eventId, true);
         setGuests(response.data.guests || []);
       } catch (error) {
         console.error('Error fetching guests:', error);

@@ -266,7 +266,7 @@ const UploadGuest = () => {
   };
 
   // Determine main event ID for upload
-  const mainEventId = event?.isMainEvent ? event._id : event?.parentEventId || eventId;
+  const mainEventId = eventId; // Use current event ID, backend handles inheritance
 
   const handleUpload = async () => {
     setIsProcessing(true);

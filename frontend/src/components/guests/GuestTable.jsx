@@ -1,29 +1,31 @@
 import React, { useState } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Card, 
-  CardContent, 
-  Button, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TablePagination, 
-  TableHead, 
-  TableRow, 
-  Paper, 
-  Chip, 
-  Dialog, 
-  DialogTitle, 
-  DialogContent 
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TablePagination,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Tooltip
 } from '@mui/material';
-import { 
-  CheckCircleOutline as CheckCircleIcon, 
-  Person as PersonIcon, 
-  Groups as GroupsIcon, 
-  Upload as UploadIcon, 
-  PersonAdd as PersonAddIcon 
+import {
+  CheckCircleOutline as CheckCircleIcon,
+  Person as PersonIcon,
+  Groups as GroupsIcon,
+  Upload as UploadIcon,
+  PersonAdd as PersonAddIcon,
+  AccountTree as InheritedIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -34,7 +36,7 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
   const [modalOpen, setModalOpen] = useState(false);
   const { isOperationsManager, isAdmin } = usePermissions();
   const { user: currentUser } = useAuth();
-  
+
   // Determine if user can modify events
   const canModifyEvents = isOperationsManager || isAdmin;
   // Staff can perform check-ins and gift assignments but not modify guest lists
@@ -115,15 +117,27 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                   <TableCell>Type</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Tags</TableCell>
+                  <TableCell>Source</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
                   // Find the selected gift from inventory
                   const selectedGift = guest.giftSelection ? inventory.find(item => item._id === guest.giftSelection) : null;
-                  
+                  const isInherited = guest.isInherited;
+
                   return (
-                    <TableRow key={guest._id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                    <TableRow
+                      key={guest._id}
+                      hover
+                      sx={{
+                        '&:hover': { backgroundColor: 'action.hover' },
+                        ...(isInherited && {
+                          backgroundColor: 'rgba(25, 118, 210, 0.04)',
+                          '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.08)' }
+                        })
+                      }}
+                    >
                       <TableCell>
                         {guest.hasCheckedIn ? (
                           <Button
@@ -142,14 +156,16 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                             color="success"
                             size="medium"
                             sx={{ justifyContent: 'center', width: '75%', borderRadius: 2, fontWeight: 600 }}
-                            startIcon={<CheckCircleIcon />} 
+                            startIcon={<CheckCircleIcon />}
                             onClick={() => handleOpenCheckIn(guest)}
                           >
                           </Button>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
+                        </Box>
                         {guest.jobTitle && (
                           <Typography variant="caption" color="textSecondary">
                             {guest.jobTitle}
@@ -202,6 +218,28 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                           ))}
                         </Box>
                       </TableCell>
+                      <TableCell>
+                        {isInherited ? (
+                          <Tooltip title={`From ${guest.originalEventName || 'Main Event'}`}>
+                            <Chip
+                              label={`${guest.originalEventName || 'Main Event'}`}
+                              size="small"
+                              color="primary"
+                              variant="outlined"
+                              icon={<InheritedIcon />}
+                              sx={{ borderRadius: 1 }}
+                            />
+                          </Tooltip>
+                        ) : (
+                          <Chip
+                            label="Direct"
+                            size="small"
+                            color="default"
+                            variant="outlined"
+                            sx={{ borderRadius: 1 }}
+                          />
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -238,10 +276,10 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
         </DialogTitle>
         <DialogContent>
           {checkInGuest && (
-            <GuestCheckIn 
-              event={event} 
-              guest={checkInGuest} 
-              onClose={handleCloseCheckIn} 
+            <GuestCheckIn
+              event={event}
+              guest={checkInGuest}
+              onClose={handleCloseCheckIn}
               onInventoryChange={onInventoryChange}
             />
           )}

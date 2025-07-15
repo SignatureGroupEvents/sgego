@@ -192,8 +192,8 @@ export const createTestActivityLog = (eventId = null) => {
 };
 
 // Guest Management API functions
-export const getGuests = (eventId) => {
-  return api.get(`/guests?eventId=${eventId}`);
+export const getGuests = (eventId, includeInherited = true) => {
+  return api.get(`/guests?eventId=${eventId}&includeInherited=${includeInherited}`);
 };
 
 export const createGuest = (guestData) => {

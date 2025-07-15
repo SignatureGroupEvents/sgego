@@ -4,17 +4,45 @@ const { v4: uuidv4 } = require('uuid');
 
 exports.getGuests = async (req, res) => {
   try {
-    const { eventId } = req.query;
+    const { eventId, includeInherited = 'true' } = req.query;
     
     if (!eventId) {
       return res.status(400).json({ message: 'Event ID is required' });
     }
 
-    const guests = await Guest.find({ eventId })
-      .populate('eventId', 'eventName')
+    // First, get the event to determine if it's a main event or secondary event
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    let guestEventIds = [eventId];
+
+    // If this is a secondary event and includeInherited is true, also get guests from the parent event
+    if (event.parentEventId && includeInherited === 'true') {
+      guestEventIds.push(event.parentEventId);
+    }
+
+    const guests = await Guest.find({ eventId: { $in: guestEventIds } })
+      .populate('eventId', 'eventName isMainEvent')
       .sort({ createdAt: -1 });
 
-    res.json({ guests });
+    // Add a flag to indicate which guests are inherited vs. directly assigned
+    const guestsWithInheritance = guests.map(guest => {
+      const isInherited = guest.eventId._id.toString() === event.parentEventId?.toString();
+      return {
+        ...guest.toObject(),
+        isInherited,
+        originalEventId: guest.eventId._id,
+        originalEventName: guest.eventId.eventName
+      };
+    });
+
+    res.json({ 
+      guests: guestsWithInheritance,
+      eventType: event.isMainEvent ? 'main' : 'secondary',
+      parentEventId: event.parentEventId
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -40,6 +68,54 @@ exports.createGuest = async (req, res) => {
       return res.status(404).json({ message: 'Event not found' });
     }
 
+    // Check for existing guest in the current event
+    let existingGuest = null;
+    if (email) {
+      existingGuest = await Guest.findOne({
+        eventId,
+        email: email.toLowerCase().trim()
+      });
+    }
+
+    // If no email match, check by name in the current event
+    if (!existingGuest) {
+      existingGuest = await Guest.findOne({
+        eventId,
+        firstName: { $regex: new RegExp(`^${firstName.trim()}$`, 'i') },
+        lastName: { $regex: new RegExp(`^${lastName.trim()}$`, 'i') }
+      });
+    }
+
+    // If this is a secondary event, also check the parent event for duplicates
+    if (!existingGuest && event.parentEventId) {
+      if (email) {
+        existingGuest = await Guest.findOne({
+          eventId: event.parentEventId,
+          email: email.toLowerCase().trim()
+        });
+      }
+
+      if (!existingGuest) {
+        existingGuest = await Guest.findOne({
+          eventId: event.parentEventId,
+          firstName: { $regex: new RegExp(`^${firstName.trim()}$`, 'i') },
+          lastName: { $regex: new RegExp(`^${lastName.trim()}$`, 'i') }
+        });
+      }
+
+      if (existingGuest) {
+        return res.status(400).json({ 
+          message: `Guest already exists in the parent event "${existingGuest.eventId?.eventName || 'Main Event'}"` 
+        });
+      }
+    }
+
+    if (existingGuest) {
+      return res.status(400).json({ 
+        message: 'Guest with this email or name already exists for this event' 
+      });
+    }
+
     // Generate unique QR code data
     const qrCodeData = uuidv4();
 
@@ -57,7 +133,7 @@ exports.createGuest = async (req, res) => {
       hasExistingQR: false
     });
 
-    await guest.populate('eventId', 'eventName');
+    await guest.populate('eventId', 'eventName isMainEvent');
 
     res.status(201).json({
       success: true,
@@ -93,7 +169,7 @@ exports.bulkAddGuests = async (req, res) => {
       const guestData = guests[i];
       
       try {
-        // Check for existing guest by email (if provided) or by name
+        // Check for existing guest by email (if provided) or by name in current event
         let existingGuest = null;
         
         if (guestData.email) {
@@ -103,7 +179,7 @@ exports.bulkAddGuests = async (req, res) => {
           });
         }
         
-        // If no email match, check by name
+        // If no email match, check by name in current event
         if (!existingGuest) {
           existingGuest = await Guest.findOne({
             eventId,
@@ -112,12 +188,40 @@ exports.bulkAddGuests = async (req, res) => {
           });
         }
 
+        // If this is a secondary event, also check the parent event for duplicates
+        if (!existingGuest && event.parentEventId) {
+          if (guestData.email) {
+            existingGuest = await Guest.findOne({
+              eventId: event.parentEventId,
+              email: guestData.email.toLowerCase().trim()
+            });
+          }
+
+          if (!existingGuest) {
+            existingGuest = await Guest.findOne({
+              eventId: event.parentEventId,
+              firstName: { $regex: new RegExp(`^${guestData.firstName.trim()}$`, 'i') },
+              lastName: { $regex: new RegExp(`^${guestData.lastName.trim()}$`, 'i') }
+            });
+          }
+
+          if (existingGuest) {
+            results.duplicates.push({
+              index: i + 1,
+              name: `${guestData.firstName} ${guestData.lastName}`,
+              email: guestData.email || 'No email',
+              reason: `Already exists in parent event "${existingGuest.eventId?.eventName || 'Main Event'}"`
+            });
+            continue;
+          }
+        }
+
         if (existingGuest) {
           results.duplicates.push({
             index: i + 1,
             name: `${guestData.firstName} ${guestData.lastName}`,
             email: guestData.email || 'No email',
-            reason: 'Name or email already exists'
+            reason: 'Name or email already exists in this event'
           });
           continue;
         }

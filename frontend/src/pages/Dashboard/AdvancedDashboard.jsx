@@ -54,7 +54,7 @@ const AdvancedDashboard = () => {
 
           // Fetch guests and inventory in parallel
           const [guestsRes, inventoryRes] = await Promise.all([
-            getGuests(eventId),
+            getGuests(eventId, true),
             fetchInventory(eventId)
           ]);
           
