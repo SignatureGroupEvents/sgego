@@ -190,6 +190,13 @@ exports.multiEventCheckin = async (req, res) => {
     guest.hasCheckedIn = true;
     await guest.save();
 
+    // Populate the updated guest with eventCheckins for frontend
+    await guest.populate([
+      { path: 'eventId', select: 'eventName isMainEvent' },
+      { path: 'eventCheckins.eventId', select: 'eventName isMainEvent' },
+      { path: 'eventCheckins.giftsReceived.inventoryId', select: 'type style size' }
+    ]);
+
     // Populate the checkin records for response
     for (const record of checkinRecords) {
       await record.populate([
@@ -228,6 +235,7 @@ exports.multiEventCheckin = async (req, res) => {
       success: true,
       message: `${guest.firstName} ${guest.lastName} checked into ${results.filter(r => r.success).length} events successfully!`,
       checkins: checkinRecords,
+      guest: guest, // Return the updated guest data
       results
     });
 
@@ -322,6 +330,13 @@ exports.singleEventCheckin = async (req, res) => {
       { path: 'giftsDistributed.inventoryId' }
     ]);
 
+    // Populate the updated guest with eventCheckins for frontend
+    await guest.populate([
+      { path: 'eventId', select: 'eventName isMainEvent' },
+      { path: 'eventCheckins.eventId', select: 'eventName isMainEvent' },
+      { path: 'eventCheckins.giftsReceived.inventoryId', select: 'type style size' }
+    ]);
+
     // After guest and inventory are updated, log activity for each event check-in
     await ActivityLog.create({
       eventId: event._id,
@@ -342,6 +357,7 @@ exports.singleEventCheckin = async (req, res) => {
     res.json({
       success: true,
       checkin,
+      guest: guest, // Return the updated guest data
       message: `${guest.firstName} ${guest.lastName} checked into ${event.eventName} successfully!`
     });
 

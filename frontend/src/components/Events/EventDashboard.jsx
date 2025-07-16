@@ -150,12 +150,19 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   };
 
   const handleCheckInSuccess = (checkedInGuest) => {
-    // Update the guest's check-in status in the local state
-    setLocalGuests(prev => prev.map(guest =>
+    // Update both guests and localGuests states
+    const updateGuestState = (guestList) => guestList.map(guest =>
       guest._id === checkedInGuest._id
-        ? { ...guest, hasCheckedIn: true }
+        ? { 
+            ...guest, 
+            hasCheckedIn: true,
+            eventCheckins: checkedInGuest.eventCheckins || guest.eventCheckins
+          }
         : guest
-    ));
+    );
+
+    setGuests(updateGuestState);
+    setLocalGuests(updateGuestState);
   };
 
   if (loading) {

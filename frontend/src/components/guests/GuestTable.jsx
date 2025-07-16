@@ -132,16 +132,26 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                     return checkin?.giftsReceived || [];
                   };
 
-                  // Get main event and secondary events
-                  const mainEvent = event?.isMainEvent ? event : event?.parentEvent;
-                  const secondaryEvents = event?.secondaryEvents || [];
-                  const allEvents = mainEvent ? [mainEvent, ...secondaryEvents] : [event];
+                  // Determine which events to show based on current view
+                  const getEventsToDisplay = () => {
+                    if (event?.isMainEvent) {
+                      // Main event view: show all events (main + secondary)
+                      const mainEvent = event;
+                      const secondaryEvents = event?.secondaryEvents || [];
+                      return [mainEvent, ...secondaryEvents];
+                    } else {
+                      // Secondary event view: show only this event
+                      return [event];
+                    }
+                  };
+
+                  const eventsToDisplay = getEventsToDisplay();
 
                   // Format gift selections for display
                   const formatGiftSelections = (eventId, eventName) => {
                     const gifts = getGiftSelectionsForEvent(eventId);
                     if (gifts.length === 0) {
-                      return `${eventName} - No gift selected`;
+                      return `No gift selected`;
                     }
                     
                     const giftDetails = gifts.map(gift => {
@@ -161,7 +171,7 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                       return 'Unknown gift';
                     }).join(', ');
                     
-                    return `${eventName} - ${giftDetails}`;
+                    return giftDetails;
                   };
                   
                   return (
@@ -182,7 +192,7 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                             variant="outlined"
                             color="success"
                             size="small"
-                            sx={{ justifyContent: 'center', width: '75%', borderRadius: 2, fontWeight: 600, color: 'white' }}
+                            sx={{ justifyContent: 'center', width: '100%', borderRadius: 2, fontWeight: 600, color: 'white' }}
                             startIcon={<CheckCircleIcon />}
                             disabled
                           >
@@ -193,7 +203,7 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                             variant="contained"
                             color="success"
                             size="medium"
-                            sx={{ justifyContent: 'center', width: '75%', borderRadius: 2, fontWeight: 600 }}
+                            sx={{ justifyContent: 'center', width: '100%', borderRadius: 2, fontWeight: 600 }}
                             startIcon={<CheckCircleIcon />} 
                             onClick={() => handleOpenCheckIn(guest)}
                           >
@@ -213,19 +223,40 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                       <TableCell>{guest.email || 'No email'}</TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                          {allEvents.length > 0 ? (
-                            allEvents.map((ev, index) => (
-                              <Typography 
-                                key={ev._id} 
-                                variant="body2" 
-                                sx={{ 
-                                  fontSize: '0.8rem',
-                                  color: index === 0 ? 'text.primary' : 'text.secondary'
-                                }}
-                              >
-                                {formatGiftSelections(ev._id, ev.eventName)}
-                              </Typography>
-                            ))
+                          {eventsToDisplay.length > 0 ? (
+                            eventsToDisplay.map((ev, index) => {
+                              const giftSelection = formatGiftSelections(ev._id, ev.eventName);
+                              
+                              // For main event view, show event names with gift selections
+                              if (event?.isMainEvent) {
+                                return (
+                                  <Typography 
+                                    key={ev._id} 
+                                    variant="body2" 
+                                    sx={{ 
+                                      fontSize: '0.8rem',
+                                      color: index === 0 ? 'text.primary' : 'text.secondary'
+                                    }}
+                                  >
+                                    {ev.eventName} - {giftSelection}
+                                  </Typography>
+                                );
+                              } else {
+                                // For secondary event view, show only the gift selection
+                                return (
+                                  <Typography 
+                                    key={ev._id} 
+                                    variant="body2" 
+                                    sx={{ 
+                                      fontSize: '0.9rem',
+                                      color: 'text.primary'
+                                    }}
+                                  >
+                                    {giftSelection}
+                                  </Typography>
+                                );
+                              }
+                            })
                           ) : (
                             <Typography variant="body2" color="textSecondary">
                               No event information available

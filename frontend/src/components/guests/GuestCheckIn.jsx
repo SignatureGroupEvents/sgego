@@ -76,17 +76,19 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
     setSuccess('');
     try {
       if (!guest) return;
+      let response;
+      
       if (context.checkinMode === 'multi') {
         // Multi-event check-in
         const checkins = context.availableEvents.map(ev => ({
           eventId: ev._id,
           selectedGifts: giftSelections[ev._id] ? [giftSelections[ev._id]] : []
         }));
-        await multiEventCheckin(guest._id, checkins);
+        response = await multiEventCheckin(guest._id, checkins);
       } else {
         // Single event check-in
         const selectedGifts = giftSelections[event._id] ? [giftSelections[event._id]] : [];
-        await singleEventCheckin(guest._id, event._id, selectedGifts);
+        response = await singleEventCheckin(guest._id, event._id, selectedGifts);
       }
       
       // Update local state to show success
@@ -94,8 +96,8 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
       setSuccess('Guest checked in successfully!');
       setGiftSelections({});
       
-      // Update the guest object to reflect check-in status
-      const updatedGuest = { ...guest, hasCheckedIn: true };
+      // Use the updated guest data from the response
+      const updatedGuest = response.data.guest || { ...guest, hasCheckedIn: true };
       setGuest(updatedGuest);
       
       // Call callbacks to update parent components

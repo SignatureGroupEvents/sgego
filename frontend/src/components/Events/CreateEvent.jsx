@@ -33,12 +33,16 @@ import MainLayout from '../layout/MainLayout';
 import HomeIcon from '@mui/icons-material/Home';
 import EventIcon from '@mui/icons-material/Event';
 
-// Validation schema
-const validationSchema = Yup.object({
-  eventName: Yup.string().required('Event name is required'),
-  eventContractNumber: Yup.string().required('Contract number is required'),
-  eventStart: Yup.string().required('Event start date is required'),
-});
+// Validation schema for each step
+const stepValidationSchemas = [
+  Yup.object({
+    eventName: Yup.string().required('Event name is required'),
+    eventContractNumber: Yup.string().required('Contract number is required'),
+    eventStart: Yup.string().required('Event start date is required'),
+  }),
+  Yup.object({}), // Tags & Types step - no validation required
+  Yup.object({})  // Gift Settings step - no validation required
+];
 
 const CreateEvent = () => {
   const [activeStep, setActiveStep] = useState(0);
@@ -58,7 +62,7 @@ const CreateEvent = () => {
     );
   }
 
-  const steps = ['Basic Info', 'Tags & Types', 'Gift Settings'];
+  const steps = ['Basic Info', 'Tags & Types', 'Gift Settings','Style Selection', 'Multi-Event Settings'];
 
   const initialValues = {
     eventName: '',
@@ -456,51 +460,71 @@ const CreateEvent = () => {
 
           <Formik
             initialValues={initialValues}
-            validationSchema={validationSchema}
+            validationSchema={stepValidationSchemas[activeStep]}
             onSubmit={handleSubmit}
           >
-            {({ values, setFieldValue, errors, touched, isValid }) => (
-              <Form>
-                <StepContent 
-                  values={values} 
-                  setFieldValue={setFieldValue} 
-                  errors={errors} 
-                  touched={touched} 
-                />
+            {({ values, setFieldValue, errors, touched, isValid, validateForm }) => {
+              // Check if current step is valid
+              const isCurrentStepValid = () => {
+                const currentStepErrors = Object.keys(errors).filter(key => {
+                  // Only check errors for fields that belong to the current step
+                  switch (activeStep) {
+                    case 0: // Basic Info
+                      return ['eventName', 'eventContractNumber', 'eventStart'].includes(key);
+                    case 1: // Tags & Types
+                      return false; // No validation required
+                    case 2: // Gift Settings
+                      return false; // No validation required
+                    default:
+                      return false;
+                  }
+                });
+                return currentStepErrors.length === 0;
+              };
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-                  <Button
-                    disabled={activeStep === 0}
-                    onClick={() => setActiveStep((prev) => prev - 1)}
-                    variant="outlined"
-                  >
-                    Back
-                  </Button>
-                  
-                  <Box>
-                    {activeStep === steps.length - 1 ? (
-                      <Button
-                        type="submit"
-                        variant="contained"
-                        disabled={loading || !isValid}
-                        sx={{ borderRadius: 2, fontWeight: 600 }}
-                      >
-                        {loading ? 'Creating...' : 'Create Event'}
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="contained"
-                        onClick={() => setActiveStep((prev) => prev + 1)}
-                        disabled={!isValid}
-                        sx={{ borderRadius: 2, fontWeight: 600 }}
-                      >
-                        Next
-                      </Button>
-                    )}
+              return (
+                <Form>
+                  <StepContent 
+                    values={values} 
+                    setFieldValue={setFieldValue} 
+                    errors={errors} 
+                    touched={touched} 
+                  />
+
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+                    <Button
+                      disabled={activeStep === 0}
+                      onClick={() => setActiveStep((prev) => prev - 1)}
+                      variant="outlined"
+                    >
+                      Back
+                    </Button>
+                    
+                    <Box>
+                      {activeStep === steps.length - 1 ? (
+                        <Button
+                          type="submit"
+                          variant="contained"
+                          disabled={loading}
+                          sx={{ borderRadius: 2, fontWeight: 600 }}
+                        >
+                          {loading ? 'Creating...' : 'Create Event'}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="contained"
+                          onClick={() => setActiveStep((prev) => prev + 1)}
+                          disabled={!isCurrentStepValid()}
+                          sx={{ borderRadius: 2, fontWeight: 600 }}
+                        >
+                          Next
+                        </Button>
+                      )}
+                    </Box>
                   </Box>
-                </Box>
-              </Form>
-            )}
+                </Form>
+              );
+            }}
           </Formik>
         </Paper>
       </Box>
