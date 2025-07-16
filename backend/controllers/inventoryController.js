@@ -58,6 +58,22 @@ exports.uploadInventory = async (req, res) => {
       return res.status(404).json({ message: 'Event not found' });
     }
 
+    // NEW: Get column mapping from request body
+    let columnMapping = {};
+    
+    if (req.body.mapping) {
+      try {
+        // Parse the mapping JSON sent from frontend
+        columnMapping = JSON.parse(req.body.mapping);
+        console.log('Using provided column mapping:', columnMapping);
+      } catch (error) {
+        console.error('Error parsing column mapping:', error);
+        return res.status(400).json({ message: 'Invalid column mapping format' });
+      }
+    } else {
+      console.log('No column mapping provided, using fallback method');
+    }
+
     const inventoryItems = [];
     const errors = [];
 
@@ -88,49 +104,135 @@ exports.uploadInventory = async (req, res) => {
             return res.status(400).json({ message: 'CSV file appears to be empty or invalid' });
           }
 
+          // NEW: Helper function to get value using mapping or fallback
+          const getValueFromRow = (row, fieldKey, fallbackVariations = []) => {
+            // First, try the mapped column if mapping exists
+            if (columnMapping[fieldKey] && row[columnMapping[fieldKey]] !== undefined) {
+              return row[columnMapping[fieldKey]];
+            }
+            
+            // Fallback to old method if no mapping or mapping doesn't work
+            for (const variation of fallbackVariations) {
+              if (row[variation] !== undefined) {
+                return row[variation];
+              }
+            }
+            
+            return '';
+          };
+
+          // NEW: Helper function to parse integer values safely
+          const parseIntSafely = (value, defaultValue = 0) => {
+            const parsed = parseInt(value);
+            return isNaN(parsed) ? defaultValue : parsed;
+          };
+
+          // NEW: Helper function to normalize gender values
+          const normalizeGender = (genderValue) => {
+            if (!genderValue) return 'N/A';
+            
+            const lower = genderValue.toLowerCase();
+            if (['mens', 'men', 'male', 'm'].includes(lower)) {
+              return 'M';
+            } else if (['womens', 'women', 'female', 'w'].includes(lower)) {
+              return 'W';
+            } else {
+              return 'N/A';
+            }
+          };
+
           for (let i = 0; i < results.length; i++) {
             const row = results[i];
 
             try {
-              // Handle different possible column names
+              // NEW: Use mapping-aware value extraction
               const inventoryItem = {
                 eventId,
-                type: row.Type || row.type || row.TYPE || '',
-                style: row.Style || row.style || row.STYLE || '',
-                size: row.Size || row.size || row.SIZE || '',
-                gender: (() => {
-                  const genderValue = row.Gender || row.gender || row.GENDER || 'N/A';
-                  // Map common gender values to valid enum values
-                  if (genderValue.toLowerCase() === 'mens' || genderValue.toLowerCase() === 'men' || genderValue.toLowerCase() === 'male') {
-                    return 'M';
-                  } else if (genderValue.toLowerCase() === 'womens' || genderValue.toLowerCase() === 'women' || genderValue.toLowerCase() === 'female') {
-                    return 'W';
-                  } else {
-                    return 'N/A';
-                  }
+                
+                // Required fields with fallbacks
+                type: getValueFromRow(row, 'type', ['Type', 'type', 'TYPE']),
+                style: getValueFromRow(row, 'style', ['Style', 'style', 'STYLE']),
+                
+                // Optional fields with fallbacks
+                size: getValueFromRow(row, 'size', ['Size', 'size', 'SIZE']),
+                color: getValueFromRow(row, 'color', ['Color', 'color', 'COLOR']),
+                
+                // Gender with normalization
+                gender: normalizeGender(
+                  getValueFromRow(row, 'gender', ['Gender', 'gender', 'GENDER'])
+                ),
+                
+                // Quantity fields with safe parsing
+                qtyWarehouse: parseIntSafely(
+                  getValueFromRow(row, 'qtyWarehouse', [
+                    'Qty_Warehouse', 'qty_warehouse', 'QTY_WAREHOUSE', 
+                    'Warehouse', 'warehouse', 'Qty Warehouse'
+                  ])
+                ),
+                
+                qtyOnSite: parseIntSafely(
+                  getValueFromRow(row, 'qtyOnSite', [
+                    'Qty_OnSite', 'qty_onsite', 'QTY_ONSITE',
+                    'OnSite', 'onsite', 'Qty On Site'
+                  ])
+                ),
+                
+                // NEW: Handle qtyBeforeEvent (alternative to qtyOnSite)
+                qtyBeforeEvent: parseIntSafely(
+                  getValueFromRow(row, 'qtyBeforeEvent', [
+                    'Qty_Before_Event', 'qty_before_event', 'QTY_BEFORE_EVENT',
+                    'Before Event', 'beforeevent', 'Qty Before Event'
+                  ])
+                ),
+                
+                currentInventory: parseIntSafely(
+                  getValueFromRow(row, 'currentInventory', [
+                    'Current_Inventory', 'current_inventory', 'CURRENT_INVENTORY',
+                    'Current', 'current', 'Current Inventory'
+                  ])
+                ),
+                
+                postEventCount: (() => {
+                  const value = getValueFromRow(row, 'postEventCount', [
+                    'Post_Event_Count', 'post_event_count', 'POST_EVENT_COUNT',
+                    'Post Event', 'postevent', 'Post Event Count'
+                  ]);
+                  return value ? parseIntSafely(value) : null;
                 })(),
-                color: row.Color || row.color || row.COLOR || '',
-                qtyWarehouse: parseInt(row.Qty_Warehouse || row.qty_warehouse || row.QTY_WAREHOUSE || 0),
-                qtyOnSite: parseInt(row.Qty_OnSite || row.qty_onsite || row.QTY_ONSITE || 0),
-                currentInventory: parseInt(row.Current_Inventory || row.current_inventory || row.CURRENT_INVENTORY || 0),
-                postEventCount: row.Post_Event_Count ? parseInt(row.Post_Event_Count) : null,
+
                 inventoryHistory: [{
                   action: 'initial',
-                  quantity: parseInt(row.Current_Inventory || row.current_inventory || row.CURRENT_INVENTORY || 0),
+                  quantity: parseIntSafely(
+                    getValueFromRow(row, 'currentInventory', [
+                      'Current_Inventory', 'current_inventory', 'CURRENT_INVENTORY'
+                    ])
+                  ),
                   previousCount: 0,
-                  newCount: parseInt(row.Current_Inventory || row.current_inventory || row.CURRENT_INVENTORY || 0),
+                  newCount: parseIntSafely(
+                    getValueFromRow(row, 'currentInventory', [
+                      'Current_Inventory', 'current_inventory', 'CURRENT_INVENTORY'
+                    ])
+                  ),
                   performedBy: req.user.id,
                   reason: 'Initial inventory upload'
                 }],
                 allocatedEvents: [eventId], // Default allocation
               };
 
+              // Validation: Check required fields
               if (!inventoryItem.type || !inventoryItem.style) {
-                errors.push(`Row ${i + 1}: Missing type or style`);
+                errors.push(`Row ${i + 1}: Missing required fields (type: "${inventoryItem.type}", style: "${inventoryItem.style}")`);
+                continue;
+              }
+
+              // NEW: Additional validation for numeric fields
+              if (inventoryItem.qtyWarehouse < 0 || inventoryItem.qtyOnSite < 0 || inventoryItem.currentInventory < 0) {
+                errors.push(`Row ${i + 1}: Quantity values cannot be negative`);
                 continue;
               }
 
               inventoryItems.push(inventoryItem);
+              
             } catch (error) {
               errors.push(`Row ${i + 1}: ${error.message}`);
             }
@@ -157,13 +259,15 @@ exports.uploadInventory = async (req, res) => {
           // Emit WebSocket update for analytics
           emitAnalyticsUpdate(eventId);
 
+          // NEW: Enhanced response with mapping info
           res.json({
             success: true,
-            message: `${insertedItems.length} inventory items imported`,
+            message: `${insertedItems.length} inventory items imported successfully`,
             imported: insertedItems.length,
-            errors,
+            errors: errors.length > 0 ? errors : undefined,
+            mappingUsed: Object.keys(columnMapping).length > 0 ? columnMapping : 'fallback method',
             sampleFormat: {
-              note: "Expected CSV columns (case insensitive). Gender accepts: M, W, N/A, Mens, Womens, Men, Women, Male, Female",
+              note: "Use the column mapping interface for best results, or ensure CSV has these columns",
               columns: ["Type", "Style", "Size", "Gender", "Color", "Qty_Warehouse", "Qty_OnSite", "Current_Inventory", "Post_Event_Count"]
             }
           });

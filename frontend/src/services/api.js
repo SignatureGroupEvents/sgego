@@ -32,12 +32,20 @@ api.interceptors.response.use(
 
 export default api;
 
-export const uploadInventoryCSV = (eventId, file) => {
+export const uploadInventoryCSV = async (eventId, file, mapping = null) => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('eventId', eventId);
+  
+  // Add mapping if provided
+  if (mapping) {
+    formData.append('mapping', JSON.stringify(mapping));
+  }
+  
   return api.post('/inventory/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
   });
 };
 
