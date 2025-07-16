@@ -46,6 +46,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     style: '',
     size: '',
     gender: '',
+    color: '',
     qtyWarehouse: 0,
     qtyBeforeEvent: 0,
     postEventCount: 0
@@ -291,6 +292,7 @@ const InventoryPage = ({ eventId, eventName }) => {
       style: '',
       size: '',
       gender: '',
+      color: '',
       qtyWarehouse: 0,
       qtyBeforeEvent: 0,
       postEventCount: 0
@@ -304,6 +306,7 @@ const InventoryPage = ({ eventId, eventName }) => {
       style: '',
       size: '',
       gender: '',
+      color: '',
       qtyWarehouse: 0,
       qtyBeforeEvent: 0,
       postEventCount: 0
@@ -434,6 +437,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                       <TableCell>Style</TableCell>
                       <TableCell>Size</TableCell>
                       <TableCell>Gender</TableCell>
+                      <TableCell>Color</TableCell>
                       <TableCell>Qty Warehouse</TableCell>
                       <TableCell>Qty Before Event</TableCell>
                       <TableCell>Current Inventory</TableCell>
@@ -454,6 +458,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                           <TableCell>{item.style}</TableCell>
                           <TableCell>{item.size}</TableCell>
                           <TableCell>{item.gender}</TableCell>
+                          <TableCell>{item.color}</TableCell>
                           <TableCell>
                             {item.qtyWarehouse}
                           </TableCell>
@@ -611,6 +616,12 @@ const InventoryPage = ({ eventId, eventName }) => {
                   <MenuItem value="N/A">Not Applicable (N/A)</MenuItem>
                 </Select>
               </FormControl>
+              <TextField
+                label="Color"
+                value={newItem.color}
+                onChange={(e) => handleNewItemChange('color', e.target.value)}
+                fullWidth
+              />
               <TextField
                 label="Qty Warehouse"
                 type="number"

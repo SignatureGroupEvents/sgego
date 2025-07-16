@@ -4,6 +4,7 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import UploadIcon from '@mui/icons-material/Upload';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventIcon from '@mui/icons-material/Event';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 const BUTTON_SIZE = { xs: '100%', sm: 250 };
 
@@ -12,6 +13,7 @@ const ManageSection = ({
   onUpload,
   onAddGuest,
   onAddEvent,
+  onDeleteEvent,
   canModify
 }) => (
   <Box
@@ -108,6 +110,29 @@ const ManageSection = ({
           }}
         >
           Add Additional Event
+        </Button>
+      )}
+      {canModify && (
+        <Button
+          variant="outlined"
+          startIcon={<DeleteIcon />}
+          onClick={onDeleteEvent}
+          sx={{
+            borderRadius: 5,
+            fontWeight: 600,
+            minWidth: BUTTON_SIZE,
+            width: BUTTON_SIZE,
+            height: 40,
+            color: 'error.main',
+            borderColor: 'error.main',
+            '&:hover': {
+              borderColor: 'error.dark',
+              backgroundColor: 'error.light',
+              color: 'error.contrastText',
+            },
+          }}
+        >
+          Delete Event
         </Button>
       )}
     </Box>

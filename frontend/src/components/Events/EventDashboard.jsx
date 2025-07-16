@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField, Autocomplete, Tooltip, Dialog, DialogTitle, DialogContent } from '@mui/material';
+import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField, Autocomplete, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, DialogContentText } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import api, { fetchInventory } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -17,6 +17,7 @@ import ManageSection from './ManageSection';
 import EventHeader from '../events/EventHeader';
 import GuestTable from '../guests/GuestTable';
 import AdvancedView from './AdvancedView/AdvancedView';
+import toast from 'react-hot-toast';
 
 
 const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inventoryError = '', onInventoryChange }) => {
@@ -40,6 +41,8 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [checkInModalOpen, setCheckInModalOpen] = useState(false);
   const [addGuestModalOpen, setAddGuestModalOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Update local guests when props change
   React.useEffect(() => {
@@ -143,6 +146,27 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     setAddGuestModalOpen(true);
   };
 
+  const handleDeleteEvent = () => {
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteEvent = async () => {
+    try {
+      setDeleting(true);
+      await api.delete(`/events/${eventId}`);
+      toast.success('Event deleted successfully');
+      // Navigate back to events list
+      navigate('/events');
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Failed to delete event';
+      toast.error(errorMessage);
+      console.error('Error deleting event:', error);
+    } finally {
+      setDeleting(false);
+      setDeleteDialogOpen(false);
+    }
+  };
+
   const handleGuestAdded = (newGuest) => {
     // Add the new guest to the current list
     setGuests(prev => [...prev, newGuest]);
@@ -220,6 +244,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         onUpload={handleUploadGuests}
         onAddGuest={handleAddGuest}
         onAddEvent={() => setSecondaryModalOpen(true)}
+        onDeleteEvent={handleDeleteEvent}
         canModify={canModifyEvents}
       />
 
@@ -277,6 +302,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
       <AddSecondaryEventModal
         open={secondaryModalOpen}
         parentEventId={mainEvent._id}
+        parentContractNumber={mainEvent.eventContractNumber}
         onClose={() => setSecondaryModalOpen(false)}
         onEventAdded={(newEvent) => {
           // Add the new secondary event to the list
@@ -284,6 +310,46 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
           setSecondaryModalOpen(false);
         }}
       />
+
+      {/* Delete Event Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        aria-labelledby="delete-event-dialog-title"
+        aria-describedby="delete-event-dialog-description"
+      >
+        <DialogTitle id="delete-event-dialog-title">
+          Delete Event
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-event-dialog-description">
+            Are you sure you want to delete "{event?.eventName}"? This action cannot be undone.
+            {event?.isMainEvent && secondaryEvents.length > 0 && (
+              <Box sx={{ mt: 1, p: 1, bgcolor: 'warning.light', borderRadius: 1 }}>
+                <Typography variant="body2" color="warning.dark">
+                  ⚠️ This will also delete {secondaryEvents.length} secondary event{secondaryEvents.length > 1 ? 's' : ''} associated with this main event.
+                </Typography>
+              </Box>
+            )}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setDeleteDialogOpen(false)} 
+            disabled={deleting}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmDeleteEvent} 
+            color="error" 
+            variant="contained"
+            disabled={deleting}
+          >
+            {deleting ? 'Deleting...' : 'Delete Event'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </MainLayout>
   );
 };

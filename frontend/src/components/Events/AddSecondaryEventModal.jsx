@@ -17,16 +17,15 @@ import toast from 'react-hot-toast';
 
 const validationSchema = Yup.object({
   eventName: Yup.string().required('Event name is required'),
-  eventContractNumber: Yup.string().required('Contract number is required'),
   eventStart: Yup.string().required('Event start date is required'),
 });
 
-const AddSecondaryEventModal = ({ parentEventId, onClose, onEventAdded, open = true }) => {
+const AddSecondaryEventModal = ({ parentContractNumber,parentEventId, onClose, onEventAdded, open = true }) => {
   const [loading, setLoading] = useState(false);
 
   const initialValues = {
     eventName: '',
-    eventContractNumber: '',
+    eventContractNumber: parentContractNumber || '',
     eventStart: '',
     eventEnd: '',
   };
@@ -36,6 +35,7 @@ const AddSecondaryEventModal = ({ parentEventId, onClose, onEventAdded, open = t
       setLoading(true);
       const response = await api.post('/events', {
         ...values,
+        eventContractNumber: parentContractNumber, // Always use parent contract number
         parentEventId,
         isMainEvent: false
       });
@@ -82,7 +82,8 @@ const AddSecondaryEventModal = ({ parentEventId, onClose, onEventAdded, open = t
                       fullWidth
                       label="Contract Number"
                       required
-                      helperText="Unique identifier for this secondary event"
+                      disabled
+                      helperText="Secondary events share the same contract number as the main event"
                       error={touched.eventContractNumber && !!errors.eventContractNumber}
                     />
                   )}

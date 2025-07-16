@@ -54,8 +54,8 @@ exports.createEvent = async (req, res) => {
       }
       eventData.parentEventId = parentEventId;
       eventData.isMainEvent = false;
-      // Secondary events inherit contract number with suffix
-      eventData.eventContractNumber = `${parentEvent.eventContractNumber}-${Date.now()}`;
+      // Secondary events use the same contract number as parent
+      eventData.eventContractNumber = parentEvent.eventContractNumber;
     }
 
     const event = await Event.create(eventData);
@@ -81,13 +81,7 @@ exports.createEvent = async (req, res) => {
       event
     });
   } catch (error) {
-    if (error.code === 11000 && error.keyPattern.eventContractNumber) {
-      res.status(400).json({ 
-        message: 'An event with this contract number already exists' 
-      });
-    } else {
-      res.status(400).json({ message: error.message });
-    }
+    res.status(400).json({ message: error.message });
   }
 };
 

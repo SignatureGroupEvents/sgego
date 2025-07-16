@@ -26,6 +26,11 @@ const inventorySchema = new mongoose.Schema({
     enum: ['M', 'W', 'N/A'],
     default: 'N/A'
   },
+  color: {
+    type: String,
+    required: false,
+    trim: true
+  },
   qtyWarehouse: {
     type: Number,
     required: false
@@ -73,7 +78,7 @@ const inventorySchema = new mongoose.Schema({
   timestamps: true
 });
 
-inventorySchema.index({ eventId: 1, type: 1, style: 1, size: 1, gender: 1 }, { unique: true });
+inventorySchema.index({ eventId: 1, type: 1, style: 1, size: 1, gender: 1, color: 1 }, { unique: true });
 
 // Method to update inventory
 inventorySchema.methods.updateInventory = function(newCount, action, userId, reason = '') {
