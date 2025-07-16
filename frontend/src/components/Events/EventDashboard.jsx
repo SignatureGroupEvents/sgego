@@ -272,6 +272,18 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         eventId={mainEvent._id}
         onGuestAdded={handleGuestAdded}
       />
+
+      {/* Add Secondary Event Modal */}
+      <AddSecondaryEventModal
+        open={secondaryModalOpen}
+        parentEventId={mainEvent._id}
+        onClose={() => setSecondaryModalOpen(false)}
+        onEventAdded={(newEvent) => {
+          // Add the new secondary event to the list
+          setSecondaryEvents(prev => [...prev, newEvent]);
+          setSecondaryModalOpen(false);
+        }}
+      />
     </MainLayout>
   );
 };

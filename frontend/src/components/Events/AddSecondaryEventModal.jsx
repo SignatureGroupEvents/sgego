@@ -21,7 +21,7 @@ const validationSchema = Yup.object({
   eventStart: Yup.string().required('Event start date is required'),
 });
 
-const AddSecondaryEventModal = ({ parentEventId, onClose, onEventAdded }) => {
+const AddSecondaryEventModal = ({ parentEventId, onClose, onEventAdded, open = true }) => {
   const [loading, setLoading] = useState(false);
 
   const initialValues = {
@@ -51,7 +51,7 @@ const AddSecondaryEventModal = ({ parentEventId, onClose, onEventAdded }) => {
   };
 
   return (
-    <Dialog open={true} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Add Secondary Event</DialogTitle>
       <Formik
         initialValues={initialValues}
