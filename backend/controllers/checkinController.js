@@ -389,16 +389,25 @@ exports.getCheckins = async (req, res) => {
 exports.undoCheckin = async (req, res) => {
   try {
     const { checkinId } = req.params;
-    const { reason } = req.body;
+    const { reason, guestId, eventId } = req.body; // Add guestId and eventId
 
-    const checkin = await Checkin.findById(checkinId)
+    // Try to find by checkinId first (if it's a real Checkin document)
+    let checkin = await Checkin.findById(checkinId)
       .populate('guestId')
       .populate('giftsDistributed.inventoryId');
+
+    // If not found by checkinId, try to find by guestId and eventId
+    if (!checkin && guestId && eventId) {
+      checkin = await Checkin.findOne({ guestId, eventId })
+        .populate('guestId')
+        .populate('giftsDistributed.inventoryId');
+    }
 
     if (!checkin) {
       return res.status(404).json({ message: 'Check-in not found' });
     }
 
+    // Rest of the function remains the same...
     // Restore inventory
     for (const gift of checkin.giftsDistributed) {
       const inventoryItem = await Inventory.findById(gift.inventoryId._id);
@@ -443,7 +452,7 @@ exports.undoCheckin = async (req, res) => {
     });
 
     // Delete the check-in record
-    await Checkin.findByIdAndDelete(checkinId);
+    await Checkin.findByIdAndDelete(checkin._id);
 
     // Recalculate current inventory for affected items
     for (const gift of checkin.giftsDistributed) {

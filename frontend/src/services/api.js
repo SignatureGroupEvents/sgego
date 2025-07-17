@@ -87,9 +87,11 @@ export const multiEventCheckin = (guestId, checkins, notes = '') => {
   });
 };
 
-export const undoCheckin = (checkinId, reason = '') => {
+export const undoCheckin = (checkinId, reason = '', guestId = '', eventId = '') => {
   return api.put(`/checkins/${checkinId}/undo`, {
-    reason
+    reason,
+    guestId,
+    eventId
   });
 };
 

@@ -25,6 +25,8 @@ import {
     ListItem,
     ListItemText,
     ListItemSecondaryAction
+    // Autocomplete, (disabled - no backend endpoint)
+    // FormHelperText (disabled - no backend endpoint)
 } from '@mui/material';
 import {
     ArrowBack,
@@ -36,11 +38,12 @@ import {
     Star,
     Undo,
     SwapHoriz,
-    Delete
+    Delete,
+    Add
+    // LocalOffer (disabled - no backend endpoint)
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../../services/api';
-import { undoCheckin, updateCheckinGifts, getCheckinContext } from '../../services/api';
+import api, { undoCheckin, updateCheckinGifts } from '../../services/api';
 import MainLayout from '../layout/MainLayout';
 
 export default function GuestDetailPage() {
@@ -53,6 +56,11 @@ export default function GuestDetailPage() {
     const [editedGuest, setEditedGuest] = useState({});
     const [saving, setSaving] = useState(false);
     const [event, setEvent] = useState(null);
+    
+    // Tag management states - DISABLED (no backend endpoint)
+    // const [availableTags, setAvailableTags] = useState([]);
+    // const [selectedTags, setSelectedTags] = useState([]);
+    // const [tagLoading, setTagLoading] = useState(false);
     
     // Undo and gift modification states
     const [undoDialogOpen, setUndoDialogOpen] = useState(false);
@@ -82,14 +90,16 @@ export default function GuestDetailPage() {
                     notes: guestData.notes || ''
                 });
                 
-                // Fetch event details for breadcrumbs using eventId from URL params
+                // Set initial tags - DISABLED (no backend endpoint)
+                // setSelectedTags(guestData.tags || []);
+                
+                // Fetch event details
                 if (eventId) {
                     try {
                         const eventResponse = await api.get(`/events/${eventId}`);
                         setEvent(eventResponse.data);
                     } catch (eventErr) {
-                        console.warn('Failed to fetch event details for breadcrumbs:', eventErr);
-                        // Don't fail the entire guest fetch if event fetch fails
+                        console.warn('Failed to fetch event details:', eventErr);
                     }
                 }
             } catch (err) {
@@ -111,12 +121,19 @@ export default function GuestDetailPage() {
         }));
     };
 
+    // Tag change handler - DISABLED (no backend endpoint)
+    // const handleTagChange = (event, newValue) => {
+    //     setSelectedTags(newValue);
+    // };
+
     const handleSave = async () => {
         try {
             setSaving(true);
+            // Save guest data (tags disabled - no backend endpoint)
             const response = await api.put(`/guests/${guestId}`, editedGuest);
             setGuest(response.data);
             setIsEditing(false);
+            setError(''); // Clear any previous errors
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to update guest');
         } finally {
@@ -134,6 +151,8 @@ export default function GuestDetailPage() {
             attendeeType: guest?.attendeeType || '',
             notes: guest?.notes || ''
         });
+        // Tags disabled - no backend endpoint
+        // setSelectedTags(guest?.tags || []);
         setIsEditing(false);
     };
 
@@ -146,15 +165,17 @@ export default function GuestDetailPage() {
         
         try {
             setUndoLoading(true);
+            // Use the imported undoCheckin function
             await undoCheckin(selectedCheckin._id, undoReason);
             
             // Refresh guest data to reflect the deleted check-in
-            const response = await api.get(`/guests/${guestId}`);
-            setGuest(response.data);
+            const guestResponse = await api.get(`/guests/${guestId}`);
+            setGuest(guestResponse.data);
             
             setUndoDialogOpen(false);
             setUndoReason('');
             setSelectedCheckin(null);
+            setError(''); // Clear any previous errors
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to undo check-in');
         } finally {
@@ -163,20 +184,25 @@ export default function GuestDetailPage() {
     };
 
     const handleModifyGifts = async () => {
-        if (!selectedCheckin) return;
+        if (!selectedCheckin || !giftModificationReason.trim()) {
+            setError('Please provide a reason for modifying gifts');
+            return;
+        }
         
         try {
             setGiftModificationLoading(true);
+            // Use the imported updateCheckinGifts function
             await updateCheckinGifts(selectedCheckin._id, modifiedGifts, giftModificationReason);
             
             // Refresh guest data
-            const response = await api.get(`/guests/${guestId}`);
-            setGuest(response.data);
+            const guestResponse = await api.get(`/guests/${guestId}`);
+            setGuest(guestResponse.data);
             
             setGiftModificationDialogOpen(false);
             setGiftModificationReason('');
             setSelectedCheckin(null);
             setModifiedGifts([]);
+            setError(''); // Clear any previous errors
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to update gifts');
         } finally {
@@ -185,24 +211,26 @@ export default function GuestDetailPage() {
     };
 
     const openUndoDialog = (checkin) => {
+        console.log('Opening undo dialog for checkin:', checkin); // DEBUG
         setSelectedCheckin(checkin);
+        setUndoReason('');
         setUndoDialogOpen(true);
     };
 
     const openGiftModificationDialog = async (checkin) => {
         setSelectedCheckin(checkin);
+        setGiftModificationReason('');
         
         // Fetch available inventory for the event
         try {
-            const contextResponse = await getCheckinContext(checkin.eventId);
-            const inventory = contextResponse.data.inventoryByEvent?.[checkin.eventId] || [];
-            setAvailableInventory(inventory);
+            const inventoryResponse = await api.get(`/events/${checkin.eventId._id || checkin.eventId}/inventory`);
+            setAvailableInventory(inventoryResponse.data || []);
             
             // Initialize modified gifts with current gifts
             setModifiedGifts(checkin.giftsReceived.map(gift => ({
-                inventoryId: gift.inventoryId._id,
-                quantity: gift.quantity,
-                notes: ''
+                inventoryId: gift.inventoryId._id || gift.inventoryId,
+                quantity: gift.quantity || 1,
+                notes: gift.notes || ''
             })));
             
             setGiftModificationDialogOpen(true);
@@ -235,7 +263,7 @@ export default function GuestDetailPage() {
         );
     }
 
-    if (error) {
+    if (error && !guest) {
         return (
             <MainLayout eventName={event?.eventName} userName={guest?.firstName + ' ' + guest?.lastName}>
                 <Box sx={{ p: 3 }}>
@@ -276,7 +304,8 @@ export default function GuestDetailPage() {
                         gifts.push({
                             name: `${inventoryItem.type}${inventoryItem.style ? ` (${inventoryItem.style})` : ''}`,
                             quantity: gift.quantity,
-                            eventName: checkin.eventId?.eventName || 'Unknown Event'
+                            eventName: checkin.eventId?.eventName || 'Unknown Event',
+                            checkin: checkin
                         });
                     }
                 });
@@ -292,6 +321,13 @@ export default function GuestDetailPage() {
         <MainLayout eventName={event?.eventName} userName={guest.firstName + ' ' + guest.lastName}>
             <Box sx={{ minHeight: '100vh', py: 4, px: 2 }}>
                 <Box sx={{ maxWidth: 1200, mx: 'auto', backgroundColor: 'background.paper', borderRadius: 2, p: 4}}>
+                    {/* Error Alert */}
+                    {error && (
+                        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+                            {error}
+                        </Alert>
+                    )}
+
                     {/* Header */}
                     <Box sx={{ mb: 4 }}>
                         <Button
@@ -343,7 +379,7 @@ export default function GuestDetailPage() {
 
                     {/* Guest Information */}
                     <Stack spacing={3}>
-                        {/* Basic Information - Full Width on Top */}
+                        {/* Basic Information */}
                         <Card>
                             <CardContent>
                                 <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: 'primary.main' }}>
@@ -467,11 +503,77 @@ export default function GuestDetailPage() {
                                             )}
                                         </Box>
                                     </Grid>
+
+                                    {/* Tags - DISABLED (no backend endpoint) */}
+                                    {/* 
+                                    <Grid item xs={12}>
+                                        <Box>
+                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                                Tags
+                                            </Typography>
+                                            {isEditing ? (
+                                                <Autocomplete
+                                                    multiple
+                                                    options={availableTags}
+                                                    getOptionLabel={(option) => option.name}
+                                                    value={selectedTags}
+                                                    onChange={handleTagChange}
+                                                    renderTags={(value, getTagProps) =>
+                                                        value.map((option, index) => (
+                                                            <Chip
+                                                                variant="outlined"
+                                                                label={option.name}
+                                                                {...getTagProps({ index })}
+                                                                key={option._id || index}
+                                                                sx={{
+                                                                    backgroundColor: option.color,
+                                                                    color: 'white',
+                                                                    '& .MuiChip-deleteIcon': {
+                                                                        color: 'white !important'
+                                                                    }
+                                                                }}
+                                                            />
+                                                        ))
+                                                    }
+                                                    renderInput={(params) => (
+                                                        <TextField
+                                                            {...params}
+                                                            placeholder="Select tags"
+                                                            size="small"
+                                                        />
+                                                    )}
+                                                />
+                                            ) : (
+                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                                    {guest.tags && guest.tags.length > 0 ? (
+                                                        guest.tags.map((tag, index) => (
+                                                            <Chip
+                                                                key={tag._id || index}
+                                                                label={tag.name}
+                                                                size="small"
+                                                                sx={{
+                                                                    backgroundColor: tag.color,
+                                                                    color: 'white',
+                                                                    fontSize: '0.75rem'
+                                                                }}
+                                                                icon={<LocalOffer sx={{ fontSize: 14 }} />}
+                                                            />
+                                                        ))
+                                                    ) : (
+                                                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                                            No tags assigned
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            )}
+                                        </Box>
+                                    </Grid>
+                                    */}
                                 </Grid>
                             </CardContent>
                         </Card>
 
-                        {/* Additional Information - Full Width Below */}
+                        {/* Additional Information */}
                         <Card>
                             <CardContent>
                                 <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: 'primary.main' }}>
@@ -493,6 +595,7 @@ export default function GuestDetailPage() {
                                                     value={editedGuest.notes}
                                                     onChange={(e) => handleInputChange('notes', e.target.value)}
                                                     size="small"
+                                                    placeholder="Add any notes about this guest..."
                                                 />
                                             ) : (
                                                 <Typography variant="body1">
@@ -539,16 +642,14 @@ export default function GuestDetailPage() {
                                                     {giftSelections.map((gift, index) => (
                                                         <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                             <Chip
-                                                                label={`${gift.eventName} - ${gift.name} `}
+                                                                label={`${gift.eventName} - ${gift.name} (x${gift.quantity})`}
                                                                 size="small"
                                                                 variant="outlined"
                                                                 color="primary"
                                                             />
                                                             <IconButton
                                                                 size="small"
-                                                                onClick={() => openGiftModificationDialog(guest.eventCheckins.find(ec => 
-                                                                    ec.eventId?.eventName === gift.eventName
-                                                                ))}
+                                                                onClick={() => openGiftModificationDialog(gift.checkin)}
                                                                 title="Modify gifts"
                                                             >
                                                                 <SwapHoriz fontSize="small" />
@@ -565,11 +666,11 @@ export default function GuestDetailPage() {
 
                                         {/* Check-in Actions */}
                                         {guest.hasCheckedIn && guest.eventCheckins.length > 0 && (
-                                            <Box>
+                                            <Box sx={{ mt: 2 }}>
                                                 <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
                                                     Check-in Actions
                                                 </Typography>
-                                                <Stack direction="row" spacing={1}>
+                                                <Stack direction="row" spacing={1} flexWrap="wrap">
                                                     {guest.eventCheckins.map((checkin, index) => (
                                                         <Button
                                                             key={index}
@@ -579,7 +680,7 @@ export default function GuestDetailPage() {
                                                             startIcon={<Undo />}
                                                             onClick={() => openUndoDialog(checkin)}
                                                         >
-                                                            Undo {checkin.eventId?.eventName}
+                                                            Undo {checkin.eventId?.eventName || 'Check-in'}
                                                         </Button>
                                                     ))}
                                                 </Stack>
@@ -596,7 +697,7 @@ export default function GuestDetailPage() {
                         <DialogTitle>Undo Check-in</DialogTitle>
                         <DialogContent>
                             <Typography variant="body2" sx={{ mb: 2 }}>
-                                Are you sure you want to undo the check-in for {selectedCheckin?.eventId?.eventName}? 
+                                Are you sure you want to undo the check-in for {selectedCheckin?.eventId?.eventName || 'this event'}? 
                                 This will restore any distributed gifts to inventory.
                             </Typography>
                             <TextField
@@ -607,6 +708,7 @@ export default function GuestDetailPage() {
                                 multiline
                                 rows={3}
                                 placeholder="Enter a reason for undoing this check-in..."
+                                required
                             />
                         </DialogContent>
                         <DialogActions>
@@ -617,7 +719,7 @@ export default function GuestDetailPage() {
                                 onClick={handleUndoCheckin} 
                                 color="warning" 
                                 variant="contained"
-                                disabled={undoLoading}
+                                disabled={undoLoading || !undoReason.trim()}
                                 startIcon={undoLoading ? <CircularProgress size={20} /> : <Undo />}
                             >
                                 {undoLoading ? 'Undoing...' : 'Undo Check-in'}
@@ -627,7 +729,7 @@ export default function GuestDetailPage() {
 
                     {/* Gift Modification Dialog */}
                     <Dialog open={giftModificationDialogOpen} onClose={() => setGiftModificationDialogOpen(false)} maxWidth="md" fullWidth>
-                        <DialogTitle>Modify Gifts for {selectedCheckin?.eventId?.eventName}</DialogTitle>
+                        <DialogTitle>Modify Gifts for {selectedCheckin?.eventId?.eventName || 'Event'}</DialogTitle>
                         <DialogContent>
                             <Typography variant="body2" sx={{ mb: 2 }}>
                                 Modify the gifts distributed to this guest. Changes will be reflected in inventory.
@@ -642,6 +744,7 @@ export default function GuestDetailPage() {
                                 rows={2}
                                 placeholder="Enter a reason for modifying gifts..."
                                 sx={{ mb: 3 }}
+                                required
                             />
 
                             <Typography variant="subtitle2" sx={{ mb: 2 }}>
@@ -663,7 +766,7 @@ export default function GuestDetailPage() {
                                                         >
                                                             {availableInventory.map((item) => (
                                                                 <MenuItem key={item._id} value={item._id}>
-                                                                    {item.style} ({item.size})
+                                                                    {item.type} - {item.style} ({item.size})
                                                                 </MenuItem>
                                                             ))}
                                                         </Select>
@@ -696,7 +799,7 @@ export default function GuestDetailPage() {
                             <Button 
                                 onClick={addGift} 
                                 variant="outlined" 
-                                startIcon={<SwapHoriz />}
+                                startIcon={<Add />}
                                 sx={{ mt: 2 }}
                             >
                                 Add Gift
@@ -710,7 +813,7 @@ export default function GuestDetailPage() {
                                 onClick={handleModifyGifts} 
                                 color="primary" 
                                 variant="contained"
-                                disabled={giftModificationLoading}
+                                disabled={giftModificationLoading || !giftModificationReason.trim()}
                                 startIcon={giftModificationLoading ? <CircularProgress size={20} /> : <SwapHoriz />}
                             >
                                 {giftModificationLoading ? 'Updating...' : 'Update Gifts'}
