@@ -374,7 +374,7 @@ exports.getCheckins = async (req, res) => {
       return res.status(400).json({ message: 'Event ID is required' });
     }
 
-    const checkins = await Checkin.find({ eventId, isValid: true })
+    const checkins = await Checkin.find({ eventId })
       .populate('guestId', 'firstName lastName email')
       .populate('checkedInBy', 'username')
       .populate('giftsDistributed.inventoryId', 'type style size')
@@ -399,34 +399,25 @@ exports.undoCheckin = async (req, res) => {
       return res.status(404).json({ message: 'Check-in not found' });
     }
 
-    if (!checkin.isValid) {
-      return res.status(400).json({ message: 'Check-in already undone' });
-    }
-
     // Restore inventory
     for (const gift of checkin.giftsDistributed) {
       const inventoryItem = await Inventory.findById(gift.inventoryId._id);
       if (inventoryItem) {
         await inventoryItem.updateInventory(
           inventoryItem.currentInventory + gift.quantity,
-          'checkin_distributed',
+          'checkin_undo',
           req.user.id,
           `Restored from undone check-in: ${reason}`
         );
       }
     }
 
-    // Update checkin record
-    checkin.isValid = false;
-    checkin.undoReason = reason;
-    checkin.undoBy = req.user.id;
-    checkin.undoAt = new Date();
-    await checkin.save();
-
-    // Update guest status
+    // Update guest status - remove this specific check-in
     const guest = checkin.guestId;
     guest.eventCheckins = guest.eventCheckins.filter(ec => 
-      ec.eventId.toString() !== checkin.eventId.toString()
+      !(ec.eventId.toString() === checkin.eventId.toString() && 
+        ec.checkedInAt && 
+        Math.abs(new Date(ec.checkedInAt) - new Date(checkin.createdAt)) < 60000) // Within 1 minute
     );
     
     // Check if guest is still checked into any events
@@ -436,9 +427,182 @@ exports.undoCheckin = async (req, res) => {
     
     await guest.save();
 
+    // Log activity before deleting
+    await ActivityLog.create({
+      eventId: checkin.eventId,
+      type: 'checkin_undo',
+      performedBy: req.user.id,
+      details: {
+        guestId: guest._id,
+        guestName: `${guest.firstName} ${guest.lastName}`,
+        checkinId: checkin._id,
+        giftsRestored: checkin.giftsDistributed,
+        reason: reason || '',
+      },
+      timestamp: new Date()
+    });
+
+    // Delete the check-in record
+    await Checkin.findByIdAndDelete(checkinId);
+
+    // Recalculate current inventory for affected items
+    for (const gift of checkin.giftsDistributed) {
+      await Inventory.recalculateCurrentInventory(gift.inventoryId._id);
+    }
+
+    // Emit WebSocket update for analytics
+    emitAnalyticsUpdate(checkin.eventId);
+
     res.json({
       success: true,
       message: 'Check-in undone successfully'
+    });
+
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+exports.updateCheckinGifts = async (req, res) => {
+  try {
+    const { checkinId } = req.params;
+    const { newGifts, reason } = req.body; // newGifts: [{ inventoryId, quantity, notes }]
+
+    const checkin = await Checkin.findById(checkinId)
+      .populate('guestId')
+      .populate('giftsDistributed.inventoryId');
+
+    if (!checkin) {
+      return res.status(404).json({ message: 'Check-in not found' });
+    }
+
+    // Validate new gifts
+    if (!Array.isArray(newGifts)) {
+      return res.status(400).json({ message: 'New gifts must be an array' });
+    }
+
+    // Calculate inventory changes
+    const oldGifts = new Map();
+    const newGiftsMap = new Map();
+    const inventoryChanges = new Map();
+
+    // Track old gifts
+    for (const gift of checkin.giftsDistributed) {
+      const key = gift.inventoryId._id.toString();
+      oldGifts.set(key, gift.quantity);
+      inventoryChanges.set(key, gift.quantity); // Will be subtracted
+    }
+
+    // Track new gifts
+    for (const gift of newGifts) {
+      const key = gift.inventoryId;
+      newGiftsMap.set(key, gift.quantity);
+      const currentChange = inventoryChanges.get(key) || 0;
+      inventoryChanges.set(key, currentChange - gift.quantity); // Subtract new quantity
+    }
+
+    // Validate inventory availability for new gifts
+    for (const [inventoryId, change] of inventoryChanges) {
+      if (change < 0) { // We're adding more than we had
+        const inventoryItem = await Inventory.findById(inventoryId);
+        if (!inventoryItem) {
+          return res.status(404).json({ message: `Inventory item not found: ${inventoryId}` });
+        }
+        
+        const additionalNeeded = Math.abs(change);
+        if (inventoryItem.currentInventory < additionalNeeded) {
+          return res.status(400).json({ 
+            message: `Insufficient inventory for ${inventoryItem.style}. Available: ${inventoryItem.currentInventory}, Additional needed: ${additionalNeeded}` 
+          });
+        }
+      }
+    }
+
+    // Restore old gifts to inventory
+    for (const [inventoryId, quantity] of oldGifts) {
+      const inventoryItem = await Inventory.findById(inventoryId);
+      if (inventoryItem) {
+        await inventoryItem.updateInventory(
+          inventoryItem.currentInventory + quantity,
+          'checkin_gift_update',
+          req.user.id,
+          `Restored from gift update: ${reason}`
+        );
+      }
+    }
+
+    // Distribute new gifts
+    for (const gift of newGifts) {
+      const inventoryItem = await Inventory.findById(gift.inventoryId);
+      if (inventoryItem) {
+        await inventoryItem.updateInventory(
+          inventoryItem.currentInventory - gift.quantity,
+          'checkin_gift_update',
+          req.user.id,
+          `Updated gift distribution: ${reason}`
+        );
+      }
+    }
+
+    // Update checkin record
+    checkin.giftsDistributed = newGifts.map(gift => ({
+      inventoryId: gift.inventoryId,
+      quantity: gift.quantity,
+      notes: gift.notes || ''
+    }));
+    await checkin.save();
+
+    // Update guest record
+    const guest = checkin.guestId;
+    const guestCheckin = guest.eventCheckins.find(ec => 
+      ec.eventId.toString() === checkin.eventId.toString()
+    );
+    
+    if (guestCheckin) {
+      guestCheckin.giftsReceived = newGifts.map(gift => ({
+        inventoryId: gift.inventoryId,
+        quantity: gift.quantity,
+        distributedAt: new Date()
+      }));
+      await guest.save();
+    }
+
+    // Recalculate current inventory for affected items
+    for (const [inventoryId] of inventoryChanges) {
+      await Inventory.recalculateCurrentInventory(inventoryId);
+    }
+
+    // Log activity
+    await ActivityLog.create({
+      eventId: checkin.eventId,
+      type: 'checkin_gift_update',
+      performedBy: req.user.id,
+      details: {
+        guestId: guest._id,
+        guestName: `${guest.firstName} ${guest.lastName}`,
+        checkinId: checkin._id,
+        oldGifts: Array.from(oldGifts.entries()),
+        newGifts: newGifts,
+        reason: reason || '',
+      },
+      timestamp: new Date()
+    });
+
+    // Emit WebSocket update for analytics
+    emitAnalyticsUpdate(checkin.eventId);
+
+    // Populate the updated checkin for response
+    await checkin.populate([
+      { path: 'guestId', select: 'firstName lastName email' },
+      { path: 'checkedInBy', select: 'username' },
+      { path: 'eventId', select: 'eventName' },
+      { path: 'giftsDistributed.inventoryId' }
+    ]);
+
+    res.json({
+      success: true,
+      message: 'Gifts updated successfully',
+      checkin
     });
 
   } catch (error) {
@@ -468,18 +632,16 @@ exports.deleteCheckin = async (req, res) => {
       return res.status(404).json({ message: 'Check-in not found' });
     }
 
-    // Restore inventory if check-in was valid
-    if (checkin.isValid) {
-      for (const gift of checkin.giftsDistributed) {
-        const inventoryItem = await Inventory.findById(gift.inventoryId._id);
-        if (inventoryItem) {
-          await inventoryItem.updateInventory(
-            inventoryItem.currentInventory + gift.quantity,
-            'checkin_distributed',
-            req.user.id,
-            `Restored from deleted check-in: ${reason}`
-          );
-        }
+    // Restore inventory
+    for (const gift of checkin.giftsDistributed) {
+      const inventoryItem = await Inventory.findById(gift.inventoryId._id);
+      if (inventoryItem) {
+        await inventoryItem.updateInventory(
+          inventoryItem.currentInventory + gift.quantity,
+          'checkin_delete',
+          req.user.id,
+          `Restored from deleted check-in: ${reason}`
+        );
       }
     }
 

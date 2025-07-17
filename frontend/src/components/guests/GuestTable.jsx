@@ -39,6 +39,7 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
   const { guestId } = useParams();
+
   // Determine if user can modify events
   const canModifyEvents = isOperationsManager || isAdmin;
   // Staff can perform check-ins and gift assignments but not modify guest lists
@@ -46,10 +47,12 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
   // Staff can add guests manually but not upload bulk
   const canAddGuests = isOperationsManager || isAdmin || currentUser?.role === 'staff';
 
-  const handleOpenCheckIn = (guest) => {
+  const handleOpenCheckIn = (guest, event) => {
+    event.stopPropagation(); // Prevent row click from triggering
     setCheckInGuest(guest);
     setModalOpen(true);
   };
+
   const handleCloseCheckIn = () => {
     setCheckInGuest(null);
     setModalOpen(false);
@@ -125,12 +128,23 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
               <TableBody>
                 {guests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
                   const isInherited = guest.isInherited;
-                  
+
                   // Get gift selections for each event
                   const getGiftSelectionsForEvent = (eventId) => {
-                    const checkin = guest.eventCheckins?.find(ec => 
-                      ec.eventId?.toString() === eventId?.toString()
-                    );
+                    const checkin = guest.eventCheckins?.find(ec => {
+                      // Handle both populated and unpopulated eventId
+                      let checkinEventId;
+                      if (ec.eventId && typeof ec.eventId === 'object') {
+                        // Populated eventId object - use _id property
+                        checkinEventId = ec.eventId._id || ec.eventId.toString();
+                      } else {
+                        // Unpopulated eventId string
+                        checkinEventId = ec.eventId;
+                      }
+
+                      return checkinEventId?.toString() === eventId?.toString();
+                    });
+
                     return checkin?.giftsReceived || [];
                   };
 
@@ -152,10 +166,11 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                   // Format gift selections for display
                   const formatGiftSelections = (eventId, eventName) => {
                     const gifts = getGiftSelectionsForEvent(eventId);
+
                     if (gifts.length === 0) {
                       return `No gift selected`;
                     }
-                    
+
                     const giftDetails = gifts.map(gift => {
                       // Handle both populated and unpopulated inventory items
                       let inventoryItem;
@@ -166,20 +181,20 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                         // Unpopulated inventory item, find in inventory array
                         inventoryItem = inventory.find(item => item._id === gift.inventoryId);
                       }
-                      
+
                       if (inventoryItem) {
                         return `${inventoryItem.type}${inventoryItem.style ? ` (${inventoryItem.style})` : ''}${gift.quantity > 1 ? ` x${gift.quantity}` : ''}`;
                       }
                       return 'Unknown gift';
                     }).join(', ');
-                    
+
                     return giftDetails;
                   };
-                  
+
                   return (
-                    <TableRow 
-                      key={guest._id} 
-                      hover 
+                    <TableRow
+                      key={guest._id}
+                      hover
                       onClick={() => navigate(`/events/${event._id}/guests/${guest._id}`)}
                       sx={{
                         '&:hover': {
@@ -210,9 +225,10 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                             color="success"
                             size="medium"
                             sx={{ justifyContent: 'center', width: '100%', borderRadius: 2, fontWeight: 600 }}
-                            startIcon={<CheckCircleIcon />} 
-                            onClick={() => handleOpenCheckIn(guest)}
+                            startIcon={<CheckCircleIcon />}
+                            onClick={(e) => handleOpenCheckIn(guest, e)}
                           >
+                            Check In
                           </Button>
                         )}
                       </TableCell>
@@ -232,14 +248,14 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                           {eventsToDisplay.length > 0 ? (
                             eventsToDisplay.map((ev, index) => {
                               const giftSelection = formatGiftSelections(ev._id, ev.eventName);
-                              
+
                               // For main event view, show event names with gift selections
                               if (event?.isMainEvent) {
                                 return (
-                                  <Typography 
-                                    key={ev._id} 
-                                    variant="body2" 
-                                    sx={{ 
+                                  <Typography
+                                    key={ev._id}
+                                    variant="body2"
+                                    sx={{
                                       fontSize: '0.8rem',
                                       color: index === 0 ? 'text.primary' : 'text.secondary'
                                     }}
@@ -250,10 +266,10 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                               } else {
                                 // For secondary event view, show only the gift selection
                                 return (
-                                  <Typography 
-                                    key={ev._id} 
-                                    variant="body2" 
-                                    sx={{ 
+                                  <Typography
+                                    key={ev._id}
+                                    variant="body2"
+                                    sx={{
                                       fontSize: '0.9rem',
                                       color: 'text.primary'
                                     }}

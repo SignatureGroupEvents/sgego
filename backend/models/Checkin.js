@@ -41,23 +41,6 @@ const checkinSchema = new mongoose.Schema({
     },
     notes: String
   }],
-  isValid: {
-    type: Boolean,
-    default: true
-  },
-  undoReason: {
-    type: String,
-    default: null
-  },
-  undoBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
-  },
-  undoAt: {
-    type: Date,
-    default: null
-  },
   notes: {
     type: String,
     trim: true

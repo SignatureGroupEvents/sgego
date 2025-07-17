@@ -5,6 +5,7 @@ const {
   singleEventCheckin,
   getCheckins,
   undoCheckin,
+  updateCheckinGifts,
   deleteCheckin
 } = require('../controllers/checkinController');
 const { protect, requireRole } = require('../middleware/auth');
@@ -27,8 +28,11 @@ router.post('/multi', multiEventCheckin);
 router.post('/single', singleEventCheckin);
 router.get('/', getCheckins);
 
-// Management routes - restrict to operations manager and admin
-router.put('/:checkinId/undo', requireRole('operations_manager', 'admin'), undoCheckin);
+// Undo check-in and update gifts - allow all authenticated users (including staff)
+router.put('/:checkinId/undo', undoCheckin);
+router.put('/:checkinId/gifts', updateCheckinGifts);
+
+// Management routes - restrict to admin only
 router.delete('/:checkinId', requireRole('admin'), deleteCheckin);
 
 module.exports = router;

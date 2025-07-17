@@ -50,7 +50,7 @@ const inventorySchema = new mongoose.Schema({
   inventoryHistory: [{
     action: {
       type: String,
-      enum: ['initial', 'checkin_distributed', 'manual_adjustment', 'post_event_count']
+      enum: ['initial', 'checkin_distributed', 'checkin_undo', 'checkin_gift_update', 'checkin_delete', 'manual_adjustment', 'post_event_count']
     },
     quantity: Number,
     previousCount: Number,
@@ -109,7 +109,7 @@ inventorySchema.statics.recalculateCurrentInventory = async function(inventoryId
   if (!inventoryItem) return;
   // Sum all distributed quantities for this inventory item
   const checkins = await Checkin.aggregate([
-    { $match: { 'giftsDistributed.inventoryId': inventoryItem._id, isValid: true } },
+    { $match: { 'giftsDistributed.inventoryId': inventoryItem._id } },
     { $unwind: '$giftsDistributed' },
     { $match: { 'giftsDistributed.inventoryId': inventoryItem._id } },
     { $group: { _id: null, total: { $sum: '$giftsDistributed.quantity' } } }

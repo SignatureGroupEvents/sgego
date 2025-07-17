@@ -87,6 +87,19 @@ export const multiEventCheckin = (guestId, checkins, notes = '') => {
   });
 };
 
+export const undoCheckin = (checkinId, reason = '') => {
+  return api.put(`/checkins/${checkinId}/undo`, {
+    reason
+  });
+};
+
+export const updateCheckinGifts = (checkinId, newGifts, reason = '') => {
+  return api.put(`/checkins/${checkinId}/gifts`, {
+    newGifts,
+    reason
+  });
+};
+
 export const updateInventoryAllocation = (inventoryId, allocatedEvents) => {
   return api.put(`/inventory/${inventoryId}/allocation`, { allocatedEvents });
 };
