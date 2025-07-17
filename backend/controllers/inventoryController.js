@@ -60,7 +60,7 @@ exports.uploadInventory = async (req, res) => {
 
     // NEW: Get column mapping from request body
     let columnMapping = {};
-    
+
     if (req.body.mapping) {
       try {
         // Parse the mapping JSON sent from frontend
@@ -79,7 +79,7 @@ exports.uploadInventory = async (req, res) => {
 
     // Parse CSV
     const results = [];
-    
+
     // Add error handling for file reading
     if (!fs.existsSync(file.path)) {
       return res.status(500).json({ message: 'Uploaded file not found on server' });
@@ -110,14 +110,14 @@ exports.uploadInventory = async (req, res) => {
             if (columnMapping[fieldKey] && row[columnMapping[fieldKey]] !== undefined) {
               return row[columnMapping[fieldKey]];
             }
-            
+
             // Fallback to old method if no mapping or mapping doesn't work
             for (const variation of fallbackVariations) {
               if (row[variation] !== undefined) {
                 return row[variation];
               }
             }
-            
+
             return '';
           };
 
@@ -130,7 +130,7 @@ exports.uploadInventory = async (req, res) => {
           // NEW: Helper function to normalize gender values
           const normalizeGender = (genderValue) => {
             if (!genderValue) return 'N/A';
-            
+
             const lower = genderValue.toLowerCase();
             if (['mens', 'men', 'male', 'm'].includes(lower)) {
               return 'M';
@@ -148,35 +148,35 @@ exports.uploadInventory = async (req, res) => {
               // NEW: Use mapping-aware value extraction
               const inventoryItem = {
                 eventId,
-                
+
                 // Required fields with fallbacks
                 type: getValueFromRow(row, 'type', ['Type', 'type', 'TYPE']),
                 style: getValueFromRow(row, 'style', ['Style', 'style', 'STYLE']),
-                
+
                 // Optional fields with fallbacks
                 size: getValueFromRow(row, 'size', ['Size', 'size', 'SIZE']),
                 color: getValueFromRow(row, 'color', ['Color', 'color', 'COLOR']),
-                
+
                 // Gender with normalization
                 gender: normalizeGender(
                   getValueFromRow(row, 'gender', ['Gender', 'gender', 'GENDER'])
                 ),
-                
+
                 // Quantity fields with safe parsing
                 qtyWarehouse: parseIntSafely(
                   getValueFromRow(row, 'qtyWarehouse', [
-                    'Qty_Warehouse', 'qty_warehouse', 'QTY_WAREHOUSE', 
+                    'Qty_Warehouse', 'qty_warehouse', 'QTY_WAREHOUSE',
                     'Warehouse', 'warehouse', 'Qty Warehouse'
                   ])
                 ),
-                
+
                 qtyOnSite: parseIntSafely(
                   getValueFromRow(row, 'qtyOnSite', [
                     'Qty_OnSite', 'qty_onsite', 'QTY_ONSITE',
                     'OnSite', 'onsite', 'Qty On Site'
                   ])
                 ),
-                
+
                 // NEW: Handle qtyBeforeEvent (alternative to qtyOnSite)
                 qtyBeforeEvent: parseIntSafely(
                   getValueFromRow(row, 'qtyBeforeEvent', [
@@ -184,14 +184,14 @@ exports.uploadInventory = async (req, res) => {
                     'Before Event', 'beforeevent', 'Qty Before Event'
                   ])
                 ),
-                
+
                 currentInventory: parseIntSafely(
                   getValueFromRow(row, 'currentInventory', [
                     'Current_Inventory', 'current_inventory', 'CURRENT_INVENTORY',
                     'Current', 'current', 'Current Inventory'
                   ])
                 ),
-                
+
                 postEventCount: (() => {
                   const value = getValueFromRow(row, 'postEventCount', [
                     'Post_Event_Count', 'post_event_count', 'POST_EVENT_COUNT',
@@ -232,7 +232,7 @@ exports.uploadInventory = async (req, res) => {
               }
 
               inventoryItems.push(inventoryItem);
-              
+
             } catch (error) {
               errors.push(`Row ${i + 1}: ${error.message}`);
             }
@@ -242,14 +242,55 @@ exports.uploadInventory = async (req, res) => {
             if (fs.existsSync(file.path)) {
               fs.unlinkSync(file.path);
             }
-            return res.status(400).json({ 
+            return res.status(400).json({
               message: 'No valid inventory items found in CSV',
-              errors 
+              errors
             });
           }
 
-          // Insert inventory items
-          const insertedItems = await Inventory.insertMany(inventoryItems, { ordered: false });
+          // Check for existing items to avoid duplicates
+          const existingItems = await Inventory.find({
+            eventId,
+            $or: inventoryItems.map(item => ({
+              type: item.type,
+              style: item.style,
+              size: item.size,
+              gender: item.gender,
+              color: item.color
+            }))
+          });
+
+          // Create a set of existing item keys for quick lookup
+          const existingKeys = new Set(
+            existingItems.map(item =>
+              `${item.type}-${item.style}-${item.size}-${item.gender}-${item.color}`
+            )
+          );
+
+          // Filter out items that already exist
+          const newItems = [];
+          const skippedItems = [];
+
+          inventoryItems.forEach((item, index) => {
+            const itemKey = `${item.type}-${item.style}-${item.size}-${item.gender}-${item.color}`;
+
+            if (existingKeys.has(itemKey)) {
+              skippedItems.push({
+                row: index + 1,
+                item: `${item.type} - ${item.style} (${item.size}, ${item.gender}, ${item.color})`,
+                reason: 'Already exists'
+              });
+            } else {
+              newItems.push(item);
+            }
+          });
+
+          let insertedItems = [];
+
+          // Only insert new items if there are any
+          if (newItems.length > 0) {
+            insertedItems = await Inventory.insertMany(newItems, { ordered: false });
+          }
 
           // Clean up file
           if (fs.existsSync(file.path)) {
@@ -259,34 +300,48 @@ exports.uploadInventory = async (req, res) => {
           // Emit WebSocket update for analytics
           emitAnalyticsUpdate(eventId);
 
-          // NEW: Enhanced response with mapping info
-          res.json({
+          // Enhanced response with detailed results
+          const response = {
             success: true,
-            message: `${insertedItems.length} inventory items imported successfully`,
-            imported: insertedItems.length,
-            errors: errors.length > 0 ? errors : undefined,
-            mappingUsed: Object.keys(columnMapping).length > 0 ? columnMapping : 'fallback method',
-            sampleFormat: {
-              note: "Use the column mapping interface for best results, or ensure CSV has these columns",
-              columns: ["Type", "Style", "Size", "Gender", "Color", "Qty_Warehouse", "Qty_OnSite", "Current_Inventory", "Post_Event_Count"]
-            }
-          });
+            message: `Import completed: ${insertedItems.length} new items added`,
+            results: {
+              totalProcessed: inventoryItems.length,
+              newItemsAdded: insertedItems.length,
+              duplicatesSkipped: skippedItems.length,
+              errors: errors.length > 0 ? errors : undefined
+            },
+            mappingUsed: Object.keys(columnMapping).length > 0 ? columnMapping : 'fallback method'
+          };
+
+          // Add details about skipped items if any
+          if (skippedItems.length > 0) {
+            response.results.skippedItems = skippedItems;
+            response.message += `, ${skippedItems.length} duplicates skipped`;
+          }
+
+          // Add sample format info
+          response.sampleFormat = {
+            note: "Use the column mapping interface for best results, or ensure CSV has these columns",
+            columns: ["Type", "Style", "Size", "Gender", "Color", "Qty_Warehouse"]
+          };
+
+          res.json(response);
 
         } catch (error) {
           console.error('Inventory upload error:', error);
           if (fs.existsSync(file.path)) {
             fs.unlinkSync(file.path);
           }
-          
+
           // Handle duplicate key errors specifically
           if (error.code === 11000) {
-            return res.status(400).json({ 
+            return res.status(400).json({
               message: 'Duplicate inventory items found. Each combination of Type, Style, Size, Gender, and Color must be unique.',
-              error: error.message 
+              error: error.message
             });
           }
-          
-          res.status(500).json({ 
+
+          res.status(500).json({
             message: 'Error processing inventory upload: ' + error.message,
             error: process.env.NODE_ENV === 'development' ? error.stack : 'Internal server error'
           });
@@ -298,7 +353,7 @@ exports.uploadInventory = async (req, res) => {
     if (req.file && req.file.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error uploading inventory: ' + error.message,
       error: process.env.NODE_ENV === 'development' ? error.stack : 'Internal server error'
     });
@@ -526,13 +581,13 @@ exports.updateInventoryAllocation = async (req, res) => {
     if (!inventoryItem) {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
-    
+
     // Store previous allocation for logging
     const previousAllocatedEvents = inventoryItem.allocatedEvents || [];
-    
+
     inventoryItem.allocatedEvents = allocatedEvents;
     await inventoryItem.save();
-    
+
     // Log the allocation update
     await ActivityLog.create({
       eventId: inventoryItem.eventId,
@@ -552,7 +607,7 @@ exports.updateInventoryAllocation = async (req, res) => {
       },
       timestamp: new Date()
     });
-    
+
     res.json({ success: true, inventoryItem });
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -639,8 +694,8 @@ exports.addInventoryItem = async (req, res) => {
   } catch (error) {
     if (error.code === 11000) {
       // Duplicate key error (type, style, size, gender, color combination already exists)
-      return res.status(400).json({ 
-        message: 'An inventory item with this type, style, size, gender, and color combination already exists for this event' 
+      return res.status(400).json({
+        message: 'An inventory item with this type, style, size, gender, and color combination already exists for this event'
       });
     }
     res.status(400).json({ message: error.message });
@@ -652,7 +707,7 @@ exports.exportInventoryCSV = async (req, res) => {
   try {
     const { eventId } = req.params;
     const event = await Event.findById(eventId);
-    
+
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
     }
@@ -717,7 +772,7 @@ exports.exportInventoryExcel = async (req, res) => {
     const ExcelJS = require('exceljs');
     const { eventId } = req.params;
     const event = await Event.findById(eventId);
-    
+
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
     }

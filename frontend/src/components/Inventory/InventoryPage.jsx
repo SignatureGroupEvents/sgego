@@ -3,7 +3,7 @@ import {
   Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete,
   TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
-  DialogContent, DialogActions
+  DialogContent, DialogActions, TablePagination
 } from '@mui/material';
 import {
   Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
@@ -56,6 +56,17 @@ const InventoryPage = ({ eventId, eventName }) => {
   });
   const { isOperationsManager, isAdmin } = usePermissions();
 
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
   // Determine if user can modify inventory
   const canModifyInventory = isOperationsManager || isAdmin;
 
@@ -119,11 +130,21 @@ const InventoryPage = ({ eventId, eventName }) => {
     setUploading(true);
     setError('');
     setSuccess('');
-  
+
     try {
       // Call the updated API function with mapping
-      await uploadInventoryCSV(eventId, file, mapping); // ✅ Use the updated function
-      setSuccess('Inventory uploaded successfully!');
+      const response = await uploadInventoryCSV(eventId, file, mapping);
+      // Handle the new detailed response
+      if (response.data.results) {
+        const { newItemsAdded, duplicatesSkipped, totalProcessed } = response.data.results;
+        setSuccess(
+          `Upload complete: ${newItemsAdded} new items added` +
+          (duplicatesSkipped > 0 ? `, ${duplicatesSkipped} duplicates skipped` : '') +
+          ` (${totalProcessed} total processed)`
+        );
+      } else {
+        setSuccess('Inventory uploaded successfully!');
+      }
       loadInventory();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to upload inventory.');
@@ -467,89 +488,98 @@ const InventoryPage = ({ eventId, eventName }) => {
                 <TableBody>
                   {inventory.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center">No inventory found.</TableCell>
+                      <TableCell colSpan={11} align="center">No inventory found.</TableCell>
                     </TableRow>
                   ) : (
-                    inventory.map(item => (
-                      <TableRow key={item._id}>
-                        <TableCell>{item.type}</TableCell>
-                        <TableCell>{item.style}</TableCell>
-                        <TableCell>{item.size}</TableCell>
-                        <TableCell>{item.gender}</TableCell>
-                        <TableCell>{item.color}</TableCell>
-                        <TableCell>
-                          {item.qtyWarehouse}
-                        </TableCell>
-                        <TableCell>
-                          {isEditMode ? (
-                            <input
-                              type="number"
-                              min="0"
-                              required
-                              value={editValuesMap[item._id]?.qtyBeforeEvent || item.qtyBeforeEvent || item.qtyOnSite || 0}
-                              onChange={e => handleEditValueChange(item._id, 'qtyBeforeEvent', e.target.value)}
-                              style={{ width: 70 }}
-                            />
-                          ) : (
-                            item.qtyBeforeEvent || item.qtyOnSite || 0
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {item.currentInventory}
-                        </TableCell>
-                        <TableCell>
-                          {isEditMode ? (
-                            <input
-                              type="number"
-                              min="0"
-                              required
-                              value={editValuesMap[item._id]?.postEventCount || item.postEventCount || 0}
-                              onChange={e => handleEditValueChange(item._id, 'postEventCount', e.target.value)}
-                              style={{ width: 70 }}
-                            />
-                          ) : (
-                            item.postEventCount || 0
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {eventsLoading ? (
-                            <CircularProgress size={20} />
-                          ) : (canModifyInventory) ? (
-                            <Autocomplete
-                              multiple
-                              size="small"
-                              options={filteredEvents}
-                              getOptionLabel={option => option.eventName}
-                              value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
-                              onChange={(_, newValue) => handleAllocationChange(item, newValue)}
-                              renderInput={params => <TextField {...params} variant="outlined" label="Allocated Events" />}
-                              renderTags={(value, getTagProps) =>
-                                value.map((option, index) => (
-                                  <Chip label={option.eventName} {...getTagProps({ index })} key={option._id} />
-                                ))
-                              }
-                              disableCloseOnSelect
-                              sx={{ minWidth: 200 }}
-                            />
-                          ) : (
-                            <Box display="flex" flexWrap="wrap" gap={0.5}>
-                              {filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id)).map(ev => (
-                                <Chip key={ev._id} label={ev.eventName} size="small" />
-                              ))}
-                            </Box>
-                          )}
-                        </TableCell>
-                        <TableCell align="center">
-                          {canModifyInventory && !isEditMode && (
-                            <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small"><DeleteIcon /></IconButton>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    inventory
+                      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                      .map(item => (
+                        <TableRow key={item._id}>
+                          <TableCell>{item.type}</TableCell>
+                          <TableCell>{item.style}</TableCell>
+                          <TableCell>{item.size}</TableCell>
+                          <TableCell>{item.gender}</TableCell>
+                          <TableCell>{item.color}</TableCell>
+                          <TableCell>{item.qtyWarehouse}</TableCell>
+                          <TableCell>
+                            {isEditMode ? (
+                              <input
+                                type="number"
+                                min="0"
+                                required
+                                value={editValuesMap[item._id]?.qtyBeforeEvent || item.qtyBeforeEvent || item.qtyOnSite || 0}
+                                onChange={e => handleEditValueChange(item._id, 'qtyBeforeEvent', e.target.value)}
+                                style={{ width: 70 }}
+                              />
+                            ) : (
+                              item.qtyBeforeEvent || item.qtyOnSite || 0
+                            )}
+                          </TableCell>
+                          <TableCell>{item.currentInventory}</TableCell>
+                          <TableCell>
+                            {isEditMode ? (
+                              <input
+                                type="number"
+                                min="0"
+                                required
+                                value={editValuesMap[item._id]?.postEventCount || item.postEventCount || 0}
+                                onChange={e => handleEditValueChange(item._id, 'postEventCount', e.target.value)}
+                                style={{ width: 70 }}
+                              />
+                            ) : (
+                              item.postEventCount || 0
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {eventsLoading ? (
+                              <CircularProgress size={20} />
+                            ) : (canModifyInventory) ? (
+                              <Autocomplete
+                                multiple
+                                size="small"
+                                options={filteredEvents}
+                                getOptionLabel={option => option.eventName}
+                                value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
+                                onChange={(_, newValue) => handleAllocationChange(item, newValue)}
+                                renderInput={params => <TextField {...params} variant="outlined" label="Allocated Events" />}
+                                renderTags={(value, getTagProps) =>
+                                  value.map((option, index) => (
+                                    <Chip label={option.eventName} {...getTagProps({ index })} key={option._id} />
+                                  ))
+                                }
+                                disableCloseOnSelect
+                                sx={{ minWidth: 200 }}
+                              />
+                            ) : (
+                              <Box display="flex" flexWrap="wrap" gap={0.5}>
+                                {filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id)).map(ev => (
+                                  <Chip key={ev._id} label={ev.eventName} size="small" />
+                                ))}
+                              </Box>
+                            )}
+                          </TableCell>
+                          <TableCell align="center">
+                            {canModifyInventory && !isEditMode && (
+                              <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small"><DeleteIcon /></IconButton>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
                   )}
                 </TableBody>
               </Table>
             </TableContainer>
+            <TablePagination
+              component="div"
+              count={inventory.length}
+              page={page}
+              onPageChange={handleChangePage}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+              rowsPerPageOptions={[10, 25, 50]}
+              labelRowsPerPage="Inventory per page"
+              sx={{ mt: 2 }}
+            />
             {/* Delete Confirmation Dialog */}
             <Dialog
               open={!!deletingId}
