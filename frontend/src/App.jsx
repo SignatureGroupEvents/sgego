@@ -9,7 +9,7 @@ import theme from './styles/theme';
 // Components
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import EventsList from './components/events/EventsList';
-import CreateEvent from './components/events/CreateEvent';
+import CreateEvent from './components/Events/CreateEvent';
 import EventDetails from './components/events/EventDetails';
 import UploadGuest from './components/guests/UploadGuest';
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -20,6 +20,7 @@ import AccountEditPage from "./pages/Account/AccountEditPage";
 import AuthPage from "./pages/Auth/AuthPage";
 import AdvancedDashboard from "./pages/Dashboard/AdvancedDashboard";
 import HelpPage from "./pages/HelpPage";
+import GuestDetailPage from './components/guests/GuestDetailPage';
 
 // Analytics Test Components
 import SpecificAnalyticsExamples from './components/analytics/SpecificAnalyticsExamples';
@@ -96,6 +97,11 @@ function App() {
             <Route path="/events/:eventId/inventory" element={
               <ProtectedRoute>
                 <InventoryPageWrapper />
+              </ProtectedRoute>
+            } />
+            <Route path="/events/:eventId/guests/:guestId" element={
+              <ProtectedRoute>
+                <GuestDetailPage />
               </ProtectedRoute>
             } />
             <Route path="/account" element={

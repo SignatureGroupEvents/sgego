@@ -312,6 +312,67 @@ exports.getGuestCheckinStatus = async (req, res) => {
   }
 };
 
+exports.getGuestById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const guest = await Guest.findById(id)
+      .populate('eventId', 'eventName isMainEvent')
+      .populate('eventCheckins.eventId', 'eventName isMainEvent')
+      .populate('eventCheckins.giftsReceived.inventoryId', 'type style size color')
+      .populate('eventCheckins.checkedInBy', 'username');
+
+    if (!guest) {
+      return res.status(404).json({ message: 'Guest not found' });
+    }
+
+    res.json(guest);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+exports.updateGuest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    // Remove fields that shouldn't be updated directly
+    delete updateData._id;
+    delete updateData.eventId;
+    delete updateData.qrCodeData;
+    delete updateData.hasExistingQR;
+    delete updateData.hasCheckedIn;
+    delete updateData.eventCheckins;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
+    
+    const guest = await Guest.findByIdAndUpdate(
+      id, 
+      updateData, 
+      { new: true, runValidators: true }
+    )
+    .populate('eventId', 'eventName isMainEvent')
+    .populate('eventCheckins.eventId', 'eventName isMainEvent')
+    .populate('eventCheckins.giftsReceived.inventoryId', 'type style size color')
+    .populate('eventCheckins.checkedInBy', 'username');
+
+    if (!guest) {
+      return res.status(404).json({ message: 'Guest not found' });
+    }
+
+    res.json(guest);
+  } catch (error) {
+    if (error.code === 11000) {
+      res.status(400).json({ 
+        message: 'Guest with this email already exists for this event' 
+      });
+    } else {
+      res.status(400).json({ message: error.message });
+    }
+  }
+};
+
 // Delete Methods
 
 exports.deleteGuest = async (req, res) => {

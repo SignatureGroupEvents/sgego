@@ -4,6 +4,8 @@ const {
   createGuest,
   bulkAddGuests,
   getGuestCheckinStatus,
+  getGuestById,
+  updateGuest,
   deleteGuest,
   bulkDeleteGuests
 } = require('../controllers/guestController');
@@ -23,14 +25,18 @@ router.use(protect); // Protect all guest routes
 
 // View routes - allow all authenticated users (including staff)
 router.get('/', getGuests);
+router.get('/:id', getGuestById);
 router.get('/:id/checkin-status', getGuestCheckinStatus);
 
-// Individual guest creation - allow all authenticated users (including staff)
+// Individual guest creation and updates - allow all authenticated users (including staff)
 router.post('/', createGuest);
+router.put('/:id', updateGuest);
 
 // Bulk operations - restrict to operations manager and admin
 router.post('/bulk-add', requireOperationsOrAdmin, bulkAddGuests);
-router.post('/bulk-delete', requireOperationsOrAdmin, bulkDeleteGuests);
+router.delete('/bulk', requireOperationsOrAdmin, bulkDeleteGuests);
+
+// Individual guest deletion - restrict to operations manager and admin
 router.delete('/:id', requireOperationsOrAdmin, deleteGuest);
 
 module.exports = router;

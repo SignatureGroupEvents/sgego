@@ -30,13 +30,15 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import GuestCheckIn from './GuestCheckIn';
+import { useNavigate, useParams } from 'react-router-dom';
 
 const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange, inventory = [] }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const { isOperationsManager, isAdmin } = usePermissions();
   const { user: currentUser } = useAuth();
-
+  const navigate = useNavigate();
+  const { guestId } = useParams();
   // Determine if user can modify events
   const canModifyEvents = isOperationsManager || isAdmin;
   // Staff can perform check-ins and gift assignments but not modify guest lists
@@ -178,12 +180,16 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
                     <TableRow 
                       key={guest._id} 
                       hover 
-                      sx={{ 
-                        '&:hover': { backgroundColor: 'action.hover' },
-                        ...(isInherited && {
-                          backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                          '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.08)' }
-                        })
+                      onClick={() => navigate(`/events/${event._id}/guests/${guest._id}`)}
+                      sx={{
+                        '&:hover': {
+                          cursor: 'pointer',
+                          backgroundColor: 'action.hover',
+                          ...(isInherited && {
+                            backgroundColor: 'rgba(25, 118, 210, 0.04)',
+                            '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.08)' }
+                          })
+                        }
                       }}
                     >
                       <TableCell>
