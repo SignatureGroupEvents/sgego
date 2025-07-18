@@ -561,11 +561,15 @@ const InventoryPage = ({ eventId, eventName }) => {
       </Box>
       <Typography variant="body2" color="textSecondary" mb={2}>
         {canModifyInventory
-          ? 'Upload a CSV file to import inventory. The table below shows all shared inventory items across all events.'
-          : 'The table below shows all shared inventory items across all events.'
+          ? event?.isMainEvent 
+            ? 'Upload a CSV file to import inventory. The table below shows all inventory items for this event and its sub-events.'
+            : 'The table below shows inventory items allocated to this sub-event. Use the main event to manage all inventory.'
+          : event?.isMainEvent 
+            ? 'The table below shows all inventory items for this event and its sub-events.'
+            : 'The table below shows inventory items allocated to this sub-event.'
         }
       </Typography>
-      {canModifyInventory && (
+      {canModifyInventory && event?.isMainEvent && (
         <Box sx={{ display: 'flex', gap: 2, mb: 3, justifyContent: 'space-between' }}>
           <Button
             variant="contained"

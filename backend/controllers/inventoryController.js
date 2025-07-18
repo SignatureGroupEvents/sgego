@@ -34,13 +34,23 @@ exports.getInventory = async (req, res) => {
 
     const mainEventId = getMainEventId(event);
 
-    // Always fetch inventory from the main event (shared inventory pool)
-    const inventory = await Inventory.find({ 
+    // Fetch inventory from the main event (shared inventory pool)
+    let inventory = await Inventory.find({ 
       eventId: mainEventId, 
       isActive: true 
     })
       .populate('eventId', 'eventName isMainEvent')
       .sort({ type: 1, style: 1, size: 1 });
+
+    // Filter inventory based on event type
+    if (!event.isMainEvent) {
+      // For secondary events, only show inventory allocated to this specific event
+      inventory = inventory.filter(item => 
+        item.allocatedEvents && 
+        item.allocatedEvents.map(id => id.toString()).includes(eventId.toString())
+      );
+    }
+    // For main events, show all inventory (no filtering needed)
 
     // Add inheritance flags for display purposes
     const inventoryWithInheritance = inventory.map(item => {
