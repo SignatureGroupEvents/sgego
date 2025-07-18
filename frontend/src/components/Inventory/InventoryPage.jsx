@@ -3,11 +3,12 @@ import {
   Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete,
   TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
-  DialogContent, DialogActions, TablePagination
+  DialogContent, DialogActions, TablePagination, Grid, InputAdornment, TableSortLabel
 } from '@mui/material';
 import {
   Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
-  Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon
+  Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon,
+  Search as SearchIcon, FilterList as FilterIcon, Clear as ClearIcon
 } from '@mui/icons-material';
 import { uploadInventoryCSV, fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
@@ -58,6 +59,14 @@ const InventoryPage = ({ eventId, eventName }) => {
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [styleFilter, setStyleFilter] = useState('all');
+  const [genderFilter, setGenderFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('type');
+  const [sortOrder, setSortOrder] = useState('asc');
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -69,6 +78,113 @@ const InventoryPage = ({ eventId, eventName }) => {
   };
   // Determine if user can modify inventory
   const canModifyInventory = isOperationsManager || isAdmin;
+
+  // Get all unique values for filter dropdowns
+  const allTypes = React.useMemo(() => {
+    const typeSet = new Set();
+    inventory.forEach(item => {
+      if (item.type) typeSet.add(item.type);
+    });
+    return Array.from(typeSet).sort();
+  }, [inventory]);
+
+  const allStyles = React.useMemo(() => {
+    const styleSet = new Set();
+    inventory.forEach(item => {
+      if (item.style) styleSet.add(item.style);
+    });
+    return Array.from(styleSet).sort();
+  }, [inventory]);
+
+  const allGenders = React.useMemo(() => {
+    const genderSet = new Set();
+    inventory.forEach(item => {
+      if (item.gender) genderSet.add(item.gender);
+    });
+    return Array.from(genderSet).sort();
+  }, [inventory]);
+
+  const handleSort = (column) => {
+    const isAsc = sortBy === column && sortOrder === 'asc';
+    setSortOrder(isAsc ? 'desc' : 'asc');
+    setSortBy(column);
+  };
+
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setTypeFilter('all');
+    setStyleFilter('all');
+    setGenderFilter('all');
+    setSortBy('type');
+    setSortOrder('asc');
+    setPage(0);
+  };
+
+  // Filter and sort inventory
+  const filteredAndSortedInventory = React.useMemo(() => {
+    let filtered = inventory.filter(item => {
+      // Search filter
+      const searchMatch = searchQuery === '' || 
+        item.type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.style?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.size?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.color?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      // Type filter
+      const typeMatch = typeFilter === 'all' || item.type === typeFilter;
+
+      // Style filter
+      const styleMatch = styleFilter === 'all' || item.style === styleFilter;
+
+      // Gender filter
+      const genderMatch = genderFilter === 'all' || item.gender === genderFilter;
+
+      return searchMatch && typeMatch && styleMatch && genderMatch;
+    });
+
+    // Sort inventory
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+      
+      switch (sortBy) {
+        case 'type':
+          aValue = (a.type || '').toLowerCase();
+          bValue = (b.type || '').toLowerCase();
+          break;
+        case 'style':
+          aValue = (a.style || '').toLowerCase();
+          bValue = (b.style || '').toLowerCase();
+          break;
+        case 'size':
+          aValue = (a.size || '').toLowerCase();
+          bValue = (b.size || '').toLowerCase();
+          break;
+        case 'gender':
+          aValue = (a.gender || '').toLowerCase();
+          bValue = (b.gender || '').toLowerCase();
+          break;
+        case 'color':
+          aValue = (a.color || '').toLowerCase();
+          bValue = (b.color || '').toLowerCase();
+          break;
+        case 'qtyWarehouse':
+          aValue = Number(a.qtyWarehouse) || 0;
+          bValue = Number(b.qtyWarehouse) || 0;
+          break;
+        default:
+          aValue = a[sortBy] || '';
+          bValue = b[sortBy] || '';
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+
+    return filtered;
+  }, [inventory, searchQuery, typeFilter, styleFilter, genderFilter, sortBy, sortOrder]);
 
   const loadInventory = async () => {
     setLoading(true);
@@ -468,16 +584,166 @@ const InventoryPage = ({ eventId, eventName }) => {
       ) : (
         <Card>
           <CardContent>
+            {/* Search and Filter Controls */}
+            <Box mb={3}>
+              <Grid container spacing={2} alignItems="flex-start">
+                {/* Search Bar */}
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Search inventory..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon color="action" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: searchQuery && (
+                        <InputAdornment position="end">
+                          <Button
+                            size="small"
+                            onClick={() => setSearchQuery('')}
+                            sx={{ minWidth: 'auto', p: 0.5 }}
+                          >
+                            <ClearIcon fontSize="small" />
+                          </Button>
+                        </InputAdornment>
+                      )
+                    }}
+                  />
+                </Grid>
+
+                {/* Type Filter */}
+                <Grid item xs={12} sm={6} md={2}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Type</InputLabel>
+                    <Select
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                      label="Type"
+                    >
+                      <MenuItem value="all">All Types</MenuItem>
+                      {allTypes.map(type => (
+                        <MenuItem key={type} value={type}>{type}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Style Filter */}
+                <Grid item xs={12} sm={6} md={2}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Style</InputLabel>
+                    <Select
+                      value={styleFilter}
+                      onChange={(e) => setStyleFilter(e.target.value)}
+                      label="Style"
+                    >
+                      <MenuItem value="all">All Styles</MenuItem>
+                      {allStyles.map(style => (
+                        <MenuItem key={style} value={style}>{style}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Gender Filter */}
+                <Grid item xs={12} sm={6} md={2}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Gender</InputLabel>
+                    <Select
+                      value={genderFilter}
+                      onChange={(e) => setGenderFilter(e.target.value)}
+                      label="Gender"
+                    >
+                      <MenuItem value="all">All Genders</MenuItem>
+                      {allGenders.map(gender => (
+                        <MenuItem key={gender} value={gender}>{gender}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Clear Filters */}
+                <Grid item xs={12} sm={6} md={3}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={clearAllFilters}
+                    startIcon={<ClearIcon />}
+                    sx={{ 
+                      minWidth: 'auto',
+                      height: '40px',
+                      mt: 0.5
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </Grid>
+              </Grid>
+            </Box>
+
             <TableContainer component={Paper}>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Type</TableCell>
-                    <TableCell>Style</TableCell>
-                    <TableCell>Size</TableCell>
-                    <TableCell>Gender</TableCell>
-                    <TableCell>Color</TableCell>
-                    <TableCell>Qty Warehouse</TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'type'}
+                        direction={sortBy === 'type' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('type')}
+                      >
+                        Type
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'style'}
+                        direction={sortBy === 'style' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('style')}
+                      >
+                        Style
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'size'}
+                        direction={sortBy === 'size' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('size')}
+                      >
+                        Size
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'gender'}
+                        direction={sortBy === 'gender' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('gender')}
+                      >
+                        Gender
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'color'}
+                        direction={sortBy === 'color' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('color')}
+                      >
+                        Color
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'qtyWarehouse'}
+                        direction={sortBy === 'qtyWarehouse' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('qtyWarehouse')}
+                      >
+                        Qty Warehouse
+                      </TableSortLabel>
+                    </TableCell>
                     <TableCell>Qty Before Event</TableCell>
                     <TableCell>Current Inventory</TableCell>
                     <TableCell>Post Event Count</TableCell>
@@ -486,12 +752,14 @@ const InventoryPage = ({ eventId, eventName }) => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {inventory.length === 0 ? (
+                  {filteredAndSortedInventory.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} align="center">No inventory found.</TableCell>
+                      <TableCell colSpan={11} align="center">
+                        {inventory.length === 0 ? 'No inventory found.' : 'No inventory matches your filters.'}
+                      </TableCell>
                     </TableRow>
                   ) : (
-                    inventory
+                    filteredAndSortedInventory
                       .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                       .map(item => (
                         <TableRow key={item._id}>
@@ -569,9 +837,26 @@ const InventoryPage = ({ eventId, eventName }) => {
                 </TableBody>
               </Table>
             </TableContainer>
+
+            {/* No results message */}
+            {filteredAndSortedInventory.length === 0 && inventory.length > 0 && (
+              <Box sx={{ textAlign: 'center', py: 6 }}>
+                <FilterIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary">
+                  No inventory matches your filters
+                </Typography>
+                <Typography color="text.secondary" paragraph>
+                  Try adjusting your search or filter criteria
+                </Typography>
+                <Button variant="outlined" onClick={clearAllFilters}>
+                  Clear all filters
+                </Button>
+              </Box>
+            )}
+
             <TablePagination
               component="div"
-              count={inventory.length}
+              count={filteredAndSortedInventory.length}
               page={page}
               onPageChange={handleChangePage}
               rowsPerPage={rowsPerPage}
