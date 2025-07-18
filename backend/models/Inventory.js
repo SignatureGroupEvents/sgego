@@ -115,7 +115,7 @@ inventorySchema.statics.recalculateCurrentInventory = async function(inventoryId
     { $group: { _id: null, total: { $sum: '$giftsDistributed.quantity' } } }
   ]);
   const totalDistributed = checkins[0]?.total || 0;
-  inventoryItem.currentInventory = Math.max(0, (inventoryItem.qtyOnSite || 0) - totalDistributed);
+  inventoryItem.currentInventory = (inventoryItem.qtyOnSite || 0) - totalDistributed;
   await inventoryItem.save();
   return inventoryItem.currentInventory;
 };

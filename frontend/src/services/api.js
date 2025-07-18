@@ -95,10 +95,12 @@ export const undoCheckin = (checkinId, reason = '', guestId = '', eventId = '') 
   });
 };
 
-export const updateCheckinGifts = (checkinId, newGifts, reason = '') => {
+export const updateCheckinGifts = (checkinId, newGifts, reason = '', guestId = '', eventId = '') => {
   return api.put(`/checkins/${checkinId}/gifts`, {
     newGifts,
-    reason
+    reason,
+    guestId,
+    eventId
   });
 };
 

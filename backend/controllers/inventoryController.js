@@ -225,11 +225,6 @@ exports.uploadInventory = async (req, res) => {
                 continue;
               }
 
-              // NEW: Additional validation for numeric fields
-              if (inventoryItem.qtyWarehouse < 0 || inventoryItem.qtyOnSite < 0 || inventoryItem.currentInventory < 0) {
-                errors.push(`Row ${i + 1}: Quantity values cannot be negative`);
-                continue;
-              }
 
               inventoryItems.push(inventoryItem);
 

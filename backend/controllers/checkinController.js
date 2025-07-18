@@ -19,7 +19,7 @@ const emitAnalyticsUpdate = (eventId) => {
 exports.getCheckinContext = async (req, res) => {
   try {
     const { eventId } = req.params;
-    
+
     const event = await Event.findById(eventId);
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
@@ -30,9 +30,9 @@ exports.getCheckinContext = async (req, res) => {
 
     // If this is a main event, get all secondary events for multi-checkin
     if (event.isMainEvent) {
-      const secondaryEvents = await Event.find({ 
-        parentEventId: eventId, 
-        isActive: true 
+      const secondaryEvents = await Event.find({
+        parentEventId: eventId,
+        isActive: true
       });
       availableEvents = [event, ...secondaryEvents];
       checkinMode = 'multi';
@@ -40,7 +40,7 @@ exports.getCheckinContext = async (req, res) => {
 
     // Get available inventory for all events (shared inventory pool)
     const mainEventId = event.isMainEvent ? eventId : event.parentEventId;
-    let inventory = await Inventory.find({ 
+    let inventory = await Inventory.find({
       eventId: mainEventId,
       isActive: true
     }).sort({ type: 1, style: 1, size: 1 });
@@ -126,7 +126,7 @@ exports.multiEventCheckin = async (req, res) => {
         success: true,
         giftsDistributed
       });
-      
+
       updatedEventIds.add(checkin.eventId);
     }
 
@@ -134,14 +134,8 @@ exports.multiEventCheckin = async (req, res) => {
     for (const [inventoryId, totalQuantity] of inventoryUpdates) {
       const inventoryItem = await Inventory.findById(inventoryId);
       if (!inventoryItem) {
-        return res.status(404).json({ 
-          message: `Inventory item not found: ${inventoryId}` 
-        });
-      }
-
-      if (inventoryItem.currentInventory < totalQuantity) {
-        return res.status(400).json({ 
-          message: `Insufficient inventory for ${inventoryItem.style}. Available: ${inventoryItem.currentInventory}, Requested: ${totalQuantity}` 
+        return res.status(404).json({
+          message: `Inventory item not found: ${inventoryId}`
         });
       }
     }
@@ -389,25 +383,44 @@ exports.getCheckins = async (req, res) => {
 exports.undoCheckin = async (req, res) => {
   try {
     const { checkinId } = req.params;
-    const { reason, guestId, eventId } = req.body; // Add guestId and eventId
+    const { reason, guestId, eventId } = req.body;
+
+    console.log('=== UNDO CHECKIN DEBUG ===');
+    console.log('checkinId from params:', checkinId);
+    console.log('guestId from body:', guestId);
+    console.log('eventId from body:', eventId);
 
     // Try to find by checkinId first (if it's a real Checkin document)
     let checkin = await Checkin.findById(checkinId)
       .populate('guestId')
       .populate('giftsDistributed.inventoryId');
 
+    console.log('Found checkin by ID:', checkin ? 'YES' : 'NO');
+
     // If not found by checkinId, try to find by guestId and eventId
     if (!checkin && guestId && eventId) {
+      console.log('Trying to find by guestId and eventId...');
       checkin = await Checkin.findOne({ guestId, eventId })
         .populate('guestId')
         .populate('giftsDistributed.inventoryId');
+      console.log('Found checkin by guestId/eventId:', checkin ? 'YES' : 'NO');
+    }
+
+    // Let's also check what checkins exist for this guest
+    if (!checkin && guestId) {
+      console.log('Checking all checkins for this guest...');
+      const allCheckins = await Checkin.find({ guestId });
+      console.log('All checkins for guest:', allCheckins.length);
+      allCheckins.forEach((c, i) => {
+        console.log(`Checkin ${i}:`, c._id.toString(), 'for event:', c.eventId.toString());
+      });
     }
 
     if (!checkin) {
+      console.log('=== NO CHECKIN FOUND ===');
       return res.status(404).json({ message: 'Check-in not found' });
     }
 
-    // Rest of the function remains the same...
     // Restore inventory
     for (const gift of checkin.giftsDistributed) {
       const inventoryItem = await Inventory.findById(gift.inventoryId._id);
@@ -423,23 +436,23 @@ exports.undoCheckin = async (req, res) => {
 
     // Update guest status - remove this specific check-in
     const guest = checkin.guestId;
-    guest.eventCheckins = guest.eventCheckins.filter(ec => 
-      !(ec.eventId.toString() === checkin.eventId.toString() && 
-        ec.checkedInAt && 
+    guest.eventCheckins = guest.eventCheckins.filter(ec =>
+      !(ec.eventId.toString() === checkin.eventId.toString() &&
+        ec.checkedInAt &&
         Math.abs(new Date(ec.checkedInAt) - new Date(checkin.createdAt)) < 60000) // Within 1 minute
     );
-    
+
     // Check if guest is still checked into any events
     if (guest.eventCheckins.length === 0) {
       guest.hasCheckedIn = false;
     }
-    
+
     await guest.save();
 
     // Log activity before deleting
     await ActivityLog.create({
       eventId: checkin.eventId,
-      type: 'checkin_undo',
+      type: 'undo_checkin',
       performedBy: req.user.id,
       details: {
         guestId: guest._id,
@@ -468,6 +481,7 @@ exports.undoCheckin = async (req, res) => {
     });
 
   } catch (error) {
+    console.error('Error in undoCheckin:', error);
     res.status(400).json({ message: error.message });
   }
 };
@@ -475,21 +489,39 @@ exports.undoCheckin = async (req, res) => {
 exports.updateCheckinGifts = async (req, res) => {
   try {
     const { checkinId } = req.params;
-    const { newGifts, reason } = req.body; // newGifts: [{ inventoryId, quantity, notes }]
+    const { newGifts, reason, guestId, eventId } = req.body; // newGifts: [{ inventoryId, quantity, notes }]
 
-    const checkin = await Checkin.findById(checkinId)
+    console.log('=== UPDATE CHECKIN GIFTS DEBUG ===');
+    console.log('checkinId from params:', checkinId);
+    console.log('guestId from body:', guestId);
+    console.log('eventId from body:', eventId);
+    console.log('newGifts from body:', newGifts);
+    console.log('reason from body:', reason);
+
+    let checkin = await Checkin.findById(checkinId)
+    .populate('guestId')
+    .populate('giftsDistributed.inventoryId');
+
+  console.log('Found checkin by ID:', checkin ? 'YES' : 'NO');
+
+  // If not found by checkinId, try to find by guestId and eventId
+  if (!checkin && guestId && eventId) {
+    console.log('Trying to find by guestId and eventId...');
+    checkin = await Checkin.findOne({ guestId, eventId })
       .populate('guestId')
       .populate('giftsDistributed.inventoryId');
+    console.log('Found checkin by guestId/eventId:', checkin ? 'YES' : 'NO');
+  }
 
-    if (!checkin) {
-      return res.status(404).json({ message: 'Check-in not found' });
-    }
+  if (!checkin) {
+    console.log('=== NO CHECKIN FOUND ===');
+    return res.status(404).json({ message: 'Check-in not found' });
+  }
 
-    // Validate new gifts
-    if (!Array.isArray(newGifts)) {
-      return res.status(400).json({ message: 'New gifts must be an array' });
-    }
-
+  // Validate new gifts
+  if (!Array.isArray(newGifts)) {
+    return res.status(400).json({ message: 'New gifts must be an array' });
+  }
     // Calculate inventory changes
     const oldGifts = new Map();
     const newGiftsMap = new Map();
@@ -516,13 +548,6 @@ exports.updateCheckinGifts = async (req, res) => {
         const inventoryItem = await Inventory.findById(inventoryId);
         if (!inventoryItem) {
           return res.status(404).json({ message: `Inventory item not found: ${inventoryId}` });
-        }
-        
-        const additionalNeeded = Math.abs(change);
-        if (inventoryItem.currentInventory < additionalNeeded) {
-          return res.status(400).json({ 
-            message: `Insufficient inventory for ${inventoryItem.style}. Available: ${inventoryItem.currentInventory}, Additional needed: ${additionalNeeded}` 
-          });
         }
       }
     }
@@ -563,10 +588,10 @@ exports.updateCheckinGifts = async (req, res) => {
 
     // Update guest record
     const guest = checkin.guestId;
-    const guestCheckin = guest.eventCheckins.find(ec => 
+    const guestCheckin = guest.eventCheckins.find(ec =>
       ec.eventId.toString() === checkin.eventId.toString()
     );
-    
+
     if (guestCheckin) {
       guestCheckin.giftsReceived = newGifts.map(gift => ({
         inventoryId: gift.inventoryId,
@@ -584,7 +609,7 @@ exports.updateCheckinGifts = async (req, res) => {
     // Log activity
     await ActivityLog.create({
       eventId: checkin.eventId,
-      type: 'checkin_gift_update',
+      type: 'update_gifts',
       performedBy: req.user.id,
       details: {
         guestId: guest._id,
@@ -615,6 +640,7 @@ exports.updateCheckinGifts = async (req, res) => {
     });
 
   } catch (error) {
+    console.error('Error in updateCheckinGifts:', error);
     res.status(400).json({ message: error.message });
   }
 };
@@ -628,8 +654,8 @@ exports.deleteCheckin = async (req, res) => {
 
     // Only admins should be able to permanently delete check-ins
     if (req.user.role !== 'admin') {
-      return res.status(403).json({ 
-        message: 'Only administrators can permanently delete check-ins. Use undo instead.' 
+      return res.status(403).json({
+        message: 'Only administrators can permanently delete check-ins. Use undo instead.'
       });
     }
 
@@ -656,14 +682,14 @@ exports.deleteCheckin = async (req, res) => {
 
     // Update guest status
     const guest = checkin.guestId;
-    guest.eventCheckins = guest.eventCheckins.filter(ec => 
+    guest.eventCheckins = guest.eventCheckins.filter(ec =>
       ec.eventId.toString() !== checkin.eventId.toString()
     );
-    
+
     if (guest.eventCheckins.length === 0) {
       guest.hasCheckedIn = false;
     }
-    
+
     await guest.save();
 
     // Delete the check-in record

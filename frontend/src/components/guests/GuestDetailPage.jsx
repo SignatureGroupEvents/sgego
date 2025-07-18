@@ -165,8 +165,8 @@ export default function GuestDetailPage() {
         
         try {
             setUndoLoading(true);
-            // Use the imported undoCheckin function
-            await undoCheckin(selectedCheckin._id, undoReason);
+            // Pass additional data to help backend find the correct checkin
+            await undoCheckin(selectedCheckin._id, undoReason, guestId, selectedCheckin.eventId._id);
             
             // Refresh guest data to reflect the deleted check-in
             const guestResponse = await api.get(`/guests/${guestId}`);
@@ -177,6 +177,7 @@ export default function GuestDetailPage() {
             setSelectedCheckin(null);
             setError(''); // Clear any previous errors
         } catch (err) {
+            console.error('Undo checkin error:', err); // DEBUG
             setError(err.response?.data?.message || 'Failed to undo check-in');
         } finally {
             setUndoLoading(false);
@@ -191,8 +192,8 @@ export default function GuestDetailPage() {
         
         try {
             setGiftModificationLoading(true);
-            // Use the imported updateCheckinGifts function
-            await updateCheckinGifts(selectedCheckin._id, modifiedGifts, giftModificationReason);
+            // Use the imported updateCheckinGifts function - pass additional data to help backend find the correct checkin
+            await updateCheckinGifts(selectedCheckin._id, modifiedGifts, giftModificationReason, guestId, selectedCheckin.eventId._id);
             
             // Refresh guest data
             const guestResponse = await api.get(`/guests/${guestId}`);
@@ -204,14 +205,23 @@ export default function GuestDetailPage() {
             setModifiedGifts([]);
             setError(''); // Clear any previous errors
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to update gifts');
+            let errorMessage = 'Failed to update gifts';
+            
+            if (err.response?.data?.message) {
+                if (err.response.data.message.includes('Insufficient inventory')) {
+                    errorMessage = `${err.response.data.message}. Note: When modifying gifts, inventory is checked after restoring the original gifts.`;
+                } else {
+                    errorMessage = err.response.data.message;
+                }
+            }
+            
+            setError(errorMessage);
         } finally {
             setGiftModificationLoading(false);
         }
     };
 
     const openUndoDialog = (checkin) => {
-        console.log('Opening undo dialog for checkin:', checkin); // DEBUG
         setSelectedCheckin(checkin);
         setUndoReason('');
         setUndoDialogOpen(true);
@@ -224,14 +234,25 @@ export default function GuestDetailPage() {
         // Fetch available inventory for the event
         try {
             const inventoryResponse = await api.get(`/events/${checkin.eventId._id || checkin.eventId}/inventory`);
-            setAvailableInventory(inventoryResponse.data || []);
+            
+            // Ensure we always have an array - show all items but indicate availability
+            let inventory = [];
+            if (Array.isArray(inventoryResponse.data)) {
+                inventory = inventoryResponse.data;
+            } else if (inventoryResponse.data && typeof inventoryResponse.data === 'object') {
+                // If it's an object, it might have inventory in a nested property
+                inventory = inventoryResponse.data.inventory || inventoryResponse.data.items || [];
+            }
+            
+            setAvailableInventory(inventory);
             
             // Initialize modified gifts with current gifts
-            setModifiedGifts(checkin.giftsReceived.map(gift => ({
-                inventoryId: gift.inventoryId._id || gift.inventoryId,
+            const currentGifts = (checkin.giftsReceived || []).map(gift => ({
+                inventoryId: gift.inventoryId?._id || gift.inventoryId || '',
                 quantity: gift.quantity || 1,
                 notes: gift.notes || ''
-            })));
+            }));
+            setModifiedGifts(currentGifts);
             
             setGiftModificationDialogOpen(true);
         } catch (err) {
@@ -289,33 +310,7 @@ export default function GuestDetailPage() {
         );
     }
 
-    // Get gift selections for display
-    const getGiftSelections = () => {
-        if (!guest.eventCheckins || guest.eventCheckins.length === 0) {
-            return [];
-        }
-        
-        const gifts = [];
-        guest.eventCheckins.forEach(checkin => {
-            if (checkin.giftsReceived && checkin.giftsReceived.length > 0) {
-                checkin.giftsReceived.forEach(gift => {
-                    const inventoryItem = gift.inventoryId;
-                    if (inventoryItem) {
-                        gifts.push({
-                            name: `${inventoryItem.type}${inventoryItem.style ? ` (${inventoryItem.style})` : ''}`,
-                            quantity: gift.quantity,
-                            eventName: checkin.eventId?.eventName || 'Unknown Event',
-                            checkin: checkin
-                        });
-                    }
-                });
-            }
-        });
-        
-        return gifts;
-    };
-
-    const giftSelections = getGiftSelections();
+    // Get gift selections for display - REMOVED (now handled in the new table format)
 
     return (
         <MainLayout eventName={event?.eventName} userName={guest.firstName + ' ' + guest.lastName}>
@@ -577,12 +572,175 @@ export default function GuestDetailPage() {
                         <Card>
                             <CardContent>
                                 <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: 'primary.main' }}>
+                                    Gifts & Check-ins
+                                </Typography>
+
+                                {/* Check-in Status Summary */}
+                                <Box sx={{ mb: 3, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
+                                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                        Overall Check-in Status
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        {(() => {
+                                            // Calculate check-in status like the guest table
+                                            const totalEvents = event?.isMainEvent ? 
+                                                (1 + (event.secondaryEvents?.length || 0)) : 1;
+                                            const checkedInEvents = guest.eventCheckins?.length || 0;
+                                            const isFullyCheckedIn = checkedInEvents >= totalEvents;
+                                            const isPartiallyCheckedIn = checkedInEvents > 0 && checkedInEvents < totalEvents;
+                                            
+                                            if (isFullyCheckedIn) {
+                                                return (
+                                                    <>
+                                                        <CheckCircle sx={{ color: 'success.main' }} />
+                                                        <Typography variant="body1" sx={{ color: 'success.main', fontWeight: 500 }}>
+                                                            Fully Checked In ({checkedInEvents}/{totalEvents} events)
+                                                        </Typography>
+                                                    </>
+                                                );
+                                            } else if (isPartiallyCheckedIn) {
+                                                return (
+                                                    <>
+                                                        <Star sx={{ color: 'warning.main' }} />
+                                                        <Typography variant="body1" sx={{ color: 'warning.main', fontWeight: 500 }}>
+                                                            Partially Checked In ({checkedInEvents}/{totalEvents} events)
+                                                        </Typography>
+                                                    </>
+                                                );
+                                            } else {
+                                                return (
+                                                    <>
+                                                        <Star sx={{ color: 'text.secondary' }} />
+                                                        <Typography variant="body1" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                                                            Not Checked In
+                                                        </Typography>
+                                                    </>
+                                                );
+                                            }
+                                        })()}
+                                    </Box>
+                                </Box>
+
+                                {/* Gifts Table */}
+                                {guest.eventCheckins && guest.eventCheckins.length > 0 ? (
+                                    <Box>
+                                        <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                                            Check-in Details
+                                        </Typography>
+                                        <Stack spacing={2}>
+                                            {guest.eventCheckins.map((checkin, index) => (
+                                                <Card key={index} variant="outlined" sx={{ p: 2 }}>
+                                                    <Grid container spacing={2} alignItems="center">
+                                                        {/* Event Info */}
+                                                        <Grid item xs={12} md={3}>
+                                                            <Box>
+                                                                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                                                    {checkin.eventId?.eventName || 'Unknown Event'}
+                                                                </Typography>
+                                                                <Typography variant="caption" color="textSecondary">
+                                                                    {new Date(checkin.checkedInAt).toLocaleDateString()} at{' '}
+                                                                    {new Date(checkin.checkedInAt).toLocaleTimeString([], { 
+                                                                        hour: '2-digit', 
+                                                                        minute: '2-digit' 
+                                                                    })}
+                                                                </Typography>
+                                                            </Box>
+                                                        </Grid>
+
+                                                        {/* Gifts */}
+                                                        <Grid item xs={12} md={5}>
+                                                            <Box>
+                                                                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
+                                                                    Gifts Received
+                                                                </Typography>
+                                                                {checkin.giftsReceived && checkin.giftsReceived.length > 0 ? (
+                                                                    <Stack direction="row" flexWrap="wrap" gap={1}>
+                                                                        {checkin.giftsReceived.map((gift, giftIndex) => (
+                                                                            <Chip
+                                                                                key={giftIndex}
+                                                                                label={`${gift.inventoryId?.type || 'Unknown'} ${gift.inventoryId?.style ? `(${gift.inventoryId.style})` : ''} x${gift.quantity}`}
+                                                                                size="small"
+                                                                                variant="outlined"
+                                                                                color="primary"
+                                                                            />
+                                                                        ))}
+                                                                    </Stack>
+                                                                ) : (
+                                                                    <Typography variant="body2" color="textSecondary" sx={{ fontStyle: 'italic' }}>
+                                                                        No gifts selected
+                                                                    </Typography>
+                                                                )}
+                                                            </Box>
+                                                        </Grid>
+
+                                                        {/* Status & Actions */}
+                                                        <Grid item xs={12} md={4}>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                                                <Chip
+                                                                    label="Checked In"
+                                                                    color="success"
+                                                                    size="small"
+                                                                    icon={<CheckCircle />}
+                                                                />
+                                                                <Button
+                                                                    variant="contained"
+                                                                    color="primary"
+                                                                    size="small"
+                                                                    startIcon={<SwapHoriz />}
+                                                                    onClick={() => openGiftModificationDialog(checkin)}
+                                                                    sx={{ 
+                                                                        minWidth: 'auto',
+                                                                        fontWeight: 600,
+                                                                        textTransform: 'none'
+                                                                    }}
+                                                                >
+                                                                    Modify Gifts
+                                                                </Button>
+                                                                <Button
+                                                                    variant="outlined"
+                                                                    color="warning"
+                                                                    size="small"
+                                                                    startIcon={<Undo />}
+                                                                    onClick={() => openUndoDialog(checkin)}
+                                                                    sx={{ 
+                                                                        minWidth: 'auto',
+                                                                        fontWeight: 600,
+                                                                        textTransform: 'none'
+                                                                    }}
+                                                                >
+                                                                    Undo
+                                                                </Button>
+                                                            </Box>
+                                                        </Grid>
+                                                    </Grid>
+                                                </Card>
+                                            ))}
+                                        </Stack>
+                                    </Box>
+                                ) : (
+                                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                                        <Star sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
+                                        <Typography variant="h6" color="textSecondary">
+                                            No Check-ins Yet
+                                        </Typography>
+                                        <Typography variant="body2" color="textSecondary">
+                                            This guest hasn't been checked into any events
+                                        </Typography>
+                                    </Box>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Notes & Additional Info */}
+                        <Card>
+                            <CardContent>
+                                <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: 'primary.main' }}>
                                     Additional Information
                                 </Typography>
 
                                 <Grid container spacing={3}>
                                     {/* Notes */}
-                                    <Grid item xs={12} md={6}>
+                                    <Grid item xs={12}>
                                         <Box>
                                             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
                                                 Notes
@@ -603,89 +761,6 @@ export default function GuestDetailPage() {
                                                 </Typography>
                                             )}
                                         </Box>
-                                    </Grid>
-
-                                    {/* Check-in Status */}
-                                    <Grid item xs={12} md={6}>
-                                        <Box>
-                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                                Check-in Status
-                                            </Typography>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                {guest.hasCheckedIn ? (
-                                                    <>
-                                                        <CheckCircle sx={{ color: 'success.main' }} />
-                                                        <Typography variant="body1" sx={{ color: 'success.main', fontWeight: 500 }}>
-                                                            Checked In
-                                                        </Typography>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Star sx={{ color: 'warning.main' }} />
-                                                        <Typography variant="body1" sx={{ color: 'warning.main', fontWeight: 500 }}>
-                                                            Not Checked In
-                                                        </Typography>
-                                                    </>
-                                                )}
-                                            </Box>
-                                        </Box>
-                                    </Grid>
-
-                                    {/* Gift Selections */}
-                                    <Grid item xs={12}>
-                                        <Box>
-                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                                Gift Selections ({giftSelections.length})
-                                            </Typography>
-                                            {giftSelections.length > 0 ? (
-                                                <Stack spacing={1}>
-                                                    {giftSelections.map((gift, index) => (
-                                                        <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                            <Chip
-                                                                label={`${gift.eventName} - ${gift.name} (x${gift.quantity})`}
-                                                                size="small"
-                                                                variant="outlined"
-                                                                color="primary"
-                                                            />
-                                                            <IconButton
-                                                                size="small"
-                                                                onClick={() => openGiftModificationDialog(gift.checkin)}
-                                                                title="Modify gifts"
-                                                            >
-                                                                <SwapHoriz fontSize="small" />
-                                                            </IconButton>
-                                                        </Box>
-                                                    ))}
-                                                </Stack>
-                                            ) : (
-                                                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                                    No gift selections recorded
-                                                </Typography>
-                                            )}
-                                        </Box>
-
-                                        {/* Check-in Actions */}
-                                        {guest.hasCheckedIn && guest.eventCheckins.length > 0 && (
-                                            <Box sx={{ mt: 2 }}>
-                                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                                    Check-in Actions
-                                                </Typography>
-                                                <Stack direction="row" spacing={1} flexWrap="wrap">
-                                                    {guest.eventCheckins.map((checkin, index) => (
-                                                        <Button
-                                                            key={index}
-                                                            variant="outlined"
-                                                            color="warning"
-                                                            size="small"
-                                                            startIcon={<Undo />}
-                                                            onClick={() => openUndoDialog(checkin)}
-                                                        >
-                                                            Undo {checkin.eventId?.eventName || 'Check-in'}
-                                                        </Button>
-                                                    ))}
-                                                </Stack>
-                                            </Box>
-                                        )}
                                     </Grid>
                                 </Grid>
                             </CardContent>
@@ -728,11 +803,20 @@ export default function GuestDetailPage() {
                     </Dialog>
 
                     {/* Gift Modification Dialog */}
-                    <Dialog open={giftModificationDialogOpen} onClose={() => setGiftModificationDialogOpen(false)} maxWidth="md" fullWidth>
+                    <Dialog 
+                        open={giftModificationDialogOpen} 
+                        onClose={() => setGiftModificationDialogOpen(false)} 
+                        maxWidth="md" 
+                        fullWidth
+                    >
                         <DialogTitle>Modify Gifts for {selectedCheckin?.eventId?.eventName || 'Event'}</DialogTitle>
                         <DialogContent>
                             <Typography variant="body2" sx={{ mb: 2 }}>
                                 Modify the gifts distributed to this guest. Changes will be reflected in inventory.
+                            </Typography>
+                            
+                            <Typography variant="body2" sx={{ mb: 2, p: 1, bgcolor: 'info.light', borderRadius: 1 }}>
+                                💡 <strong>Note:</strong> When modifying gifts, the system first restores the original gifts to inventory, then distributes the new gifts. Items showing "Out of Stock" may become available after the original gifts are restored.
                             </Typography>
                             
                             <TextField
@@ -751,50 +835,56 @@ export default function GuestDetailPage() {
                                 Gifts ({modifiedGifts.length})
                             </Typography>
 
-                            <List>
-                                {modifiedGifts.map((gift, index) => (
-                                    <ListItem key={index} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, mb: 1 }}>
-                                        <ListItemText
-                                            primary={
-                                                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                                                    <FormControl size="small" sx={{ minWidth: 200 }}>
-                                                        <InputLabel>Gift</InputLabel>
-                                                        <Select
-                                                            value={gift.inventoryId}
-                                                            onChange={(e) => updateGift(index, 'inventoryId', e.target.value)}
-                                                            label="Gift"
-                                                        >
-                                                            {availableInventory.map((item) => (
-                                                                <MenuItem key={item._id} value={item._id}>
-                                                                    {item.type} - {item.style} ({item.size})
-                                                                </MenuItem>
-                                                            ))}
-                                                        </Select>
-                                                    </FormControl>
-                                                    <TextField
-                                                        type="number"
-                                                        label="Quantity"
-                                                        value={gift.quantity}
-                                                        onChange={(e) => updateGift(index, 'quantity', parseInt(e.target.value) || 1)}
-                                                        size="small"
-                                                        sx={{ width: 100 }}
-                                                        inputProps={{ min: 1 }}
-                                                    />
-                                                </Box>
-                                            }
-                                        />
-                                        <ListItemSecondaryAction>
-                                            <IconButton 
-                                                edge="end" 
-                                                onClick={() => removeGift(index)}
-                                                color="error"
-                                            >
-                                                <Delete />
-                                            </IconButton>
-                                        </ListItemSecondaryAction>
-                                    </ListItem>
-                                ))}
-                            </List>
+                            {modifiedGifts.length > 0 ? (
+                                <List>
+                                    {modifiedGifts.map((gift, index) => (
+                                        <ListItem key={index} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, mb: 1 }}>
+                                            <ListItemText
+                                                primary={
+                                                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                                                        <FormControl size="small" sx={{ minWidth: 200 }}>
+                                                            <InputLabel>Gift</InputLabel>
+                                                            <Select
+                                                                value={gift.inventoryId}
+                                                                onChange={(e) => updateGift(index, 'inventoryId', e.target.value)}
+                                                                label="Gift"
+                                                            >
+                                                                {(Array.isArray(availableInventory) ? availableInventory : []).map((item) => (
+                                                                    <MenuItem key={item._id} value={item._id}>
+                                                                        {item.type} - {item.style} ({item.size})
+                                                                    </MenuItem>
+                                                                ))}
+                                                            </Select>
+                                                        </FormControl>
+                                                        <TextField
+                                                            type="number"
+                                                            label="Quantity"
+                                                            value={gift.quantity}
+                                                            onChange={(e) => updateGift(index, 'quantity', parseInt(e.target.value) || 1)}
+                                                            size="small"
+                                                            sx={{ width: 100 }}
+                                                            inputProps={{ min: 1 }}
+                                                        />
+                                                    </Box>
+                                                }
+                                            />
+                                            <ListItemSecondaryAction>
+                                                <IconButton 
+                                                    edge="end" 
+                                                    onClick={() => removeGift(index)}
+                                                    color="error"
+                                                >
+                                                    <Delete />
+                                                </IconButton>
+                                            </ListItemSecondaryAction>
+                                        </ListItem>
+                                    ))}
+                                </List>
+                            ) : (
+                                <Typography variant="body2" color="textSecondary" sx={{ textAlign: 'center', py: 2 }}>
+                                    No gifts to modify. Click "Add Gift" to add new gifts.
+                                </Typography>
+                            )}
 
                             <Button 
                                 onClick={addGift} 
