@@ -32,12 +32,20 @@ api.interceptors.response.use(
 
 export default api;
 
-export const uploadInventoryCSV = (eventId, file) => {
+export const uploadInventoryCSV = async (eventId, file, mapping = null) => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('eventId', eventId);
+  
+  // Add mapping if provided
+  if (mapping) {
+    formData.append('mapping', JSON.stringify(mapping));
+  }
+  
   return api.post('/inventory/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
   });
 };
 
@@ -76,6 +84,23 @@ export const multiEventCheckin = (guestId, checkins, notes = '') => {
     guestId,
     checkins,
     notes
+  });
+};
+
+export const undoCheckin = (checkinId, reason = '', guestId = '', eventId = '') => {
+  return api.put(`/checkins/${checkinId}/undo`, {
+    reason,
+    guestId,
+    eventId
+  });
+};
+
+export const updateCheckinGifts = (checkinId, newGifts, reason = '', guestId = '', eventId = '') => {
+  return api.put(`/checkins/${checkinId}/gifts`, {
+    newGifts,
+    reason,
+    guestId,
+    eventId
   });
 };
 
@@ -192,8 +217,8 @@ export const createTestActivityLog = (eventId = null) => {
 };
 
 // Guest Management API functions
-export const getGuests = (eventId) => {
-  return api.get(`/guests?eventId=${eventId}`);
+export const getGuests = (eventId, includeInherited = true) => {
+  return api.get(`/guests?eventId=${eventId}&includeInherited=${includeInherited}`);
 };
 
 export const createGuest = (guestData) => {

@@ -48,9 +48,30 @@ exports.uploadInventory = async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
+    // Check if file was saved successfully
+    if (!file.path) {
+      return res.status(500).json({ message: 'File upload failed - no file path' });
+    }
+
     const event = await Event.findById(eventId);
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
+    }
+
+    // NEW: Get column mapping from request body
+    let columnMapping = {};
+
+    if (req.body.mapping) {
+      try {
+        // Parse the mapping JSON sent from frontend
+        columnMapping = JSON.parse(req.body.mapping);
+        console.log('Using provided column mapping:', columnMapping);
+      } catch (error) {
+        console.error('Error parsing column mapping:', error);
+        return res.status(400).json({ message: 'Invalid column mapping format' });
+      }
+    } else {
+      console.log('No column mapping provided, using fallback method');
     }
 
     const inventoryItems = [];
@@ -58,77 +79,279 @@ exports.uploadInventory = async (req, res) => {
 
     // Parse CSV
     const results = [];
+
+    // Add error handling for file reading
+    if (!fs.existsSync(file.path)) {
+      return res.status(500).json({ message: 'Uploaded file not found on server' });
+    }
+
     fs.createReadStream(file.path)
       .pipe(csv())
       .on('data', (data) => results.push(data))
+      .on('error', (error) => {
+        console.error('CSV parsing error:', error);
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+        return res.status(400).json({ message: 'Error parsing CSV file: ' + error.message });
+      })
       .on('end', async () => {
         try {
+          if (results.length === 0) {
+            if (fs.existsSync(file.path)) {
+              fs.unlinkSync(file.path);
+            }
+            return res.status(400).json({ message: 'CSV file appears to be empty or invalid' });
+          }
+
+          // NEW: Helper function to get value using mapping or fallback
+          const getValueFromRow = (row, fieldKey, fallbackVariations = []) => {
+            // First, try the mapped column if mapping exists
+            if (columnMapping[fieldKey] && row[columnMapping[fieldKey]] !== undefined) {
+              return row[columnMapping[fieldKey]];
+            }
+
+            // Fallback to old method if no mapping or mapping doesn't work
+            for (const variation of fallbackVariations) {
+              if (row[variation] !== undefined) {
+                return row[variation];
+              }
+            }
+
+            return '';
+          };
+
+          // NEW: Helper function to parse integer values safely
+          const parseIntSafely = (value, defaultValue = 0) => {
+            const parsed = parseInt(value);
+            return isNaN(parsed) ? defaultValue : parsed;
+          };
+
+          // NEW: Helper function to normalize gender values
+          const normalizeGender = (genderValue) => {
+            if (!genderValue) return 'N/A';
+
+            const lower = genderValue.toLowerCase();
+            if (['mens', 'men', 'male', 'm'].includes(lower)) {
+              return 'M';
+            } else if (['womens', 'women', 'female', 'w'].includes(lower)) {
+              return 'W';
+            } else {
+              return 'N/A';
+            }
+          };
+
           for (let i = 0; i < results.length; i++) {
             const row = results[i];
 
             try {
-              // Handle different possible column names
+              // NEW: Use mapping-aware value extraction
               const inventoryItem = {
                 eventId,
-                type: row.Type || row.type || row.TYPE || '',
-                style: row.Style || row.style || row.STYLE || '',
-                size: row.Size || row.size || row.SIZE || '',
-                gender: row.Gender || row.gender || row.GENDER || 'N/A',
-                qtyWarehouse: parseInt(row.Qty_Warehouse || row.qty_warehouse || row.QTY_WAREHOUSE || 0),
-                qtyOnSite: parseInt(row.Qty_OnSite || row.qty_onsite || row.QTY_ONSITE || 0),
-                currentInventory: parseInt(row.Current_Inventory || row.current_inventory || row.CURRENT_INVENTORY || 0),
-                postEventCount: row.Post_Event_Count ? parseInt(row.Post_Event_Count) : null,
+
+                // Required fields with fallbacks
+                type: getValueFromRow(row, 'type', ['Type', 'type', 'TYPE']),
+                style: getValueFromRow(row, 'style', ['Style', 'style', 'STYLE']),
+
+                // Optional fields with fallbacks
+                size: getValueFromRow(row, 'size', ['Size', 'size', 'SIZE']),
+                color: getValueFromRow(row, 'color', ['Color', 'color', 'COLOR']),
+
+                // Gender with normalization
+                gender: normalizeGender(
+                  getValueFromRow(row, 'gender', ['Gender', 'gender', 'GENDER'])
+                ),
+
+                // Quantity fields with safe parsing
+                qtyWarehouse: parseIntSafely(
+                  getValueFromRow(row, 'qtyWarehouse', [
+                    'Qty_Warehouse', 'qty_warehouse', 'QTY_WAREHOUSE',
+                    'Warehouse', 'warehouse', 'Qty Warehouse'
+                  ])
+                ),
+
+                qtyOnSite: parseIntSafely(
+                  getValueFromRow(row, 'qtyOnSite', [
+                    'Qty_OnSite', 'qty_onsite', 'QTY_ONSITE',
+                    'OnSite', 'onsite', 'Qty On Site'
+                  ])
+                ),
+
+                // NEW: Handle qtyBeforeEvent (alternative to qtyOnSite)
+                qtyBeforeEvent: parseIntSafely(
+                  getValueFromRow(row, 'qtyBeforeEvent', [
+                    'Qty_Before_Event', 'qty_before_event', 'QTY_BEFORE_EVENT',
+                    'Before Event', 'beforeevent', 'Qty Before Event'
+                  ])
+                ),
+
+                currentInventory: parseIntSafely(
+                  getValueFromRow(row, 'currentInventory', [
+                    'Current_Inventory', 'current_inventory', 'CURRENT_INVENTORY',
+                    'Current', 'current', 'Current Inventory'
+                  ])
+                ),
+
+                postEventCount: (() => {
+                  const value = getValueFromRow(row, 'postEventCount', [
+                    'Post_Event_Count', 'post_event_count', 'POST_EVENT_COUNT',
+                    'Post Event', 'postevent', 'Post Event Count'
+                  ]);
+                  return value ? parseIntSafely(value) : null;
+                })(),
+
                 inventoryHistory: [{
                   action: 'initial',
-                  quantity: parseInt(row.Current_Inventory || row.current_inventory || row.CURRENT_INVENTORY || 0),
+                  quantity: parseIntSafely(
+                    getValueFromRow(row, 'currentInventory', [
+                      'Current_Inventory', 'current_inventory', 'CURRENT_INVENTORY'
+                    ])
+                  ),
                   previousCount: 0,
-                  newCount: parseInt(row.Current_Inventory || row.current_inventory || row.CURRENT_INVENTORY || 0),
+                  newCount: parseIntSafely(
+                    getValueFromRow(row, 'currentInventory', [
+                      'Current_Inventory', 'current_inventory', 'CURRENT_INVENTORY'
+                    ])
+                  ),
                   performedBy: req.user.id,
                   reason: 'Initial inventory upload'
                 }],
                 allocatedEvents: [eventId], // Default allocation
               };
 
+              // Validation: Check required fields
               if (!inventoryItem.type || !inventoryItem.style) {
-                errors.push(`Row ${i + 1}: Missing type or style`);
+                errors.push(`Row ${i + 1}: Missing required fields (type: "${inventoryItem.type}", style: "${inventoryItem.style}")`);
                 continue;
               }
 
+
               inventoryItems.push(inventoryItem);
+
             } catch (error) {
               errors.push(`Row ${i + 1}: ${error.message}`);
             }
           }
 
-          // Insert inventory items
-          const insertedItems = await Inventory.insertMany(inventoryItems, { ordered: false });
+          if (inventoryItems.length === 0) {
+            if (fs.existsSync(file.path)) {
+              fs.unlinkSync(file.path);
+            }
+            return res.status(400).json({
+              message: 'No valid inventory items found in CSV',
+              errors
+            });
+          }
+
+          // Check for existing items to avoid duplicates
+          const existingItems = await Inventory.find({
+            eventId,
+            $or: inventoryItems.map(item => ({
+              type: item.type,
+              style: item.style,
+              size: item.size,
+              gender: item.gender,
+              color: item.color
+            }))
+          });
+
+          // Create a set of existing item keys for quick lookup
+          const existingKeys = new Set(
+            existingItems.map(item =>
+              `${item.type}-${item.style}-${item.size}-${item.gender}-${item.color}`
+            )
+          );
+
+          // Filter out items that already exist
+          const newItems = [];
+          const skippedItems = [];
+
+          inventoryItems.forEach((item, index) => {
+            const itemKey = `${item.type}-${item.style}-${item.size}-${item.gender}-${item.color}`;
+
+            if (existingKeys.has(itemKey)) {
+              skippedItems.push({
+                row: index + 1,
+                item: `${item.type} - ${item.style} (${item.size}, ${item.gender}, ${item.color})`,
+                reason: 'Already exists'
+              });
+            } else {
+              newItems.push(item);
+            }
+          });
+
+          let insertedItems = [];
+
+          // Only insert new items if there are any
+          if (newItems.length > 0) {
+            insertedItems = await Inventory.insertMany(newItems, { ordered: false });
+          }
 
           // Clean up file
-          fs.unlinkSync(file.path);
+          if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
 
           // Emit WebSocket update for analytics
           emitAnalyticsUpdate(eventId);
 
-          res.json({
+          // Enhanced response with detailed results
+          const response = {
             success: true,
-            message: `${insertedItems.length} inventory items imported`,
-            imported: insertedItems.length,
-            errors,
-            sampleFormat: {
-              note: "Expected CSV columns (case insensitive)",
-              columns: ["Type", "Style", "Size", "Gender", "Qty_Warehouse", "Qty_OnSite", "Current_Inventory", "Post_Event_Count"]
-            }
-          });
+            message: `Import completed: ${insertedItems.length} new items added`,
+            results: {
+              totalProcessed: inventoryItems.length,
+              newItemsAdded: insertedItems.length,
+              duplicatesSkipped: skippedItems.length,
+              errors: errors.length > 0 ? errors : undefined
+            },
+            mappingUsed: Object.keys(columnMapping).length > 0 ? columnMapping : 'fallback method'
+          };
+
+          // Add details about skipped items if any
+          if (skippedItems.length > 0) {
+            response.results.skippedItems = skippedItems;
+            response.message += `, ${skippedItems.length} duplicates skipped`;
+          }
+
+          // Add sample format info
+          response.sampleFormat = {
+            note: "Use the column mapping interface for best results, or ensure CSV has these columns",
+            columns: ["Type", "Style", "Size", "Gender", "Color", "Qty_Warehouse"]
+          };
+
+          res.json(response);
 
         } catch (error) {
-          fs.unlinkSync(file.path);
-          res.status(400).json({ message: error.message });
+          console.error('Inventory upload error:', error);
+          if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
+
+          // Handle duplicate key errors specifically
+          if (error.code === 11000) {
+            return res.status(400).json({
+              message: 'Duplicate inventory items found. Each combination of Type, Style, Size, Gender, and Color must be unique.',
+              error: error.message
+            });
+          }
+
+          res.status(500).json({
+            message: 'Error processing inventory upload: ' + error.message,
+            error: process.env.NODE_ENV === 'development' ? error.stack : 'Internal server error'
+          });
         }
       });
 
   } catch (error) {
-    if (req.file) fs.unlinkSync(req.file.path);
-    res.status(400).json({ message: error.message });
+    console.error('Upload inventory outer error:', error);
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({
+      message: 'Error uploading inventory: ' + error.message,
+      error: process.env.NODE_ENV === 'development' ? error.stack : 'Internal server error'
+    });
   }
 };
 
@@ -177,6 +400,7 @@ exports.updateInventoryCount = async (req, res) => {
         style: inventoryItem.style,
         size: inventoryItem.size,
         gender: inventoryItem.gender,
+        color: inventoryItem.color,
         previousCount: previousCount,
         newCount: inventoryItem.currentInventory,
         previousWarehouse: previousWarehouse,
@@ -219,6 +443,7 @@ exports.getInventoryHistory = async (req, res) => {
         type: inventoryItem.type,
         style: inventoryItem.style,
         size: inventoryItem.size,
+        color: inventoryItem.color,
         currentInventory: inventoryItem.currentInventory
       },
       history: inventoryItem.inventoryHistory.sort((a, b) => b.timestamp - a.timestamp)
@@ -351,13 +576,13 @@ exports.updateInventoryAllocation = async (req, res) => {
     if (!inventoryItem) {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
-    
+
     // Store previous allocation for logging
     const previousAllocatedEvents = inventoryItem.allocatedEvents || [];
-    
+
     inventoryItem.allocatedEvents = allocatedEvents;
     await inventoryItem.save();
-    
+
     // Log the allocation update
     await ActivityLog.create({
       eventId: inventoryItem.eventId,
@@ -369,6 +594,7 @@ exports.updateInventoryAllocation = async (req, res) => {
         style: inventoryItem.style,
         size: inventoryItem.size,
         gender: inventoryItem.gender,
+        color: inventoryItem.color,
         previousAllocatedEvents: previousAllocatedEvents,
         newAllocatedEvents: allocatedEvents,
         previousCount: previousAllocatedEvents.length,
@@ -376,7 +602,7 @@ exports.updateInventoryAllocation = async (req, res) => {
       },
       timestamp: new Date()
     });
-    
+
     res.json({ success: true, inventoryItem });
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -392,6 +618,7 @@ exports.addInventoryItem = async (req, res) => {
       style,
       size,
       gender,
+      color,
       qtyWarehouse,
       qtyBeforeEvent,
       postEventCount
@@ -415,6 +642,7 @@ exports.addInventoryItem = async (req, res) => {
       style: style.trim(),
       size: size ? size.trim() : '',
       gender: gender || 'N/A',
+      color: color || '',
       qtyWarehouse: Number(qtyWarehouse) || 0,
       qtyOnSite: Number(qtyBeforeEvent) || 0, // Map qtyBeforeEvent to qtyOnSite
       currentInventory: Number(qtyBeforeEvent) || 0, // Initial current inventory
@@ -443,6 +671,7 @@ exports.addInventoryItem = async (req, res) => {
         style: inventoryItem.style,
         size: inventoryItem.size,
         gender: inventoryItem.gender,
+        color: inventoryItem.color,
         qtyWarehouse: inventoryItem.qtyWarehouse,
         qtyBeforeEvent: inventoryItem.qtyOnSite,
         postEventCount: inventoryItem.postEventCount,
@@ -459,9 +688,9 @@ exports.addInventoryItem = async (req, res) => {
 
   } catch (error) {
     if (error.code === 11000) {
-      // Duplicate key error (type, style, size, gender combination already exists)
-      return res.status(400).json({ 
-        message: 'An inventory item with this type, style, size, and gender combination already exists for this event' 
+      // Duplicate key error (type, style, size, gender, color combination already exists)
+      return res.status(400).json({
+        message: 'An inventory item with this type, style, size, gender, and color combination already exists for this event'
       });
     }
     res.status(400).json({ message: error.message });
@@ -473,7 +702,7 @@ exports.exportInventoryCSV = async (req, res) => {
   try {
     const { eventId } = req.params;
     const event = await Event.findById(eventId);
-    
+
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
     }
@@ -492,6 +721,7 @@ exports.exportInventoryCSV = async (req, res) => {
       Style: item.style,
       Size: item.size,
       Gender: item.gender,
+      Color: item.color,
       'Qty Warehouse': item.qtyWarehouse || 0,
       'Qty On Site': item.qtyOnSite || 0,
       'Current Inventory': item.currentInventory || 0,
@@ -508,6 +738,7 @@ exports.exportInventoryCSV = async (req, res) => {
       { label: 'Style', value: 'Style' },
       { label: 'Size', value: 'Size' },
       { label: 'Gender', value: 'Gender' },
+      { label: 'Color', value: 'Color' },
       { label: 'Qty Warehouse', value: 'Qty Warehouse' },
       { label: 'Qty On Site', value: 'Qty On Site' },
       { label: 'Current Inventory', value: 'Current Inventory' },
@@ -536,7 +767,7 @@ exports.exportInventoryExcel = async (req, res) => {
     const ExcelJS = require('exceljs');
     const { eventId } = req.params;
     const event = await Event.findById(eventId);
-    
+
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
     }
@@ -559,6 +790,7 @@ exports.exportInventoryExcel = async (req, res) => {
       { header: 'Style', key: 'style', width: 25 },
       { header: 'Size', key: 'size', width: 10 },
       { header: 'Gender', key: 'gender', width: 10 },
+      { header: 'Color', key: 'color', width: 10 },
       { header: 'Qty Warehouse', key: 'qtyWarehouse', width: 15 },
       { header: 'Qty On Site', key: 'qtyOnSite', width: 15 },
       { header: 'Current Inventory', key: 'currentInventory', width: 18 },
@@ -585,6 +817,7 @@ exports.exportInventoryExcel = async (req, res) => {
         style: item.style,
         size: item.size,
         gender: item.gender,
+        color: item.color,
         qtyWarehouse: item.qtyWarehouse || 0,
         qtyOnSite: item.qtyOnSite || 0,
         currentInventory: item.currentInventory || 0,

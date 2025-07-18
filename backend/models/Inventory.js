@@ -26,6 +26,11 @@ const inventorySchema = new mongoose.Schema({
     enum: ['M', 'W', 'N/A'],
     default: 'N/A'
   },
+  color: {
+    type: String,
+    required: false,
+    trim: true
+  },
   qtyWarehouse: {
     type: Number,
     required: false
@@ -45,7 +50,7 @@ const inventorySchema = new mongoose.Schema({
   inventoryHistory: [{
     action: {
       type: String,
-      enum: ['initial', 'checkin_distributed', 'manual_adjustment', 'post_event_count']
+      enum: ['initial', 'checkin_distributed', 'checkin_undo', 'checkin_gift_update', 'checkin_delete', 'manual_adjustment', 'post_event_count']
     },
     quantity: Number,
     previousCount: Number,
@@ -73,7 +78,7 @@ const inventorySchema = new mongoose.Schema({
   timestamps: true
 });
 
-inventorySchema.index({ eventId: 1, type: 1, style: 1, size: 1, gender: 1 }, { unique: true });
+inventorySchema.index({ eventId: 1, type: 1, style: 1, size: 1, gender: 1, color: 1 }, { unique: true });
 
 // Method to update inventory
 inventorySchema.methods.updateInventory = function(newCount, action, userId, reason = '') {
@@ -104,13 +109,13 @@ inventorySchema.statics.recalculateCurrentInventory = async function(inventoryId
   if (!inventoryItem) return;
   // Sum all distributed quantities for this inventory item
   const checkins = await Checkin.aggregate([
-    { $match: { 'giftsDistributed.inventoryId': inventoryItem._id, isValid: true } },
+    { $match: { 'giftsDistributed.inventoryId': inventoryItem._id } },
     { $unwind: '$giftsDistributed' },
     { $match: { 'giftsDistributed.inventoryId': inventoryItem._id } },
     { $group: { _id: null, total: { $sum: '$giftsDistributed.quantity' } } }
   ]);
   const totalDistributed = checkins[0]?.total || 0;
-  inventoryItem.currentInventory = Math.max(0, (inventoryItem.qtyOnSite || 0) - totalDistributed);
+  inventoryItem.currentInventory = (inventoryItem.qtyOnSite || 0) - totalDistributed;
   await inventoryItem.save();
   return inventoryItem.currentInventory;
 };

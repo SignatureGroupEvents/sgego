@@ -3,11 +3,12 @@ import {
   Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete,
   TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
-  DialogContent, DialogActions
+  DialogContent, DialogActions, TablePagination, Grid, InputAdornment, TableSortLabel
 } from '@mui/material';
 import {
   Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
-  Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon
+  Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon,
+  Search as SearchIcon, FilterList as FilterIcon, Clear as ClearIcon
 } from '@mui/icons-material';
 import { uploadInventoryCSV, fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
@@ -16,6 +17,7 @@ import { getEvent } from '../../services/events';
 import api from '../../services/api';
 import EventIcon from '@mui/icons-material/Event';
 import EventHeader from '../events/EventHeader';
+import CSVColumnMapper from '../Inventory/CSVColumnMapper';
 
 // ✅ Use usePermissions only
 import { usePermissions } from '../../hooks/usePermissions';
@@ -41,19 +43,148 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editValuesMap, setEditValuesMap] = useState({});
   const [addItemModalOpen, setAddItemModalOpen] = useState(false);
+  const [showColumnMapper, setShowColumnMapper] = useState(false);
+  const [pendingCsvFile, setPendingCsvFile] = useState(null);
   const [newItem, setNewItem] = useState({
     type: '',
     style: '',
     size: '',
     gender: '',
+    color: '',
     qtyWarehouse: 0,
     qtyBeforeEvent: 0,
     postEventCount: 0
   });
   const { isOperationsManager, isAdmin } = usePermissions();
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [styleFilter, setStyleFilter] = useState('all');
+  const [genderFilter, setGenderFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('type');
+  const [sortOrder, setSortOrder] = useState('asc');
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
   // Determine if user can modify inventory
   const canModifyInventory = isOperationsManager || isAdmin;
+
+  // Get all unique values for filter dropdowns
+  const allTypes = React.useMemo(() => {
+    const typeSet = new Set();
+    inventory.forEach(item => {
+      if (item.type) typeSet.add(item.type);
+    });
+    return Array.from(typeSet).sort();
+  }, [inventory]);
+
+  const allStyles = React.useMemo(() => {
+    const styleSet = new Set();
+    inventory.forEach(item => {
+      if (item.style) styleSet.add(item.style);
+    });
+    return Array.from(styleSet).sort();
+  }, [inventory]);
+
+  const allGenders = React.useMemo(() => {
+    const genderSet = new Set();
+    inventory.forEach(item => {
+      if (item.gender) genderSet.add(item.gender);
+    });
+    return Array.from(genderSet).sort();
+  }, [inventory]);
+
+  const handleSort = (column) => {
+    const isAsc = sortBy === column && sortOrder === 'asc';
+    setSortOrder(isAsc ? 'desc' : 'asc');
+    setSortBy(column);
+  };
+
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setTypeFilter('all');
+    setStyleFilter('all');
+    setGenderFilter('all');
+    setSortBy('type');
+    setSortOrder('asc');
+    setPage(0);
+  };
+
+  // Filter and sort inventory
+  const filteredAndSortedInventory = React.useMemo(() => {
+    let filtered = inventory.filter(item => {
+      // Search filter
+      const searchMatch = searchQuery === '' || 
+        item.type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.style?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.size?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.color?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      // Type filter
+      const typeMatch = typeFilter === 'all' || item.type === typeFilter;
+
+      // Style filter
+      const styleMatch = styleFilter === 'all' || item.style === styleFilter;
+
+      // Gender filter
+      const genderMatch = genderFilter === 'all' || item.gender === genderFilter;
+
+      return searchMatch && typeMatch && styleMatch && genderMatch;
+    });
+
+    // Sort inventory
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+      
+      switch (sortBy) {
+        case 'type':
+          aValue = (a.type || '').toLowerCase();
+          bValue = (b.type || '').toLowerCase();
+          break;
+        case 'style':
+          aValue = (a.style || '').toLowerCase();
+          bValue = (b.style || '').toLowerCase();
+          break;
+        case 'size':
+          aValue = (a.size || '').toLowerCase();
+          bValue = (b.size || '').toLowerCase();
+          break;
+        case 'gender':
+          aValue = (a.gender || '').toLowerCase();
+          bValue = (b.gender || '').toLowerCase();
+          break;
+        case 'color':
+          aValue = (a.color || '').toLowerCase();
+          bValue = (b.color || '').toLowerCase();
+          break;
+        case 'qtyWarehouse':
+          aValue = Number(a.qtyWarehouse) || 0;
+          bValue = Number(b.qtyWarehouse) || 0;
+          break;
+        default:
+          aValue = a[sortBy] || '';
+          bValue = b[sortBy] || '';
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+
+    return filtered;
+  }, [inventory, searchQuery, typeFilter, styleFilter, genderFilter, sortBy, sortOrder]);
 
   const loadInventory = async () => {
     setLoading(true);
@@ -98,23 +229,48 @@ const InventoryPage = ({ eventId, eventName }) => {
     // eslint-disable-next-line
   }, [eventId]);
 
-  const handleFileChange = async (e) => {
+
+  const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Instead of uploading immediately, show the column mapper
+    setPendingCsvFile(file);
+    setShowColumnMapper(true);
+
+    // Clear the file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleMappingComplete = async (mapping, file) => {
     setUploading(true);
     setError('');
     setSuccess('');
+
     try {
-      await uploadInventoryCSV(eventId, file);
-      setSuccess('Inventory uploaded successfully!');
+      // Call the updated API function with mapping
+      const response = await uploadInventoryCSV(eventId, file, mapping);
+      // Handle the new detailed response
+      if (response.data.results) {
+        const { newItemsAdded, duplicatesSkipped, totalProcessed } = response.data.results;
+        setSuccess(
+          `Upload complete: ${newItemsAdded} new items added` +
+          (duplicatesSkipped > 0 ? `, ${duplicatesSkipped} duplicates skipped` : '') +
+          ` (${totalProcessed} total processed)`
+        );
+      } else {
+        setSuccess('Inventory uploaded successfully!');
+      }
       loadInventory();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to upload inventory.');
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setShowColumnMapper(false);
+      setPendingCsvFile(null);
     }
   };
+
 
   const handleEditClick = (item) => {
     setEditRowId(item._id);
@@ -197,7 +353,7 @@ const InventoryPage = ({ eventId, eventName }) => {
           qtyBeforeEvent: Number(values.qtyBeforeEvent),
           postEventCount: Number(values.postEventCount),
         };
-        
+
         // Validate values
         if (
           isNaN(numericValues.qtyBeforeEvent) ||
@@ -207,10 +363,10 @@ const InventoryPage = ({ eventId, eventName }) => {
         ) {
           throw new Error(`Invalid values for item ${itemId}`);
         }
-        
+
         return updateInventoryItem(itemId, numericValues);
       });
-      
+
       await Promise.all(savePromises);
       setSuccess('All inventory items updated successfully!');
       setIsEditMode(false);
@@ -291,6 +447,7 @@ const InventoryPage = ({ eventId, eventName }) => {
       style: '',
       size: '',
       gender: '',
+      color: '',
       qtyWarehouse: 0,
       qtyBeforeEvent: 0,
       postEventCount: 0
@@ -304,6 +461,7 @@ const InventoryPage = ({ eventId, eventName }) => {
       style: '',
       size: '',
       gender: '',
+      color: '',
       qtyWarehouse: 0,
       qtyBeforeEvent: 0,
       postEventCount: 0
@@ -360,103 +518,257 @@ const InventoryPage = ({ eventId, eventName }) => {
     <MainLayout eventName={eventName} parentEventName={parentEvent && parentEvent._id !== event?._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event?._id ? parentEvent._id : null}>
       <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={allEvents.filter(ev => (parentEvent ? ev.parentEventId === (parentEvent._id) : ev.parentEventId === (event && event._id)) && ev._id !== (parentEvent ? parentEvent._id : event && event._id))} />
       <Typography variant="h4" gutterBottom>Inventory</Typography>
-        <Box display="flex" gap={2} mb={2}>
-          {canModifyInventory && (
-            isEditMode ? (
-              <>
-                <Button variant="contained" color="success" onClick={handleSaveAllChanges} startIcon={<SaveIcon />}>
-                  Save All Changes
-                </Button>
-                <Button variant="outlined" onClick={handleExitEditMode} startIcon={<CancelIcon />}>
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <Button variant="contained" color="primary" onClick={handleEnterEditMode} startIcon={<EditIcon />}>
-                Edit
+      <Box display="flex" gap={2} mb={2}>
+        {canModifyInventory && (
+          isEditMode ? (
+            <>
+              <Button variant="contained" color="success" onClick={handleSaveAllChanges} startIcon={<SaveIcon />}>
+                Save All Changes
               </Button>
-            )
-          )}
-          <Button variant="contained" color="primary" onClick={handleExportCSV} startIcon={<FileDownloadIcon />}>
-            Export CSV
+              <Button variant="outlined" onClick={handleExitEditMode} startIcon={<CancelIcon />}>
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button variant="contained" color="primary" onClick={handleEnterEditMode} startIcon={<EditIcon />}>
+              Edit
+            </Button>
+          )
+        )}
+        <Button variant="contained" color="primary" onClick={handleExportCSV} startIcon={<FileDownloadIcon />}>
+          Export CSV
+        </Button>
+        <Button variant="contained" color="secondary" onClick={handleExportExcel} startIcon={<FileDownloadIcon />}>
+          Export Excel
+        </Button>
+      </Box>
+      <Typography variant="body2" color="textSecondary" mb={2}>
+        {canModifyInventory
+          ? 'Upload a CSV file to import inventory for this event. The table below shows all inventory items for this event.'
+          : 'The table below shows all inventory items for this event.'
+        }
+      </Typography>
+      {canModifyInventory && (
+        <Box sx={{ display: 'flex', gap: 2, mb: 3, justifyContent: 'space-between' }}>
+          <Button
+            variant="contained"
+            startIcon={<UploadIcon />}
+            component="label"
+            disabled={uploading}
+          >
+            {uploading ? 'Uploading...' : 'Upload Inventory CSV'}
+            <input
+              type="file"
+              accept=".csv"
+              hidden
+              ref={fileInputRef}
+              onChange={handleFileChange}
+            />
           </Button>
-          <Button variant="contained" color="secondary" onClick={handleExportExcel} startIcon={<FileDownloadIcon />}>
-            Export Excel
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={handleOpenAddItemModal}
+          >
+            Add Item
           </Button>
         </Box>
-        <Typography variant="body2" color="textSecondary" mb={2}>
-          {canModifyInventory 
-            ? 'Upload a CSV file to import inventory for this event. The table below shows all inventory items for this event.'
-            : 'The table below shows all inventory items for this event.'
-          }
-        </Typography>
-        {canModifyInventory && (
-          <Box sx={{ display: 'flex', gap: 2, mb: 3, justifyContent: 'space-between' }}>
-            <Button
-              variant="contained"
-              startIcon={<UploadIcon />}
-              component="label"
-              disabled={uploading}
-            >
-              {uploading ? 'Uploading...' : 'Upload Inventory CSV'}
-              <input
-                type="file"
-                accept=".csv"
-                hidden
-                ref={fileInputRef}
-                onChange={handleFileChange}
-              />
-            </Button>
-            <Button
-              variant="contained"
-              color="secondary"
-              onClick={handleOpenAddItemModal}
-            >
-              Add Item
-            </Button>
-          </Box>
-        )}
-        
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-        {success && <Snackbar open autoHideDuration={3000} onClose={() => setSuccess('')} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-          <Alert onClose={() => setSuccess('')} severity="success" sx={{ width: '100%' }}>{success}</Alert>
-        </Snackbar>}
-        {loading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px"><CircularProgress /></Box>
-        ) : (
-          <Card>
-            <CardContent>
-              <TableContainer component={Paper}>
-                <Table size="small">
-                  <TableHead>
+      )}
+
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {success && <Snackbar open autoHideDuration={3000} onClose={() => setSuccess('')} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert onClose={() => setSuccess('')} severity="success" sx={{ width: '100%' }}>{success}</Alert>
+      </Snackbar>}
+      {loading ? (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px"><CircularProgress /></Box>
+      ) : (
+        <Card>
+          <CardContent>
+            {/* Search and Filter Controls */}
+            <Box mb={3}>
+              <Grid container spacing={2} alignItems="flex-start">
+                {/* Search Bar */}
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Search inventory..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon color="action" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: searchQuery && (
+                        <InputAdornment position="end">
+                          <Button
+                            size="small"
+                            onClick={() => setSearchQuery('')}
+                            sx={{ minWidth: 'auto', p: 0.5 }}
+                          >
+                            <ClearIcon fontSize="small" />
+                          </Button>
+                        </InputAdornment>
+                      )
+                    }}
+                  />
+                </Grid>
+
+                {/* Type Filter */}
+                <Grid item xs={12} sm={6} md={2}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Type</InputLabel>
+                    <Select
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                      label="Type"
+                    >
+                      <MenuItem value="all">All Types</MenuItem>
+                      {allTypes.map(type => (
+                        <MenuItem key={type} value={type}>{type}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Style Filter */}
+                <Grid item xs={12} sm={6} md={2}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Style</InputLabel>
+                    <Select
+                      value={styleFilter}
+                      onChange={(e) => setStyleFilter(e.target.value)}
+                      label="Style"
+                    >
+                      <MenuItem value="all">All Styles</MenuItem>
+                      {allStyles.map(style => (
+                        <MenuItem key={style} value={style}>{style}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Gender Filter */}
+                <Grid item xs={12} sm={6} md={2}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Gender</InputLabel>
+                    <Select
+                      value={genderFilter}
+                      onChange={(e) => setGenderFilter(e.target.value)}
+                      label="Gender"
+                    >
+                      <MenuItem value="all">All Genders</MenuItem>
+                      {allGenders.map(gender => (
+                        <MenuItem key={gender} value={gender}>{gender}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Clear Filters */}
+                <Grid item xs={12} sm={6} md={3}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={clearAllFilters}
+                    startIcon={<ClearIcon />}
+                    sx={{ 
+                      minWidth: 'auto',
+                      height: '40px',
+                      mt: 0.5
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </Grid>
+              </Grid>
+            </Box>
+
+            <TableContainer component={Paper}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'type'}
+                        direction={sortBy === 'type' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('type')}
+                      >
+                        Type
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'style'}
+                        direction={sortBy === 'style' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('style')}
+                      >
+                        Style
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'size'}
+                        direction={sortBy === 'size' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('size')}
+                      >
+                        Size
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'gender'}
+                        direction={sortBy === 'gender' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('gender')}
+                      >
+                        Gender
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'color'}
+                        direction={sortBy === 'color' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('color')}
+                      >
+                        Color
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'qtyWarehouse'}
+                        direction={sortBy === 'qtyWarehouse' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('qtyWarehouse')}
+                      >
+                        Qty Warehouse
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>Qty Before Event</TableCell>
+                    <TableCell>Current Inventory</TableCell>
+                    <TableCell>Post Event Count</TableCell>
+                    <TableCell>Allocated Events</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredAndSortedInventory.length === 0 ? (
                     <TableRow>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Style</TableCell>
-                      <TableCell>Size</TableCell>
-                      <TableCell>Gender</TableCell>
-                      <TableCell>Qty Warehouse</TableCell>
-                      <TableCell>Qty Before Event</TableCell>
-                      <TableCell>Current Inventory</TableCell>
-                      <TableCell>Post Event Count</TableCell>
-                      <TableCell>Allocated Events</TableCell>
-                      <TableCell align="center">Actions</TableCell>
+                      <TableCell colSpan={11} align="center">
+                        {inventory.length === 0 ? 'No inventory found.' : 'No inventory matches your filters.'}
+                      </TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {inventory.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={10} align="center">No inventory found.</TableCell>
-                      </TableRow>
-                    ) : (
-                      inventory.map(item => (
+                  ) : (
+                    filteredAndSortedInventory
+                      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                      .map(item => (
                         <TableRow key={item._id}>
                           <TableCell>{item.type}</TableCell>
                           <TableCell>{item.style}</TableCell>
                           <TableCell>{item.size}</TableCell>
                           <TableCell>{item.gender}</TableCell>
-                          <TableCell>
-                            {item.qtyWarehouse}
-                          </TableCell>
+                          <TableCell>{item.color}</TableCell>
+                          <TableCell>{item.qtyWarehouse}</TableCell>
                           <TableCell>
                             {isEditMode ? (
                               <input
@@ -471,9 +783,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                               item.qtyBeforeEvent || item.qtyOnSite || 0
                             )}
                           </TableCell>
-                          <TableCell>
-                            {item.currentInventory}
-                          </TableCell>
+                          <TableCell>{item.currentInventory}</TableCell>
                           <TableCell>
                             {isEditMode ? (
                               <input
@@ -523,131 +833,173 @@ const InventoryPage = ({ eventId, eventName }) => {
                           </TableCell>
                         </TableRow>
                       ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              {/* Delete Confirmation Dialog */}
-              <Dialog
-                open={!!deletingId}
-                onClose={handleDeleteCancel}
-                maxWidth="sm"
-                fullWidth
-              >
-                <DialogTitle>Delete Inventory Item?</DialogTitle>
-                <DialogContent>
-                  <Typography variant="body2" color="textSecondary" gutterBottom>
-                    Are you sure you want to delete this inventory item? This action cannot be undone.
-                  </Typography>
-                </DialogContent>
-                <DialogActions>
-                  <Button onClick={handleDeleteCancel} variant="outlined">
-                    Cancel
-                  </Button>
-                  <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-                    Delete
-                  </Button>
-                </DialogActions>
-              </Dialog>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* Add Item Modal */}
-        <Dialog 
-          open={addItemModalOpen} 
-          onClose={handleCloseAddItemModal}
-          maxWidth="md"
-          fullWidth
-          PaperProps={{
-            sx: {
-              minWidth: 500,
-              maxWidth: 600
-            }
-          }}
-        >
-          <DialogTitle>Add Inventory Item</DialogTitle>
-          <DialogContent>
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
-              <TextField
-                label="Type *"
-                value={newItem.type}
-                onChange={(e) => handleNewItemChange('type', e.target.value)}
-                required
-                fullWidth
-              />
-              <TextField
-                label="Style *"
-                value={newItem.style}
-                onChange={(e) => handleNewItemChange('style', e.target.value)}
-                required
-                fullWidth
-              />
-              <TextField
-                label="Size"
-                value={newItem.size}
-                onChange={(e) => handleNewItemChange('size', e.target.value)}
-                fullWidth
-              />
-              <FormControl fullWidth>
-                <InputLabel>Gender</InputLabel>
-                <Select
-                  value={newItem.gender}
-                  onChange={(e) => handleNewItemChange('gender', e.target.value)}
-                  label="Gender"
-                  MenuProps={{
-                    PaperProps: {
-                      sx: {
-                        zIndex: 9999
-                      }
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            {/* No results message */}
+            {filteredAndSortedInventory.length === 0 && inventory.length > 0 && (
+              <Box sx={{ textAlign: 'center', py: 6 }}>
+                <FilterIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary">
+                  No inventory matches your filters
+                </Typography>
+                <Typography color="text.secondary" paragraph>
+                  Try adjusting your search or filter criteria
+                </Typography>
+                <Button variant="outlined" onClick={clearAllFilters}>
+                  Clear all filters
+                </Button>
+              </Box>
+            )}
+
+            <TablePagination
+              component="div"
+              count={filteredAndSortedInventory.length}
+              page={page}
+              onPageChange={handleChangePage}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+              rowsPerPageOptions={[10, 25, 50]}
+              labelRowsPerPage="Inventory per page"
+              sx={{ mt: 2 }}
+            />
+            {/* Delete Confirmation Dialog */}
+            <Dialog
+              open={!!deletingId}
+              onClose={handleDeleteCancel}
+              maxWidth="sm"
+              fullWidth
+            >
+              <DialogTitle>Delete Inventory Item?</DialogTitle>
+              <DialogContent>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Are you sure you want to delete this inventory item? This action cannot be undone.
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={handleDeleteCancel} variant="outlined">
+                  Cancel
+                </Button>
+                <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+                  Delete
+                </Button>
+              </DialogActions>
+            </Dialog>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Add Item Modal */}
+      <Dialog
+        open={addItemModalOpen}
+        onClose={handleCloseAddItemModal}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            minWidth: 500,
+            maxWidth: 600
+          }
+        }}
+      >
+        <DialogTitle>Add Inventory Item</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
+            <TextField
+              label="Type *"
+              value={newItem.type}
+              onChange={(e) => handleNewItemChange('type', e.target.value)}
+              required
+              fullWidth
+            />
+            <TextField
+              label="Style *"
+              value={newItem.style}
+              onChange={(e) => handleNewItemChange('style', e.target.value)}
+              required
+              fullWidth
+            />
+            <TextField
+              label="Size"
+              value={newItem.size}
+              onChange={(e) => handleNewItemChange('size', e.target.value)}
+              fullWidth
+            />
+            <FormControl fullWidth>
+              <InputLabel>Gender</InputLabel>
+              <Select
+                value={newItem.gender}
+                onChange={(e) => handleNewItemChange('gender', e.target.value)}
+                label="Gender"
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      zIndex: 9999
                     }
-                  }}
-                >
-                  <MenuItem value="">
-                    <em>Select gender (optional)</em>
-                  </MenuItem>
-                  <MenuItem value="M">Male (M)</MenuItem>
-                  <MenuItem value="W">Female (W)</MenuItem>
-                  <MenuItem value="N/A">Not Applicable (N/A)</MenuItem>
-                </Select>
-              </FormControl>
-              <TextField
-                label="Qty Warehouse"
-                type="number"
-                value={newItem.qtyWarehouse}
-                onChange={(e) => handleNewItemChange('qtyWarehouse', e.target.value)}
-                fullWidth
-                inputProps={{ min: 0 }}
-              />
-              <TextField
-                label="Qty Before Event"
-                type="number"
-                value={newItem.qtyBeforeEvent}
-                onChange={(e) => handleNewItemChange('qtyBeforeEvent', e.target.value)}
-                fullWidth
-                inputProps={{ min: 0 }}
-              />
-              <TextField
-                label="Post Event Count"
-                type="number"
-                value={newItem.postEventCount}
-                onChange={(e) => handleNewItemChange('postEventCount', e.target.value)}
-                fullWidth
-                inputProps={{ min: 0 }}
-              />
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseAddItemModal} variant="outlined">
-              Cancel
-            </Button>
-            <Button onClick={handleAddItem} variant="contained" color="primary">
-              Add Item
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </MainLayout>
-    );
+                  }
+                }}
+              >
+                <MenuItem value="">
+                  <em>Select gender (optional)</em>
+                </MenuItem>
+                <MenuItem value="M">Male (M)</MenuItem>
+                <MenuItem value="W">Female (W)</MenuItem>
+                <MenuItem value="N/A">Not Applicable (N/A)</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              label="Color"
+              value={newItem.color}
+              onChange={(e) => handleNewItemChange('color', e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Qty Warehouse"
+              type="number"
+              value={newItem.qtyWarehouse}
+              onChange={(e) => handleNewItemChange('qtyWarehouse', e.target.value)}
+              fullWidth
+              inputProps={{ min: 0 }}
+            />
+            <TextField
+              label="Qty Before Event"
+              type="number"
+              value={newItem.qtyBeforeEvent}
+              onChange={(e) => handleNewItemChange('qtyBeforeEvent', e.target.value)}
+              fullWidth
+              inputProps={{ min: 0 }}
+            />
+            <TextField
+              label="Post Event Count"
+              type="number"
+              value={newItem.postEventCount}
+              onChange={(e) => handleNewItemChange('postEventCount', e.target.value)}
+              fullWidth
+              inputProps={{ min: 0 }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseAddItemModal} variant="outlined">
+            Cancel
+          </Button>
+          <Button onClick={handleAddItem} variant="contained" color="primary">
+            Add Item
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* Add this right before </MainLayout> */}
+      <CSVColumnMapper
+        open={showColumnMapper}
+        onClose={() => setShowColumnMapper(false)}
+        csvFile={pendingCsvFile}
+        onMappingComplete={handleMappingComplete}
+        eventId={eventId}
+      />
+    </MainLayout>
+  );
 };
 
 function InventoryPageWrapper() {

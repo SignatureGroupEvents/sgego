@@ -19,12 +19,14 @@ import {
   Card,
   CardContent,
   Grid,
-  IconButton
+  IconButton,
+  Divider
 } from '@mui/material';
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
-  ArrowBack as ArrowBackIcon
+  ArrowBack as ArrowBackIcon,
+  CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -33,18 +35,23 @@ import MainLayout from '../layout/MainLayout';
 import HomeIcon from '@mui/icons-material/Home';
 import EventIcon from '@mui/icons-material/Event';
 
-// Validation schema
-const validationSchema = Yup.object({
-  eventName: Yup.string().required('Event name is required'),
-  eventContractNumber: Yup.string().required('Contract number is required'),
-  eventStart: Yup.string().required('Event start date is required'),
-});
+// Validation schema for each step
+const stepValidationSchemas = [
+  Yup.object({
+    eventName: Yup.string().required('Event name is required'),
+    eventContractNumber: Yup.string().required('Contract number is required'),
+    eventStart: Yup.string().required('Event start date is required'),
+  }),
+  Yup.object({}), // Tags & Types step - no validation required
+  Yup.object({}), // Gift Settings step - no validation required
+  Yup.object({})  // Confirmation step - no validation required
+];
 
 const CreateEvent = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   const { isOperationsManager, isAdmin } = usePermissions();
   const navigate = useNavigate();
 
@@ -58,7 +65,7 @@ const CreateEvent = () => {
     );
   }
 
-  const steps = ['Basic Info', 'Tags & Types', 'Gift Settings'];
+  const steps = ['Basic Info', 'Tags & Types', 'Gift Settings', 'Confirmation'];
 
   const initialValues = {
     eventName: '',
@@ -86,7 +93,7 @@ const CreateEvent = () => {
       // Clean up the values - remove the temp fields
       const {
         currentTagName,
-        currentTagColor, 
+        currentTagColor,
         currentTagDescription,
         currentTypeName,
         currentTypeDescription,
@@ -99,7 +106,7 @@ const CreateEvent = () => {
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to create event');
     }
-    
+
     setLoading(false);
   };
 
@@ -110,7 +117,7 @@ const CreateEvent = () => {
         color: values.currentTagColor,
         description: values.currentTagDescription
       };
-      
+
       setFieldValue('availableTags', [...values.availableTags, newTag]);
       setFieldValue('currentTagName', '');
       setFieldValue('currentTagColor', '#1976d2');
@@ -129,7 +136,7 @@ const CreateEvent = () => {
         description: values.currentTypeDescription,
         isDefault: values.currentTypeIsDefault
       };
-      
+
       setFieldValue('attendeeTypes', [...values.attendeeTypes, newType]);
       setFieldValue('currentTypeName', '');
       setFieldValue('currentTypeDescription', '');
@@ -139,6 +146,11 @@ const CreateEvent = () => {
 
   const removeAttendeeType = (index, values, setFieldValue) => {
     setFieldValue('attendeeTypes', values.attendeeTypes.filter((_, i) => i !== index));
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not specified';
+    return new Date(dateString).toLocaleDateString();
   };
 
   const StepContent = ({ values, setFieldValue, errors, touched }) => {
@@ -217,7 +229,7 @@ const CreateEvent = () => {
             <Typography variant="h6" gutterBottom>
               Tags & Attendee Types
             </Typography>
-            
+
             {/* Tags Section */}
             <Card sx={{ mb: 3 }}>
               <CardContent>
@@ -270,7 +282,7 @@ const CreateEvent = () => {
                     </Button>
                   </Grid>
                 </Grid>
-                
+
                 {/* Display existing tags */}
                 {values.availableTags.length > 0 && (
                   <Box sx={{ mt: 2 }}>
@@ -348,7 +360,7 @@ const CreateEvent = () => {
                     </Button>
                   </Grid>
                 </Grid>
-                
+
                 {/* Display existing types */}
                 {values.attendeeTypes.length > 0 && (
                   <Box sx={{ mt: 2 }}>
@@ -416,6 +428,125 @@ const CreateEvent = () => {
           </Box>
         );
 
+      case 3:
+        return (
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+              <CheckCircleIcon color="success" sx={{ fontSize: 32 }} />
+              <Typography variant="h6">
+                Confirm Event Details
+              </Typography>
+            </Box>
+
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Please review the information below and click "Create Event" to proceed.
+            </Typography>
+
+            {/* Basic Information */}
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom color="primary">
+                  Basic Information
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary">Event Name</Typography>
+                    <Typography variant="body1" fontWeight={500}>{values.eventName || 'Not specified'}</Typography>
+                  </Grid>
+                  <Grid xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary">Contract Number</Typography>
+                    <Typography variant="body1" fontWeight={500}>{values.eventContractNumber || 'Not specified'}</Typography>
+                  </Grid>
+                  <Grid xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary">Start Date</Typography>
+                    <Typography variant="body1" fontWeight={500}>{formatDate(values.eventStart)}</Typography>
+                  </Grid>
+                  <Grid xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary">End Date</Typography>
+                    <Typography variant="body1" fontWeight={500}>{formatDate(values.eventEnd)}</Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Tags */}
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom color="primary">
+                  Event Tags
+                </Typography>
+                {values.availableTags.length > 0 ? (
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {values.availableTags.map((tag, index) => (
+                      <Chip
+                        key={index}
+                        label={tag.name}
+                        sx={{ backgroundColor: tag.color, color: 'white' }}
+                      />
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No tags configured
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Attendee Types */}
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom color="primary">
+                  Attendee Types
+                </Typography>
+                {values.attendeeTypes.length > 0 ? (
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {values.attendeeTypes.map((type, index) => (
+                      <Chip
+                        key={index}
+                        label={`${type.name}${type.isDefault ? ' (Default)' : ''}`}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No attendee types configured
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Gift Settings */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom color="primary">
+                  Gift Settings
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid xs={12}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" color="text.secondary">Include Style Selection:</Typography>
+                      <Typography variant="body1" fontWeight={500}>
+                        {values.includeStyles ? 'Yes' : 'No'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid xs={12}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" color="text.secondary">Allow Multiple Gifts:</Typography>
+                      <Typography variant="body1" fontWeight={500}>
+                        {values.allowMultipleGifts ? 'Yes' : 'No'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Box>
+        );
+
       default:
         return null;
     }
@@ -456,56 +587,96 @@ const CreateEvent = () => {
 
           <Formik
             initialValues={initialValues}
-            validationSchema={validationSchema}
-            onSubmit={handleSubmit}
+            validationSchema={stepValidationSchemas[activeStep]}
+            onSubmit={(values) => {
+              // Only submit when explicitly called, not on navigation
+              handleSubmit(values);
+            }}
           >
-            {({ values, setFieldValue, errors, touched, isValid }) => (
-              <Form>
-                <StepContent 
-                  values={values} 
-                  setFieldValue={setFieldValue} 
-                  errors={errors} 
-                  touched={touched} 
-                />
+            {({ values, setFieldValue, errors, touched, isValid, validateForm, submitForm }) => {
+              // Check if current step is valid
+              const isCurrentStepValid = () => {
+                const currentStepErrors = Object.keys(errors).filter(key => {
+                  // Only check errors for fields that belong to the current step
+                  switch (activeStep) {
+                    case 0: // Basic Info
+                      return ['eventName', 'eventContractNumber', 'eventStart'].includes(key);
+                    case 1: // Tags & Types
+                      return false; // No validation required
+                    case 2: // Gift Settings
+                      return false; // No validation required
+                    case 3: // Confirmation
+                      return false; // No validation required
+                    default:
+                      return false;
+                  }
+                });
+                return currentStepErrors.length === 0;
+              };
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-                  <Button
-                    disabled={activeStep === 0}
-                    onClick={() => setActiveStep((prev) => prev - 1)}
-                    variant="outlined"
-                  >
-                    Back
-                  </Button>
-                  
-                  <Box>
-                    {activeStep === steps.length - 1 ? (
-                      <Button
-                        type="submit"
-                        variant="contained"
-                        disabled={loading || !isValid}
-                        sx={{ borderRadius: 2, fontWeight: 600 }}
-                      >
-                        {loading ? 'Creating...' : 'Create Event'}
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="contained"
-                        onClick={() => setActiveStep((prev) => prev + 1)}
-                        disabled={!isValid}
-                        sx={{ borderRadius: 2, fontWeight: 600 }}
-                      >
-                        Next
-                      </Button>
-                    )}
+              const handleCreateEvent = () => {
+                submitForm();
+              };
+
+              return (
+                <Box>
+                  <StepContent
+                    values={values}
+                    setFieldValue={setFieldValue}
+                    errors={errors}
+                    touched={touched}
+                  />
+
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+                    <Button
+                      disabled={activeStep === 0}
+                      onClick={() => setActiveStep((prev) => prev - 1)}
+                      variant="outlined"
+                    >
+                      Back
+                    </Button>
+
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      {/* Show Next button for all steps except the last one */}
+                      {activeStep < steps.length - 1 && (
+                        <Button
+                          variant="contained"
+                          onClick={() => setActiveStep((prev) => prev + 1)}
+                          disabled={!isCurrentStepValid()}
+                          sx={{ borderRadius: 2, fontWeight: 600 }}
+                        >
+                          Next
+                        </Button>
+                      )}
+
+                      {/* Show Create Event button only on the confirmation step */}
+                      {activeStep === steps.length - 1 && (
+                        <Button
+                          variant="contained"
+                          onClick={handleCreateEvent}
+                          disabled={loading}
+                          sx={{
+                            borderRadius: 2,
+                            fontWeight: 600,
+                            bgcolor: 'success.main',
+                            '&:hover': {
+                              bgcolor: 'success.dark'
+                            }
+                          }}
+                        >
+                          {loading ? 'Creating...' : 'Create my event'}
+                        </Button>
+                      )}
+                    </Box>
                   </Box>
                 </Box>
-              </Form>
-            )}
+              );
+            }}
           </Formik>
         </Paper>
       </Box>
     </MainLayout>
-    );
+  );
 };
 
-export default CreateEvent; 
+export default CreateEvent;
