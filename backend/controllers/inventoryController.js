@@ -20,12 +20,52 @@ const emitAnalyticsUpdate = (eventId) => {
 exports.getInventory = async (req, res) => {
   try {
     const { eventId } = req.params;
+    
+    // First, get the event to determine if it's a main event or secondary event
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
 
-    const inventory = await Inventory.find({ eventId, isActive: true })
+    // Get the main event ID - all inventory is stored under the main event
+    const getMainEventId = (event) => {
+      return event.isMainEvent ? event._id : event.parentEventId;
+    };
+
+    const mainEventId = getMainEventId(event);
+
+    // Fetch inventory from the main event (shared inventory pool)
+    let inventory = await Inventory.find({ 
+      eventId: mainEventId, 
+      isActive: true 
+    })
+      .populate('eventId', 'eventName isMainEvent')
       .sort({ type: 1, style: 1, size: 1 });
 
+    // Filter inventory based on event type
+    if (!event.isMainEvent) {
+      // For secondary events, only show inventory allocated to this specific event
+      inventory = inventory.filter(item => 
+        item.allocatedEvents && 
+        item.allocatedEvents.map(id => id.toString()).includes(eventId.toString())
+      );
+    }
+    // For main events, show all inventory (no filtering needed)
+
+    // Add inheritance flags for display purposes
+    const inventoryWithInheritance = inventory.map(item => {
+      const isInherited = !event.isMainEvent; // If viewing a secondary event, all items are inherited
+      return {
+        ...item.toObject(),
+        isInherited,
+        originalEventId: item.eventId._id,
+        originalEventName: item.eventId.eventName,
+        isShared: true // Indicate this is shared inventory
+      };
+    });
+
     // Group by type for easier display
-    const groupedInventory = inventory.reduce((acc, item) => {
+    const groupedInventory = inventoryWithInheritance.reduce((acc, item) => {
       if (!acc[item.type]) {
         acc[item.type] = [];
       }
@@ -33,7 +73,14 @@ exports.getInventory = async (req, res) => {
       return acc;
     }, {});
 
-    res.json({ inventory, groupedInventory });
+    res.json({ 
+      inventory: inventoryWithInheritance, 
+      groupedInventory,
+      eventType: event.isMainEvent ? 'main' : 'secondary',
+      parentEventId: event.parentEventId,
+      mainEventId: mainEventId,
+      isSharedInventory: true
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -145,9 +192,16 @@ exports.uploadInventory = async (req, res) => {
             const row = results[i];
 
             try {
+              // Get the main event ID - all inventory is stored under the main event
+              const getMainEventId = (event) => {
+                return event.isMainEvent ? event._id : event.parentEventId;
+              };
+
+              const mainEventId = getMainEventId(event);
+
               // NEW: Use mapping-aware value extraction
               const inventoryItem = {
-                eventId,
+                eventId: mainEventId, // Always store under main event
 
                 // Required fields with fallbacks
                 type: getValueFromRow(row, 'type', ['Type', 'type', 'TYPE']),
@@ -216,7 +270,7 @@ exports.uploadInventory = async (req, res) => {
                   performedBy: req.user.id,
                   reason: 'Initial inventory upload'
                 }],
-                allocatedEvents: [eventId], // Default allocation
+                allocatedEvents: [mainEventId], // Default allocation to main event
               };
 
               // Validation: Check required fields
@@ -635,9 +689,16 @@ exports.addInventoryItem = async (req, res) => {
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    // Create new inventory item
+    // Get the main event ID - all inventory is stored under the main event
+    const getMainEventId = (event) => {
+      return event.isMainEvent ? event._id : event.parentEventId;
+    };
+
+    const mainEventId = getMainEventId(event);
+
+    // Create new inventory item under the main event
     const inventoryItem = new Inventory({
-      eventId,
+      eventId: mainEventId, // Always store under main event
       type: type.trim(),
       style: style.trim(),
       size: size ? size.trim() : '',
@@ -647,7 +708,7 @@ exports.addInventoryItem = async (req, res) => {
       qtyOnSite: Number(qtyBeforeEvent) || 0, // Map qtyBeforeEvent to qtyOnSite
       currentInventory: Number(qtyBeforeEvent) || 0, // Initial current inventory
       postEventCount: postEventCount ? Number(postEventCount) : null,
-      allocatedEvents: [eventId], // Default allocation to this event
+      allocatedEvents: [mainEventId], // Default allocation to main event
       inventoryHistory: [{
         action: 'initial',
         quantity: Number(qtyBeforeEvent) || 0,
@@ -707,7 +768,14 @@ exports.exportInventoryCSV = async (req, res) => {
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    const inventory = await Inventory.find({ eventId, isActive: true })
+    // Get the main event ID - all inventory is stored under the main event
+    const getMainEventId = (event) => {
+      return event.isMainEvent ? event._id : event.parentEventId;
+    };
+
+    const mainEventId = getMainEventId(event);
+
+    const inventory = await Inventory.find({ eventId: mainEventId, isActive: true })
       .populate('allocatedEvents', 'eventName eventContractNumber')
       .sort({ type: 1, style: 1, size: 1 });
 
@@ -772,7 +840,14 @@ exports.exportInventoryExcel = async (req, res) => {
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    const inventory = await Inventory.find({ eventId, isActive: true })
+    // Get the main event ID - all inventory is stored under the main event
+    const getMainEventId = (event) => {
+      return event.isMainEvent ? event._id : event.parentEventId;
+    };
+
+    const mainEventId = getMainEventId(event);
+
+    const inventory = await Inventory.find({ eventId: mainEventId, isActive: true })
       .populate('allocatedEvents', 'eventName eventContractNumber')
       .sort({ type: 1, style: 1, size: 1 });
 

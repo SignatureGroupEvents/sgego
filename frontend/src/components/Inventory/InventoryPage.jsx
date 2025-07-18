@@ -3,12 +3,12 @@ import {
   Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete,
   TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
-  DialogContent, DialogActions, TablePagination, Grid, InputAdornment, TableSortLabel
+  DialogContent, DialogActions, TablePagination, Grid, InputAdornment, TableSortLabel, Tooltip
 } from '@mui/material';
 import {
   Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
   Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon,
-  Search as SearchIcon, FilterList as FilterIcon, Clear as ClearIcon
+  Search as SearchIcon, FilterList as FilterIcon, Clear as ClearIcon, AccountTree as InheritIcon
 } from '@mui/icons-material';
 import { uploadInventoryCSV, fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams } from 'react-router-dom';
@@ -78,6 +78,23 @@ const InventoryPage = ({ eventId, eventName }) => {
   };
   // Determine if user can modify inventory
   const canModifyInventory = isOperationsManager || isAdmin;
+
+  // Add to state variables
+  const [isInherited, setIsInherited] = useState(false);
+  const [originalEventName, setOriginalEventName] = useState('');
+
+  // Add function to determine which events to display
+  const getEventsToDisplay = () => {
+    if (event?.isMainEvent) {
+      // Main event view: show all events (main + secondary)
+      const mainEvent = event;
+      const secondaryEvents = event?.secondaryEvents || [];
+      return [mainEvent, ...secondaryEvents];
+    } else {
+      // Secondary event view: show only this event
+      return [event];
+    }
+  };
 
   // Get all unique values for filter dropdowns
   const allTypes = React.useMemo(() => {
@@ -544,11 +561,15 @@ const InventoryPage = ({ eventId, eventName }) => {
       </Box>
       <Typography variant="body2" color="textSecondary" mb={2}>
         {canModifyInventory
-          ? 'Upload a CSV file to import inventory for this event. The table below shows all inventory items for this event.'
-          : 'The table below shows all inventory items for this event.'
+          ? event?.isMainEvent 
+            ? 'Upload a CSV file to import inventory. The table below shows all inventory items for this event and its sub-events.'
+            : 'The table below shows inventory items allocated to this sub-event. Use the main event to manage all inventory.'
+          : event?.isMainEvent 
+            ? 'The table below shows all inventory items for this event and its sub-events.'
+            : 'The table below shows inventory items allocated to this sub-event.'
         }
       </Typography>
-      {canModifyInventory && (
+      {canModifyInventory && event?.isMainEvent && (
         <Box sx={{ display: 'flex', gap: 2, mb: 3, justifyContent: 'space-between' }}>
           <Button
             variant="contained"
@@ -762,7 +783,19 @@ const InventoryPage = ({ eventId, eventName }) => {
                     filteredAndSortedInventory
                       .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                       .map(item => (
-                        <TableRow key={item._id}>
+                        <TableRow 
+                          key={item._id}
+                          sx={{
+                            '&:hover': {
+                              cursor: 'pointer',
+                              backgroundColor: 'action.hover',
+                              ...(item.isInherited && {
+                                backgroundColor: 'rgba(25, 118, 210, 0.04)',
+                                '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.08)' }
+                              })
+                            }
+                          }}
+                        >
                           <TableCell>{item.type}</TableCell>
                           <TableCell>{item.style}</TableCell>
                           <TableCell>{item.size}</TableCell>
@@ -826,6 +859,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                               </Box>
                             )}
                           </TableCell>
+
                           <TableCell align="center">
                             {canModifyInventory && !isEditMode && (
                               <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small"><DeleteIcon /></IconButton>
