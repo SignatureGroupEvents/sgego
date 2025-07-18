@@ -32,8 +32,8 @@ import {
   CheckCircleOutline as CheckCircleIcon,
   Person as PersonIcon,
   Groups as GroupsIcon,
+  Download as DownloadIcon,
   Upload as UploadIcon,
-  PersonAdd as PersonAddIcon,
   AccountTree as InheritedIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
@@ -44,7 +44,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import GuestCheckIn from './GuestCheckIn';
 import { useNavigate, useParams } from 'react-router-dom';
 
-const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChange, inventory = [] }) => {
+const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, inventory = [] }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const { isOperationsManager, isAdmin } = usePermissions();
@@ -67,7 +67,6 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
   // Determine permissions
   const canModifyEvents = isOperationsManager || isAdmin;
   const canPerformCheckins = isOperationsManager || isAdmin || currentUser?.role === 'staff';
-  const canAddGuests = isOperationsManager || isAdmin || currentUser?.role === 'staff';
 
   // Get all unique tags for filter dropdown
   const allTags = useMemo(() => {
@@ -121,6 +120,60 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
     setSortBy('name');
     setSortOrder('asc');
     setPage(0);
+  };
+
+  // Export CSV function
+  const exportToCSV = () => {
+    const eventsToDisplay = getEventsToDisplay();
+    
+    // Create CSV headers
+    const headers = [
+      'First Name',
+      'Last Name',
+      'Email',
+      'Job Title',
+      'Attendee Type',
+      'Status',
+      'Tags',
+      'Source',
+      ...eventsToDisplay.map(ev => `${ev.eventName} - Gift Selection`)
+    ];
+    
+    // Create CSV data rows
+    const csvData = guests.map(guest => {
+      const checkInStatus = getGuestCheckInStatus(guest);
+      const isInherited = guest.isInherited;
+      
+      const row = [
+        guest.firstName || '',
+        guest.lastName || '',
+        guest.email || '',
+        guest.jobTitle || '',
+        guest.attendeeType || 'General',
+        checkInStatus.label,
+        guest.tags?.map(tag => tag.name).join('; ') || '',
+        isInherited ? `${guest.originalEventName || 'Main Event'}` : 'Direct',
+        ...eventsToDisplay.map(ev => formatGiftSelections(guest, ev._id, ev.eventName))
+      ];
+      
+      return row;
+    });
+    
+    // Combine headers and data
+    const csvContent = [headers, ...csvData]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `guests_export_${event?.eventName || 'event'}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Get gift selections for each event
@@ -369,7 +422,7 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
             No guests added yet
           </Typography>
           <Typography color="textSecondary" paragraph>
-            Get started by uploading a guest list or adding guests manually.
+            Get started by uploading a guest list.
           </Typography>
           <Box display="flex" gap={2} justifyContent="center">
             <Button
@@ -378,13 +431,6 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
               onClick={onUploadGuests}
             >
               Upload CSV/Excel
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<PersonAddIcon />}
-              onClick={onAddGuest}
-            >
-              Add Guest Manually
             </Button>
           </Box>
         </CardContent>
@@ -406,28 +452,19 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
             <Box display="flex" gap={2}>
               <Button
                 variant="contained"
-                startIcon={<UploadIcon />}
-                onClick={onUploadGuests}
-                disabled={!canAddGuests}
+                startIcon={<DownloadIcon />}
+                onClick={exportToCSV}
               >
-                Upload CSV/Excel
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<PersonAddIcon />}
-                onClick={onAddGuest}
-                disabled={!canAddGuests}
-              >
-                Add Guest
+                Export CSV File
               </Button>
             </Box>
           </Box>
 
           {/* Search and Filter Controls */}
           <Box mb={3}>
-            <Grid container spacing={2} alignItems="center">
+            <Grid container spacing={2} alignItems="flex-start">
               {/* Search Bar */}
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} sm={6} md={3}>
                 <TextField
                   fullWidth
                   size="small"
@@ -492,37 +529,56 @@ const GuestTable = ({ guests, onAddGuest, onUploadGuests, event, onInventoryChan
 
               {/* Tag Filter */}
               <Grid item xs={12} sm={6} md={3}>
-                <Autocomplete
-                  multiple
-                  size="small"
-                  options={allTags}
-                  value={tagFilter}
-                  onChange={(event, newValue) => setTagFilter(newValue)}
-                  renderInput={(params) => (
-                    <TextField {...params} label="Filter by tags" />
-                  )}
-                  renderTags={(value, getTagProps) =>
-                    value.map((option, index) => (
-                      <Chip
-                        {...getTagProps({ index })}
-                        key={option}
-                        label={option}
-                        size="small"
-                        sx={{ borderRadius: 1 }}
+                <FormControl fullWidth size="small">
+                  <InputLabel>Tags</InputLabel>
+                  <Autocomplete
+                    multiple
+                    size="small"
+                    options={allTags}
+                    value={tagFilter}
+                    onChange={(event, newValue) => setTagFilter(newValue)}
+                    renderInput={(params) => (
+                      <TextField 
+                        {...params} 
+                        label="Tags"
+                        InputProps={{
+                          ...params.InputProps,
+                          style: { paddingTop: '8px', paddingBottom: '8px' }
+                        }}
                       />
-                    ))
-                  }
-                />
+                    )}
+                    renderTags={(value, getTagProps) =>
+                      value.map((option, index) => (
+                        <Chip
+                          {...getTagProps({ index })}
+                          key={option}
+                          label={option}
+                          size="small"
+                          sx={{ borderRadius: 1, fontSize: '0.75rem' }}
+                        />
+                      ))
+                    }
+                    sx={{
+                      '& .MuiAutocomplete-inputRoot': {
+                        padding: '8px 12px'
+                      }
+                    }}
+                  />
+                </FormControl>
               </Grid>
 
               {/* Clear Filters */}
-              <Grid item xs={12} sm={6} md={1}>
+              <Grid item xs={12} sm={6} md={2}>
                 <Button
                   variant="outlined"
                   size="small"
                   onClick={clearAllFilters}
                   startIcon={<ClearIcon />}
-                  sx={{ minWidth: 'auto' }}
+                  sx={{ 
+                    minWidth: 'auto',
+                    height: '40px',
+                    mt: 0.5
+                  }}
                 >
                   Clear
                 </Button>
