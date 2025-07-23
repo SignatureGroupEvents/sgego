@@ -38,7 +38,7 @@ const ForgotPasswordForm = ({ onSuccess, onBackToLogin }) => {
     
     setLoading(true);
     try {
-      await api.post('/api/auth/request-reset-link', { email });
+      await api.post('/auth/request-reset-link', { email });
       setSuccess(true);
       toast.success('Password reset link sent!');
       if (onSuccess) {
