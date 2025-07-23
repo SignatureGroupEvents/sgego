@@ -17,9 +17,15 @@ import toast from 'react-hot-toast';
 // Placeholder logo icon (can be replaced with an SVG or image)
 const LogoIcon = () => (
   <Box display="flex" justifyContent="center" alignItems="center" mb={2}>
-    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M24 8C16 24 32 24 24 40" stroke="#00B2C0" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
+    <Box
+      component="img"
+      src="/SGEGO.svg"
+      alt="SGEGO Logo"
+      sx={{
+        width: 100,
+        height: 100,
+      }}
+    />
   </Box>
 );
 

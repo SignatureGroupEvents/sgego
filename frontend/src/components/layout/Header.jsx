@@ -1,18 +1,18 @@
 import React from 'react';
-import { 
-  AppBar, 
-  Toolbar, 
-  Typography, 
-  Button, 
-  Box, 
+import {
+  AppBar,
+  Toolbar,
+  Typography,
+  Button,
+  Box,
   IconButton,
   Menu,
   MenuItem,
   useTheme,
   useMediaQuery
 } from '@mui/material';
-import { 
-  Event as EventIcon, 
+import {
+  Event as EventIcon,
   Person as PersonIcon,
   Help as HelpIcon,
   Logout as LogoutIcon,
@@ -28,7 +28,7 @@ const Header = () => {
   const { logout } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
+
   const [mobileMenuAnchor, setMobileMenuAnchor] = React.useState(null);
   const [eventsMenuAnchor, setEventsMenuAnchor] = React.useState(null);
 
@@ -81,10 +81,10 @@ const Header = () => {
   };
 
   return (
-    <AppBar 
-      position="static" 
+    <AppBar
+      position="static"
       elevation={1}
-      sx={{ 
+      sx={{
         backgroundColor: 'background.paper',
         color: 'text.primary',
         borderBottom: 1,
@@ -94,17 +94,17 @@ const Header = () => {
       <Toolbar sx={{ justifyContent: 'space-between' }}>
         {/* Logo/Brand */}
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Typography 
-            variant="h5" 
-            component="div" 
-            sx={{ 
-              fontWeight: 600,
+          <img
+            src="/SGEGo_Main.svg"
+            alt="SGEGO Logo"
+            style={{
+              height: '50px',
+              width: 'auto',
+              padding: '0.0625rem',
               cursor: 'pointer',
-              color: 'primary.main'
             }}
             onClick={() => navigate('/dashboard')}
-          >
-SGEGO         </Typography>
+          />
         </Box>
 
         {/* Desktop Navigation */}

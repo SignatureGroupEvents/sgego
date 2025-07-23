@@ -58,6 +58,7 @@ global.io = io;
 
 // Define allowed origins for CORS
 const allowedOrigins = [
+  'https://sgego.netlify.app', // New Netlify URL
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:5174',
