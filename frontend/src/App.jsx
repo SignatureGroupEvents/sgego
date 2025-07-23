@@ -8,12 +8,12 @@ import theme from './styles/theme';
 
 // Components
 import ProtectedRoute from './components/layout/ProtectedRoute';
-import EventsList from './components/events/EventsList.jsx';
-import CreateEvent from './components/events/CreateEvent.jsx';
-import EventDetails from './components/events/EventDetails.jsx';
+import EventsList from './components/Events/EventsList.jsx';
+import CreateEvent from './components/Events/CreateEvent.jsx';
+import EventDetails from './components/Events/EventDetails.jsx';
 import UploadGuest from './components/guests/UploadGuest.jsx';
 import DashboardLayout from './components/layout/DashboardLayout';
-import EventDashboardWrapper from './components/events/EventDashboardWrapper.jsx';
+import EventDashboardWrapper from './components/Events/EventDashboardWrapper.jsx';
 import InventoryPageWrapper from './components/inventory/InventoryPage.jsx';
 import AccountPage from "./pages/account/AccountPage";
 import AccountEditPage from "./pages/account/AccountEditPage";
