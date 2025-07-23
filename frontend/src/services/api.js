@@ -176,21 +176,21 @@ export const resendUserInvite = (userId) => {
 };
 
 export const sendPasswordResetLink = (userId) => {
-  return api.post(`/auth/send-reset-link/${userId}`);
+  return api.post(`/api/auth/send-reset-link/${userId}`);
 };
 
 // Invite validation API function
 export const validateInviteToken = (token) => {
-  return api.get(`/auth/validate-invite/${token}`);
+  return api.get(`/api/auth/validate-invite/${token}`);
 };
 
 // Password reset API functions
 export const validateResetToken = (token) => {
-  return api.get(`/auth/validate-reset/${token}`);
+  return api.get(`/api/auth/validate-reset/${token}`);
 };
 
 export const resetPassword = (token, password) => {
-  return api.post(`/auth/reset-password/${token}`, { password });
+  return api.post(`/api/auth/reset-password/${token}`, { password });
 };
 
 // Activity Feed API functions

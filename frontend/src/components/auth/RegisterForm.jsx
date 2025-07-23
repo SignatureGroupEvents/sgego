@@ -109,7 +109,7 @@ const RegisterForm = ({ token, onSuccess, onBackToLogin }) => {
     setError('');
     
     try {
-      const response = await api.post(`/auth/accept-invite/${token}`, {
+      const response = await api.post(`/api/auth/accept-invite/${token}`, {
         password: formData.password,
         name: formData.name 
       });
@@ -157,7 +157,7 @@ const RegisterForm = ({ token, onSuccess, onBackToLogin }) => {
     setError('');
     
     try {
-      const response = await api.post(`/auth/accept-invite/${token}`, {
+      const response = await api.post(`/api/auth/accept-invite/${token}`, {
         password: formData.password
       });
       
