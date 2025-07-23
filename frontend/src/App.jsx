@@ -13,12 +13,12 @@ import CreateEvent from './components/Events/CreateEvent';
 import EventDetails from './components/events/EventDetails';
 import UploadGuest from './components/guests/UploadGuest';
 import DashboardLayout from './components/layout/DashboardLayout';
-import EventDashboardWrapper from './components/Events/EventDashboardWrapper';
+import EventDashboardWrapper from './components/events/EventDashboardWrapper';
 import InventoryPageWrapper from './components/inventory/InventoryPage';
-import AccountPage from "./pages/Account/AccountPage";
-import AccountEditPage from "./pages/Account/AccountEditPage";
-import AuthPage from "./pages/Auth/AuthPage";
-import AdvancedDashboard from "./pages/Dashboard/AdvancedDashboard";
+import AccountPage from "./pages/account/AccountPage";
+import AccountEditPage from "./pages/account/AccountEditPage";
+import AuthPage from "./pages/auth/AuthPage";
+import AdvancedDashboard from './components/dashboard/AdvancedDashboard';
 import HelpPage from "./pages/HelpPage";
 import GuestDetailPage from './components/guests/GuestDetailPage';
 
