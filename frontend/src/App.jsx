@@ -14,7 +14,7 @@ import EventDetails from './components/Events/EventDetails.jsx';
 import UploadGuest from './components/guests/UploadGuest.jsx';
 import DashboardLayout from './components/layout/DashboardLayout';
 import EventDashboardWrapper from './components/Events/EventDashboardWrapper.jsx';
-import InventoryPageWrapper from './components/inventory/InventoryPage.jsx';
+import InventoryPageWrapper from './components/Inventory/InventoryPage.jsx';
 import AccountPage from "./pages/account/AccountPage";
 import AccountEditPage from "./pages/account/AccountEditPage";
 import AuthPage from "./pages/auth/AuthPage";
