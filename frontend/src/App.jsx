@@ -8,17 +8,17 @@ import theme from './styles/theme';
 
 // Components
 import ProtectedRoute from './components/layout/ProtectedRoute';
-import EventsList from './components/events/EventsList';
-import CreateEvent from './components/events/CreateEvent';
-import EventDetails from './components/events/EventDetails';
-import UploadGuest from './components/guests/UploadGuest';
+import EventsList from './components/events/EventsList.jsx';
+import CreateEvent from './components/events/CreateEvent.jsx';
+import EventDetails from './components/events/EventDetails.jsx';
+import UploadGuest from './components/guests/UploadGuest.jsx';
 import DashboardLayout from './components/layout/DashboardLayout';
-import EventDashboardWrapper from './components/events/EventDashboardWrapper';
-import InventoryPageWrapper from './components/inventory/InventoryPage';
+import EventDashboardWrapper from './components/events/EventDashboardWrapper.jsx';
+import InventoryPageWrapper from './components/inventory/InventoryPage.jsx';
 import AccountPage from "./pages/account/AccountPage";
 import AccountEditPage from "./pages/account/AccountEditPage";
 import AuthPage from "./pages/auth/AuthPage";
-import AdvancedDashboard from './pages/dashboard/AdvancedDashboard';
+import AdvancedDashboard from './pages/Dashboard/AdvancedDashboard';
 import HelpPage from "./pages/HelpPage";
 import GuestDetailPage from './components/guests/GuestDetailPage';
 
