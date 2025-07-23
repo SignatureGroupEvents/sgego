@@ -1,9 +1,9 @@
 import React from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import LoginForm from '../../components/auth/LoginForm';
-import RegisterForm from '../../components/auth/RegisterForm';
-import ResetPasswordForm from '../../components/auth/ResetPasswordForm';
-import ForgotPasswordForm from '../../components/auth/ForgotPasswordForm';
+import LoginForm from '../../components/Auth/LoginForm';
+import RegisterForm from '../../components/Auth/RegisterForm';
+import ResetPasswordForm from '../../components/Auth/ResetPasswordForm';
+import ForgotPasswordForm from '../../components/Auth/ForgotPasswordForm';
 
 const AuthPage = () => {
   const [searchParams] = useSearchParams();

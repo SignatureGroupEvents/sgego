@@ -16,7 +16,7 @@ import MainLayout from '../layout/MainLayout';
 import { getEvent } from '../../services/events';
 import api from '../../services/api';
 import EventIcon from '@mui/icons-material/Event';
-import EventHeader from '../events/EventHeader';
+import EventHeader from '../Events/EventHeader';
 import CSVColumnMapper from '../Inventory/CSVColumnMapper';
 
 // ✅ Use usePermissions only

@@ -50,7 +50,7 @@ import MainLayout from '../layout/MainLayout';
 import HomeIcon from '@mui/icons-material/Home';
 import EventIcon from '@mui/icons-material/Event';
 import { getEvent } from '../../services/events';
-import EventHeader from '../events/EventHeader';
+import EventHeader from '../Events/EventHeader';
 
 const UploadGuest = () => {
   const { eventId } = useParams();

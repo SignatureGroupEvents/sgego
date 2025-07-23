@@ -15,7 +15,7 @@ import MainLayout from '../../components/layout/MainLayout';
 import GiftAnalytics from '../../components/dashboard/AdvancedDashboardTabs/GiftAnalytics';
 import EventAnalytics from '../../components/dashboard/AdvancedDashboardTabs/EventAnalytics';
 import ActivityFeed from '../../components/dashboard/AdvancedDashboardTabs/ActivityFeed';
-import EventHeader from '../../components/events/EventHeader';
+import EventHeader from '../../components/Events/EventHeader';
 import { useParams } from 'react-router-dom';
 import { getEvent } from '../../services/events';
 import { getGuests, fetchInventory } from '../../services/api';

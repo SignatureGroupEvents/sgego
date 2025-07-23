@@ -43,8 +43,8 @@ import toast from 'react-hot-toast';
 import MainLayout from '../../components/layout/MainLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
-import InviteUserForm from '../../components/account/InviteUserForm';
-import AccountFilters from '../../components/account/AccountFilters';
+import InviteUserForm from '../../components/Account/InviteUserForm';
+import AccountFilters from '../../components/Account/AccountFilters';
 
 
 import {
