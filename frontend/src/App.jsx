@@ -43,6 +43,7 @@ function App() {
       <AuthProvider>
         <Router>
           <Routes>
+            <Route path="/" element={<Navigate to="/auth?view=login" replace />} />
             {/* Auth routes */}
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/login" element={<Navigate to="/auth?view=login" replace />} />
@@ -76,14 +77,14 @@ function App() {
                 <EventDashboardWrapper />
               </ProtectedRoute>
             } />
-            
+
             {/* ✅ NEW ROUTE for advanced view */}
             <Route path="/events/:eventId/dashboard/advanced" element={
               <ProtectedRoute>
                 <AdvancedDashboard />
               </ProtectedRoute>
             } />
-            
+
             <Route path="/events/:eventId/details" element={
               <ProtectedRoute>
                 <EventDetails />
@@ -142,12 +143,12 @@ function App() {
                 <SpecificAnalyticsExamples />
               </ProtectedRoute>
             } />
- 
+
           </Routes>
         </Router>
       </AuthProvider>
 
-      <Toaster 
+      <Toaster
         position="top-center"
         toastOptions={{
           duration: 4000,
