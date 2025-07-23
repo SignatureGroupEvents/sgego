@@ -9,7 +9,7 @@ import theme from './styles/theme';
 // Components
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import EventsList from './components/events/EventsList';
-import CreateEvent from './components/Events/CreateEvent';
+import CreateEvent from './components/events/CreateEvent';
 import EventDetails from './components/events/EventDetails';
 import UploadGuest from './components/guests/UploadGuest';
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -18,7 +18,7 @@ import InventoryPageWrapper from './components/inventory/InventoryPage';
 import AccountPage from "./pages/account/AccountPage";
 import AccountEditPage from "./pages/account/AccountEditPage";
 import AuthPage from "./pages/auth/AuthPage";
-import AdvancedDashboard from './components/dashboard/AdvancedDashboard';
+import AdvancedDashboard from './pages/dashboard/AdvancedDashboard';
 import HelpPage from "./pages/HelpPage";
 import GuestDetailPage from './components/guests/GuestDetailPage';
 
