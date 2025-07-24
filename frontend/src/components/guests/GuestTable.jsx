@@ -44,7 +44,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import GuestCheckIn from './GuestCheckIn';
 import { useNavigate, useParams } from 'react-router-dom';
 
-const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, inventory = [] }) => {
+const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckInSuccess, inventory = [] }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const { isOperationsManager, isAdmin } = usePermissions();
@@ -843,6 +843,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, inventor
               guest={checkInGuest}
               onClose={handleCloseCheckIn}
               onInventoryChange={onInventoryChange}
+              onCheckinSuccess={onCheckInSuccess}
             />
           )}
         </DialogContent>

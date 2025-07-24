@@ -174,13 +174,15 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   };
 
   const handleCheckInSuccess = (checkedInGuest) => {
-    // Update both guests and localGuests states
+    // Update both guests and localGuests states with the complete updated guest data
     const updateGuestState = (guestList) => guestList.map(guest =>
       guest._id === checkedInGuest._id
-        ? { 
-            ...guest, 
-            hasCheckedIn: true,
-            eventCheckins: checkedInGuest.eventCheckins || guest.eventCheckins
+        ? {
+            ...checkedInGuest, // Use the complete updated guest data from backend
+            // Preserve any frontend-only properties that might not be in the backend response
+            isInherited: guest.isInherited,
+            originalEventId: guest.originalEventId,
+            originalEventName: guest.originalEventName
           }
         : guest
     );
@@ -259,6 +261,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
           secondaryEvents: secondaryEvents
         }}
         onInventoryChange={onInventoryChange}
+        onCheckInSuccess={handleCheckInSuccess}
         inventory={inventory}
       />
 
