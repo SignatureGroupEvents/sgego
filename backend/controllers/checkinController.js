@@ -144,27 +144,62 @@ exports.multiEventCheckin = async (req, res) => {
     const checkinRecords = [];
 
     for (const result of results.filter(r => r.success)) {
-      // Create checkin record
-      const checkinRecord = await Checkin.create({
-        guestId,
-        eventId: result.eventId,
-        checkedInBy: req.user.id,
-        giftsDistributed: result.giftsDistributed,
-        notes
-      });
+      // Check if guest already has a check-in record for this event with no gifts
+      const existingCheckin = guest.eventCheckins.find(ec => 
+        ec.eventId.toString() === result.eventId.toString() && 
+        ec.checkedIn && 
+        (!ec.giftsReceived || ec.giftsReceived.length === 0)
+      );
 
-      // Update guest record
-      guest.eventCheckins.push({
-        eventId: result.eventId,
-        checkedIn: true,
-        checkedInAt: new Date(),
-        checkedInBy: req.user.id,
-        giftsReceived: result.giftsDistributed.map(gift => ({
+      let checkinRecord;
+      if (existingCheckin) {
+        // Update existing check-in record with gifts
+        existingCheckin.giftsReceived = result.giftsDistributed.map(gift => ({
           inventoryId: gift.inventoryId,
           quantity: gift.quantity,
           distributedAt: new Date()
-        }))
-      });
+        }));
+        existingCheckin.checkedInAt = new Date();
+        existingCheckin.checkedInBy = req.user.id;
+        
+        // Create or update the Checkin document
+        const existingCheckinDoc = await Checkin.findOne({ guestId, eventId: result.eventId });
+        if (existingCheckinDoc) {
+          existingCheckinDoc.giftsDistributed = result.giftsDistributed;
+          existingCheckinDoc.notes = notes;
+          checkinRecord = await existingCheckinDoc.save();
+        } else {
+          checkinRecord = await Checkin.create({
+            guestId,
+            eventId: result.eventId,
+            checkedInBy: req.user.id,
+            giftsDistributed: result.giftsDistributed,
+            notes
+          });
+        }
+      } else {
+        // Create new checkin record
+        checkinRecord = await Checkin.create({
+          guestId,
+          eventId: result.eventId,
+          checkedInBy: req.user.id,
+          giftsDistributed: result.giftsDistributed,
+          notes
+        });
+
+        // Add new event check-in record
+        guest.eventCheckins.push({
+          eventId: result.eventId,
+          checkedIn: true,
+          checkedInAt: new Date(),
+          checkedInBy: req.user.id,
+          giftsReceived: result.giftsDistributed.map(gift => ({
+            inventoryId: gift.inventoryId,
+            quantity: gift.quantity,
+            distributedAt: new Date()
+          }))
+        });
+      }
 
       checkinRecords.push(checkinRecord);
     }
@@ -283,27 +318,62 @@ exports.singleEventCheckin = async (req, res) => {
       }
     }
 
-    // Create checkin record
-    const checkin = await Checkin.create({
-      guestId,
-      eventId,
-      checkedInBy: req.user.id,
-      giftsDistributed,
-      notes
-    });
+    // Check if guest already has a check-in record for this event with no gifts
+    const existingCheckin = guest.eventCheckins.find(ec => 
+      ec.eventId.toString() === eventId.toString() && 
+      ec.checkedIn && 
+      (!ec.giftsReceived || ec.giftsReceived.length === 0)
+    );
 
-    // Update guest record
-    guest.eventCheckins.push({
-      eventId,
-      checkedIn: true,
-      checkedInAt: new Date(),
-      checkedInBy: req.user.id,
-      giftsReceived: giftsDistributed.map(gift => ({
+    let checkin;
+    if (existingCheckin) {
+      // Update existing check-in record with gifts
+      existingCheckin.giftsReceived = giftsDistributed.map(gift => ({
         inventoryId: gift.inventoryId,
         quantity: gift.quantity,
         distributedAt: new Date()
-      }))
-    });
+      }));
+      existingCheckin.checkedInAt = new Date();
+      existingCheckin.checkedInBy = req.user.id;
+      
+      // Create or update the Checkin document
+      const existingCheckinDoc = await Checkin.findOne({ guestId, eventId });
+      if (existingCheckinDoc) {
+        existingCheckinDoc.giftsDistributed = giftsDistributed;
+        existingCheckinDoc.notes = notes;
+        checkin = await existingCheckinDoc.save();
+      } else {
+        checkin = await Checkin.create({
+          guestId,
+          eventId,
+          checkedInBy: req.user.id,
+          giftsDistributed,
+          notes
+        });
+      }
+    } else {
+      // Create new checkin record
+      checkin = await Checkin.create({
+        guestId,
+        eventId,
+        checkedInBy: req.user.id,
+        giftsDistributed,
+        notes
+      });
+
+      // Add new event check-in record
+      guest.eventCheckins.push({
+        eventId,
+        checkedIn: true,
+        checkedInAt: new Date(),
+        checkedInBy: req.user.id,
+        giftsReceived: giftsDistributed.map(gift => ({
+          inventoryId: gift.inventoryId,
+          quantity: gift.quantity,
+          distributedAt: new Date()
+        }))
+      });
+    }
 
     // Update overall checkin status if this is main event or if this is their first checkin
     if (event.isMainEvent || guest.eventCheckins.length === 1) {

@@ -123,7 +123,8 @@ guestSchema.methods.isCheckedIntoEvent = function(eventId) {
   const checkin = this.eventCheckins.find(ec => 
     ec.eventId.toString() === eventId.toString()
   );
-  return checkin ? checkin.checkedIn : false;
+  // A guest is considered checked in only if they have received gifts
+  return checkin ? (checkin.checkedIn && checkin.giftsReceived && checkin.giftsReceived.length > 0) : false;
 };
 
 module.exports = mongoose.model('Guest', guestSchema);
