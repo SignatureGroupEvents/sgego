@@ -59,7 +59,7 @@ const MyEventsBoard = () => {
   
   // Pagination state for created events
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
   const [totalCreatedEvents, setTotalCreatedEvents] = useState(0);
   
   // Sorting state

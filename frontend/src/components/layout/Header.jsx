@@ -14,6 +14,7 @@ import {
 import {
   Event as EventIcon,
   Person as PersonIcon,
+  Home as HomeIcon,
   Help as HelpIcon,
   Logout as LogoutIcon,
   Menu as MenuIcon,
@@ -47,6 +48,11 @@ const Header = () => {
       label: 'Help',
       icon: <HelpIcon />,
       path: '/help'
+    },
+    {
+      label: 'My Events',
+      icon: <HomeIcon />,
+      path: '/dashboard'  
     }
   ];
 
@@ -110,6 +116,24 @@ const Header = () => {
         {/* Desktop Navigation */}
         {!isMobile && (
           <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                startIcon={<HomeIcon sx={{ color: isActive('/dashboard') ? 'white' : 'inherit' }} />}
+                onClick={() => navigate('/dashboard')}
+                sx={{
+                  color: isActive('/dashboard') ? 'white' : 'text.secondary',
+                  backgroundColor: isActive('/dashboard') ? '#25c6da' : 'transparent',
+                  '&:hover': {
+                    backgroundColor: isActive('/dashboard') ? '#1ba9b5' : 'action.hover',
+                    color: isActive('/dashboard') ? 'white' : 'text.primary'
+                  },
+                  fontWeight: 600,
+                  borderRadius: 2,
+                  px: 2,
+                  py: 1
+                }}
+              >
+                My Dashboard
+              </Button>
             <Button
               startIcon={<EventIcon sx={{ color: isActive('/events') ? 'white' : 'inherit' }} />}
               onClick={() => navigate('/events')}
