@@ -14,6 +14,7 @@ import {
   Event as EventIcon, 
   Dashboard as DashboardIcon,
   Person as ProfileIcon,
+  People as PeopleIcon,
   Info as InfoIcon,
   Logout as LogoutIcon,
   ExpandLess,
@@ -21,6 +22,7 @@ import {
   List as ListIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import Collapse from '@mui/material/Collapse';
 import ListItemButton from '@mui/material/ListItemButton';
 
@@ -28,6 +30,7 @@ const MainNavigation = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
+  const { isAdmin, isOperationsManager } = usePermissions();
 
   const [eventsOpen, setEventsOpen] = React.useState(false);
 
@@ -107,12 +110,22 @@ const MainNavigation = () => {
           </List>
         </Collapse>
 
-        {/* Account */}
-        <ListItemButton selected={isActive('/account')} onClick={() => navigate('/account')}>
+        {/* Account (Ops/Admin only) */}
+        {(isAdmin || isOperationsManager) && (
+          <ListItemButton selected={isActive('/account')} onClick={() => navigate('/account')}>
+            <ListItemIcon>
+              <PeopleIcon />
+            </ListItemIcon>
+            <ListItemText primary="Account" />
+          </ListItemButton>
+        )}
+
+        {/* Profile */}
+        <ListItemButton selected={isActive('/profile')} onClick={() => navigate('/profile')}>
           <ListItemIcon>
             <ProfileIcon />
           </ListItemIcon>
-          <ListItemText primary="Account" />
+          <ListItemText primary="Profile" />
         </ListItemButton>
       </List>
 

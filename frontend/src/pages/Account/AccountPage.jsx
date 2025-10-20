@@ -217,7 +217,7 @@ const AccountPage = () => {
     <MainLayout userName={user?.username}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
         <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
-          Account Settings
+          User Management Settings
         </Typography>
         <Box>
           <Button

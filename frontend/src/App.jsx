@@ -17,6 +17,8 @@ import EventDashboardWrapper from './components/Events/EventDashboardWrapper.jsx
 import InventoryPageWrapper from './components/Inventory/InventoryPage.jsx';
 import AccountPage from "./pages/account/AccountPage.jsx";
 import AccountEditPage from "./pages/account/AccountEditPage.jsx";
+import UserManagement from "./pages/user-management/UserManagement.jsx";
+import UserProfile from "./pages/profile/UserProfile.jsx";
 import AuthPage from "./pages/auth/AuthPage.jsx";
 import AdvancedDashboard from './pages/Dashboard/AdvancedDashboard';
 import HelpPage from "./pages/HelpPage";
@@ -105,6 +107,7 @@ function App() {
                 <GuestDetailPage />
               </ProtectedRoute>
             } />
+            {/* Account Routes */}
             <Route path="/account" element={
               <ProtectedRoute>
                 <AccountPage />
@@ -116,6 +119,23 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/account/edit/:userId" element={
+              <ProtectedRoute>
+                <AccountEditPage />
+              </ProtectedRoute>
+            } />
+
+            {/* Profile Routes */}
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <UserProfile />
+              </ProtectedRoute>
+            } />
+            <Route path="/profile/:userId" element={
+              <ProtectedRoute>
+                <UserProfile />
+              </ProtectedRoute>
+            } />
+            <Route path="/profile/edit/:userId" element={
               <ProtectedRoute>
                 <AccountEditPage />
               </ProtectedRoute>

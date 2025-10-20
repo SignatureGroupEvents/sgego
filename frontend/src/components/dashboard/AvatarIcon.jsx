@@ -45,7 +45,7 @@ export default function AvatarIcon({ user, userId, showTooltip = true }) {
   
   const handleAvatarClick = () => {
     if (userId) {
-      navigate(`/account/edit/${userId}`);
+      navigate(`/profile/${userId}`);
     }
   };
 

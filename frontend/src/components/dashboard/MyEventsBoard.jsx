@@ -63,7 +63,7 @@ const MyEventsBoard = () => {
   const [totalCreatedEvents, setTotalCreatedEvents] = useState(0);
   
   // Sorting state
-  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortBy, setSortBy] = useState('eventStart');
   const [sortOrder, setSortOrder] = useState('desc');
 
   useEffect(() => {
@@ -360,9 +360,9 @@ const MyEventsBoard = () => {
                   }}
                   label="Sort By"
                 >
+                  <MenuItem value="eventStart">Start Date</MenuItem>
                   <MenuItem value="createdAt">Created Date</MenuItem>
                   <MenuItem value="eventName">Event Name</MenuItem>
-                  <MenuItem value="eventStart">Start Date</MenuItem>
                   <MenuItem value="eventEnd">End Date</MenuItem>
                 </Select>
               </FormControl>

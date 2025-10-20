@@ -168,7 +168,25 @@ const Header = () => {
                 py: 1
               }}
             >
-              Account
+              User Management
+            </Button>
+            <Button
+              startIcon={<PersonIcon sx={{ color: isActive('/profile') ? 'white' : 'inherit' }} />}
+              onClick={() => navigate('/profile')}
+              sx={{
+                color: isActive('/profile') ? 'white' : 'text.secondary',
+                backgroundColor: isActive('/profile') ? '#25c6da' : 'transparent',
+                '&:hover': {
+                  backgroundColor: isActive('/profile') ? '#1ba9b5' : 'action.hover',
+                  color: isActive('/profile') ? 'white' : 'text.primary'
+                },
+                fontWeight: 600,
+                borderRadius: 2,
+                px: 2,
+                py: 1
+              }}
+            >
+              Profile
             </Button>
             <Button
               startIcon={<HelpIcon sx={{ color: isActive('/help') ? 'white' : 'inherit' }} />}
