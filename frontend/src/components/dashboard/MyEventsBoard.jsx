@@ -35,7 +35,7 @@ import {
   Search as SearchIcon,
   Style as StyleIcon,
   CardGiftcard as GiftIcon,
-  SortByAlphaIcon as SortIcon,
+  Sort as SortIcon,
   Event as EventIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
