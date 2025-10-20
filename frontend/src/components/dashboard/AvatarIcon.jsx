@@ -7,7 +7,13 @@ function stringToColor(string) {
   for (let i = 0; i < string.length; i++) {
     hash = string.charCodeAt(i) + ((hash << 5) - hash);
   }
-  return hash;
+  
+  // Convert hash to HSL for better color control
+  const hue = Math.abs(hash) % 360;
+  const saturation = 70; // Keep colors vibrant
+  const lightness = 50; // Keep colors medium brightness for good contrast
+  
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
 function stringAvatar(name) {
@@ -18,6 +24,22 @@ function stringAvatar(name) {
   };
 }       
 
+// Extract initials from username (first name initial + last name initial)
+function getInitials(username) {
+  if (!username) return 'U';
+  
+  const parts = username.trim().split(' ');
+  if (parts.length === 1) {
+    // Only one name, return first two characters
+    return parts[0].substring(0, 2).toUpperCase();
+  } else {
+    // Multiple names, return first letter of first and last name
+    const firstInitial = parts[0].charAt(0).toUpperCase();
+    const lastInitial = parts[parts.length - 1].charAt(0).toUpperCase();
+    return firstInitial + lastInitial;
+  }
+}
+
 export default function AvatarIcon({ user, userId, showTooltip = true }) {
   const navigate = useNavigate();
   
@@ -27,13 +49,16 @@ export default function AvatarIcon({ user, userId, showTooltip = true }) {
     }
   };
 
+  const initials = getInitials(user.username);
+  const displayName = user.username || 'Unknown';
+
   const avatarElement = (
-    <Avatar {...stringAvatar(user.username)}>
-      {user.username.charAt(0)}
+    <Avatar {...stringAvatar(displayName)}>
+      {initials}
     </Avatar>
   );
 
-  const tooltipTitle = showTooltip ? `${user.username}${user.email ? ` (${user.email})` : ''}` : '';
+  const tooltipTitle = showTooltip ? `${displayName}${user.email ? ` (${user.email})` : ''}` : '';
 
   if (userId) {
     return (

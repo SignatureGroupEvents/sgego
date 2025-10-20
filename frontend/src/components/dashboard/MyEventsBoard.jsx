@@ -4,7 +4,6 @@ import {
   Card,
   CardContent,
   Typography,
-  Grid,
   IconButton,
   Chip,
   Button,
@@ -12,7 +11,6 @@ import {
   DialogTitle,
   DialogContent,
   CircularProgress,
-  Alert,
   Paper,
   Table,
   TableBody,
@@ -21,48 +19,100 @@ import {
   TableHead,
   TableRow,
   TextField,
-  Tooltip
+  Tooltip,
+  TablePagination,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Tabs,
+  Tab,
+  Alert
 } from '@mui/material';
 import {
   Add as AddIcon,
   Delete as RemoveIcon,
-  DragIndicator as DragIcon,
-  Event as EventIcon,
-  CalendarToday as CalendarIcon,
   Search as SearchIcon,
   Style as StyleIcon,
-  CardGiftcard as GiftIcon
+  CardGiftcard as GiftIcon,
+  SortByAlphaIcon as SortIcon,
+  Event as EventIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { getMyEvents, addToMyEvents, removeFromMyEvents, updateMyEventsPositions } from '../../services/api';
+import { getMyEvents, getMyCreatedEvents, addToMyEvents, removeFromMyEvents } from '../../services/api';
 import { getEvents } from '../../services/events';
 import toast from 'react-hot-toast';
 import AvatarIcon from './AvatarIcon';
 
 const MyEventsBoard = () => {
   const navigate = useNavigate();
-  const [myEvents, setMyEvents] = useState([]);
+  
+  // State management
+  const [activeTab, setActiveTab] = useState(0);
+  const [myAddedEvents, setMyAddedEvents] = useState([]);
+  const [myCreatedEvents, setMyCreatedEvents] = useState([]);
   const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addingEvent, setAddingEvent] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Pagination state for created events
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalCreatedEvents, setTotalCreatedEvents] = useState(0);
+  
+  // Sorting state
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   useEffect(() => {
-    loadMyEvents();
-    loadAllEvents();
+    loadAllData();
   }, []);
 
-  const loadMyEvents = async () => {
+  useEffect(() => {
+    if (activeTab === 0) {
+      loadMyCreatedEvents();
+    }
+  }, [activeTab, page, rowsPerPage, sortBy, sortOrder, searchTerm]);
+
+  const loadAllData = async () => {
+    setLoading(true);
     try {
-      const response = await getMyEvents();
-      setMyEvents(response.data.myEvents || []);
-    } catch (error) {
-      console.error('Error loading my events:', error);
-      toast.error('Failed to load your events');
+      await Promise.all([
+        loadMyAddedEvents(),
+        loadAllEvents()
+      ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMyAddedEvents = async () => {
+    try {
+      const response = await getMyEvents();
+      setMyAddedEvents(response.data.myEvents || []);
+    } catch (error) {
+      console.error('Error loading my added events:', error);
+      toast.error('Failed to load your added events');
+    }
+  };
+
+  const loadMyCreatedEvents = async () => {
+    try {
+      const params = {
+        page: page + 1,
+        limit: rowsPerPage,
+        sortBy,
+        sortOrder,
+        search: searchTerm
+      };
+      const response = await getMyCreatedEvents(params);
+      setMyCreatedEvents(response.data.events || []);
+      setTotalCreatedEvents(response.data.total || 0);
+    } catch (error) {
+      console.error('Error loading my created events:', error);
+      toast.error('Failed to load your created events');
     }
   };
 
@@ -79,7 +129,7 @@ const MyEventsBoard = () => {
     try {
       setAddingEvent(true);
       await addToMyEvents(eventId);
-      await loadMyEvents();
+      await loadMyAddedEvents();
       setAddDialogOpen(false);
       toast.success('Event added to your board');
     } catch (error) {
@@ -92,64 +142,20 @@ const MyEventsBoard = () => {
   const handleRemoveEvent = async (eventId) => {
     try {
       await removeFromMyEvents(eventId);
-      await loadMyEvents();
+      await loadMyAddedEvents();
       toast.success('Event removed from your board');
     } catch (error) {
       toast.error('Failed to remove event');
     }
   };
 
-  // HTML5 Drag and Drop handlers
-  const handleDragStart = (e, index) => {
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', e.target.outerHTML);
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = async (e, dropIndex) => {
-    e.preventDefault();
-    
-    if (draggedIndex === null || draggedIndex === dropIndex) {
-      setDraggedIndex(null);
-      return;
-    }
-
-    const newEvents = [...myEvents];
-    const [draggedEvent] = newEvents.splice(draggedIndex, 1);
-    newEvents.splice(dropIndex, 0, draggedEvent);
-    
-    setMyEvents(newEvents);
-    setDraggedIndex(null);
-
-    // Update positions in backend
-    try {
-      const positions = newEvents.map((event, index) => ({
-        eventId: event._id,
-        position: index
-      }));
-      await updateMyEventsPositions(positions);
-      toast.success('Event order updated');
-    } catch (error) {
-      console.error('Error updating positions:', error);
-      toast.error('Failed to save new order');
-      await loadMyEvents(); // Reload original order
-    }
-  };
-
   const getAvailableEvents = () => {
-    const myEventIds = myEvents.map(event => event._id);
-    // Only show main events that aren't already on the user's board
+    const myEventIds = myAddedEvents.map(event => event._id);
     return allEvents.filter(event => 
       event.isMainEvent && !myEventIds.includes(event._id)
     );
   };
 
-  // Filter available events based on search term
   const filteredAvailableEvents = getAvailableEvents().filter(event => {
     const matchesSearch = searchTerm === '' || 
       event.eventName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -161,6 +167,137 @@ const MyEventsBoard = () => {
     if (!dateString) return 'Not set';
     return new Date(dateString).toLocaleDateString();
   };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'Not set';
+    return new Date(dateString).toLocaleString();
+  };
+
+  const handleSortChange = (newSortBy) => {
+    if (sortBy === newSortBy) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(newSortBy);
+      setSortOrder('asc');
+    }
+    setPage(0);
+  };
+
+  const handlePageChange = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleRowsPerPageChange = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const handleSearchChange = (event) => {
+    setSearchTerm(event.target.value);
+    setPage(0);
+  };
+
+  const renderEventsTable = (events, showRemoveButton = false) => (
+    <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+      <TableContainer>
+        <Table>
+          <TableHead>
+            <TableRow sx={{ bgcolor: 'grey.50' }}>
+              <TableCell sx={{ fontWeight: 600 }}>Event Name</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Contract #</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Start Date</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>End Date</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Created By</TableCell>
+              {/* <TableCell sx={{ fontWeight: 600 }}>Features</TableCell> */}
+              {showRemoveButton && (
+                <TableCell align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
+              )}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {events.map((event) => (
+              <TableRow key={event._id} hover>
+                <TableCell>
+                  <Typography 
+                    variant="subtitle2" 
+                    fontWeight={600}
+                    onClick={() => navigate(`/events/${event._id}`)}
+                    sx={{ 
+                      color: 'primary.main',
+                      cursor: 'pointer',
+                      '&:hover': { textDecoration: 'underline' }
+                    }}
+                  >
+                    {event.eventName}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" color="text.secondary">
+                    {event.eventContractNumber}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" fontWeight={500}>
+                    {formatDate(event.eventStart)}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" fontWeight={500}>
+                    {formatDate(event.eventEnd)}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Chip 
+                    label={event.status || 'Active'} 
+                    size="small" 
+                    color={event.status === 'Completed' ? 'success' : 'default'}
+                    sx={{ borderRadius: 1 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                    <AvatarIcon 
+                      user={event.createdBy || { username: 'Unknown' }} 
+                      userId={event.createdBy?._id}
+                      showTooltip={true}
+                    />
+                  </Box>
+                </TableCell>
+                {/* <TableCell>
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                    {event.includeStyles && (
+                      <Tooltip title="Style Selection Enabled">
+                        <StyleIcon color="primary" fontSize="small" />
+                      </Tooltip>
+                    )}
+                    {event.allowMultipleGifts && (
+                      <Tooltip title="Multiple Gifts Allowed">
+                        <GiftIcon color="primary" fontSize="small" />
+                      </Tooltip>
+                    )}
+                  </Box>
+                </TableCell> */}
+                {showRemoveButton && (
+                  <TableCell align="center">
+                    <Tooltip title="Remove Event From My Board">
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleRemoveEvent(event._id)}
+                      >
+                        <RemoveIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Paper>
+  );
 
   if (loading) {
     return (
@@ -187,120 +324,109 @@ const MyEventsBoard = () => {
           </Button>
         </Box>
 
-        {myEvents.length === 0 ? (
-          <Box textAlign="center" py={4}>
-            <EventIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              No events on your board yet
-            </Typography>
-            <Typography variant="body2" color="text.secondary" mb={3}>
-              Add events you're working on to keep them easily accessible
-            </Typography>
-            <Button
-              variant="outlined"
-              startIcon={<AddIcon />}
-              onClick={() => setAddDialogOpen(true)}
-            >
-              Add Your First Event
-            </Button>
-          </Box>
-        ) : (
-          <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: 'grey.50' }}>
-                    <TableCell width={50}></TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Event Name</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Contract #</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Start Date</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Created By</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {myEvents.map((event, index) => (
-                    <TableRow 
-                      key={event._id}
-                      hover
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, index)}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, index)}
-                      sx={{ 
-                        cursor: 'grab',
-                        '&:active': {
-                          cursor: 'grabbing'
-                        },
-                        opacity: draggedIndex === index ? 0.5 : 1,
-                        transform: draggedIndex === index ? 'rotate(2deg)' : 'none',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <TableCell>
-                        <DragIcon
-                          sx={{ color: 'text.secondary', cursor: 'grab' }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography 
-                          variant="subtitle2" 
-                          fontWeight={600}
-                          onClick={() => navigate(`/events/${event._id}`)}
-                          sx={{ 
-                            color: 'primary.main',
-                            cursor: 'pointer',
-                            '&:hover': { textDecoration: 'underline' }
-                          }}
-                        >
-                          {event.eventName}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {event.eventContractNumber}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight={500}>
-                          {formatDate(event.eventStart)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={event.status || 'Active'} 
-                          size="small" 
-                          color={event.status === 'Completed' ? 'success' : 'default'}
-                          sx={{ borderRadius: 1 }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 0.5 }}>
-                          <AvatarIcon 
-                            user={event.createdByUser || { username: 'Unknown' }} 
-                            userId={event.createdBy}
-                            showTooltip={true}
-                          />
-                        </Box>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Tooltip title="Remove Event From My Board">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleRemoveEvent(event._id)}
-                        >
-                          <RemoveIcon />
-                        </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
+        <Tabs 
+          value={activeTab} 
+          onChange={(e, newValue) => setActiveTab(newValue)}
+          sx={{ mb: 3 }}
+        >
+          <Tab label={`My Events (${totalCreatedEvents})`} />
+          <Tab label={`Added Events (${myAddedEvents.length})`} />
+        </Tabs>
+
+        {/* My Events Tab (Created Events) */}
+        {activeTab === 0 && (
+          <>
+            {/* Search and Sort Controls */}
+            <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+              <TextField
+                placeholder="Search events..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+                size="small"
+                InputProps={{
+                  startAdornment: (
+                    <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
+                  ),
+                }}
+                sx={{ flexGrow: 1 }}
+              />
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>Sort By</InputLabel>
+                <Select
+                  value={sortBy}
+                  onChange={(e) => {
+                    setSortBy(e.target.value);
+                    setPage(0);
+                  }}
+                  label="Sort By"
+                >
+                  <MenuItem value="createdAt">Created Date</MenuItem>
+                  <MenuItem value="eventName">Event Name</MenuItem>
+                  <MenuItem value="eventStart">Start Date</MenuItem>
+                  <MenuItem value="eventEnd">End Date</MenuItem>
+                </Select>
+              </FormControl>
+              <Tooltip title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}>
+                <IconButton onClick={() => handleSortChange(sortBy)}>
+                  <SortIcon sx={{ transform: sortOrder === 'desc' ? 'rotate(180deg)' : 'none' }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            {myCreatedEvents.length === 0 ? (
+              <Box textAlign="center" py={4}>
+                <EventIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  {searchTerm ? 'No events found' : 'No events created yet'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {searchTerm 
+                    ? `No events match "${searchTerm}". Try adjusting your search.`
+                    : 'Create your first event to see it here!'
+                  }
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                {renderEventsTable(myCreatedEvents)}
+                <TablePagination
+                  component="div"
+                  count={totalCreatedEvents}
+                  page={page}
+                  onPageChange={handlePageChange}
+                  rowsPerPage={rowsPerPage}
+                  onRowsPerPageChange={handleRowsPerPageChange}
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                />
+              </>
+            )}
+          </>
+        )}
+
+        {/* Added Events Tab */}
+        {activeTab === 1 && (
+          <>
+            {myAddedEvents.length === 0 ? (
+              <Box textAlign="center" py={4}>
+                <EventIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  No events on your board yet
+                </Typography>
+                <Typography variant="body2" color="text.secondary" mb={3}>
+                  Add events you're working on to keep them easily accessible
+                </Typography>
+                <Button
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={() => setAddDialogOpen(true)}
+                >
+                  Add Your First Event
+                </Button>
+              </Box>
+            ) : (
+              renderEventsTable(myAddedEvents, true)
+            )}
+          </>
         )}
 
         {/* Add Event Dialog */}
@@ -361,8 +487,9 @@ const MyEventsBoard = () => {
                       <TableCell sx={{ fontWeight: 600 }}>Event Name</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Contract #</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Start Date</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>End Date</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Features</TableCell>
+                      {/* <TableCell sx={{ fontWeight: 600 }}>Features</TableCell> */}
                       <TableCell align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -400,6 +527,11 @@ const MyEventsBoard = () => {
                           </Typography>
                         </TableCell>
                         <TableCell>
+                          <Typography variant="body2" fontWeight={500}>
+                            {formatDate(event.eventEnd)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
                           <Chip 
                             label={event.status || 'Active'} 
                             size="small" 
@@ -407,7 +539,7 @@ const MyEventsBoard = () => {
                             sx={{ borderRadius: 1 }}
                           />
                         </TableCell>
-                        <TableCell>
+                        {/* <TableCell>
                           <Box sx={{ display: 'flex', gap: 0.5 }}>
                             {event.includeStyles && (
                               <Tooltip title="Style Selection Enabled">
@@ -420,7 +552,7 @@ const MyEventsBoard = () => {
                               </Tooltip>
                             )}
                           </Box>
-                        </TableCell>
+                        </TableCell> */}
                         <TableCell align="center">
                           <Button
                             variant="outlined"
@@ -460,4 +592,4 @@ const MyEventsBoard = () => {
   );
 };
 
-export default MyEventsBoard; 
+export default MyEventsBoard;

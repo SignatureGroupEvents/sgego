@@ -414,14 +414,61 @@ const sendPasswordResetLink = async (req, res) => {
   }
 };
 
-// Get user's My Events board
+// Get user's My Events board (events they added to their board)
 const getMyEvents = async (req, res) => {
   try {
     const myEvents = await UserMyEvent.find({ userId: req.user.id })
-      .populate('eventId', 'eventName eventContractNumber eventStart eventEnd isMainEvent parentEventId')
+      .populate({
+        path: 'eventId',
+        select: 'eventName eventContractNumber eventStart eventEnd isMainEvent parentEventId status includeStyles allowMultipleGifts createdBy',
+        populate: {
+          path: 'createdBy',
+          select: 'username email'
+        }
+      })
       .sort({ position: 1, addedAt: -1 });
     
     res.json({ myEvents: myEvents.map(f => f.eventId) });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Get events created by the current user
+const getMyCreatedEvents = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search = '' } = req.query;
+    
+    const filter = { 
+      createdBy: req.user.id,
+      isActive: true 
+    };
+    
+    // Add search filter
+    if (search) {
+      filter.$or = [
+        { eventName: { $regex: search, $options: 'i' } },
+        { eventContractNumber: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    
+    const events = await Event.find(filter)
+      .populate('createdBy', 'username email')
+      .sort(sortOptions)
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+    
+    const total = await Event.countDocuments(filter);
+    
+    res.json({
+      events,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      total
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -520,6 +567,7 @@ module.exports = {
   resetUserPassword,
   sendPasswordResetLink,
   getMyEvents,
+  getMyCreatedEvents,
   addToMyEvents,
   removeFromMyEvents,
   updateMyEventsPositions
