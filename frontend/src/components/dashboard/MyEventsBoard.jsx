@@ -25,7 +25,7 @@ import {
 } from '@mui/material';
 import {
   Add as AddIcon,
-  Remove as RemoveIcon,
+  Delete as RemoveIcon,
   DragIndicator as DragIcon,
   Event as EventIcon,
   CalendarToday as CalendarIcon,
@@ -37,6 +37,7 @@ import { useNavigate } from 'react-router-dom';
 import { getMyEvents, addToMyEvents, removeFromMyEvents, updateMyEventsPositions } from '../../services/api';
 import { getEvents } from '../../services/events';
 import toast from 'react-hot-toast';
+import AvatarIcon from './AvatarIcon';
 
 const MyEventsBoard = () => {
   const navigate = useNavigate();
@@ -182,7 +183,7 @@ const MyEventsBoard = () => {
             onClick={() => setAddDialogOpen(true)}
             size="small"
           >
-            Add Event
+            Add Event To My Board
           </Button>
         </Box>
 
@@ -214,7 +215,7 @@ const MyEventsBoard = () => {
                     <TableCell sx={{ fontWeight: 600 }}>Contract #</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Start Date</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Features</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Created By</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -276,19 +277,15 @@ const MyEventsBoard = () => {
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
-                          {event.includeStyles && (
-                            <Tooltip title="Style Selection Enabled">
-                              <StyleIcon color="primary" fontSize="small" />
-                            </Tooltip>
-                          )}
-                          {event.allowMultipleGifts && (
-                            <Tooltip title="Multiple Gifts Allowed">
-                              <GiftIcon color="primary" fontSize="small" />
-                            </Tooltip>
-                          )}
+                          <AvatarIcon 
+                            user={event.createdByUser || { username: 'Unknown' }} 
+                            userId={event.createdBy}
+                            showTooltip={true}
+                          />
                         </Box>
                       </TableCell>
                       <TableCell align="center">
+                        <Tooltip title="Remove Event From My Board">
                         <IconButton
                           size="small"
                           color="error"
@@ -296,6 +293,7 @@ const MyEventsBoard = () => {
                         >
                           <RemoveIcon />
                         </IconButton>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   ))}
