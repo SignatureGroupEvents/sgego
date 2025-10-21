@@ -35,19 +35,19 @@ const io = new Server(server, {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
-  
+
   // Join event-specific room for analytics updates
   socket.on('join-event', (eventId) => {
     socket.join(`event-${eventId}`);
     console.log(`📊 Client ${socket.id} joined event room: event-${eventId}`);
   });
-  
+
   // Leave event room
   socket.on('leave-event', (eventId) => {
     socket.leave(`event-${eventId}`);
     console.log(`📊 Client ${socket.id} left event room: event-${eventId}`);
   });
-  
+
   socket.on('disconnect', () => {
     console.log('🔌 Client disconnected:', socket.id);
   });
@@ -77,7 +77,7 @@ app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
+
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -101,7 +101,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Test routes
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'Event Check-in API is running!',
     timestamp: new Date().toISOString(),
     status: 'OK'
@@ -109,7 +109,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ 
+  res.json({
     server: 'running',
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     port: process.env.PORT || 3001
@@ -133,7 +133,12 @@ try {
   app.use('/api/inventory', inventoryRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/analytics', analyticsRoutes);
-  
+
+  // DEBUG: list all mounted endpoints (TEMPORARY)
+  const listEndpoints = require('express-list-endpoints');
+  console.table(listEndpoints(app));
+
+
   console.log('✅ All routes loaded successfully');
 } catch (error) {
   console.error('❌ Error loading routes:', error.message);
@@ -142,7 +147,7 @@ try {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ 
+  res.status(500).json({
     message: 'Something went wrong!',
     error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
   });
@@ -150,64 +155,64 @@ app.use((err, req, res, next) => {
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
-.then(() => {
-  console.log('✅ MongoDB connected successfully');
-  console.log('📍 Database:', mongoose.connection.name);
-  
-  // Load models one by one to find the problematic one
-  try {
-    console.log('Loading User model...');
-    require('./models/User');
-    console.log('✅ User model loaded');
-    
-    console.log('Loading Event model...');
-    require('./models/Event');
-    console.log('✅ Event model loaded');
-    
-    console.log('Loading Guest model...');
-    require('./models/Guest');
-    console.log('✅ Guest model loaded');
-    
-    console.log('Loading Inventory model...');
-    require('./models/Inventory');
-    console.log('✅ Inventory model loaded');
-    
-    console.log('Loading Checkin model...');
-    require('./models/Checkin');
-    console.log('✅ Checkin model loaded');
-    
-    console.log('Loading UserAssignment model...');
-    require('./models/UserAssignment');
-    console.log('✅ UserAssignment model loaded');
-    
-    console.log('Loading UserMyEvent model...');
-    require('./models/UserMyEvent');
-    console.log('✅ UserMyEvent model loaded');
-    
-    console.log('✅ All models loaded successfully');
-  } catch (error) {
-    console.error('❌ Error loading models:', error.message);
-    console.error('Full error:', error);
-  }
-})
-.catch(err => {
-  console.error('❌ MongoDB connection error:', err.message);
-  console.log('⚠️  Starting server without MongoDB for testing...');
-  
-  // Load models without database connection for testing
-  try {
-    require('./models/User');
-    require('./models/Event');
-    require('./models/Guest');
-    require('./models/Inventory');
-    require('./models/Checkin');
-    require('./models/UserAssignment');
-    require('./models/UserMyEvent');
-    console.log('✅ Models loaded (database connection disabled)');
-  } catch (error) {
-    console.error('❌ Error loading models:', error.message);
-  }
-});
+  .then(() => {
+    console.log('✅ MongoDB connected successfully');
+    console.log('📍 Database:', mongoose.connection.name);
+
+    // Load models one by one to find the problematic one
+    try {
+      console.log('Loading User model...');
+      require('./models/User');
+      console.log('✅ User model loaded');
+
+      console.log('Loading Event model...');
+      require('./models/Event');
+      console.log('✅ Event model loaded');
+
+      console.log('Loading Guest model...');
+      require('./models/Guest');
+      console.log('✅ Guest model loaded');
+
+      console.log('Loading Inventory model...');
+      require('./models/Inventory');
+      console.log('✅ Inventory model loaded');
+
+      console.log('Loading Checkin model...');
+      require('./models/Checkin');
+      console.log('✅ Checkin model loaded');
+
+      console.log('Loading UserAssignment model...');
+      require('./models/UserAssignment');
+      console.log('✅ UserAssignment model loaded');
+
+      console.log('Loading UserMyEvent model...');
+      require('./models/UserMyEvent');
+      console.log('✅ UserMyEvent model loaded');
+
+      console.log('✅ All models loaded successfully');
+    } catch (error) {
+      console.error('❌ Error loading models:', error.message);
+      console.error('Full error:', error);
+    }
+  })
+  .catch(err => {
+    console.error('❌ MongoDB connection error:', err.message);
+    console.log('⚠️  Starting server without MongoDB for testing...');
+
+    // Load models without database connection for testing
+    try {
+      require('./models/User');
+      require('./models/Event');
+      require('./models/Guest');
+      require('./models/Inventory');
+      require('./models/Checkin');
+      require('./models/UserAssignment');
+      require('./models/UserMyEvent');
+      console.log('✅ Models loaded (database connection disabled)');
+    } catch (error) {
+      console.error('❌ Error loading models:', error.message);
+    }
+  });
 
 const PORT = process.env.PORT || 3001;
 
