@@ -83,7 +83,7 @@ const inviteUser = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-  console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
+  
 };
 
 const getAllUsers = async (req, res) => {
