@@ -14,12 +14,12 @@ const AuthPage = () => {
 
   const handleLoginSuccess = (result) => {
     // Redirect to events page after successful login
-    navigate('/events');
+    navigate('/dashboard');
   };
 
   const handleRegisterSuccess = (result) => {
     // Redirect to events page after successful registration
-    navigate('/events');
+    navigate('/dashboard');
   };
 
   const handleResetSuccess = (result) => {

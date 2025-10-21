@@ -246,6 +246,10 @@ export const getMyEvents = () => {
   return api.get('/users/my-events');
 };
 
+export const getMyCreatedEvents = (params = {}) => {
+  return api.get('/users/my-created-events', { params });
+};
+
 export const addToMyEvents = (eventId) => {
   return api.post('/users/my-events', { eventId });
 };
