@@ -311,11 +311,13 @@ const MyEventsBoard = () => {
   }
 
   return (
-    <Card sx={{ mb: 4 }}>
+    <Card sx={{ mb: 4, sm: { p: 2 } }}>
       <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 2, sm: 0 } }}>
           <Typography variant="h6" fontWeight={700} color="primary.main">
-            📋 My Events Board
+            <Tooltip title="Your Events">
+              <span>📋 My Events Board</span>
+            </Tooltip>
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
             {(isOperationsManager || isAdmin) && (
@@ -340,7 +342,12 @@ const MyEventsBoard = () => {
             </Button>
           </Box>
         </Box>
-
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            Your personal events board contains events you've created and events you've added to your board.<br></br>
+            Add events you're working on to keep them easily accessible.
+          </Typography>
+        </Box>
         <Tabs 
           value={activeTab} 
           onChange={(e, newValue) => setActiveTab(newValue)}

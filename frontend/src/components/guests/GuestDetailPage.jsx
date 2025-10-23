@@ -46,6 +46,17 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api, { undoCheckin, updateCheckinGifts } from '../../services/api';
 import MainLayout from '../layout/MainLayout';
 
+// Undo reason options - these map to string values sent to backend
+const UNDO_REASONS = [
+    { value: 'duplicate_checkin', label: 'Duplicate Check-in' },
+    { value: 'wrong_guest', label: 'Wrong Guest' },
+    { value: 'incorrect_gifts', label: 'Incorrect Gifts Distributed' },
+    { value: 'guest_cancelled', label: 'Guest Cancelled' },
+    { value: 'system_error', label: 'System Error' },
+    { value: 'staff_mistake', label: 'Staff Mistake' },
+    { value: 'other', label: 'Other' }
+];
+
 export default function GuestDetailPage() {
     const { eventId, guestId } = useParams();
     const navigate = useNavigate();
@@ -67,6 +78,8 @@ export default function GuestDetailPage() {
     const [giftModificationDialogOpen, setGiftModificationDialogOpen] = useState(false);
     const [selectedCheckin, setSelectedCheckin] = useState(null);
     const [undoReason, setUndoReason] = useState('');
+    const [selectedUndoReason, setSelectedUndoReason] = useState('');
+    const [customUndoReason, setCustomUndoReason] = useState('');
     const [giftModificationReason, setGiftModificationReason] = useState('');
     const [availableInventory, setAvailableInventory] = useState([]);
     const [modifiedGifts, setModifiedGifts] = useState([]);
@@ -165,14 +178,23 @@ export default function GuestDetailPage() {
         
         try {
             setUndoLoading(true);
+            
+            // Determine the final reason to send to backend
+            let finalReason = selectedUndoReason;
+            if (selectedUndoReason === 'other' && customUndoReason.trim()) {
+                finalReason = customUndoReason.trim();
+            }
+            
             // Pass additional data to help backend find the correct checkin
-            await undoCheckin(selectedCheckin._id, undoReason, guestId, selectedCheckin.eventId._id);
+            await undoCheckin(selectedCheckin._id, finalReason, guestId, selectedCheckin.eventId._id);
             
             // Refresh guest data to reflect the deleted check-in
             const guestResponse = await api.get(`/guests/${guestId}`);
             setGuest(guestResponse.data);
             
             setUndoDialogOpen(false);
+            setSelectedUndoReason('');
+            setCustomUndoReason('');
             setUndoReason('');
             setSelectedCheckin(null);
             setError(''); // Clear any previous errors
@@ -768,33 +790,61 @@ export default function GuestDetailPage() {
                     </Stack>
 
                     {/* Undo Check-in Dialog */}
-                    <Dialog open={undoDialogOpen} onClose={() => setUndoDialogOpen(false)} maxWidth="sm" fullWidth>
+                    <Dialog open={undoDialogOpen} onClose={() => {
+                        setUndoDialogOpen(false);
+                        setSelectedUndoReason('');
+                        setCustomUndoReason('');
+                        setUndoReason('');
+                    }} maxWidth="sm" fullWidth>
                         <DialogTitle>Undo Check-in</DialogTitle>
                         <DialogContent>
                             <Typography variant="body2" sx={{ mb: 2 }}>
                                 Are you sure you want to undo the check-in for {selectedCheckin?.eventId?.eventName || 'this event'}? 
                                 This will restore any distributed gifts to inventory.
                             </Typography>
-                            <TextField
-                                fullWidth
-                                label="Reason for undoing check-in"
-                                value={undoReason}
-                                onChange={(e) => setUndoReason(e.target.value)}
-                                multiline
-                                rows={3}
-                                placeholder="Enter a reason for undoing this check-in..."
-                                required
-                            />
+                            
+                            <FormControl fullWidth sx={{ mb: 2 }}>
+                                <InputLabel>Reason for undoing check-in</InputLabel>
+                                <Select
+                                    value={selectedUndoReason}
+                                    onChange={(e) => setSelectedUndoReason(e.target.value)}
+                                    label="Reason for undoing check-in"
+                                >
+                                    {UNDO_REASONS.map((reason) => (
+                                        <MenuItem key={reason.value} value={reason.value}>
+                                            {reason.label}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                            
+                            {selectedUndoReason === 'other' && (
+                                <TextField
+                                    fullWidth
+                                    label="Please specify the reason"
+                                    value={customUndoReason}
+                                    onChange={(e) => setCustomUndoReason(e.target.value)}
+                                    multiline
+                                    rows={2}
+                                    placeholder="Enter the specific reason..."
+                                    required
+                                />
+                            )}
                         </DialogContent>
                         <DialogActions>
-                            <Button onClick={() => setUndoDialogOpen(false)} disabled={undoLoading}>
+                            <Button onClick={() => {
+                                setUndoDialogOpen(false);
+                                setSelectedUndoReason('');
+                                setCustomUndoReason('');
+                                setUndoReason('');
+                            }} disabled={undoLoading}>
                                 Cancel
                             </Button>
                             <Button 
                                 onClick={handleUndoCheckin} 
                                 color="warning" 
                                 variant="contained"
-                                disabled={undoLoading || !undoReason.trim()}
+                                disabled={undoLoading || !selectedUndoReason || (selectedUndoReason === 'other' && !customUndoReason.trim())}
                                 startIcon={undoLoading ? <CircularProgress size={20} /> : <Undo />}
                             >
                                 {undoLoading ? 'Undoing...' : 'Undo Check-in'}
