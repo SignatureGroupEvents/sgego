@@ -7,7 +7,8 @@ const {
   deleteEvent,
   deleteSecondaryEvent,
   getEventAnalytics,
-  getEventInventory
+  getEventInventory,
+  checkContractAvailability
 } = require('../controllers/eventController');
 const { protect, requireOperationsOrAdmin } = require('../middleware/auth');
 
@@ -26,6 +27,7 @@ router.use(protect);
 
 // View routes - allow all authenticated users (including staff)
 router.get('/', getEvents);
+router.get('/check-contract/:contractNumber', checkContractAvailability);
 router.get('/:id', getEvent);
 router.get('/:id/analytics', getEventAnalytics);
 router.get('/:id/inventory', getEventInventory);

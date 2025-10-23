@@ -39,7 +39,19 @@ import EventIcon from '@mui/icons-material/Event';
 const stepValidationSchemas = [
   Yup.object({
     eventName: Yup.string().required('Event name is required'),
-    eventContractNumber: Yup.string().required('Contract number is required'),
+    eventContractNumber: Yup.string()
+      .required('Contract number is required')
+      .test('contract-uniqueness', 'Contract number is already in use', async function(value) {
+        if (!value) return true; // Let required validation handle empty values
+        
+        try {
+          const response = await api.get(`/events/check-contract/${encodeURIComponent(value)}`);
+          return response.data.available;
+        } catch (error) {
+          // If API call fails, don't block the form - let server handle it
+          return true;
+        }
+      }),
     eventStart: Yup.string().required('Event start date is required'),
   }),
   Yup.object({}), // Tags & Types step - no validation required
@@ -190,8 +202,12 @@ const CreateEvent = () => {
                           Contract Number <span style={{ color: 'red' }}>*</span>
                         </span>
                       }
-                      helperText="Unique identifier for this event"
                       error={touched.eventContractNumber && !!errors.eventContractNumber}
+                      helperText={
+                        touched.eventContractNumber && errors.eventContractNumber 
+                          ? errors.eventContractNumber 
+                          : "Unique identifier for this event"
+                      }
                     />
                   )}
                 </Field>

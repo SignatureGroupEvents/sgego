@@ -56,6 +56,19 @@ exports.createEvent = async (req, res) => {
       eventData.isMainEvent = false;
       // Secondary events use the same contract number as parent
       eventData.eventContractNumber = parentEvent.eventContractNumber;
+    } else {
+      // For main events, check if contract number is already in use
+      const existingEvent = await Event.findOne({ 
+        eventContractNumber: eventContractNumber.toUpperCase(),
+        isMainEvent: true,
+        isActive: true
+      });
+      
+      if (existingEvent) {
+        return res.status(400).json({ 
+          message: `Contract number "${eventContractNumber}" is already in use by event "${existingEvent.eventName}". Please use a different contract number.` 
+        });
+      }
     }
 
     const event = await Event.create(eventData);
@@ -542,6 +555,34 @@ exports.getEventInventory = async (req, res) => {
         name: event.eventName,
         contractNumber: event.eventContractNumber
       }
+    });
+
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Check if contract number is available for main events
+exports.checkContractAvailability = async (req, res) => {
+  try {
+    const { contractNumber } = req.params;
+    
+    if (!contractNumber) {
+      return res.status(400).json({ message: 'Contract number is required' });
+    }
+
+    // Check if contract number is already in use by a main event
+    const existingEvent = await Event.findOne({ 
+      eventContractNumber: contractNumber.toUpperCase(),
+      isMainEvent: true,
+      isActive: true
+    });
+
+    res.json({
+      available: !existingEvent,
+      message: existingEvent 
+        ? `Contract number "${contractNumber}" is already in use by event "${existingEvent.eventName}"`
+        : `Contract number "${contractNumber}" is available`
     });
 
   } catch (error) {
