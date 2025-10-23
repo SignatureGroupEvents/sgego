@@ -321,11 +321,11 @@ const MyEventsBoard = () => {
             {(isOperationsManager || isAdmin) && (
               <Button
                 variant="contained"
-                color="success"
+                color="info"
                 startIcon={<EventIcon />}
                 onClick={() => navigate('/events/new')}
                 size="small"
-                sx={{ fontWeight: 600 }}
+                sx={{ fontWeight: 600, bgcolor: 'info.main', '&:hover': { bgcolor: 'info.main' } }}
               >
                 Create New Event
               </Button>
