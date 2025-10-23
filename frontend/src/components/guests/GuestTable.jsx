@@ -287,10 +287,9 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
   // Determine which events to show based on current view
   const getEventsToDisplay = () => {
     if (event?.isMainEvent) {
-      // Main event view: show all events (main + secondary)
-      const mainEvent = event;
+      // Main event view: only show secondary events if they exist, otherwise show main event
       const secondaryEvents = event?.secondaryEvents || [];
-      return [mainEvent, ...secondaryEvents];
+      return secondaryEvents.length > 0 ? secondaryEvents : [event];
     } else {
       // Secondary event view: show only this event
       return [event];

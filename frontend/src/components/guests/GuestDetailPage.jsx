@@ -604,9 +604,10 @@ export default function GuestDetailPage() {
                                     </Typography>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         {(() => {
-                                            // Calculate check-in status like the guest table
-                                            const totalEvents = event?.isMainEvent ? 
-                                                (1 + (event.secondaryEvents?.length || 0)) : 1;
+                                            // Calculate check-in status - exclude main events when secondary events exist
+                                            const hasSecondaryEvents = event?.secondaryEvents && event.secondaryEvents.length > 0;
+                                            const eventsToCheck = hasSecondaryEvents ? event.secondaryEvents : [event];
+                                            const totalEvents = eventsToCheck.length;
                                             const checkedInEvents = guest.eventCheckins?.length || 0;
                                             const isFullyCheckedIn = checkedInEvents >= totalEvents;
                                             const isPartiallyCheckedIn = checkedInEvents > 0 && checkedInEvents < totalEvents;

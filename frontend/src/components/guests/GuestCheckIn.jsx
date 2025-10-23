@@ -177,8 +177,13 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
       let response;
       
       if (context.checkinMode === 'multi') {
-        // Multi-event check-in
-        const checkins = context.availableEvents.map(ev => ({
+        // Multi-event check-in - filter out main events if secondary events exist
+        const hasSecondaryEvents = context.availableEvents.some(ev => !ev.isMainEvent);
+        const eventsToCheckIn = hasSecondaryEvents 
+          ? context.availableEvents.filter(ev => !ev.isMainEvent)
+          : context.availableEvents;
+          
+        const checkins = eventsToCheckIn.map(ev => ({
           eventId: ev._id,
           selectedGifts: giftSelections[ev._id] ? [giftSelections[ev._id]] : []
         }));
@@ -313,7 +318,14 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
             <Typography variant="subtitle1" gutterBottom>
               Select Gifts:
             </Typography>
-            {context.availableEvents.map(ev => {
+            {/* Filter out main events if secondary events exist */}
+            {(() => {
+              const hasSecondaryEvents = context.availableEvents.some(ev => !ev.isMainEvent);
+              const eventsToShow = hasSecondaryEvents 
+                ? context.availableEvents.filter(ev => !ev.isMainEvent)
+                : context.availableEvents;
+              
+              return eventsToShow.map(ev => {
               const currentSelection = giftSelections[ev._id]?.inventoryId || '';
               console.log(`Rendering dropdown for ${ev.eventName} (${ev._id}):`, {
                 currentSelection,
@@ -354,7 +366,8 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
                   </FormControl>
                 </Box>
               );
-            })}
+              });
+            })()}
           </Box>
           
           <Button 
