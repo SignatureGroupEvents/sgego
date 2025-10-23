@@ -11,6 +11,7 @@ const routeNameMap = {
   'details': 'Details',
   'upload': 'Upload Guests',
   'edit': 'Edit',
+  'archived': 'Archived Events',
 };
 
 function getBreadcrumbs(location, params, extra) {
@@ -38,6 +39,7 @@ const MAIN_PAGES = [
   '/analytics',
   '/inventory',
   '/dashboard/advanced',
+  '/events/archived',
 ];
 
 const BreadcrumbsNav = ({ eventName, userName, parentEventName, parentEventId }) => {
@@ -107,7 +109,9 @@ const BreadcrumbsNav = ({ eventName, userName, parentEventName, parentEventId })
   if (
     pathnames[0] === 'events' && pathnames[1] && pathnames.length >= 3
   ) {
-    const eventLabel = eventName || 'Loading Event...';
+    let eventLabel = eventName || 'Loading Event...';
+    if (pathnames[1] === 'archived') eventLabel = 'Archived Events';
+    if (pathnames[1] === 'new') eventLabel = 'New Event';
     const eventId = params.eventId || pathnames[1];
     let subpageIdx = 2;
     if (pathnames[2] === 'dashboard' && pathnames.length > 3) subpageIdx = 3;

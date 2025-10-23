@@ -254,7 +254,7 @@ const EventsList = () => {
 
   const handleStatusChange = async (newStatus) => {
     if (!selectedEventForMenu) return;
-    
+
     try {
       await updateEventStatus(selectedEventForMenu._id, newStatus);
       // Refresh events based on the new status
@@ -269,7 +269,7 @@ const EventsList = () => {
 
   const handleArchiveEvent = async () => {
     if (!selectedEventForMenu) return;
-    
+
     try {
       await archiveEvent(selectedEventForMenu._id);
       // Refresh events based on current tab
@@ -342,27 +342,15 @@ const EventsList = () => {
           Events
         </Typography>
         <Typography variant="subtitle1" color="text.secondary">
-          Manage and view all your events
+          Manage and view all events.
         </Typography>
-        <Button
-        Variant='outlined'
-        startIcon={<ArchiveIcon fontSize="small" />}
-        onClick={() => navigate('/events/archived')}
-        onClickONce
-        sx={{
-          borderRadius: 2,
-          fontWeight: 600,
-          minWidth: { xs: '100%', sm: 'auto' }
-        }}
-        >
-          View Archived Events
-        </Button>
+
       </Box>
 
       {/* Tabs */}
       <Box sx={{ mb: 3 }}>
-        <Tabs 
-          value={activeTab} 
+        <Tabs
+          value={activeTab}
           onChange={handleTabChange}
           sx={{
             '& .MuiTab-root': {
@@ -372,13 +360,17 @@ const EventsList = () => {
             }
           }}
         >
-          <Tab 
-            label="Active Events" 
+          <Tab
+            label={<Tooltip title="Events that are currently active">
+              <span>Active Events</span>
+            </Tooltip>}
             icon={<EventIcon />}
             iconPosition="start"
           />
-          <Tab 
-            label="Closed Events" 
+          <Tab
+            label={<Tooltip title="Events that are closed">
+              <span>Closed Events</span>
+            </Tooltip>}
             icon={<CloseIcon />}
             iconPosition="start"
           />
@@ -423,7 +415,9 @@ const EventsList = () => {
               minWidth: { xs: '100%', sm: 'auto' }
             }}
           >
-            Create Event
+            <Tooltip title="Create a new event">
+              <span>Create Event</span>
+            </Tooltip>
           </Button>
         )}
       </Box>
@@ -629,6 +623,25 @@ const EventsList = () => {
               />
             </Box>
           )}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 2 }}>
+          <Button
+            Variant='outlined'
+            color='inherit'
+            size='small'
+            sx={{
+              borderRadius: 2,
+              fontWeight: 600,
+              minWidth: { xs: '100%', sm: 'auto' }
+            }}
+            startIcon={<ArchiveIcon fontSize="small" />}
+            onClick={() => navigate('/events/archived')}
+            onClickOnce
+          >
+            <Tooltip title="Events that are archived">
+              <span>View Archived Events</span>
+            </Tooltip>
+          </Button>
+          </Box>
         </Paper>
       )}
 
