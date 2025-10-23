@@ -39,10 +39,21 @@ import EventIcon from '@mui/icons-material/Event';
 const stepValidationSchemas = [
   Yup.object({
     eventName: Yup.string().required('Event name is required'),
-    eventContractNumber: Yup.string().required('Contract number is required'),
+    eventContractNumber: Yup.string()
+      .required('Contract number is required')
+      .test('contract-uniqueness', 'Contract number is already in use', async function(value) {
+        if (!value) return true; // Let required validation handle empty values
+        
+        try {
+          const response = await api.get(`/events/check-contract/${encodeURIComponent(value)}`);
+          return response.data.available;
+        } catch (error) {
+          // If API call fails, don't block the form - let server handle it
+          return true;
+        }
+      }),
     eventStart: Yup.string().required('Event start date is required'),
   }),
-  Yup.object({}), // Tags & Types step - no validation required
   Yup.object({}), // Gift Settings step - no validation required
   Yup.object({})  // Confirmation step - no validation required
 ];
@@ -65,7 +76,7 @@ const CreateEvent = () => {
     );
   }
 
-  const steps = ['Basic Info', 'Tags & Types', 'Gift Settings', 'Confirmation'];
+  const steps = ['Basic Info', 'Gift Settings', 'Confirmation'];
 
   const initialValues = {
     eventName: '',
@@ -74,15 +85,6 @@ const CreateEvent = () => {
     eventEnd: '',
     includeStyles: false,
     allowMultipleGifts: false,
-    availableTags: [],
-    attendeeTypes: [],
-    // Temp fields for adding tags/types
-    currentTagName: '',
-    currentTagColor: '#1976d2',
-    currentTagDescription: '',
-    currentTypeName: '',
-    currentTypeDescription: '',
-    currentTypeIsDefault: false,
   };
 
   const handleSubmit = async (values) => {
@@ -90,18 +92,7 @@ const CreateEvent = () => {
     setError('');
 
     try {
-      // Clean up the values - remove the temp fields
-      const {
-        currentTagName,
-        currentTagColor,
-        currentTagDescription,
-        currentTypeName,
-        currentTypeDescription,
-        currentTypeIsDefault,
-        ...submitData
-      } = values;
-
-      await api.post('/events', submitData);
+      await api.post('/events', values);
       navigate('/events');
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to create event');
@@ -110,43 +101,6 @@ const CreateEvent = () => {
     setLoading(false);
   };
 
-  const addTag = (values, setFieldValue) => {
-    if (values.currentTagName.trim()) {
-      const newTag = {
-        name: values.currentTagName,
-        color: values.currentTagColor,
-        description: values.currentTagDescription
-      };
-
-      setFieldValue('availableTags', [...values.availableTags, newTag]);
-      setFieldValue('currentTagName', '');
-      setFieldValue('currentTagColor', '#1976d2');
-      setFieldValue('currentTagDescription', '');
-    }
-  };
-
-  const removeTag = (index, values, setFieldValue) => {
-    setFieldValue('availableTags', values.availableTags.filter((_, i) => i !== index));
-  };
-
-  const addAttendeeType = (values, setFieldValue) => {
-    if (values.currentTypeName.trim()) {
-      const newType = {
-        name: values.currentTypeName,
-        description: values.currentTypeDescription,
-        isDefault: values.currentTypeIsDefault
-      };
-
-      setFieldValue('attendeeTypes', [...values.attendeeTypes, newType]);
-      setFieldValue('currentTypeName', '');
-      setFieldValue('currentTypeDescription', '');
-      setFieldValue('currentTypeIsDefault', false);
-    }
-  };
-
-  const removeAttendeeType = (index, values, setFieldValue) => {
-    setFieldValue('attendeeTypes', values.attendeeTypes.filter((_, i) => i !== index));
-  };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Not specified';
@@ -168,8 +122,11 @@ const CreateEvent = () => {
                     <TextField
                       {...field}
                       fullWidth
-                      label="Event Name"
-                      required
+                      label={
+                        <span>
+                          Event Name <span style={{ color: 'red' }}>*</span>
+                        </span>
+                      }
                       error={touched.eventName && !!errors.eventName}
                       helperText={touched.eventName && errors.eventName}
                     />
@@ -182,10 +139,17 @@ const CreateEvent = () => {
                     <TextField
                       {...field}
                       fullWidth
-                      label="Contract Number"
-                      required
-                      helperText="Unique identifier for this event"
+                      label={
+                        <span>
+                          Contract Number <span style={{ color: 'red' }}>*</span>
+                        </span>
+                      }
                       error={touched.eventContractNumber && !!errors.eventContractNumber}
+                      helperText={
+                        touched.eventContractNumber && errors.eventContractNumber 
+                          ? errors.eventContractNumber 
+                          : "Unique identifier for this event"
+                      }
                     />
                   )}
                 </Field>
@@ -196,9 +160,12 @@ const CreateEvent = () => {
                     <TextField
                       {...field}
                       fullWidth
-                      label="Event Date"
+                      label={
+                        <span>
+                          Event Date <span style={{ color: 'red' }}>*</span>
+                        </span>
+                      }
                       type="date"
-                      required
                       InputLabelProps={{ shrink: true }}
                       error={touched.eventStart && !!errors.eventStart}
                       helperText={touched.eventStart && errors.eventStart}
@@ -227,169 +194,7 @@ const CreateEvent = () => {
         return (
           <Box>
             <Typography variant="h6" gutterBottom>
-              Tags & Attendee Types
-            </Typography>
-
-            {/* Tags Section */}
-            <Card sx={{ mb: 3 }}>
-              <CardContent>
-                <Typography variant="subtitle1" gutterBottom>
-                  Event Tags
-                </Typography>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid xs={12}>
-                    <Field name="currentTagName">
-                      {({ field }) => (
-                        <TextField
-                          {...field}
-                          fullWidth
-                          label="Tag Name"
-                        />
-                      )}
-                    </Field>
-                  </Grid>
-                  <Grid xs={12} md={3}>
-                    <Field name="currentTagColor">
-                      {({ field }) => (
-                        <TextField
-                          {...field}
-                          fullWidth
-                          label="Color"
-                          type="color"
-                        />
-                      )}
-                    </Field>
-                  </Grid>
-                  <Grid xs={12} md={3}>
-                    <Field name="currentTagDescription">
-                      {({ field }) => (
-                        <TextField
-                          {...field}
-                          fullWidth
-                          label="Description"
-                        />
-                      )}
-                    </Field>
-                  </Grid>
-                  <Grid xs={12} md={3}>
-                    <Button
-                      variant="outlined"
-                      startIcon={<AddIcon />}
-                      onClick={() => addTag(values, setFieldValue)}
-                      sx={{ height: 56 }}
-                    >
-                      Add Tag
-                    </Button>
-                  </Grid>
-                </Grid>
-
-                {/* Display existing tags */}
-                {values.availableTags.length > 0 && (
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="body2" gutterBottom>
-                      Current Tags:
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      {values.availableTags.map((tag, index) => (
-                        <Chip
-                          key={index}
-                          label={tag.name}
-                          onDelete={() => removeTag(index, values, setFieldValue)}
-                          sx={{ backgroundColor: tag.color, color: 'white' }}
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Attendee Types Section */}
-            <Card>
-              <CardContent>
-                <Typography variant="subtitle1" gutterBottom>
-                  Attendee Types
-                </Typography>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid xs={12} md={4}>
-                    <Field name="currentTypeName">
-                      {({ field }) => (
-                        <TextField
-                          {...field}
-                          fullWidth
-                          label="Type Name"
-                        />
-                      )}
-                    </Field>
-                  </Grid>
-                  <Grid xs={12} md={4}>
-                    <Field name="currentTypeDescription">
-                      {({ field }) => (
-                        <TextField
-                          {...field}
-                          fullWidth
-                          label="Description"
-                        />
-                      )}
-                    </Field>
-                  </Grid>
-                  <Grid xs={12} md={2}>
-                    <Field name="currentTypeIsDefault">
-                      {({ field }) => (
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={field.value}
-                              onChange={field.onChange}
-                              name={field.name}
-                            />
-                          }
-                          label="Default"
-                        />
-                      )}
-                    </Field>
-                  </Grid>
-                  <Grid xs={12} md={2}>
-                    <Button
-                      variant="outlined"
-                      startIcon={<AddIcon />}
-                      onClick={() => addAttendeeType(values, setFieldValue)}
-                      sx={{ height: 56 }}
-                    >
-                      Add Type
-                    </Button>
-                  </Grid>
-                </Grid>
-
-                {/* Display existing types */}
-                {values.attendeeTypes.length > 0 && (
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="body2" gutterBottom>
-                      Current Types:
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      {values.attendeeTypes.map((type, index) => (
-                        <Chip
-                          key={index}
-                          label={`${type.name}${type.isDefault ? ' (Default)' : ''}`}
-                          onDelete={() => removeAttendeeType(index, values, setFieldValue)}
-                          color="primary"
-                          variant="outlined"
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-          </Box>
-        );
-
-      case 2:
-        return (
-          <Box>
-            <Typography variant="h6" gutterBottom>
-              Gift Settings
+              Gift Selection Settings
             </Typography>
             <Grid container spacing={2}>
               <Grid xs={12}>
@@ -398,15 +203,16 @@ const CreateEvent = () => {
                     <Field name="includeStyles">
                       {({ field }) => (
                         <Switch
-                          checked={field.value}
-                          onChange={field.onChange}
-                          name={field.name}
+                        checked={field.value}
+                        onChange={field.onChange}
+                        name={field.name}
                         />
                       )}
                     </Field>
                   }
                   label="Include style selection for gifts"
                 />
+                <Typography variant="body2" color="text.secondary">This allows your to staff to select all information for the gift, if not selected, the staff will only be able to select the gift type.</Typography>
               </Grid>
               <Grid xs={12}>
                 <FormControlLabel
@@ -423,12 +229,13 @@ const CreateEvent = () => {
                   }
                   label="Allow multiple gift selection"
                 />
+                <Typography variant="body2" color="text.secondary">This allows your to staff to select multiple gifts for the same guest.</Typography>
               </Grid>
             </Grid>
           </Box>
         );
 
-      case 3:
+      case 2:
         return (
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
@@ -466,55 +273,6 @@ const CreateEvent = () => {
                     <Typography variant="body1" fontWeight={500}>{formatDate(values.eventEnd)}</Typography>
                   </Grid>
                 </Grid>
-              </CardContent>
-            </Card>
-
-            {/* Tags */}
-            <Card sx={{ mb: 2 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom color="primary">
-                  Event Tags
-                </Typography>
-                {values.availableTags.length > 0 ? (
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {values.availableTags.map((tag, index) => (
-                      <Chip
-                        key={index}
-                        label={tag.name}
-                        sx={{ backgroundColor: tag.color, color: 'white' }}
-                      />
-                    ))}
-                  </Box>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No tags configured
-                  </Typography>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Attendee Types */}
-            <Card sx={{ mb: 2 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom color="primary">
-                  Attendee Types
-                </Typography>
-                {values.attendeeTypes.length > 0 ? (
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {values.attendeeTypes.map((type, index) => (
-                      <Chip
-                        key={index}
-                        label={`${type.name}${type.isDefault ? ' (Default)' : ''}`}
-                        color="primary"
-                        variant="outlined"
-                      />
-                    ))}
-                  </Box>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No attendee types configured
-                  </Typography>
-                )}
               </CardContent>
             </Card>
 
@@ -566,7 +324,7 @@ const CreateEvent = () => {
             </Typography>
           </Box>
           <Typography variant="subtitle1" color="text.secondary">
-            Set up a new event with all the details
+            Set up a new event
           </Typography>
         </Box>
 
@@ -601,11 +359,9 @@ const CreateEvent = () => {
                   switch (activeStep) {
                     case 0: // Basic Info
                       return ['eventName', 'eventContractNumber', 'eventStart'].includes(key);
-                    case 1: // Tags & Types
+                    case 1: // Gift Settings
                       return false; // No validation required
-                    case 2: // Gift Settings
-                      return false; // No validation required
-                    case 3: // Confirmation
+                    case 2: // Confirmation
                       return false; // No validation required
                     default:
                       return false;

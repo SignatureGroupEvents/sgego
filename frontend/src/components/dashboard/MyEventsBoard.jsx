@@ -41,11 +41,14 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { getMyEvents, getMyCreatedEvents, addToMyEvents, removeFromMyEvents } from '../../services/api';
 import { getEvents } from '../../services/events';
+import { usePermissions } from '../../hooks/usePermissions';
 import toast from 'react-hot-toast';
 import AvatarIcon from './AvatarIcon';
 
+
 const MyEventsBoard = () => {
   const navigate = useNavigate();
+  const { isOperationsManager, isAdmin } = usePermissions();
   
   // State management
   const [activeTab, setActiveTab] = useState(0);
@@ -314,14 +317,28 @@ const MyEventsBoard = () => {
           <Typography variant="h6" fontWeight={700} color="primary.main">
             📋 My Events Board
           </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setAddDialogOpen(true)}
-            size="small"
-          >
-            Add Event To My Board
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {(isOperationsManager || isAdmin) && (
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={<EventIcon />}
+                onClick={() => navigate('/events/new')}
+                size="small"
+                sx={{ fontWeight: 600 }}
+              >
+                Create New Event
+              </Button>
+            )}
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setAddDialogOpen(true)}
+              size="small"
+            >
+              Add Event To My Board
+            </Button>
+          </Box>
         </Box>
 
         <Tabs 
