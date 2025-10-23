@@ -8,7 +8,10 @@ const {
   deleteSecondaryEvent,
   getEventAnalytics,
   getEventInventory,
-  checkContractAvailability
+  checkContractAvailability,
+  archiveEvent,
+  unarchiveEvent,
+  updateEventStatus
 } = require('../controllers/eventController');
 const { protect, requireOperationsOrAdmin } = require('../middleware/auth');
 
@@ -35,6 +38,9 @@ router.get('/:id/inventory', getEventInventory);
 // Modification routes - restrict to operations manager and admin
 router.post('/', requireOperationsOrAdmin, createEvent);
 router.put('/:id', requireOperationsOrAdmin, updateEvent);
+router.put('/:id/status', requireOperationsOrAdmin, updateEventStatus);
+router.put('/:id/archive', requireOperationsOrAdmin, archiveEvent);
+router.put('/:id/unarchive', requireOperationsOrAdmin, unarchiveEvent);
 router.delete('/:id', requireOperationsOrAdmin, deleteEvent);
 router.delete('/:id/secondary', requireOperationsOrAdmin, deleteSecondaryEvent);
 

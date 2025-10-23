@@ -19,7 +19,8 @@ import {
   Logout as LogoutIcon,
   ExpandLess,
   ExpandMore,
-  List as ListIcon
+  List as ListIcon,
+  Archive as ArchiveIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -97,6 +98,12 @@ const MainNavigation = () => {
           <List component="div" disablePadding>
             <ListItemButton sx={{ pl: 4 }} selected={location.pathname === '/events'} onClick={() => navigate('/events')}>
               <ListItemText primary="Events List" />
+            </ListItemButton>
+            <ListItemButton sx={{ pl: 4 }} selected={location.pathname === '/events/archived'} onClick={() => navigate('/events/archived')}>
+              <ListItemIcon>
+                <ArchiveIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary="Archived Events" />
             </ListItemButton>
             <ListItemButton sx={{ pl: 4 }} selected={location.pathname.includes('/inventory')} onClick={() => navigate('/events/:id/inventory')}>
               <ListItemText primary="Inventory" />

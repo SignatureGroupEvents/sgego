@@ -1,5 +1,4 @@
-//Events List is the main page for the events list - this is the page that shows all the events that the user has access to 
-// and allows them to create new events and view event details. This page also allows the user to sort and filter the events.
+// ArchivedEventsList component for viewing archived events
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -25,18 +24,14 @@ import {
   Card,
   CardContent,
   Skeleton,
-  Fade,
-  useForkRef,
   TextField,
-  Tabs,
-  Tab,
   Menu,
   MenuItem,
   ListItemIcon,
   ListItemText
 } from '@mui/material';
 import MainLayout from '../layout/MainLayout';
-import { getEvents, updateEventStatus, archiveEvent } from '../../services/events';
+import { getArchivedEvents, unarchiveEvent } from '../../services/events';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useAuth } from '../../contexts/AuthContext';
@@ -46,19 +41,11 @@ import {
   ExpandMore,
   ExpandLess,
   Search as SearchIcon,
-  CardGiftcard as GiftIcon,
-  CheckCircle as CheckCircleIcon,
-  Style as StyleIcon,
   Add as AddIcon,
   Event as EventIcon,
-  CalendarToday as CalendarIcon,
-  Business as BusinessIcon,
-  Info as InfoIcon,
-  MoreVert as MoreVertIcon,
-  Archive as ArchiveIcon,
   Unarchive as UnarchiveIcon,
-  Close as CloseIcon,
-  PlayArrow as PlayArrowIcon
+  MoreVert as MoreVertIcon,
+  Archive as ArchiveIcon
 } from '@mui/icons-material';
 
 // Sorting function
@@ -79,6 +66,10 @@ const sortEvents = (events, sortBy, sortOrder) => {
         aValue = a.eventContractNumber?.toLowerCase() || '';
         bValue = b.eventContractNumber?.toLowerCase() || '';
         break;
+      case 'archivedAt':
+        aValue = new Date(a.archivedAt || 0);
+        bValue = new Date(b.archivedAt || 0);
+        break;
       default:
         return 0;
     }
@@ -90,7 +81,7 @@ const sortEvents = (events, sortBy, sortOrder) => {
 };
 
 // Loading skeleton for table rows
-const TableRowSkeleton = ({ columns = 7 }) => (
+const TableRowSkeleton = ({ columns = 8 }) => (
   <TableRow>
     {Array.from({ length: columns }).map((_, index) => (
       <TableCell key={index}>
@@ -101,36 +92,24 @@ const TableRowSkeleton = ({ columns = 7 }) => (
 );
 
 // Empty state component
-const EmptyState = ({ searchTerm, onCreateEvent, canModifyEvents }) => (
+const EmptyState = ({ searchTerm }) => (
   <Card sx={{ textAlign: 'center', py: 6, px: 3 }}>
     <CardContent>
-      <EventIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
+      <ArchiveIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
       <Typography variant="h6" gutterBottom color="text.secondary">
-        {searchTerm ? 'No events found' : 'No events yet'}
+        {searchTerm ? 'No archived events found' : 'No archived events'}
       </Typography>
       <Typography variant="body2" color="text.secondary" paragraph>
         {searchTerm
-          ? `No events match "${searchTerm}". Try adjusting your search terms.`
-          : canModifyEvents
-            ? 'Get started by creating your first event.'
-            : 'No events are currently available for check-ins.'
+          ? `No archived events match "${searchTerm}". Try adjusting your search terms.`
+          : 'There are no archived events at this time.'
         }
       </Typography>
-      {!searchTerm && canModifyEvents && (
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={onCreateEvent}
-          sx={{ mt: 2 }}
-        >
-          Create Your First Event
-        </Button>
-      )}
     </CardContent>
   </Card>
 );
 
-const EventsList = () => {
+const ArchivedEventsList = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
@@ -141,45 +120,36 @@ const EventsList = () => {
   const [expanded, setExpanded] = useState({});
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState('eventStart');
+  const [sortBy, setSortBy] = useState('archivedAt');
   const [sortOrder, setSortOrder] = useState('desc');
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [activeTab, setActiveTab] = useState(0);
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedEventForMenu, setSelectedEventForMenu] = useState(null);
 
   const rowsPerPage = isMobile ? 5 : isTablet ? 8 : 10;
   const { isOperationsManager, isAdmin } = usePermissions();
-  const { user: currentUser } = useAuth(); // still valid for user info
+  const { user: currentUser } = useAuth();
   const navigate = useNavigate();
 
-  // Determine if user can create/modify events
+  // Determine if user can modify events
   const canModifyEvents = isOperationsManager || isAdmin;
-  // Staff can view all events but cannot modify them
-  const canViewEvents = isOperationsManager || isAdmin || currentUser?.role === 'staff';
 
   useEffect(() => {
-    const fetchAllEvents = async () => {
+    const fetchArchivedEvents = async () => {
       try {
         setLoading(true);
-        // For active tab (0), get only active events
-        // For closed tab (1), get only closed events
-        const status = activeTab === 0 ? 'active' : 'closed';
-        const res = await getEvents(status);
+        const res = await getArchivedEvents();
         let allEvents = res.events || res;
 
-        // Staff can view all events, but operations managers and admins can view all events
-        // The filtering for assigned events is no longer needed since staff should see all events
         setEvents(allEvents);
       } catch (err) {
-        console.error('Error fetching events:', err);
-        setError('Failed to load events');
+        setError('Failed to load archived events');
       } finally {
         setLoading(false);
       }
     };
-    fetchAllEvents();
-  }, [isOperationsManager, isAdmin, activeTab]);
+    fetchArchivedEvents();
+  }, [isOperationsManager, isAdmin]);
 
   // Filtering and search
   const filteredEvents = events.filter(ev => {
@@ -231,16 +201,6 @@ const EventsList = () => {
     }
   };
 
-  const handleCreateEvent = () => {
-    navigate('/events/new');
-  };
-
-  const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue);
-    setPage(1);
-    setSelectedEvent(null);
-  };
-
   const handleMenuOpen = (event, eventData) => {
     event.stopPropagation();
     setAnchorEl(event.currentTarget);
@@ -252,34 +212,17 @@ const EventsList = () => {
     setSelectedEventForMenu(null);
   };
 
-  const handleStatusChange = async (newStatus) => {
+  const handleUnarchiveEvent = async () => {
     if (!selectedEventForMenu) return;
     
     try {
-      await updateEventStatus(selectedEventForMenu._id, newStatus);
-      // Refresh events based on the new status
-      const res = await getEvents(newStatus);
+      await unarchiveEvent(selectedEventForMenu._id);
+      // Refresh events
+      const res = await getArchivedEvents();
       setEvents(res.events || res);
       handleMenuClose();
     } catch (error) {
-      console.error('Error updating event status:', error);
-      setError('Failed to update event status');
-    }
-  };
-
-  const handleArchiveEvent = async () => {
-    if (!selectedEventForMenu) return;
-    
-    try {
-      await archiveEvent(selectedEventForMenu._id);
-      // Refresh events based on current tab
-      const status = activeTab === 0 ? 'active' : 'closed';
-      const res = await getEvents(status);
-      setEvents(res.events || res);
-      handleMenuClose();
-    } catch (error) {
-      console.error('Error archiving event:', error);
-      setError('Failed to archive event');
+      setError('Failed to unarchive event');
     }
   };
 
@@ -307,9 +250,13 @@ const EventsList = () => {
                   <TableCell sx={{ fontWeight: 600 }}>Event Name</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Contract #</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Dates</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Archived Date</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 600 }}>Created By</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 600 }}>Secondary Events</TableCell>
+                  {canModifyEvents && (
+                    <TableCell align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
+                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -339,89 +286,37 @@ const EventsList = () => {
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
-          Events
+          Archived Events
         </Typography>
         <Typography variant="subtitle1" color="text.secondary">
-          Manage and view all your events
+          View and manage archived events
         </Typography>
       </Box>
 
-      {/* Tabs */}
+      {/* Search */}
       <Box sx={{ mb: 3 }}>
-        <Tabs 
-          value={activeTab} 
-          onChange={handleTabChange}
+        <TextField
+          fullWidth
+          placeholder="Search archived events by name or contract number..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
+            ),
+          }}
           sx={{
-            '& .MuiTab-root': {
-              textTransform: 'none',
-              fontWeight: 600,
-              minHeight: 48
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 2,
+              backgroundColor: 'background.paper',
             }
           }}
-        >
-          <Tab 
-            label="Active Events" 
-            icon={<EventIcon />}
-            iconPosition="start"
-          />
-          <Tab 
-            label="Closed Events" 
-            icon={<CloseIcon />}
-            iconPosition="start"
-          />
-        </Tabs>
-      </Box>
-
-      {/* Search and Create */}
-      <Box sx={{
-        display: 'flex',
-        flexDirection: { xs: 'column', sm: 'row' },
-        gap: 2,
-        mb: 3,
-        alignItems: { xs: 'stretch', sm: 'center' }
-      }}>
-        <Box sx={{ flex: 1, position: 'relative' }}>
-          <TextField
-            fullWidth
-            placeholder="Search events by name or contract number..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
-              ),
-            }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 2,
-                backgroundColor: 'background.paper',
-              }
-            }}
-          />
-        </Box>
-        {canModifyEvents && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateEvent}
-            sx={{
-              borderRadius: 2,
-              fontWeight: 600,
-              minWidth: { xs: '100%', sm: 'auto' }
-            }}
-          >
-            Create Event
-          </Button>
-        )}
+        />
       </Box>
 
       {/* Events Table */}
       {mainEvents.length === 0 ? (
-        <EmptyState
-          searchTerm={search}
-          onCreateEvent={handleCreateEvent}
-          canModifyEvents={canModifyEvents}
-        />
+        <EmptyState searchTerm={search} />
       ) : (
         <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
           <TableContainer>
@@ -459,7 +354,17 @@ const EventsList = () => {
                       Dates
                     </TableSortLabel>
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortBy === 'archivedAt'}
+                      direction={sortBy === 'archivedAt' ? sortOrder : 'asc'}
+                      onClick={() => handleSort('archivedAt')}
+                      sx={{ fontWeight: 600 }}
+                    >
+                      Archived Date
+                    </TableSortLabel>
+                  </TableCell>
                   <TableCell align="center" sx={{ fontWeight: 600 }}>Created By</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 600 }}>Secondary Events</TableCell>
                   {canModifyEvents && (
@@ -523,11 +428,16 @@ const EventsList = () => {
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={event.status || 'Active'}
+                            label={event.isMainEvent ? 'Main Event' : 'Secondary Event'}
                             size="small"
-                            color={event.status === 'closed' ? 'error' : event.status === 'active' ? 'success' : 'default'}
+                            color={event.isMainEvent ? 'primary' : 'secondary'}
                             sx={{ borderRadius: 1 }}
                           />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
+                            {event.archivedAt ? new Date(event.archivedAt).toLocaleDateString() : 'Unknown'}
+                          </Typography>
                         </TableCell>
                         <TableCell align="center">
                           <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
@@ -568,7 +478,7 @@ const EventsList = () => {
                       {/* Secondary Events */}
                       {isExpanded && hasSecondaryEvents && (
                         <TableRow>
-                          <TableCell colSpan={canModifyEvents ? 8 : 7} sx={{ p: 0, border: 0 }}>
+                          <TableCell colSpan={canModifyEvents ? 9 : 8} sx={{ p: 0, border: 0 }}>
                             <Box sx={{ pl: 4, pr: 2, py: 2, bgcolor: 'grey.50' }}>
                               <Typography variant="subtitle2" fontWeight={600} mb={2}>
                                 Secondary Events:
@@ -633,31 +543,15 @@ const EventsList = () => {
           horizontal: 'right',
         }}
       >
-        {selectedEventForMenu?.status === 'active' && (
-          <MenuItem onClick={() => handleStatusChange('closed')}>
-            <ListItemIcon>
-              <CloseIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Close Event</ListItemText>
-          </MenuItem>
-        )}
-        {selectedEventForMenu?.status === 'closed' && (
-          <MenuItem onClick={() => handleStatusChange('active')}>
-            <ListItemIcon>
-              <PlayArrowIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Reopen Event</ListItemText>
-          </MenuItem>
-        )}
-        <MenuItem onClick={handleArchiveEvent}>
+        <MenuItem onClick={handleUnarchiveEvent}>
           <ListItemIcon>
-            <ArchiveIcon fontSize="small" />
+            <UnarchiveIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Archive Event</ListItemText>
+          <ListItemText>Unarchive Event</ListItemText>
         </MenuItem>
       </Menu>
     </MainLayout>
   );
 };
 
-export default EventsList; 
+export default ArchivedEventsList;
