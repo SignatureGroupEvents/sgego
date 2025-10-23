@@ -54,6 +54,29 @@ const eventSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  status: {
+    type: String,
+    enum: ['active', 'closed', 'archived'],
+    default: 'active'
+  },
+  isArchived: {
+    type: Boolean,
+    default: false
+  },
+  archivedAt: {
+    type: Date
+  },
+  archivedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  unarchivedAt: {
+    type: Date
+  },
+  unarchivedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }
 }, {
   timestamps: true

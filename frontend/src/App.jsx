@@ -9,6 +9,7 @@ import theme from './styles/theme';
 // Components
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import EventsList from './components/Events/EventsList.jsx';
+import ArchivedEventsList from './components/Events/ArchivedEventsList.jsx';
 import CreateEvent from './components/Events/CreateEvent.jsx';
 import EventDetails from './components/Events/EventDetails.jsx';
 import UploadGuest from './components/guests/UploadGuest.jsx';
@@ -62,6 +63,11 @@ function App() {
             <Route path="/events" element={
               <ProtectedRoute>
                 <EventsList />
+              </ProtectedRoute>
+            } />
+            <Route path="/events/archived" element={
+              <ProtectedRoute>
+                <ArchivedEventsList />
               </ProtectedRoute>
             } />
             <Route path="/events/new" element={

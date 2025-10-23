@@ -3,11 +3,26 @@ const ActivityLog = require('../models/ActivityLog');
 
 exports.getEvents = async (req, res) => {
   try {
-    const { parentEventId } = req.query;
+    const { parentEventId, status, includeArchived } = req.query;
     let filter = { isActive: true };
 
     if (parentEventId) {
       filter.parentEventId = parentEventId;
+    }
+
+    // Handle archived events filtering
+    if (includeArchived === 'true') {
+      // When including archived events, remove isActive filter and set isArchived to true
+      delete filter.isActive;
+      filter.isArchived = true;
+    } else {
+      // By default, exclude archived events
+      filter.isArchived = false;
+    }
+
+    // Filter by status if provided
+    if (status) {
+      filter.status = status;
     }
 
     const events = await Event.find(filter)
@@ -558,6 +573,174 @@ exports.getEventInventory = async (req, res) => {
     });
 
   } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Archive an event
+exports.archiveEvent = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    // Check permissions - only operations manager, admin, or event creator can archive
+    if (req.user.role !== 'admin' && 
+        req.user.role !== 'operations_manager' && 
+        event.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Archive the event and all its secondary events
+    await Event.updateMany(
+      { $or: [{ _id: req.params.id }, { parentEventId: req.params.id }] },
+      { 
+        $set: { 
+          isArchived: true, 
+          status: 'archived',
+          archivedAt: new Date(),
+          archivedBy: req.user.id
+        } 
+      }
+    );
+
+    // Log event archiving
+    await ActivityLog.create({
+      eventId: event._id,
+      type: 'event_archive',
+      performedBy: req.user.id,
+      details: {
+        eventName: event.eventName,
+        eventContractNumber: event.eventContractNumber,
+        archivedAt: new Date()
+      },
+      timestamp: new Date()
+    });
+
+    res.json({
+      success: true,
+      message: `Event "${event.eventName}" and its secondary events have been archived`
+    });
+
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Unarchive an event
+exports.unarchiveEvent = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    // Check permissions - only operations manager, admin, or event creator can unarchive
+    if (req.user.role !== 'admin' && 
+        req.user.role !== 'operations_manager' && 
+        event.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Unarchive the event and all its secondary events
+    await Event.updateMany(
+      { $or: [{ _id: req.params.id }, { parentEventId: req.params.id }] },
+      { 
+        $set: { 
+          isArchived: false, 
+          status: 'active',
+          unarchivedAt: new Date(),
+          unarchivedBy: req.user.id
+        },
+        $unset: { archivedAt: 1, archivedBy: 1 }
+      }
+    );
+
+    // Log event unarchiving
+    await ActivityLog.create({
+      eventId: event._id,
+      type: 'event_unarchive',
+      performedBy: req.user.id,
+      details: {
+        eventName: event.eventName,
+        eventContractNumber: event.eventContractNumber,
+        unarchivedAt: new Date()
+      },
+      timestamp: new Date()
+    });
+
+    res.json({
+      success: true,
+      message: `Event "${event.eventName}" and its secondary events have been unarchived`
+    });
+
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Update event status (active/closed)
+exports.updateEventStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    console.log('UpdateEventStatus - Request body:', req.body);
+    console.log('UpdateEventStatus - Status:', status);
+    console.log('UpdateEventStatus - Event ID:', req.params.id);
+    
+    const event = await Event.findById(req.params.id);
+
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    // Check permissions - only operations manager, admin, or event creator can update status
+    if (req.user.role !== 'admin' && 
+        req.user.role !== 'operations_manager' && 
+        event.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    if (!['active', 'closed'].includes(status)) {
+      console.log('UpdateEventStatus - Invalid status:', status);
+      return res.status(400).json({ message: 'Status must be either "active" or "closed"' });
+    }
+
+    const updatedEvent = await Event.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true, runValidators: true }
+    ).populate('createdBy', 'username email');
+
+    console.log('UpdateEventStatus - Event updated successfully:', updatedEvent);
+
+    // Log status change
+    try {
+      await ActivityLog.create({
+        eventId: event._id,
+        type: 'event_status_change',
+        performedBy: req.user.id,
+        details: {
+          eventName: event.eventName,
+          eventContractNumber: event.eventContractNumber,
+          oldStatus: event.status,
+          newStatus: status,
+          changedAt: new Date()
+        },
+        timestamp: new Date()
+      });
+      console.log('UpdateEventStatus - Activity log created successfully');
+    } catch (logError) {
+      console.error('UpdateEventStatus - Error creating activity log:', logError);
+      // Don't fail the request if activity logging fails
+    }
+
+    res.json({ event: updatedEvent });
+
+  } catch (error) {
+    console.error('UpdateEventStatus - Error:', error);
     res.status(400).json({ message: error.message });
   }
 };
