@@ -1,14 +1,72 @@
-import React from 'react';
-import { Box, Typography, FormControl, InputLabel, Select, MenuItem, Card, CardContent, IconButton, Chip } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Typography, FormControl, InputLabel, Select, MenuItem, Card, CardContent, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, CircularProgress, Tooltip  } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { Edit as EditIcon, Dashboard as DashboardIcon, Event as EventIcon } from '@mui/icons-material';
+import { updateEvent } from '../../services/events';
+import toast from 'react-hot-toast';
 
-const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = false }) => {
+const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = false, onEventUpdate }) => {
   const navigate = useNavigate();
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    eventName: '',
+    eventStart: '',
+    eventEnd: ''
+  });
+  const [saving, setSaving] = useState(false);
+
   if (!event || !mainEvent) return null;
 
   const isMainEvent = event.isMainEvent;
   const hasSecondaryEvents = secondaryEvents.length > 0;
+
+  const handleEditClick = () => {
+    setEditForm({
+      eventName: event.eventName || '',
+      eventStart: event.eventStart ? new Date(event.eventStart).toISOString().split('T')[0] : '',
+      eventEnd: event.eventEnd ? new Date(event.eventEnd).toISOString().split('T')[0] : ''
+    });
+    setEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      setSaving(true);
+      
+      const updateData = {
+        eventName: editForm.eventName,
+        eventStart: editForm.eventStart ? new Date(editForm.eventStart).toISOString() : null,
+        eventEnd: editForm.eventEnd ? new Date(editForm.eventEnd).toISOString() : null
+      };
+
+      await updateEvent(event._id, updateData);
+      
+      // Call the callback to update the parent component
+      if (onEventUpdate) {
+        onEventUpdate({
+          ...event,
+          ...updateData
+        });
+      }
+      
+      toast.success('Event updated successfully');
+      setEditModalOpen(false);
+    } catch (error) {
+      console.error('Error updating event:', error);
+      toast.error(error.response?.data?.message || 'Failed to update event');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditModalOpen(false);
+    setEditForm({
+      eventName: '',
+      eventStart: '',
+      eventEnd: ''
+    });
+  };
 
   return (
     <Box mb={4}>
@@ -18,7 +76,7 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
           mb: 3,
           background: isMainEvent 
             ? 'linear-gradient(135deg,rgb(227, 252, 253) 0%,rgb(240, 249, 249) 100%)' 
-            : 'linear-gradient(135deg,rgb(245, 240, 232) 0%,rgb(248, 243, 233) 100%)',
+            : 'linear-gradient(135deg,rgb(245, 236, 227) 0%,rgb(248, 238, 220) 100%)',  
           border: isMainEvent ? '2px solid #00B2C0' : '2px solid #FAA951',
           borderRadius: 3,
           boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
@@ -55,20 +113,26 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
               </Box>
             </Box>
             <IconButton 
-              onClick={() => navigate(`/events/${event._id}/edit`)}
+              onClick={handleEditClick}
               sx={{ 
                 bgcolor: 'rgba(255,255,255,0.8)', 
                 '&:hover': { bgcolor: 'rgba(255,255,255,1)' }
               }}
-            >
-              <EditIcon />
-            </IconButton>
-          </Box>
+            ><Tooltip title="Edit Event Details"><span><IconButton><EditIcon /></IconButton ></span></Tooltip></IconButton>
+          </Box>  
           
           <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 500 }}>
             Contract: {event.eventContractNumber || '—'}
           </Typography>
-          
+          <Box>
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+              Start Date: {event.eventStart ? new Date(event.eventStart).toLocaleDateString() : '—'}
+            </Typography> 
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+              End Date: {event.eventEnd ? new Date(event.eventEnd).toLocaleDateString() : '—'}
+            </Typography>
+          </Box>
+
           {isMainEvent && hasSecondaryEvents && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
               This is the main program dashboard. Guests check in to the individual events below.
@@ -77,8 +141,8 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
         </CardContent>
       </Card>
 
-      {/* Event Navigation Dropdown */}
-      {showDropdown && (
+      {/* Event Navigation Dropdown - Only show if there are multiple events */}
+      {showDropdown && (hasSecondaryEvents || (event && mainEvent && event._id !== mainEvent._id)) && (
         <Box sx={{ 
           p: 2, 
           bgcolor: 'grey.50', 
@@ -133,6 +197,65 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
           </FormControl>
         </Box>
       )}
+      
+      {/* Edit Event Modal */}
+      <Dialog 
+        open={editModalOpen} 
+        onClose={handleCancelEdit}
+        maxWidth="sm" 
+        fullWidth
+      >
+        <DialogTitle>Edit Event Details</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            <TextField
+              fullWidth
+              label="Event Name"
+              value={editForm.eventName}
+              onChange={(e) => setEditForm(prev => ({ ...prev, eventName: e.target.value }))}
+              margin="normal"
+              required
+            />
+            
+            <TextField
+              fullWidth
+              label="Start Date"
+              type="date"
+              value={editForm.eventStart}
+              onChange={(e) => setEditForm(prev => ({ ...prev, eventStart: e.target.value }))}
+              margin="normal"
+              InputLabelProps={{
+                shrink: true,
+              }}
+            />
+            
+            <TextField
+              fullWidth
+              label="End Date"
+              type="date"
+              value={editForm.eventEnd}
+              onChange={(e) => setEditForm(prev => ({ ...prev, eventEnd: e.target.value }))}
+              margin="normal"
+              InputLabelProps={{
+                shrink: true,
+              }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelEdit} disabled={saving}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSaveEdit} 
+            variant="contained" 
+            disabled={saving || !editForm.eventName.trim()}
+            startIcon={saving ? <CircularProgress size={20} /> : null}
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
