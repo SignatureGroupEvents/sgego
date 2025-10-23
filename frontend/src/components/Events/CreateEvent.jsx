@@ -168,8 +168,11 @@ const CreateEvent = () => {
                     <TextField
                       {...field}
                       fullWidth
-                      label="Event Name"
-                      required
+                      label={
+                        <span>
+                          Event Name <span style={{ color: 'red' }}>*</span>
+                        </span>
+                      }
                       error={touched.eventName && !!errors.eventName}
                       helperText={touched.eventName && errors.eventName}
                     />
@@ -182,8 +185,11 @@ const CreateEvent = () => {
                     <TextField
                       {...field}
                       fullWidth
-                      label="Contract Number"
-                      required
+                      label={
+                        <span>
+                          Contract Number <span style={{ color: 'red' }}>*</span>
+                        </span>
+                      }
                       helperText="Unique identifier for this event"
                       error={touched.eventContractNumber && !!errors.eventContractNumber}
                     />
@@ -196,9 +202,12 @@ const CreateEvent = () => {
                     <TextField
                       {...field}
                       fullWidth
-                      label="Event Date"
+                      label={
+                        <span>
+                          Event Date <span style={{ color: 'red' }}>*</span>
+                        </span>
+                      }
                       type="date"
-                      required
                       InputLabelProps={{ shrink: true }}
                       error={touched.eventStart && !!errors.eventStart}
                       helperText={touched.eventStart && errors.eventStart}
