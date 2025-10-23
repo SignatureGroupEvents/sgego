@@ -344,6 +344,19 @@ const EventsList = () => {
         <Typography variant="subtitle1" color="text.secondary">
           Manage and view all your events
         </Typography>
+        <Button
+        Variant='outlined'
+        startIcon={<ArchiveIcon fontSize="small" />}
+        onClick={() => navigate('/events/archived')}
+        onClickONce
+        sx={{
+          borderRadius: 2,
+          fontWeight: 600,
+          minWidth: { xs: '100%', sm: 'auto' }
+        }}
+        >
+          View Archived Events
+        </Button>
       </Box>
 
       {/* Tabs */}
