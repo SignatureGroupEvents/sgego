@@ -1,3 +1,5 @@
+//Events List is the main page for the events list - this is the page that shows all the events that the user has access to 
+// and allows them to create new events and view event details. This page also allows the user to sort and filter the events.
 import React, { useState, useEffect } from 'react';
 import {
   Box,
