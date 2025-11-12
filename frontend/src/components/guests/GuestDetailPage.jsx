@@ -431,48 +431,50 @@ export default function GuestDetailPage() {
                                 })()}
                             </Box>
 
-                            {!isEditing ? (
-                                <Stack direction="row" spacing={1}>
-                                    <Button
-                                        onClick={() => setIsEditing(true)}
-                                        startIcon={<Edit />}
-                                        variant="contained"
-                                        size="large"
-                                    >
-                                        Edit Guest
-                                    </Button>
-                                    <Button
-                                        onClick={() => setDeleteDialogOpen(true)}
-                                        startIcon={<Delete />}
-                                        variant="outlined"
-                                        color="error"
-                                        size="large"
-                                    >
-                                        Delete Guest
-                                    </Button>
-                                </Stack>
-                            ) : (
-                                <Stack direction="row" spacing={1}>
-                                    <Button
-                                        onClick={handleSave}
-                                        startIcon={<Save />}
-                                        variant="contained"
-                                        color="success"
-                                        size="large"
-                                        disabled={saving}
-                                    >
-                                        {saving ? <CircularProgress size={24} color="inherit" /> : 'Save'}
-                                    </Button>
-                                    <Button
-                                        onClick={handleCancel}
-                                        startIcon={<Cancel />}
-                                        variant="outlined"
-                                        size="large"
-                                    >
-                                        Cancel
-                                    </Button>
-                                </Stack>
-                            )}
+                            <Stack direction="row" spacing={1}>
+                                {!isEditing ? (
+                                    <>
+                                        <Button
+                                            onClick={() => setIsEditing(true)}
+                                            startIcon={<Edit />}
+                                            variant="contained"
+                                            size="large"
+                                        >
+                                            Edit Guest
+                                        </Button>
+                                        <Button
+                                            onClick={() => setDeleteDialogOpen(true)}
+                                            startIcon={<Delete />}
+                                            variant="outlined"
+                                            color="error"
+                                            size="large"
+                                        >
+                                            Delete Guest
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Button
+                                            onClick={handleSave}
+                                            startIcon={<Save />}
+                                            variant="contained"
+                                            color="success"
+                                            size="large"
+                                            disabled={saving}
+                                        >
+                                            {saving ? <CircularProgress size={24} color="inherit" /> : 'Save'}
+                                        </Button>
+                                        <Button
+                                            onClick={handleCancel}
+                                            startIcon={<Cancel />}
+                                            variant="outlined"
+                                            size="large"
+                                        >
+                                            Cancel
+                                        </Button>
+                                    </>
+                                )}
+                            </Stack>
                         </Box>
                     </Box>
 
