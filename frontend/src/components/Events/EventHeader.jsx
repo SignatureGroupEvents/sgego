@@ -132,6 +132,11 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
               End Date: {event.eventEnd ? new Date(event.eventEnd).toLocaleDateString() : '—'}
             </Typography>
           </Box>
+          <Box>
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+              Operations Manager: {event.createdBy ? event.createdBy.username : '—'}
+            </Typography> 
+          </Box>
 
           {isMainEvent && hasSecondaryEvents && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
