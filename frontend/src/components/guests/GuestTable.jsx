@@ -649,218 +649,322 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
               </Button>
             </Box>
           </Box>
+        </CardContent>
 
-          {/* Compact Tag Management */}
-          {canModifyEvents && (
+          {/* Search and Filter Controls */}
+          <Box 
+            mb={3} 
+            sx={{ 
+              width: '100%',
+              px: 3, // Match CardContent default padding (theme.spacing(3) = 24px)
+              boxSizing: 'border-box'
+            }}
+          >
             <Box 
               sx={{ 
-                mb: 3, 
-                p: 2, 
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 2,
-                backgroundColor: 'background.paper'
+                display: 'flex',
+                gap: 1.5,
+                width: '100%',
+                flexWrap: { xs: 'wrap', md: 'nowrap' },
+                alignItems: 'flex-start'
               }}
             >
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Box display="flex" alignItems="center" gap={1} flex={1}>
+              {/* Search Bar */}
+              <Box sx={{ flex: '0 0 20%', minWidth: 0 }}>
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary', fontSize: '0.75rem' }}>
+                    Search
+                  </Typography>
                   <TextField
-                    placeholder="Add new tag..."
-                    value={newTagName}
-                    onChange={(e) => setNewTagName(e.target.value)}
+                    fullWidth
                     size="small"
-                    sx={{ flex: 1, maxWidth: 300 }}
+                    placeholder="Search guests..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    sx={{
+                      '& .MuiInputBase-root': {
+                        minWidth: 0
+                      },
+                      '& .MuiInputLabel-root': {
+                        display: 'none'
+                      }
+                    }}
                     InputProps={{
-                      endAdornment: newTagName && (
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon color="action" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: searchQuery && (
                         <InputAdornment position="end">
-                          <IconButton
+                          <Button
                             size="small"
-                            onClick={() => setNewTagName('')}
-                            edge="end"
+                            onClick={() => setSearchQuery('')}
+                            sx={{ minWidth: 'auto', p: 0.5 }}
                           >
                             <ClearIcon fontSize="small" />
-                          </IconButton>
+                          </Button>
                         </InputAdornment>
                       )
                     }}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && newTagName.trim()) {
-                        handleOpenTagDialog();
-                      }
-                    }}
                   />
-                  <Button
-                    variant="contained"
-                    size="small"
-                    startIcon={<AddIcon />}
-                    onClick={handleOpenTagDialog}
-                    disabled={!newTagName.trim()}
-                    sx={{ borderRadius: '20px', px: 2 }}
-                  >
-                    Add Tag
-                  </Button>
                 </Box>
               </Box>
-              
-              {availableTags.length > 0 && (
-                <>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Or select an existing tag:
-                  </Typography>
-                  <Box display="flex" flexWrap="wrap" gap={1}>
-                    {availableTags.map((tag, index) => (
-                      <Chip
-                        key={tag._id || tag.name || index}
-                        label={tag.name}
-                        sx={{
-                          backgroundColor: tag.color || '#1976d2',
-                          color: 'white',
-                          '&:hover': {
-                            opacity: 0.8
-                          },
-                          cursor: 'pointer'
-                        }}
-                        icon={<LocalOfferIcon sx={{ color: 'white !important', fontSize: 14 }} />}
-                        onClick={() => handleEditTag(tag)}
-                        onDelete={(e) => {
-                          e.stopPropagation();
-                          handleDeleteTag(tag);
-                        }}
-                        deleteIcon={<DeleteIcon sx={{ color: 'white !important', fontSize: 16 }} />}
-                      />
-                    ))}
-                  </Box>
-                </>
-              )}
-            </Box>
-          )}
-
-          {/* Search and Filter Controls */}
-          <Box mb={3}>
-            <Grid container spacing={2} alignItems="flex-start">
-              {/* Search Bar */}
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="Search guests..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon color="action" />
-                      </InputAdornment>
-                    ),
-                    endAdornment: searchQuery && (
-                      <InputAdornment position="end">
-                        <Button
-                          size="small"
-                          onClick={() => setSearchQuery('')}
-                          sx={{ minWidth: 'auto', p: 0.5 }}
-                        >
-                          <ClearIcon fontSize="small" />
-                        </Button>
-                      </InputAdornment>
-                    )
-                  }}
-                />
-              </Grid>
 
               {/* Status Filter */}
-              <Grid item xs={12} sm={6} md={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    label="Status"
-                  >
-                    <MenuItem value="all">All Status</MenuItem>
-                    <MenuItem value="not-picked-up">Not Picked Up</MenuItem>
-                    <MenuItem value="partially-picked-up">Partially Picked Up</MenuItem>
-                    <MenuItem value="fully-picked-up">Fully Picked Up</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
+              <Box sx={{ flex: '0 0 18%', minWidth: 0 }}>
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary', fontSize: '0.75rem' }}>
+                    Status
+                  </Typography>
+                  <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
+                    <Select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      MenuProps={{
+                        PaperProps: {
+                          style: {
+                            maxHeight: 300
+                          }
+                        }
+                      }}
+                      sx={{
+                        '& .MuiInputLabel-root': {
+                          display: 'none'
+                        }
+                      }}
+                    >
+                      <MenuItem value="all">All Status</MenuItem>
+                      <MenuItem value="not-picked-up">Not Picked Up</MenuItem>
+                      <MenuItem value="partially-picked-up">Partially Picked Up</MenuItem>
+                      <MenuItem value="fully-picked-up">Fully Picked Up</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Box>
 
               {/* Type Filter */}
-              <Grid item xs={12} sm={6} md={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Type</InputLabel>
-                  <Select
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value)}
-                    label="Type"
-                  >
-                    <MenuItem value="all">All Types</MenuItem>
-                    <MenuItem value="General">General</MenuItem>
-                    {attendeeTypes.map(type => (
-                      <MenuItem key={type} value={type}>{type}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
+              <Box sx={{ flex: '0 0 18%', minWidth: 0 }}>
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary', fontSize: '0.75rem' }}>
+                    Type
+                  </Typography>
+                  <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
+                    <Select
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                      MenuProps={{
+                        PaperProps: {
+                          style: {
+                            maxHeight: 300
+                          }
+                        }
+                      }}
+                      sx={{
+                        '& .MuiInputLabel-root': {
+                          display: 'none'
+                        }
+                      }}
+                    >
+                      <MenuItem value="all">All Types</MenuItem>
+                      <MenuItem value="General">General</MenuItem>
+                      {attendeeTypes.map(type => (
+                        <MenuItem key={type} value={type}>{type}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Box>
 
               {/* Tag Filter */}
-              <Grid item xs={12} sm={6} md={3}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Tags</InputLabel>
+              <Box sx={{ flex: '1 1 auto', minWidth: 0 }}>
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary', fontSize: '0.75rem' }}>
+                    Tags
+                  </Typography>
                   <Autocomplete
                     multiple
                     size="small"
-                    options={allTags}
+                    options={canModifyEvents ? [...allTags, '__CREATE_TAG__'] : allTags}
+                    sx={{
+                      '& .MuiAutocomplete-inputRoot': {
+                        padding: '8px 12px',
+                        minWidth: 0
+                      },
+                      '& .MuiAutocomplete-tag': {
+                        maxWidth: 'calc(100% - 8px)',
+                        '& .MuiChip-label': {
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }
+                      }
+                    }}
                     value={tagFilter}
-                    onChange={(event, newValue) => setTagFilter(newValue)}
+                    onChange={(event, newValue) => {
+                      // Check if the create tag option was selected
+                      if (newValue.includes('__CREATE_TAG__')) {
+                        // Remove the create tag option from selection
+                        const filtered = newValue.filter(v => v !== '__CREATE_TAG__');
+                        setTagFilter(filtered);
+                        // Open the create tag dialog
+                        setNewTagName('');
+                        handleOpenTagDialog();
+                      } else {
+                        setTagFilter(newValue);
+                      }
+                    }}
+                    getOptionLabel={(option) => {
+                      if (option === '__CREATE_TAG__') return '+ Create Tag';
+                      return option;
+                    }}
+                    renderOption={(props, option) => {
+                      if (option === '__CREATE_TAG__') {
+                        return (
+                          <Box
+                            {...props}
+                            key="__CREATE_TAG__"
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                              py: 1,
+                              px: 2,
+                              borderTop: '1px solid',
+                              borderColor: 'divider',
+                              mt: 1,
+                              cursor: 'pointer',
+                              '&:hover': {
+                                backgroundColor: 'action.hover'
+                              }
+                            }}
+                          >
+                            <AddIcon fontSize="small" color="primary" />
+                            <Typography variant="body2" color="primary">
+                              + Create Tag
+                            </Typography>
+                          </Box>
+                        );
+                      }
+                      
+                      // Find the tag object to get its color
+                      const tagObj = availableTags.find(t => t.name === option);
+                      const tagColor = tagObj?.color || '#1976d2';
+                      
+                      return (
+                        <Box
+                          {...props}
+                          key={option}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            py: 0.5,
+                            px: 1
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: '50%',
+                              backgroundColor: tagColor,
+                              flexShrink: 0
+                            }}
+                          />
+                          <Typography variant="body2">{option}</Typography>
+                        </Box>
+                      );
+                    }}
                     renderInput={(params) => (
                       <TextField 
                         {...params} 
-                        label="Tags"
+                        placeholder=""
                         InputProps={{
                           ...params.InputProps,
                           style: { paddingTop: '8px', paddingBottom: '8px' }
                         }}
+                        inputProps={{
+                          ...params.inputProps,
+                          style: { 
+                            padding: 0,
+                            margin: 0
+                          }
+                        }}
+                        sx={{
+                          '& .MuiInputLabel-root': {
+                            display: 'none'
+                          }
+                        }}
                       />
                     )}
                     renderTags={(value, getTagProps) =>
-                      value.map((option, index) => (
-                        <Chip
-                          {...getTagProps({ index })}
-                          key={option}
-                          label={option}
-                          size="small"
-                          sx={{ borderRadius: 1, fontSize: '0.75rem' }}
-                        />
-                      ))
+                      value.map((option, index) => {
+                        if (option === '__CREATE_TAG__') return null;
+                        const tagObj = availableTags.find(t => t.name === option);
+                        const tagColor = tagObj?.color || '#1976d2';
+                        return (
+                          <Chip
+                            {...getTagProps({ index })}
+                            key={option}
+                            label={option}
+                            size="small"
+                            sx={{ 
+                              borderRadius: 1, 
+                              fontSize: '0.75rem',
+                              backgroundColor: tagColor,
+                              color: 'white',
+                              '& .MuiChip-deleteIcon': {
+                                color: 'white !important'
+                              }
+                            }}
+                          />
+                        );
+                      })
                     }
-                    sx={{
-                      '& .MuiAutocomplete-inputRoot': {
-                        padding: '8px 12px'
+                    isOptionEqualToValue={(option, value) => {
+                      if (option === '__CREATE_TAG__' || value === '__CREATE_TAG__') {
+                        return false;
                       }
+                      return option === value;
+                    }}
+                    filterOptions={(options, params) => {
+                      // Filter out __CREATE_TAG__ from regular filtering
+                      const filtered = options.filter(option => {
+                        if (option === '__CREATE_TAG__') return true;
+                        return option.toLowerCase().includes(params.inputValue.toLowerCase());
+                      });
+                      
+                      // Always show create tag option at the bottom if user can modify
+                      if (canModifyEvents && !filtered.includes('__CREATE_TAG__')) {
+                        filtered.push('__CREATE_TAG__');
+                      }
+                      
+                      return filtered;
                     }}
                   />
-                </FormControl>
-              </Grid>
+                </Box>
+              </Box>
 
               {/* Clear Filters */}
-              <Grid item xs={12} sm={6} md={2}>
+              <Box sx={{ flex: '0 0 10%', minWidth: 0 }}>
                 <Button
                   variant="outlined"
                   size="small"
                   onClick={clearAllFilters}
                   startIcon={<ClearIcon />}
+                  fullWidth
                   sx={{ 
-                    minWidth: 'auto',
                     height: '40px',
                     mt: 0.5
                   }}
                 >
                   Clear
                 </Button>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
           </Box>
 
+        <CardContent sx={{ pt: 0 }}>
           {/* Table */}
           <TableContainer component={Paper} variant="outlined">
             <Table>
