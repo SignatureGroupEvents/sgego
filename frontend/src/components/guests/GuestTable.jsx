@@ -31,7 +31,8 @@ import {
   IconButton,
   Alert,
   CircularProgress,
-  Box as MuiBox
+  Box as MuiBox,
+  Checkbox
 } from '@mui/material';
 import {
   CheckCircleOutline as CheckCircleIcon,
@@ -52,16 +53,21 @@ import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import GuestCheckIn from './GuestCheckIn';
 import { useNavigate, useParams } from 'react-router-dom';
-import api from '../../services/api';
+import api, { deleteGuest, bulkDeleteGuests } from '../../services/api';
 import toast from 'react-hot-toast';
 
-const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckInSuccess, inventory = [] }) => {
+const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckInSuccess, inventory = [], onGuestsChange }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const { isOperationsManager, isAdmin } = usePermissions();
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
   const { guestId } = useParams();
+  
+  // Mass delete state
+  const [selectedGuests, setSelectedGuests] = useState([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -130,6 +136,74 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
   const handleCloseCheckIn = () => {
     setCheckInGuest(null);
     setModalOpen(false);
+  };
+  
+  // Mass delete handlers
+  const handleSelectAll = (event) => {
+    if (event.target.checked) {
+      const currentPageGuests = filteredAndSortedGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+      setSelectedGuests(prev => {
+        const newSelected = [...prev];
+        currentPageGuests.forEach(guest => {
+          if (!newSelected.find(g => g._id === guest._id)) {
+            newSelected.push(guest);
+          }
+        });
+        return newSelected;
+      });
+    } else {
+      const currentPageGuests = filteredAndSortedGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+      setSelectedGuests(prev => prev.filter(g => !currentPageGuests.find(cg => cg._id === g._id)));
+    }
+  };
+  
+  const handleSelectGuest = (guest, isSelected) => {
+    if (isSelected) {
+      setSelectedGuests(prev => [...prev, guest]);
+    } else {
+      setSelectedGuests(prev => prev.filter(g => g._id !== guest._id));
+    }
+  };
+  
+  const isGuestSelected = (guest) => {
+    return selectedGuests.some(g => g._id === guest._id);
+  };
+  
+  const isAllPageSelected = () => {
+    const currentPageGuests = filteredAndSortedGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    return currentPageGuests.length > 0 && currentPageGuests.every(guest => isGuestSelected(guest));
+  };
+  
+  const isIndeterminate = () => {
+    const currentPageGuests = filteredAndSortedGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    const selectedCount = currentPageGuests.filter(guest => isGuestSelected(guest)).length;
+    return selectedCount > 0 && selectedCount < currentPageGuests.length;
+  };
+  
+  const handleMassDelete = async () => {
+    if (selectedGuests.length === 0) return;
+    
+    setDeleting(true);
+    try {
+      const guestIds = selectedGuests.map(g => g._id);
+      await bulkDeleteGuests(event._id, guestIds);
+      
+      toast.success(`Successfully deleted ${selectedGuests.length} guest(s)`);
+      setSelectedGuests([]);
+      setDeleteDialogOpen(false);
+      
+      // Refresh guests list
+      if (onGuestsChange) {
+        onGuestsChange();
+      } else {
+        // Fallback: reload the page or refetch
+        window.location.reload();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete guests');
+    } finally {
+      setDeleting(false);
+    }
   };
   
   // Tag management handlers
@@ -636,10 +710,30 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
         <CardContent>
           {/* Header with title and actions */}
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-            <Typography variant="h6">
-              Guest List ({filteredAndSortedGuests.length} of {guests.length})
-            </Typography>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Typography variant="h6">
+                Guest List ({filteredAndSortedGuests.length} of {guests.length})
+              </Typography>
+              {canModifyEvents && selectedGuests.length > 0 && (
+                <Chip
+                  label={`${selectedGuests.length} selected`}
+                  color="primary"
+                  onDelete={() => setSelectedGuests([])}
+                  deleteIcon={<ClearIcon />}
+                />
+              )}
+            </Box>
             <Box display="flex" gap={2}>
+              {canModifyEvents && selectedGuests.length > 0 && (
+                <Button
+                  variant="contained"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={() => setDeleteDialogOpen(true)}
+                >
+                  Delete Selected ({selectedGuests.length})
+                </Button>
+              )}
               <Button
                 variant="contained"
                 startIcon={<DownloadIcon />}
@@ -1009,7 +1103,16 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                     </TableSortLabel>
                   </TableCell>
                   <TableCell>Tags</TableCell>
-                  <TableCell>Source</TableCell>
+                  {canModifyEvents && (
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        indeterminate={isIndeterminate()}
+                        checked={isAllPageSelected()}
+                        onChange={handleSelectAll}
+                        color="primary"
+                      />
+                    </TableCell>
+                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1023,7 +1126,12 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                     <TableRow 
                       key={guest._id} 
                       hover 
-                      onClick={() => navigate(`/events/${event._id}/guests/${guest._id}`)}
+                      onClick={(e) => {
+                        // Don't navigate if clicking checkbox
+                        if (e.target.type !== 'checkbox' && !e.target.closest('button')) {
+                          navigate(`/events/${event._id}/guests/${guest._id}`);
+                        }
+                      }}
                       sx={{
                         '&:hover': {
                           cursor: 'pointer',
@@ -1076,35 +1184,21 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                             eventsToDisplay.map((ev, index) => {
                               const giftSelection = formatGiftSelections(guest, ev._id, ev.eventName);
                               
-                              // For main event view, show event names with gift selections
-                              if (event?.isMainEvent) {
-                                return (
-                                  <Typography 
-                                    key={ev._id} 
-                                    variant="body2" 
-                                    sx={{ 
-                                      fontSize: '0.8rem',
-                                      color: index === 0 ? 'text.primary' : 'text.secondary'
-                                    }}
-                                  >
-                                    {ev.eventName} - {giftSelection}
-                                  </Typography>
-                                );
-                              } else {
-                                // For secondary event view, show only the gift selection
-                                return (
-                                  <Typography 
-                                    key={ev._id} 
-                                    variant="body2" 
-                                    sx={{ 
-                                      fontSize: '0.9rem',
-                                      color: 'text.primary'
-                                    }}
-                                  >
-                                    {giftSelection}
-                                  </Typography>
-                                );
-                              }
+                              // Only show event name if there are multiple events, otherwise just show the gift
+                              const showEventName = eventsToDisplay.length > 1;
+                              
+                              return (
+                                <Typography 
+                                  key={ev._id} 
+                                  variant="body2" 
+                                  sx={{ 
+                                    fontSize: '0.9rem',
+                                    color: 'text.primary'
+                                  }}
+                                >
+                                  {showEventName ? `${ev.eventName} - ${giftSelection}` : giftSelection}
+                                </Typography>
+                              );
                             })
                           ) : (
                             <Typography variant="body2" color="textSecondary">
@@ -1140,28 +1234,16 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                           ))}
                         </Box>
                       </TableCell>
-                      <TableCell>
-                        {isInherited ? (
-                          <Tooltip title={`From ${guest.originalEventName || 'Main Event'}`}>
-                            <Chip
-                              label={`${guest.originalEventName || 'Main Event'}`}
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                              icon={<InheritedIcon />}
-                              sx={{ borderRadius: 1 }}
-                            />
-                          </Tooltip>
-                        ) : (
-                          <Chip
-                            label="Direct"
-                            size="small"
-                            color="default"
-                            variant="outlined"
-                            sx={{ borderRadius: 1 }}
+                      {canModifyEvents && (
+                        <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={isGuestSelected(guest)}
+                            onChange={(e) => handleSelectGuest(guest, e.target.checked)}
+                            color="primary"
+                            onClick={(e) => e.stopPropagation()}
                           />
-                        )}
-                      </TableCell>
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
@@ -1226,6 +1308,47 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
             />
           )}
         </DialogContent>
+      </Dialog>
+
+      {/* Mass Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => !deleting && setDeleteDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Delete Guests</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete {selectedGuests.length} guest(s)? This action cannot be undone.
+          </Typography>
+          {selectedGuests.length > 0 && (
+            <Box sx={{ mt: 2, maxHeight: 200, overflow: 'auto' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                Guests to be deleted:
+              </Typography>
+              {selectedGuests.map((guest) => (
+                <Typography key={guest._id} variant="body2" sx={{ mb: 0.5 }}>
+                  • {guest.firstName} {guest.lastName} {guest.email ? `(${guest.email})` : ''}
+                </Typography>
+              ))}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleMassDelete}
+            color="error"
+            variant="contained"
+            disabled={deleting}
+            startIcon={deleting ? <CircularProgress size={20} /> : <DeleteIcon />}
+          >
+            {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Tag Create/Edit Dialog */}

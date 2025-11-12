@@ -268,6 +268,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         onInventoryChange={onInventoryChange}
         onCheckInSuccess={handleCheckInSuccess}
         inventory={inventory}
+        onGuestsChange={() => fetchGuests(eventId)}
       />
 
       {/* Check-in Modal */}

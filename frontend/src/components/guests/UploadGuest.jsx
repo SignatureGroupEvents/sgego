@@ -34,7 +34,10 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Divider
+  Divider,
+  Radio,
+  RadioGroup,
+  FormControlLabel
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -79,6 +82,8 @@ const UploadGuest = () => {
   const [existingGuests, setExistingGuests] = useState([]);
   const [duplicateRows, setDuplicateRows] = useState([]);
   const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const [attendeeTypeMode, setAttendeeTypeMode] = useState('map'); // 'map' or 'default'
+  const [defaultAttendeeType, setDefaultAttendeeType] = useState('General'); // 'General' or 'Winner'
 
   React.useEffect(() => {
     getEvent(eventId).then(setEvent);
@@ -241,6 +246,12 @@ const UploadGuest = () => {
         mappedRow[guestField] = row[csvColumn];
       }
     });
+    
+    // Apply default attendee type if mode is 'default' and no column mapping exists
+    if (attendeeTypeMode === 'default' && !columnMapping.attendeeType) {
+      mappedRow.attendeeType = defaultAttendeeType;
+    }
+    
     return mappedRow;
   };
 
@@ -364,6 +375,11 @@ const UploadGuest = () => {
       ...prev,
       [guestField]: csvColumn || ''
     }));
+    
+    // If attendeeType column is selected, switch to map mode
+    if (guestField === 'attendeeType' && csvColumn) {
+      setAttendeeTypeMode('map');
+    }
   };
 
   // Check for duplicates against existing guests
@@ -764,49 +780,161 @@ const UploadGuest = () => {
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                       {Object.entries(expectedColumns)
                         .filter(([field, config]) => config.section === 'optional')
-                        .map(([field, config]) => (
-                          <Box key={field} sx={{ display: 'flex', alignItems: 'flex-start', gap: 3 }}>
-                            <Box sx={{ minWidth: 200, flexShrink: 0, pt: 1 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem' }}>
-                                {config.label}
-                              </Typography>
-                            </Box>
-                            <FormControl sx={{ minWidth: 320, maxWidth: 500 }}>
-                              <Select
-                                value={columnMapping[field] || ''}
-                                onChange={(e) => handleColumnMappingChange(field, e.target.value)}
-                                displayEmpty
-                                sx={{ 
-                                  backgroundColor: 'background.paper',
-                                  height: '40px',
-                                  '& .MuiSelect-select': {
-                                    color: columnMapping[field] ? 'text.primary' : '#999',
-                                    padding: '8px 14px'
-                                  },
-                                  '& .MuiOutlinedInput-notchedOutline': {
-                                    borderColor: '#ddd'
-                                  },
-                                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                                    borderColor: '#999'
-                                  },
-                                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                    borderColor: 'primary.main',
-                                    borderWidth: '2px'
-                                  }
-                                }}
-                              >
-                                <MenuItem value="" disabled>
-                                  <em style={{ color: '#999', fontStyle: 'normal' }}>Select Column</em>
-                                </MenuItem>
-                                {parsedData.headers.map((header) => (
-                                  <MenuItem key={header} value={header}>
-                                    {header}
+                        .map(([field, config]) => {
+                          // Special handling for attendeeType
+                          if (field === 'attendeeType') {
+                            return (
+                              <Box key={field} sx={{ display: 'flex', alignItems: 'flex-start', gap: 3 }}>
+                                <Box sx={{ minWidth: 200, flexShrink: 0, pt: 1 }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                                    {config.label}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ minWidth: 320, maxWidth: 500, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <FormControl>
+                                    <RadioGroup
+                                      row
+                                      value={attendeeTypeMode}
+                                      onChange={(e) => {
+                                        const newMode = e.target.value;
+                                        setAttendeeTypeMode(newMode);
+                                        if (newMode === 'default') {
+                                          // Clear column mapping when switching to default mode
+                                          handleColumnMappingChange(field, '');
+                                        } else {
+                                          // When switching to map mode, ensure we have a default value
+                                          if (!columnMapping[field]) {
+                                            handleColumnMappingChange(field, '');
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      <FormControlLabel 
+                                        value="map" 
+                                        control={<Radio size="small" />} 
+                                        label="Map from column" 
+                                      />
+                                      <FormControlLabel 
+                                        value="default" 
+                                        control={<Radio size="small" />} 
+                                        label="Apply to all guests" 
+                                      />
+                                    </RadioGroup>
+                                  </FormControl>
+                                  
+                                  {attendeeTypeMode === 'map' ? (
+                                    <FormControl>
+                                      <Select
+                                        value={columnMapping[field] || ''}
+                                        onChange={(e) => handleColumnMappingChange(field, e.target.value)}
+                                        displayEmpty
+                                        sx={{ 
+                                          backgroundColor: 'background.paper',
+                                          height: '40px',
+                                          '& .MuiSelect-select': {
+                                            color: columnMapping[field] ? 'text.primary' : '#999',
+                                            padding: '8px 14px'
+                                          },
+                                          '& .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: '#ddd'
+                                          },
+                                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: '#999'
+                                          },
+                                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'primary.main',
+                                            borderWidth: '2px'
+                                          }
+                                        }}
+                                      >
+                                        <MenuItem value="" disabled>
+                                          <em style={{ color: '#999', fontStyle: 'normal' }}>Select Column</em>
+                                        </MenuItem>
+                                        {parsedData.headers.map((header) => (
+                                          <MenuItem key={header} value={header}>
+                                            {header}
+                                          </MenuItem>
+                                        ))}
+                                      </Select>
+                                    </FormControl>
+                                  ) : (
+                                    <FormControl>
+                                      <Select
+                                        value={defaultAttendeeType}
+                                        onChange={(e) => setDefaultAttendeeType(e.target.value)}
+                                        sx={{ 
+                                          backgroundColor: 'background.paper',
+                                          height: '40px',
+                                          '& .MuiSelect-select': {
+                                            padding: '8px 14px'
+                                          },
+                                          '& .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: '#ddd'
+                                          },
+                                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: '#999'
+                                          },
+                                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'primary.main',
+                                            borderWidth: '2px'
+                                          }
+                                        }}
+                                      >
+                                        <MenuItem value="General">General</MenuItem>
+                                        <MenuItem value="Winner">Winner</MenuItem>
+                                      </Select>
+                                    </FormControl>
+                                  )}
+                                </Box>
+                              </Box>
+                            );
+                          }
+                          
+                          // Regular optional fields
+                          return (
+                            <Box key={field} sx={{ display: 'flex', alignItems: 'flex-start', gap: 3 }}>
+                              <Box sx={{ minWidth: 200, flexShrink: 0, pt: 1 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                                  {config.label}
+                                </Typography>
+                              </Box>
+                              <FormControl sx={{ minWidth: 320, maxWidth: 500 }}>
+                                <Select
+                                  value={columnMapping[field] || ''}
+                                  onChange={(e) => handleColumnMappingChange(field, e.target.value)}
+                                  displayEmpty
+                                  sx={{ 
+                                    backgroundColor: 'background.paper',
+                                    height: '40px',
+                                    '& .MuiSelect-select': {
+                                      color: columnMapping[field] ? 'text.primary' : '#999',
+                                      padding: '8px 14px'
+                                    },
+                                    '& .MuiOutlinedInput-notchedOutline': {
+                                      borderColor: '#ddd'
+                                    },
+                                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                                      borderColor: '#999'
+                                    },
+                                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                      borderColor: 'primary.main',
+                                      borderWidth: '2px'
+                                    }
+                                  }}
+                                >
+                                  <MenuItem value="" disabled>
+                                    <em style={{ color: '#999', fontStyle: 'normal' }}>Select Column</em>
                                   </MenuItem>
-                                ))}
-                              </Select>
-                            </FormControl>
-                          </Box>
-                        ))}
+                                  {parsedData.headers.map((header) => (
+                                    <MenuItem key={header} value={header}>
+                                      {header}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
+                            </Box>
+                          );
+                        })}
                     </Box>
                   </Box>
 
@@ -898,7 +1026,7 @@ const UploadGuest = () => {
                               {columnMapping.company && (
                                 <TableCell sx={{ fontWeight: 600 }}>Company</TableCell>
                               )}
-                              {columnMapping.attendeeType && (
+                              {(columnMapping.attendeeType || attendeeTypeMode === 'default') && (
                                 <TableCell sx={{ fontWeight: 600 }}>Attendee Type</TableCell>
                               )}
                             </TableRow>
@@ -927,7 +1055,7 @@ const UploadGuest = () => {
                                   {columnMapping.company && (
                                     <TableCell>{mappedRow.company || '-'}</TableCell>
                                   )}
-                                  {columnMapping.attendeeType && (
+                                  {(columnMapping.attendeeType || attendeeTypeMode === 'default') && (
                                     <TableCell>{mappedRow.attendeeType || '-'}</TableCell>
                                   )}
                                 </TableRow>
@@ -1094,7 +1222,7 @@ const UploadGuest = () => {
                                     {columnMapping.company && (
                                       <TableCell sx={{ fontWeight: 600 }}>Company</TableCell>
                                     )}
-                                    {columnMapping.attendeeType && (
+                                    {(columnMapping.attendeeType || attendeeTypeMode === 'default') && (
                                       <TableCell sx={{ fontWeight: 600 }}>Attendee Type</TableCell>
                                     )}
                                   </TableRow>
@@ -1115,7 +1243,7 @@ const UploadGuest = () => {
                                         {columnMapping.company && (
                                           <TableCell>{mappedRow.company || '-'}</TableCell>
                                         )}
-                                        {columnMapping.attendeeType && (
+                                        {(columnMapping.attendeeType || attendeeTypeMode === 'default') && (
                                           <TableCell>{mappedRow.attendeeType || '-'}</TableCell>
                                         )}
                                       </TableRow>

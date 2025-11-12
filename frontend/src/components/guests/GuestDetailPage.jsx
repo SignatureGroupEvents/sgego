@@ -42,8 +42,9 @@ import {
     LocalOffer
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
-import api, { undoCheckin, updateCheckinGifts } from '../../services/api';
+import api, { undoCheckin, updateCheckinGifts, deleteGuest } from '../../services/api';
 import MainLayout from '../layout/MainLayout';
+import toast from 'react-hot-toast';
 
 // Undo reason options - these map to string values sent to backend
 const UNDO_REASONS = [
@@ -83,6 +84,8 @@ export default function GuestDetailPage() {
     const [modifiedGifts, setModifiedGifts] = useState([]);
     const [undoLoading, setUndoLoading] = useState(false);
     const [giftModificationLoading, setGiftModificationLoading] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         const fetchGuest = async () => {
@@ -178,6 +181,22 @@ export default function GuestDetailPage() {
 
     const handleBackToGuestList = () => {
         navigate(`/events/${eventId}`);
+    };
+    
+    const handleDeleteGuest = async () => {
+        if (!guest) return;
+        
+        setDeleting(true);
+        try {
+            await deleteGuest(guestId);
+            toast.success('Guest deleted successfully');
+            navigate(`/events/${eventId}`);
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to delete guest');
+        } finally {
+            setDeleting(false);
+            setDeleteDialogOpen(false);
+        }
     };
 
     const handleUndoCheckin = async () => {
@@ -368,14 +387,25 @@ export default function GuestDetailPage() {
                             </Typography>
 
                             {!isEditing ? (
-                                <Button
-                                    onClick={() => setIsEditing(true)}
-                                    startIcon={<Edit />}
-                                    variant="contained"
-                                    size="large"
-                                >
-                                    Edit Guest
-                                </Button>
+                                <Stack direction="row" spacing={1}>
+                                    <Button
+                                        onClick={() => setIsEditing(true)}
+                                        startIcon={<Edit />}
+                                        variant="contained"
+                                        size="large"
+                                    >
+                                        Edit Guest
+                                    </Button>
+                                    <Button
+                                        onClick={() => setDeleteDialogOpen(true)}
+                                        startIcon={<Delete />}
+                                        variant="outlined"
+                                        color="error"
+                                        size="large"
+                                    >
+                                        Delete Guest
+                                    </Button>
+                                </Stack>
                             ) : (
                                 <Stack direction="row" spacing={1}>
                                     <Button
@@ -975,6 +1005,39 @@ export default function GuestDetailPage() {
                     </Dialog>
                 </Box>
             </Box>
+            {/* Delete Confirmation Dialog */}
+            <Dialog
+                open={deleteDialogOpen}
+                onClose={() => !deleting && setDeleteDialogOpen(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>Delete Guest</DialogTitle>
+                <DialogContent>
+                    <Typography>
+                        Are you sure you want to delete {guest?.firstName} {guest?.lastName}? This action cannot be undone.
+                    </Typography>
+                    {guest?.email && (
+                        <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                            Email: {guest.email}
+                        </Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleDeleteGuest}
+                        color="error"
+                        variant="contained"
+                        disabled={deleting}
+                        startIcon={deleting ? <CircularProgress size={20} /> : <Delete />}
+                    >
+                        {deleting ? 'Deleting...' : 'Delete'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </MainLayout>
     );
 }
