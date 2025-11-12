@@ -30,7 +30,14 @@ import {
   Stepper,
   Step,
   StepLabel,
-  Chip
+  Chip,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Divider,
+  Radio,
+  RadioGroup,
+  FormControlLabel
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -41,11 +48,11 @@ import {
   Warning as WarningIcon,
   FilePresent as FilePresentIcon,
   Delete as DeleteIcon,
-  Visibility as VisibilityIcon,
   Save as SaveIcon,
-  TableChart as TableChartIcon
+  ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material';
-import api from '../../services/api';
+import * as XLSX from 'xlsx';
+import api, { getGuests } from '../../services/api';
 import MainLayout from '../layout/MainLayout';
 import HomeIcon from '@mui/icons-material/Home';
 import EventIcon from '@mui/icons-material/Event';
@@ -66,28 +73,33 @@ const UploadGuest = () => {
   const [columnMapping, setColumnMapping] = useState({});
   const [errors, setErrors] = useState([]);
   const [warnings, setWarnings] = useState([]);
-  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResults, setUploadResults] = useState(null);
   const [event, setEvent] = useState(null);
   const [copying, setCopying] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [copyError, setCopyError] = useState('');
+  const [existingGuests, setExistingGuests] = useState([]);
+  const [duplicateRows, setDuplicateRows] = useState([]);
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const [attendeeTypeMode, setAttendeeTypeMode] = useState('map'); // 'map' or 'default'
+  const [defaultAttendeeType, setDefaultAttendeeType] = useState('General'); // 'General' or 'Winner'
 
   React.useEffect(() => {
     getEvent(eventId).then(setEvent);
   }, [eventId]);
 
   // Expected columns for guest data
+  // Note: At least one of firstName, lastName, or email is required
   const expectedColumns = {
-    firstName: { required: true, label: 'First Name' },
-    lastName: { required: true, label: 'Last Name' },
-    email: { required: false, label: 'Email' },
-    jobTitle: { required: false, label: 'Job Title' },
-    company: { required: false, label: 'Company' },
-    attendeeType: { required: false, label: 'Attendee Type' },
-    notes: { required: false, label: 'Notes' },
-    qrCodeData: { required: false, label: 'QR Code Data' }
+    firstName: { required: false, label: 'FIRST NAME', section: 'required' },
+    lastName: { required: false, label: 'LAST NAME', section: 'required' },
+    email: { required: false, label: 'EMAIL ADDRESS', section: 'required' },
+    jobTitle: { required: false, label: 'INVITEE TITLE', section: 'optional' },
+    company: { required: false, label: 'COMPANY', section: 'optional' },
+    attendeeType: { required: false, label: 'ATTENDEE TYPE', section: 'optional' },
+    notes: { required: false, label: 'NOTES', section: 'optional' },
+    qrCodeData: { required: false, label: 'QR CODE DATA', section: 'optional' }
   };
 
   // Parse CSV data
@@ -131,6 +143,62 @@ const UploadGuest = () => {
     return { headers, data };
   };
 
+  // Parse Excel data
+  const parseExcel = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          const fileData = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(fileData, { type: 'array' });
+          
+          // Get the first worksheet
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          
+          // Convert to JSON with header row
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+            header: 1,
+            defval: '',
+            raw: false
+          });
+          
+          if (jsonData.length === 0) {
+            resolve({ headers: [], data: [] });
+            return;
+          }
+          
+          // First row is headers
+          const headers = jsonData[0].map(h => String(h || '').trim()).filter(h => h);
+          
+          // Remaining rows are data
+          const rowData = jsonData.slice(1)
+            .filter(row => row.some(cell => cell !== '')) // Filter out completely empty rows
+            .map((row, index) => {
+              const rowObj = {};
+              headers.forEach((header, i) => {
+                // Convert cell value to string, handling null/undefined
+                rowObj[header] = row[i] !== undefined && row[i] !== null ? String(row[i]).trim() : '';
+              });
+              rowObj._rowIndex = index + 2; // +2 because index 0 is header, and we start from row 2
+              return rowObj;
+            });
+          
+          resolve({ headers, data: rowData });
+        } catch (error) {
+          reject(new Error(`Error parsing Excel file: ${error.message}`));
+        }
+      };
+      
+      reader.onerror = () => {
+        reject(new Error('Error reading file'));
+      };
+      
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
   // Validate parsed data
   const validateData = (headers, data) => {
     const validationErrors = [];
@@ -141,11 +209,23 @@ const UploadGuest = () => {
       validationErrors.push('No data rows found in the file');
     }
 
+    // Check that at least one required field is mapped (firstName, lastName, or email)
+    const requiredFieldsMapped = ['firstName', 'lastName', 'email'].some(
+      field => columnMapping[field] && columnMapping[field] !== ''
+    );
+    
+    if (!requiredFieldsMapped) {
+      validationErrors.push('At least one required field (First Name, Last Name, or Email Address) must be mapped');
+    }
+
     // Check for empty required fields in data
     data.forEach((row, index) => {
       const mappedRow = mapRowData(row);
-      if (!mappedRow.firstName || !mappedRow.lastName) {
-        validationWarnings.push(`Row ${index + 2}: Missing required name fields`);
+      const hasName = mappedRow.firstName || mappedRow.lastName;
+      const hasEmail = mappedRow.email;
+      
+      if (!hasName && !hasEmail) {
+        validationWarnings.push(`Row ${index + 2}: Missing required information (name or email)`);
       }
       
       // Validate email format if provided
@@ -158,13 +238,20 @@ const UploadGuest = () => {
   };
 
   // Map row data based on column mapping
+  // columnMapping now maps: { fieldName: csvColumnName }
   const mapRowData = (row) => {
     const mappedRow = {};
-    Object.entries(columnMapping).forEach(([csvColumn, guestField]) => {
-      if (guestField && guestField !== 'ignore') {
+    Object.entries(columnMapping).forEach(([guestField, csvColumn]) => {
+      if (csvColumn && csvColumn !== 'ignore' && row[csvColumn] !== undefined) {
         mappedRow[guestField] = row[csvColumn];
       }
     });
+    
+    // Apply default attendee type if mode is 'default' and no column mapping exists
+    if (attendeeTypeMode === 'default' && !columnMapping.attendeeType) {
+      mappedRow.attendeeType = defaultAttendeeType;
+    }
+    
     return mappedRow;
   };
 
@@ -197,9 +284,30 @@ const UploadGuest = () => {
     }
   };
 
+  // Check if file is Excel format
+  const isExcelFile = (file) => {
+    const excelTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'application/excel'
+    ];
+    const excelExtensions = ['.xlsx', '.xls'];
+    
+    return excelTypes.some(type => file.type.includes(type)) ||
+           excelExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+  };
+
+  // Check if file is CSV format
+  const isCSVFile = (file) => {
+    return file.type.includes('csv') || 
+           file.type === 'text/csv' ||
+           file.name.toLowerCase().endsWith('.csv');
+  };
+
   const handleFileSelection = async (selectedFile) => {
-    if (!selectedFile.type.includes('csv') && !selectedFile.name.endsWith('.csv')) {
-      setErrors(['Please select a CSV file']);
+    // Validate file type
+    if (!isCSVFile(selectedFile) && !isExcelFile(selectedFile)) {
+      setErrors(['Please select a CSV or Excel file (.csv, .xlsx, .xls)']);
       return;
     }
 
@@ -209,27 +317,45 @@ const UploadGuest = () => {
     setWarnings([]);
     
     try {
-      const text = await selectedFile.text();
-      const { headers, data } = parseCSV(text);
+      let headers, data;
+      
+      if (isExcelFile(selectedFile)) {
+        // Parse Excel file
+        const result = await parseExcel(selectedFile);
+        headers = result.headers;
+        data = result.data;
+      } else {
+        // Parse CSV file
+        const text = await selectedFile.text();
+        const result = parseCSV(text);
+        headers = result.headers;
+        data = result.data;
+      }
       
       if (headers.length === 0) {
         setErrors(['File appears to be empty or invalid']);
+        setIsProcessing(false);
         return;
       }
 
       setParsedData({ headers, data });
       
       // Auto-map columns that match expected names
+      // Reverse mapping: field -> csvColumn
       const autoMapping = {};
       headers.forEach(header => {
-        const lowerHeader = header.toLowerCase();
+        const lowerHeader = header.toLowerCase().trim();
         Object.entries(expectedColumns).forEach(([field, config]) => {
           const lowerLabel = config.label.toLowerCase();
-          if (lowerHeader.includes(lowerLabel.split(' ')[0]) || 
+          if (lowerHeader === lowerLabel ||
+              lowerHeader.includes(lowerLabel.split(' ')[0]) || 
               lowerHeader === field ||
               (field === 'firstName' && (lowerHeader.includes('first') || lowerHeader.includes('fname'))) ||
-              (field === 'lastName' && (lowerHeader.includes('last') || lowerHeader.includes('lname')))) {
-            autoMapping[header] = field;
+              (field === 'lastName' && (lowerHeader.includes('last') || lowerHeader.includes('lname'))) ||
+              (field === 'email' && (lowerHeader.includes('email') || lowerHeader.includes('e-mail'))) ||
+              (field === 'jobTitle' && (lowerHeader.includes('title') || lowerHeader.includes('job'))) ||
+              (field === 'company' && lowerHeader.includes('company'))) {
+            autoMapping[field] = header;
           }
         });
       });
@@ -244,14 +370,88 @@ const UploadGuest = () => {
     }
   };
 
-  const handleColumnMappingChange = (csvColumn, guestField) => {
+  const handleColumnMappingChange = (guestField, csvColumn) => {
     setColumnMapping(prev => ({
       ...prev,
-      [csvColumn]: guestField
+      [guestField]: csvColumn || ''
     }));
+    
+    // If attendeeType column is selected, switch to map mode
+    if (guestField === 'attendeeType' && csvColumn) {
+      setAttendeeTypeMode('map');
+    }
   };
 
-  const validateAndProceed = () => {
+  // Check for duplicates against existing guests
+  const checkForDuplicates = async () => {
+    setCheckingDuplicates(true);
+    try {
+      // Fetch existing guests
+      const response = await getGuests(eventId, true);
+      const existing = response.data.guests || [];
+      setExistingGuests(existing);
+
+      const duplicates = [];
+      const mappedGuests = parsedData.data.map((row, index) => {
+        const mappedRow = mapRowData(row);
+        return {
+          ...mappedRow,
+          _rowIndex: index + 2, // +2 because row 1 is header, and index is 0-based
+          _originalRow: row
+        };
+      });
+
+      // Check each mapped guest against existing guests
+      mappedGuests.forEach((guest) => {
+        let isDuplicate = false;
+        let reason = '';
+
+        // Check by email if provided
+        if (guest.email) {
+          const emailMatch = existing.find(
+            eg => eg.email && eg.email.toLowerCase().trim() === guest.email.toLowerCase().trim()
+          );
+          if (emailMatch) {
+            isDuplicate = true;
+            reason = 'Email already exists';
+          }
+        }
+
+        // Check by name if no email match
+        if (!isDuplicate && guest.firstName && guest.lastName) {
+          const nameMatch = existing.find(
+            eg => eg.firstName && eg.lastName &&
+            eg.firstName.toLowerCase().trim() === guest.firstName.toLowerCase().trim() &&
+            eg.lastName.toLowerCase().trim() === guest.lastName.toLowerCase().trim()
+          );
+          if (nameMatch) {
+            isDuplicate = true;
+            reason = guest.email ? 'Name already exists' : 'Name or email already exists';
+          }
+        }
+
+        if (isDuplicate) {
+          duplicates.push({
+            rowIndex: guest._rowIndex,
+            name: `${guest.firstName || ''} ${guest.lastName || ''}`.trim() || 'Unknown',
+            email: guest.email || 'No email',
+            reason: reason,
+            rowData: guest._originalRow
+          });
+        }
+      });
+
+      setDuplicateRows(duplicates);
+      return duplicates;
+    } catch (error) {
+      console.error('Error checking for duplicates:', error);
+      return [];
+    } finally {
+      setCheckingDuplicates(false);
+    }
+  };
+
+  const validateAndProceed = async () => {
     const { errors: validationErrors, warnings: validationWarnings } = validateData(
       parsedData.headers, 
       parsedData.data
@@ -261,6 +461,8 @@ const UploadGuest = () => {
     setWarnings(validationWarnings);
     
     if (validationErrors.length === 0) {
+      // Check for duplicates before proceeding
+      await checkForDuplicates();
       setActiveStep(2);
     }
   };
@@ -343,7 +545,7 @@ const UploadGuest = () => {
                   Upload Guest List
                 </Typography>
                 <Typography variant="subtitle1" color="textSecondary">
-                  Import guests from a CSV file
+                  Import guests from a CSV or Excel file
                 </Typography>
               </Box>
             </Box>
@@ -379,7 +581,7 @@ const UploadGuest = () => {
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    Step 1: Select CSV File
+                    Step 1: Select File
                   </Typography>
                   
                   {/* File Upload Area */}
@@ -405,7 +607,7 @@ const UploadGuest = () => {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".csv"
+                      accept=".csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
                       onChange={handleFileSelect}
                       style={{ display: 'none' }}
                     />
@@ -414,7 +616,7 @@ const UploadGuest = () => {
                       <Box>
                         <CloudUploadIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
                         <Typography variant="h6" gutterBottom>
-                          Drop your CSV file here
+                          Drop your CSV or Excel file here
                         </Typography>
                         <Typography color="textSecondary" paragraph>
                           or click to browse and select a file
@@ -466,11 +668,12 @@ const UploadGuest = () => {
                   {/* Expected Format Info */}
                   <Alert severity="info" sx={{ mb: 2 }}>
                     <Typography variant="subtitle2" gutterBottom>
-                      Expected CSV Format:
+                      Supported File Formats:
                     </Typography>
-                    <Typography variant="body2">
-                      Required columns: First Name, Last Name<br />
-                      Optional columns: Email, Job Title, Company, Attendee Type, Notes, QR Code Data
+                    <Typography variant="body2" component="div">
+                      <strong>CSV (.csv)</strong> or <strong>Excel (.xlsx, .xls)</strong> files are supported.<br />
+                      <strong>Required columns:</strong> First Name, Last Name<br />
+                      <strong>Optional columns:</strong> Email, Job Title, Company, Attendee Type, Notes, QR Code Data
                     </Typography>
                   </Alert>
 
@@ -491,37 +694,250 @@ const UploadGuest = () => {
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    Step 2: Map CSV Columns to Guest Fields
+                    Step 2: Map Columns to Guest Fields
                   </Typography>
-                  <Typography color="textSecondary" paragraph>
-                    Map each column from your CSV file to the corresponding guest field.
+                  <Typography color="textSecondary" paragraph sx={{ mb: 4 }}>
+                    Select the column from your file that corresponds to each guest field.
                   </Typography>
-                  <Box sx={{
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(auto-fit, minmax(220px, 1fr))`,
-                    gap: 3,
-                    mb: 2
-                  }}>
-                    {parsedData.headers.map((header, index) => (
-                      <FormControl fullWidth key={index}>
-                        <InputLabel>Map "{header}" to</InputLabel>
-                        <Select
-                          value={columnMapping[header] || ''}
-                          onChange={(e) => handleColumnMappingChange(header, e.target.value)}
-                          label={`Map "${header}" to`}
-                        >
-                          <MenuItem value="">
-                            <em>Don't import this column</em>
-                          </MenuItem>
-                          {Object.entries(expectedColumns).map(([field, config]) => (
-                            <MenuItem key={field} value={field}>
-                              {config.label} {config.required && '*'}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    ))}
+                  
+                  {/* AT LEAST ONE REQUIRED Section */}
+                  <Box sx={{ mb: 4 }}>
+                    <Typography 
+                      variant="subtitle2" 
+                      sx={{ 
+                        fontWeight: 'bold',
+                        color: 'text.primary',
+                        mb: 3,
+                        textDecoration: 'underline',
+                        textDecorationStyle: 'dotted',
+                        textUnderlineOffset: '4px'
+                      }}
+                    >
+                      AT LEAST ONE REQUIRED
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {['firstName', 'lastName', 'email'].map((field) => {
+                        const config = expectedColumns[field];
+                        return (
+                          <Box key={field} sx={{ display: 'flex', alignItems: 'flex-start', gap: 3 }}>
+                            <Box sx={{ minWidth: 200, flexShrink: 0, pt: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                                {config.label}
+                              </Typography>
+                            </Box>
+                            <FormControl sx={{ minWidth: 320, maxWidth: 500 }}>
+                              <Select
+                                value={columnMapping[field] || ''}
+                                onChange={(e) => handleColumnMappingChange(field, e.target.value)}
+                                displayEmpty
+                                sx={{ 
+                                  backgroundColor: 'background.paper',
+                                  height: '40px',
+                                  '& .MuiSelect-select': {
+                                    color: columnMapping[field] ? 'text.primary' : '#999',
+                                    padding: '8px 14px'
+                                  },
+                                  '& .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: '#ddd'
+                                  },
+                                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: '#999'
+                                  },
+                                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: 'primary.main',
+                                    borderWidth: '2px'
+                                  }
+                                }}
+                              >
+                                <MenuItem value="" disabled>
+                                  <em style={{ color: '#999', fontStyle: 'normal' }}>Select Column</em>
+                                </MenuItem>
+                                {parsedData.headers.map((header) => (
+                                  <MenuItem key={header} value={header}>
+                                    {header}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Box>
+                        );
+                      })}
+                    </Box>
                   </Box>
+
+                  {/* OPTIONAL COLUMNS Section */}
+                  <Box sx={{ mb: 4 }}>
+                    <Typography 
+                      variant="subtitle2" 
+                      sx={{ 
+                        fontWeight: 'bold',
+                        color: 'text.primary',
+                        mb: 3
+                      }}
+                    >
+                      OPTIONAL COLUMNS
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {Object.entries(expectedColumns)
+                        .filter(([field, config]) => config.section === 'optional')
+                        .map(([field, config]) => {
+                          // Special handling for attendeeType
+                          if (field === 'attendeeType') {
+                            return (
+                              <Box key={field} sx={{ display: 'flex', alignItems: 'flex-start', gap: 3 }}>
+                                <Box sx={{ minWidth: 200, flexShrink: 0, pt: 1 }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                                    {config.label}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ minWidth: 320, maxWidth: 500, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <FormControl>
+                                    <RadioGroup
+                                      row
+                                      value={attendeeTypeMode}
+                                      onChange={(e) => {
+                                        const newMode = e.target.value;
+                                        setAttendeeTypeMode(newMode);
+                                        if (newMode === 'default') {
+                                          // Clear column mapping when switching to default mode
+                                          handleColumnMappingChange(field, '');
+                                        } else {
+                                          // When switching to map mode, ensure we have a default value
+                                          if (!columnMapping[field]) {
+                                            handleColumnMappingChange(field, '');
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      <FormControlLabel 
+                                        value="map" 
+                                        control={<Radio size="small" />} 
+                                        label="Map from column" 
+                                      />
+                                      <FormControlLabel 
+                                        value="default" 
+                                        control={<Radio size="small" />} 
+                                        label="Apply to all guests" 
+                                      />
+                                    </RadioGroup>
+                                  </FormControl>
+                                  
+                                  {attendeeTypeMode === 'map' ? (
+                                    <FormControl>
+                                      <Select
+                                        value={columnMapping[field] || ''}
+                                        onChange={(e) => handleColumnMappingChange(field, e.target.value)}
+                                        displayEmpty
+                                        sx={{ 
+                                          backgroundColor: 'background.paper',
+                                          height: '40px',
+                                          '& .MuiSelect-select': {
+                                            color: columnMapping[field] ? 'text.primary' : '#999',
+                                            padding: '8px 14px'
+                                          },
+                                          '& .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: '#ddd'
+                                          },
+                                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: '#999'
+                                          },
+                                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'primary.main',
+                                            borderWidth: '2px'
+                                          }
+                                        }}
+                                      >
+                                        <MenuItem value="" disabled>
+                                          <em style={{ color: '#999', fontStyle: 'normal' }}>Select Column</em>
+                                        </MenuItem>
+                                        {parsedData.headers.map((header) => (
+                                          <MenuItem key={header} value={header}>
+                                            {header}
+                                          </MenuItem>
+                                        ))}
+                                      </Select>
+                                    </FormControl>
+                                  ) : (
+                                    <FormControl>
+                                      <Select
+                                        value={defaultAttendeeType}
+                                        onChange={(e) => setDefaultAttendeeType(e.target.value)}
+                                        sx={{ 
+                                          backgroundColor: 'background.paper',
+                                          height: '40px',
+                                          '& .MuiSelect-select': {
+                                            padding: '8px 14px'
+                                          },
+                                          '& .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: '#ddd'
+                                          },
+                                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: '#999'
+                                          },
+                                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'primary.main',
+                                            borderWidth: '2px'
+                                          }
+                                        }}
+                                      >
+                                        <MenuItem value="General">General</MenuItem>
+                                        <MenuItem value="Winner">Winner</MenuItem>
+                                      </Select>
+                                    </FormControl>
+                                  )}
+                                </Box>
+                              </Box>
+                            );
+                          }
+                          
+                          // Regular optional fields
+                          return (
+                            <Box key={field} sx={{ display: 'flex', alignItems: 'flex-start', gap: 3 }}>
+                              <Box sx={{ minWidth: 200, flexShrink: 0, pt: 1 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                                  {config.label}
+                                </Typography>
+                              </Box>
+                              <FormControl sx={{ minWidth: 320, maxWidth: 500 }}>
+                                <Select
+                                  value={columnMapping[field] || ''}
+                                  onChange={(e) => handleColumnMappingChange(field, e.target.value)}
+                                  displayEmpty
+                                  sx={{ 
+                                    backgroundColor: 'background.paper',
+                                    height: '40px',
+                                    '& .MuiSelect-select': {
+                                      color: columnMapping[field] ? 'text.primary' : '#999',
+                                      padding: '8px 14px'
+                                    },
+                                    '& .MuiOutlinedInput-notchedOutline': {
+                                      borderColor: '#ddd'
+                                    },
+                                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                                      borderColor: '#999'
+                                    },
+                                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                      borderColor: 'primary.main',
+                                      borderWidth: '2px'
+                                    }
+                                  }}
+                                >
+                                  <MenuItem value="" disabled>
+                                    <em style={{ color: '#999', fontStyle: 'normal' }}>Select Column</em>
+                                  </MenuItem>
+                                  {parsedData.headers.map((header) => (
+                                    <MenuItem key={header} value={header}>
+                                      {header}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
+                            </Box>
+                          );
+                        })}
+                    </Box>
+                  </Box>
+
                   <Box display="flex" justifyContent="space-between" mt={4}>
                     <Button onClick={() => setActiveStep(0)}>
                       Back
@@ -529,9 +945,11 @@ const UploadGuest = () => {
                     <Button 
                       variant="contained" 
                       onClick={validateAndProceed}
-                      disabled={Object.keys(columnMapping).length === 0}
+                      disabled={!['firstName', 'lastName', 'email'].some(
+                        field => columnMapping[field] && columnMapping[field] !== ''
+                      ) || checkingDuplicates}
                     >
-                      Next: Review Data
+                      {checkingDuplicates ? 'Checking...' : 'Next: Review Data'}
                     </Button>
                   </Box>
                 </CardContent>
@@ -545,11 +963,21 @@ const UploadGuest = () => {
                     Step 3: Review and Upload
                   </Typography>
                   
+                  {/* Checking for duplicates indicator */}
+                  {checkingDuplicates && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                      <CircularProgress size={20} />
+                      <Typography variant="body2" color="textSecondary">
+                        Checking for duplicates...
+                      </Typography>
+                    </Box>
+                  )}
+
                   {/* Summary */}
-                  <Grid container spacing={2}>
+                  <Grid container spacing={2} sx={{ mb: 3 }}>
                     <Grid xs={12} md={4}>
-                      <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'primary.light' }}>
-                        <Typography variant="h3" color="primary.main" gutterBottom>
+                      <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+                        <Typography variant="h3" color="primary.main" gutterBottom sx={{ fontWeight: 700 }}>
                           {parsedData.data.length}
                         </Typography>
                         <Typography variant="body2" color="textSecondary">
@@ -558,38 +986,139 @@ const UploadGuest = () => {
                       </Paper>
                     </Grid>
                     <Grid xs={12} md={4}>
-                      <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'success.light' }}>
-                        <Typography variant="h3" color="success.main" gutterBottom>
-                          {Object.values(columnMapping).filter(v => v && v !== 'ignore').length}
+                      <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+                        <Typography variant="h3" color="success.main" gutterBottom sx={{ fontWeight: 700 }}>
+                          {parsedData.data.length - duplicateRows.length}
                         </Typography>
                         <Typography variant="body2" color="textSecondary">
-                          Mapped Fields
+                          Will be Added
                         </Typography>
                       </Paper>
                     </Grid>
                     <Grid xs={12} md={4}>
-                      <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'warning.light' }}>
-                        <Typography variant="h3" color="warning.main" gutterBottom>
-                          {warnings.length}
+                      <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+                        <Typography variant="h3" color={duplicateRows.length > 0 ? 'warning.main' : 'text.secondary'} gutterBottom sx={{ fontWeight: 700 }}>
+                          {duplicateRows.length}
                         </Typography>
                         <Typography variant="body2" color="textSecondary">
-                          Warnings
+                          Will be Skipped (Duplicates)
                         </Typography>
                       </Paper>
                     </Grid>
                   </Grid>
 
-                  {/* Warnings */}
-                  {warnings.length > 0 && (
-                    <Alert severity="warning" sx={{ mb: 3 }}>
-                      <Typography variant="subtitle2" gutterBottom>Warnings:</Typography>
-                      {warnings.slice(0, 5).map((warning, index) => (
-                        <Typography key={index} variant="body2">• {warning}</Typography>
-                      ))}
-                      {warnings.length > 5 && (
-                        <Typography variant="body2">• ... and {warnings.length - 5} more</Typography>
-                      )}
-                    </Alert>
+                  {/* Rows That Will Be Added Table */}
+                  {parsedData.data.length - duplicateRows.length > 0 && (
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+                        Rows That Will Be Added ({parsedData.data.length - duplicateRows.length})
+                      </Typography>
+                      <TableContainer component={Paper} sx={{ maxHeight: 400, overflow: 'auto' }}>
+                        <Table size="small" stickyHeader>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 600 }}>Row</TableCell>
+                              <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                              <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                              {columnMapping.jobTitle && (
+                                <TableCell sx={{ fontWeight: 600 }}>Job Title</TableCell>
+                              )}
+                              {columnMapping.company && (
+                                <TableCell sx={{ fontWeight: 600 }}>Company</TableCell>
+                              )}
+                              {(columnMapping.attendeeType || attendeeTypeMode === 'default') && (
+                                <TableCell sx={{ fontWeight: 600 }}>Attendee Type</TableCell>
+                              )}
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {parsedData.data.map((row, index) => {
+                              const rowIndex = index + 2; // +2 because row 1 is header, and index is 0-based
+                              const mappedRow = mapRowData(row);
+                              const isDuplicate = duplicateRows.some(dup => dup.rowIndex === rowIndex);
+                              
+                              // Skip duplicates and rows with errors
+                              if (isDuplicate) return null;
+                              
+                              const firstName = mappedRow.firstName || '';
+                              const lastName = mappedRow.lastName || '';
+                              const name = `${firstName} ${lastName}`.trim() || 'Unknown';
+                              
+                              return (
+                                <TableRow key={`add-${index}`}>
+                                  <TableCell>{rowIndex}</TableCell>
+                                  <TableCell>{name}</TableCell>
+                                  <TableCell>{mappedRow.email || '-'}</TableCell>
+                                  {columnMapping.jobTitle && (
+                                    <TableCell>{mappedRow.jobTitle || '-'}</TableCell>
+                                  )}
+                                  {columnMapping.company && (
+                                    <TableCell>{mappedRow.company || '-'}</TableCell>
+                                  )}
+                                  {(columnMapping.attendeeType || attendeeTypeMode === 'default') && (
+                                    <TableCell>{mappedRow.attendeeType || '-'}</TableCell>
+                                  )}
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
+                  )}
+
+                  {/* Issues Table */}
+                  {(warnings.length > 0 || duplicateRows.length > 0) && (
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+                        Rows with Issues
+                      </Typography>
+                      <TableContainer component={Paper} sx={{ maxHeight: 400, overflow: 'auto' }}>
+                        <Table size="small" stickyHeader>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 600 }}>Row</TableCell>
+                              <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                              <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                              <TableCell sx={{ fontWeight: 600 }}>Issue Type</TableCell>
+                              <TableCell sx={{ fontWeight: 600 }}>Details</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {/* Duplicate rows */}
+                            {duplicateRows.map((duplicate, index) => (
+                              <TableRow key={`dup-${index}`}>
+                                <TableCell>{duplicate.rowIndex}</TableCell>
+                                <TableCell>{duplicate.name}</TableCell>
+                                <TableCell>{duplicate.email}</TableCell>
+                                <TableCell>
+                                  <Chip label="Duplicate" color="warning" size="small" />
+                                </TableCell>
+                                <TableCell>{duplicate.reason}</TableCell>
+                              </TableRow>
+                            ))}
+                            {/* Warning rows */}
+                            {warnings.map((warning, index) => {
+                              // Extract row number from warning message (format: "Row X: message")
+                              const rowMatch = warning.match(/Row (\d+):/);
+                              const rowNum = rowMatch ? rowMatch[1] : index + 1;
+                              const warningText = warning.replace(/Row \d+: /, '');
+                              return (
+                                <TableRow key={`warn-${index}`}>
+                                  <TableCell>{rowNum}</TableCell>
+                                  <TableCell>-</TableCell>
+                                  <TableCell>-</TableCell>
+                                  <TableCell>
+                                    <Chip label="Warning" color="info" size="small" />
+                                  </TableCell>
+                                  <TableCell>{warningText}</TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
                   )}
 
                   {/* Errors */}
@@ -601,16 +1130,6 @@ const UploadGuest = () => {
                       ))}
                     </Alert>
                   )}
-
-                  {/* Preview Button */}
-                  <Button
-                    variant="outlined"
-                    startIcon={<VisibilityIcon />}
-                    onClick={() => setPreviewDialogOpen(true)}
-                    sx={{ mb: 3 }}
-                  >
-                    Preview Data ({parsedData.data.length} rows)
-                  </Button>
 
                   {/* Upload Progress */}
                   {isProcessing && (
@@ -628,16 +1147,19 @@ const UploadGuest = () => {
                   )}
 
                   <Box display="flex" justifyContent="space-between">
-                    <Button onClick={() => setActiveStep(1)} disabled={isProcessing}>
+                    <Button onClick={() => {
+                      setDuplicateRows([]);
+                      setActiveStep(1);
+                    }} disabled={isProcessing || checkingDuplicates}>
                       Back
                     </Button>
                     <Button 
                       variant="contained" 
                       onClick={handleUpload}
-                      disabled={errors.length > 0 || isProcessing}
+                      disabled={errors.length > 0 || isProcessing || checkingDuplicates}
                       startIcon={<SaveIcon />}
                     >
-                      Upload {parsedData.data.length} Guests
+                      Upload {parsedData.data.length - duplicateRows.length} Guests
                     </Button>
                   </Box>
                 </CardContent>
@@ -646,50 +1168,227 @@ const UploadGuest = () => {
 
             {activeStep === 3 && uploadResults && (
               <Card>
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <CheckCircleIcon sx={{ fontSize: 80, color: 'success.main', mb: 2 }} />
-                  <Typography variant="h5" gutterBottom>
-                    Upload Complete!
-                  </Typography>
+                <CardContent>
+                  <Box sx={{ textAlign: 'center', mb: 4 }}>
+                    <CheckCircleIcon sx={{ fontSize: 80, color: 'success.main', mb: 2 }} />
+                    <Typography variant="h5" gutterBottom>
+                      Upload Complete!
+                    </Typography>
+                  </Box>
                   
-                  <Grid container spacing={2}>
+                  <Grid container spacing={3}>
+                    {/* Success Section - Always shown first */}
                     <Grid xs={12}>
-                      <Paper sx={{ p: 3 }}>
-                        <Typography variant="h4" color="success.main" gutterBottom>
-                          {uploadResults.successful || 0}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Successfully Added
-                        </Typography>
+                      <Paper 
+                        sx={{ 
+                          p: 0,
+                          backgroundColor: 'background.paper',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          overflow: 'hidden'
+                        }}
+                      >
+                        {/* Colored top bar */}
+                        <Box 
+                          sx={{ 
+                            height: 6,
+                            backgroundColor: 'success.main',
+                            width: '100%'
+                          }}
+                        />
+                        <Box sx={{ p: 3 }}>
+                          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                            <Box>
+                              <Typography variant="h4" sx={{ color: 'text.primary', fontWeight: 700 }} gutterBottom>
+                                {uploadResults.results?.added?.length || 0}
+                              </Typography>
+                              <Typography variant="body1" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                                Successfully Added
+                              </Typography>
+                            </Box>
+                            <CheckCircleIcon sx={{ fontSize: 48, color: 'success.main' }} />
+                          </Box>
+                          {(uploadResults.results?.added?.length || 0) > 0 && parsedData && (
+                            <TableContainer sx={{ maxHeight: 500, overflow: 'auto' }}>
+                              <Table size="small" stickyHeader>
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell sx={{ fontWeight: 600 }}>Row</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                                    {columnMapping.jobTitle && (
+                                      <TableCell sx={{ fontWeight: 600 }}>Job Title</TableCell>
+                                    )}
+                                    {columnMapping.company && (
+                                      <TableCell sx={{ fontWeight: 600 }}>Company</TableCell>
+                                    )}
+                                    {(columnMapping.attendeeType || attendeeTypeMode === 'default') && (
+                                      <TableCell sx={{ fontWeight: 600 }}>Attendee Type</TableCell>
+                                    )}
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {uploadResults.results.added.map((addedItem, index) => {
+                                    const rowIndex = addedItem.index - 1; // Convert 1-based to 0-based
+                                    const rowData = parsedData.data[rowIndex];
+                                    const mappedRow = mapRowData(rowData);
+                                    return (
+                                      <TableRow key={index}>
+                                        <TableCell>{addedItem.index}</TableCell>
+                                        <TableCell>{addedItem.name}</TableCell>
+                                        <TableCell>{addedItem.email || '-'}</TableCell>
+                                        {columnMapping.jobTitle && (
+                                          <TableCell>{mappedRow.jobTitle || '-'}</TableCell>
+                                        )}
+                                        {columnMapping.company && (
+                                          <TableCell>{mappedRow.company || '-'}</TableCell>
+                                        )}
+                                        {(columnMapping.attendeeType || attendeeTypeMode === 'default') && (
+                                          <TableCell>{mappedRow.attendeeType || '-'}</TableCell>
+                                        )}
+                                      </TableRow>
+                                    );
+                                  })}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          )}
+                        </Box>
                       </Paper>
                     </Grid>
-                    {uploadResults.duplicates > 0 && (
+
+                    {/* Errors Section - Shown second */}
+                    {(uploadResults.results?.errors?.length || 0) > 0 && (
                       <Grid xs={12}>
-                        <Paper sx={{ p: 3 }}>
-                          <Typography variant="h4" color="warning.main" gutterBottom>
-                            {uploadResults.duplicates}
-                          </Typography>
-                          <Typography variant="body2" color="textSecondary">
-                            Duplicates Skipped
-                          </Typography>
+                        <Paper 
+                          sx={{ 
+                            p: 0,
+                            backgroundColor: 'background.paper',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          {/* Colored top bar */}
+                          <Box 
+                            sx={{ 
+                              height: 6,
+                              backgroundColor: 'error.main',
+                              width: '100%'
+                            }}
+                          />
+                          <Box sx={{ p: 3 }}>
+                            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                              <Box>
+                                <Typography variant="h4" sx={{ color: 'text.primary', fontWeight: 700 }} gutterBottom>
+                                  {uploadResults.results?.errors?.length || 0}
+                                </Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                                  Errors
+                                </Typography>
+                              </Box>
+                              <ErrorIcon sx={{ fontSize: 48, color: 'error.main' }} />
+                            </Box>
+                            <TableContainer sx={{ maxHeight: 500, overflow: 'auto' }}>
+                              <Table size="small" stickyHeader>
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell sx={{ fontWeight: 600 }}>Row</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>Error</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {uploadResults.results.errors.map((errorItem, index) => {
+                                    const rowIndex = errorItem.index - 1; // Convert 1-based to 0-based
+                                    const rowData = parsedData.data[rowIndex];
+                                    return (
+                                      <TableRow key={index}>
+                                        <TableCell>{errorItem.index}</TableCell>
+                                        <TableCell>{errorItem.name}</TableCell>
+                                        <TableCell>{errorItem.email || '-'}</TableCell>
+                                        <TableCell>
+                                          <Typography variant="body2" color="error.main">
+                                            {errorItem.error}
+                                          </Typography>
+                                        </TableCell>
+                                      </TableRow>
+                                    );
+                                  })}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          </Box>
                         </Paper>
                       </Grid>
                     )}
-                    {uploadResults.errors > 0 && (
+
+                    {/* Duplicates Section - Shown last */}
+                    {(uploadResults.results?.duplicates?.length || 0) > 0 && (
                       <Grid xs={12}>
-                        <Paper sx={{ p: 3 }}>
-                          <Typography variant="h4" color="error.main" gutterBottom>
-                            {uploadResults.errors}
-                          </Typography>
-                          <Typography variant="body2" color="textSecondary">
-                            Errors
-                          </Typography>
+                        <Paper 
+                          sx={{ 
+                            p: 0,
+                            backgroundColor: 'background.paper',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          {/* Colored top bar */}
+                          <Box 
+                            sx={{ 
+                              height: 6,
+                              backgroundColor: 'warning.main',
+                              width: '100%'
+                            }}
+                          />
+                          <Box sx={{ p: 3 }}>
+                            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                              <Box>
+                                <Typography variant="h4" sx={{ color: 'text.primary', fontWeight: 700 }} gutterBottom>
+                                  {uploadResults.results?.duplicates?.length || 0}
+                                </Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                                  Duplicates Skipped
+                                </Typography>
+                              </Box>
+                              <WarningIcon sx={{ fontSize: 48, color: 'warning.main' }} />
+                            </Box>
+                            <TableContainer sx={{ maxHeight: 500, overflow: 'auto' }}>
+                              <Table size="small" stickyHeader>
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell sx={{ fontWeight: 600 }}>Row</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>Reason</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {uploadResults.results.duplicates.map((duplicate, index) => (
+                                    <TableRow key={index}>
+                                      <TableCell>{duplicate.index}</TableCell>
+                                      <TableCell>{duplicate.name}</TableCell>
+                                      <TableCell>{duplicate.email || '-'}</TableCell>
+                                      <TableCell>
+                                        <Typography variant="body2" color="text.secondary">
+                                          {duplicate.reason}
+                                        </Typography>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          </Box>
                         </Paper>
                       </Grid>
                     )}
                   </Grid>
 
-                  <Box display="flex" gap={2} justifyContent="center">
+                  <Box display="flex" gap={2} justifyContent="center" mt={4}>
                     <Button
                       variant="contained"
                       onClick={() => navigate(`/events/${eventId}`)}
@@ -707,61 +1406,6 @@ const UploadGuest = () => {
               </Card>
             )}
 
-            {/* Preview Dialog */}
-            <Dialog 
-              open={previewDialogOpen} 
-              onClose={() => setPreviewDialogOpen(false)}
-              maxWidth="lg"
-              fullWidth
-            >
-              <DialogTitle>
-                <Box display="flex" alignItems="center">
-                  <TableChartIcon sx={{ mr: 1 }} />
-                  Data Preview
-                </Box>
-              </DialogTitle>
-              <DialogContent>
-                {parsedData && (
-                  <TableContainer component={Paper}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          {parsedData.headers.map((header) => (
-                            <TableCell key={header}>
-                              <Box>
-                                <Typography variant="subtitle2">{header}</Typography>
-                                <Typography variant="caption" color="textSecondary">
-                                  → {columnMapping[header] ? expectedColumns[columnMapping[header]]?.label : 'Not mapped'}
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {parsedData.data.slice(0, 10).map((row, index) => (
-                          <TableRow key={index} hover>
-                            {parsedData.headers.map((header) => (
-                              <TableCell key={header}>
-                                {row[header]}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )}
-                {parsedData && parsedData.data.length > 10 && (
-                  <Typography variant="body2" color="textSecondary" sx={{ mt: 2, textAlign: 'center' }}>
-                    Showing first 10 of {parsedData.data.length} rows
-                  </Typography>
-                )}
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={() => setPreviewDialogOpen(false)}>Close</Button>
-              </DialogActions>
-            </Dialog>
           </Box>
         </Container>
       </Box>

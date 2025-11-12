@@ -173,6 +173,11 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     setLocalGuests(prev => [...prev, newGuest]);
   };
 
+  const handleEventUpdate = (updatedEvent) => {
+    // Update the event state with the new data
+    setEvent(updatedEvent);
+  };
+
   const handleCheckInSuccess = (checkedInGuest) => {
     // Update both guests and localGuests states with the complete updated guest data
     const updateGuestState = (guestList) => guestList.map(guest =>
@@ -220,7 +225,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
 
   return (
     <MainLayout eventName={event.eventName || 'Loading Event...'} parentEventName={parentEvent && parentEvent._id !== event._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event._id ? parentEvent._id : null}>
-      <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={true} />
+      <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={true} onEventUpdate={handleEventUpdate} />
 
       {/* Event Overview Section */}
       <Box sx={{ width: '100%', px: 2, py: 2, backgroundColor: '#fdf9f6' }}>
@@ -263,6 +268,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         onInventoryChange={onInventoryChange}
         onCheckInSuccess={handleCheckInSuccess}
         inventory={inventory}
+        onGuestsChange={() => fetchGuests(eventId)}
       />
 
       {/* Check-in Modal */}

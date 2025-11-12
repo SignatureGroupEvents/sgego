@@ -24,9 +24,8 @@ import {
     List,
     ListItem,
     ListItemText,
-    ListItemSecondaryAction
-    // Autocomplete, (disabled - no backend endpoint)
-    // FormHelperText (disabled - no backend endpoint)
+    ListItemSecondaryAction,
+    Autocomplete
 } from '@mui/material';
 import {
     ArrowBack,
@@ -39,12 +38,13 @@ import {
     Undo,
     SwapHoriz,
     Delete,
-    Add
-    // LocalOffer (disabled - no backend endpoint)
+    Add,
+    LocalOffer
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
-import api, { undoCheckin, updateCheckinGifts } from '../../services/api';
+import api, { undoCheckin, updateCheckinGifts, deleteGuest } from '../../services/api';
 import MainLayout from '../layout/MainLayout';
+import toast from 'react-hot-toast';
 
 // Undo reason options - these map to string values sent to backend
 const UNDO_REASONS = [
@@ -68,10 +68,9 @@ export default function GuestDetailPage() {
     const [saving, setSaving] = useState(false);
     const [event, setEvent] = useState(null);
     
-    // Tag management states - DISABLED (no backend endpoint)
-    // const [availableTags, setAvailableTags] = useState([]);
-    // const [selectedTags, setSelectedTags] = useState([]);
-    // const [tagLoading, setTagLoading] = useState(false);
+    // Tag management states
+    const [availableTags, setAvailableTags] = useState([]);
+    const [selectedTags, setSelectedTags] = useState([]);
     
     // Undo and gift modification states
     const [undoDialogOpen, setUndoDialogOpen] = useState(false);
@@ -85,6 +84,8 @@ export default function GuestDetailPage() {
     const [modifiedGifts, setModifiedGifts] = useState([]);
     const [undoLoading, setUndoLoading] = useState(false);
     const [giftModificationLoading, setGiftModificationLoading] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         const fetchGuest = async () => {
@@ -100,17 +101,21 @@ export default function GuestDetailPage() {
                     jobTitle: guestData.jobTitle || '',
                     company: guestData.company || '',
                     attendeeType: guestData.attendeeType || '',
-                    notes: guestData.notes || ''
+                    notes: guestData.notes || '',
+                    qrCodeData: guestData.qrCodeData || ''
                 });
                 
-                // Set initial tags - DISABLED (no backend endpoint)
-                // setSelectedTags(guestData.tags || []);
+                // Set initial tags
+                setSelectedTags(guestData.tags || []);
                 
                 // Fetch event details
                 if (eventId) {
                     try {
                         const eventResponse = await api.get(`/events/${eventId}`);
-                        setEvent(eventResponse.data);
+                        const eventData = eventResponse.data.event || eventResponse.data;
+                        setEvent(eventData);
+                        // Set available tags from event
+                        setAvailableTags(eventData?.availableTags || []);
                     } catch (eventErr) {
                         console.warn('Failed to fetch event details:', eventErr);
                     }
@@ -134,16 +139,23 @@ export default function GuestDetailPage() {
         }));
     };
 
-    // Tag change handler - DISABLED (no backend endpoint)
-    // const handleTagChange = (event, newValue) => {
-    //     setSelectedTags(newValue);
-    // };
+    // Tag change handler
+    const handleTagChange = (event, newValue) => {
+        setSelectedTags(newValue);
+    };
 
     const handleSave = async () => {
         try {
             setSaving(true);
-            // Save guest data (tags disabled - no backend endpoint)
-            const response = await api.put(`/guests/${guestId}`, editedGuest);
+            // Save guest data including tags
+            const updateData = {
+                ...editedGuest,
+                tags: selectedTags.length > 0 ? selectedTags.map(tag => ({
+                    name: tag.name || tag,
+                    color: tag.color || '#1976d2'
+                })) : []
+            };
+            const response = await api.put(`/guests/${guestId}`, updateData);
             setGuest(response.data);
             setIsEditing(false);
             setError(''); // Clear any previous errors
@@ -162,15 +174,31 @@ export default function GuestDetailPage() {
             jobTitle: guest?.jobTitle || '',
             company: guest?.company || '',
             attendeeType: guest?.attendeeType || '',
-            notes: guest?.notes || ''
+            notes: guest?.notes || '',
+            qrCodeData: guest?.qrCodeData || ''
         });
-        // Tags disabled - no backend endpoint
-        // setSelectedTags(guest?.tags || []);
+        setSelectedTags(guest?.tags || []);
         setIsEditing(false);
     };
 
     const handleBackToGuestList = () => {
         navigate(`/events/${eventId}`);
+    };
+    
+    const handleDeleteGuest = async () => {
+        if (!guest) return;
+        
+        setDeleting(true);
+        try {
+            await deleteGuest(guestId);
+            toast.success('Guest deleted successfully');
+            navigate(`/events/${eventId}`);
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to delete guest');
+        } finally {
+            setDeleting(false);
+            setDeleteDialogOpen(false);
+        }
     };
 
     const handleUndoCheckin = async () => {
@@ -356,41 +384,97 @@ export default function GuestDetailPage() {
                         </Button>
 
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                                {guest.firstName} {guest.lastName}
-                            </Typography>
+                            <Box>
+                                <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                                    {guest.firstName} {guest.lastName}
+                                </Typography>
+                                {(() => {
+                                    // Calculate check-in status - exclude main events when secondary events exist
+                                    const hasSecondaryEvents = event?.secondaryEvents && event.secondaryEvents.length > 0;
+                                    const eventsToCheck = hasSecondaryEvents ? event.secondaryEvents : [event];
+                                    const totalEvents = eventsToCheck.length;
+                                    const checkedInEvents = guest.eventCheckins?.length || 0;
+                                    const isFullyCheckedIn = checkedInEvents >= totalEvents;
+                                    const isPartiallyCheckedIn = checkedInEvents > 0 && checkedInEvents < totalEvents;
+                                    
+                                    if (isFullyCheckedIn) {
+                                        return (
+                                            <Chip
+                                                label="Fully Picked Up"
+                                                color="success"
+                                                size="small"
+                                                icon={<CheckCircle />}
+                                                sx={{ fontWeight: 600 }}
+                                            />
+                                        );
+                                    } else if (isPartiallyCheckedIn) {
+                                        return (
+                                            <Chip
+                                                label="Partial"
+                                                color="warning"
+                                                size="small"
+                                                icon={<Star />}
+                                                sx={{ fontWeight: 600 }}
+                                            />
+                                        );
+                                    } else {
+                                        return (
+                                            <Chip
+                                                label="Not Picked Up"
+                                                color="default"
+                                                size="small"
+                                                icon={<Star />}
+                                                sx={{ fontWeight: 600 }}
+                                            />
+                                        );
+                                    }
+                                })()}
+                            </Box>
 
-                            {!isEditing ? (
-                                <Button
-                                    onClick={() => setIsEditing(true)}
-                                    startIcon={<Edit />}
-                                    variant="contained"
-                                    size="large"
-                                >
-                                    Edit Guest
-                                </Button>
-                            ) : (
-                                <Stack direction="row" spacing={1}>
-                                    <Button
-                                        onClick={handleSave}
-                                        startIcon={<Save />}
-                                        variant="contained"
-                                        color="success"
-                                        size="large"
-                                        disabled={saving}
-                                    >
-                                        {saving ? <CircularProgress size={24} color="inherit" /> : 'Save'}
-                                    </Button>
-                                    <Button
-                                        onClick={handleCancel}
-                                        startIcon={<Cancel />}
-                                        variant="outlined"
-                                        size="large"
-                                    >
-                                        Cancel
-                                    </Button>
-                                </Stack>
-                            )}
+                            <Stack direction="row" spacing={1}>
+                                {!isEditing ? (
+                                    <>
+                                        <Button
+                                            onClick={() => setIsEditing(true)}
+                                            startIcon={<Edit />}
+                                            variant="contained"
+                                            size="large"
+                                        >
+                                            Edit Guest
+                                        </Button>
+                                        <Button
+                                            onClick={() => setDeleteDialogOpen(true)}
+                                            startIcon={<Delete />}
+                                            variant="outlined"
+                                            color="error"
+                                            size="large"
+                                        >
+                                            Delete Guest
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Button
+                                            onClick={handleSave}
+                                            startIcon={<Save />}
+                                            variant="contained"
+                                            color="success"
+                                            size="large"
+                                            disabled={saving}
+                                        >
+                                            {saving ? <CircularProgress size={24} color="inherit" /> : 'Save'}
+                                        </Button>
+                                        <Button
+                                            onClick={handleCancel}
+                                            startIcon={<Cancel />}
+                                            variant="outlined"
+                                            size="large"
+                                        >
+                                            Cancel
+                                        </Button>
+                                    </>
+                                )}
+                            </Stack>
                         </Box>
                     </Box>
 
@@ -403,190 +487,254 @@ export default function GuestDetailPage() {
                                     Basic Information
                                 </Typography>
 
-                                <Grid container spacing={3}>
-                                    {/* Name */}
-                                    <Grid item xs={12} md={6}>
-                                        <Box>
-                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                                Full Name
-                                            </Typography>
-                                            {isEditing ? (
-                                                <Box sx={{ display: 'flex', gap: 1 }}>
+                                <Box sx={{ display: 'flex', gap: 4, flexDirection: { xs: 'column', md: 'row' } }}>
+                                    {/* Left Column */}
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                        <Stack spacing={2.5}>
+                                            {/* Attendee Type */}
+                                            <Box>
+                                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                                    Attendee Type
+                                                </Typography>
+                                                {isEditing ? (
                                                     <TextField
                                                         fullWidth
-                                                        label="First Name"
+                                                        value={editedGuest.attendeeType}
+                                                        onChange={(e) => handleInputChange('attendeeType', e.target.value)}
+                                                        size="small"
+                                                        placeholder="Select attendee type"
+                                                    />
+                                                ) : (
+                                                    <Typography variant="body1">
+                                                        {guest.attendeeType || 'Not specified'}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+
+                                            {/* First Name */}
+                                            <Box>
+                                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                                    First Name
+                                                </Typography>
+                                                {isEditing ? (
+                                                    <TextField
+                                                        fullWidth
                                                         value={editedGuest.firstName}
                                                         onChange={(e) => handleInputChange('firstName', e.target.value)}
                                                         size="small"
+                                                        placeholder="Enter first name"
                                                     />
+                                                ) : (
+                                                    <Typography variant="body1">
+                                                        {guest.firstName}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+
+                                            {/* Last Name */}
+                                            <Box>
+                                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                                    Last Name
+                                                </Typography>
+                                                {isEditing ? (
                                                     <TextField
                                                         fullWidth
-                                                        label="Last Name"
                                                         value={editedGuest.lastName}
                                                         onChange={(e) => handleInputChange('lastName', e.target.value)}
                                                         size="small"
+                                                        placeholder="Enter last name"
                                                     />
-                                                </Box>
-                                            ) : (
-                                                <Typography variant="body1">
-                                                    {guest.firstName} {guest.lastName}
-                                                </Typography>
-                                            )}
-                                        </Box>
-                                    </Grid>
+                                                ) : (
+                                                    <Typography variant="body1">
+                                                        {guest.lastName}
+                                                    </Typography>
+                                                )}
+                                            </Box>
 
-                                    {/* Email */}
-                                    <Grid item xs={12} md={6}>
-                                        <Box>
-                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                                Email
-                                            </Typography>
-                                            {isEditing ? (
-                                                <TextField
-                                                    fullWidth
-                                                    type="email"
-                                                    value={editedGuest.email}
-                                                    onChange={(e) => handleInputChange('email', e.target.value)}
-                                                    size="small"
-                                                />
-                                            ) : (
-                                                <Typography variant="body1" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                    <Email sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                                    {guest.email}
+                                            {/* Email */}
+                                            <Box>
+                                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                                    Email
                                                 </Typography>
-                                            )}
-                                        </Box>
-                                    </Grid>
+                                                {isEditing ? (
+                                                    <TextField
+                                                        fullWidth
+                                                        type="email"
+                                                        value={editedGuest.email}
+                                                        onChange={(e) => handleInputChange('email', e.target.value)}
+                                                        size="small"
+                                                        placeholder="Enter email"
+                                                    />
+                                                ) : (
+                                                    <Typography variant="body1" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <Email sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                                        {guest.email || 'Not specified'}
+                                                    </Typography>
+                                                )}
+                                            </Box>
 
-                                    {/* Job Title */}
-                                    <Grid item xs={12} md={4}>
-                                        <Box>
-                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                                Job Title
-                                            </Typography>
-                                            {isEditing ? (
-                                                <TextField
-                                                    fullWidth
-                                                    value={editedGuest.jobTitle}
-                                                    onChange={(e) => handleInputChange('jobTitle', e.target.value)}
-                                                    size="small"
-                                                />
-                                            ) : (
-                                                <Typography variant="body1">
-                                                    {guest.jobTitle || 'Not specified'}
+                                            {/* Job Title */}
+                                            <Box>
+                                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                                    Job Title
                                                 </Typography>
-                                            )}
-                                        </Box>
-                                    </Grid>
+                                                {isEditing ? (
+                                                    <TextField
+                                                        fullWidth
+                                                        value={editedGuest.jobTitle}
+                                                        onChange={(e) => handleInputChange('jobTitle', e.target.value)}
+                                                        size="small"
+                                                        placeholder="Enter job title"
+                                                    />
+                                                ) : (
+                                                    <Typography variant="body1">
+                                                        {guest.jobTitle || 'Not specified'}
+                                                    </Typography>
+                                                )}
+                                            </Box>
 
-                                    {/* Company */}
-                                    <Grid item xs={12} md={4}>
-                                        <Box>
-                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                                Company
-                                            </Typography>
-                                            {isEditing ? (
-                                                <TextField
-                                                    fullWidth
-                                                    value={editedGuest.company}
-                                                    onChange={(e) => handleInputChange('company', e.target.value)}
-                                                    size="small"
-                                                />
-                                            ) : (
-                                                <Typography variant="body1">
-                                                    {guest.company || 'Not specified'}
+                                            {/* Company */}
+                                            <Box>
+                                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                                    Company
                                                 </Typography>
-                                            )}
-                                        </Box>
-                                    </Grid>
+                                                {isEditing ? (
+                                                    <TextField
+                                                        fullWidth
+                                                        value={editedGuest.company}
+                                                        onChange={(e) => handleInputChange('company', e.target.value)}
+                                                        size="small"
+                                                        placeholder="Enter company"
+                                                    />
+                                                ) : (
+                                                    <Typography variant="body1">
+                                                        {guest.company || 'Not specified'}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        </Stack>
+                                    </Box>
 
-                                    {/* Attendee Type */}
-                                    <Grid item xs={12} md={4}>
-                                        <Box>
-                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                                Attendee Type
-                                            </Typography>
-                                            {isEditing ? (
-                                                <TextField
-                                                    fullWidth
-                                                    value={editedGuest.attendeeType}
-                                                    onChange={(e) => handleInputChange('attendeeType', e.target.value)}
-                                                    size="small"
-                                                />
-                                            ) : (
-                                                <Typography variant="body1">
-                                                    {guest.attendeeType || 'Not specified'}
+                                    {/* Right Column */}
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                        <Stack spacing={2.5}>
+                                            {/* Tags */}
+                                            <Box>
+                                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                                    Tags
                                                 </Typography>
-                                            )}
-                                        </Box>
-                                    </Grid>
-
-                                    {/* Tags - DISABLED (no backend endpoint) */}
-                                    {/* 
-                                    <Grid item xs={12}>
-                                        <Box>
-                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                                Tags
-                                            </Typography>
-                                            {isEditing ? (
-                                                <Autocomplete
-                                                    multiple
-                                                    options={availableTags}
-                                                    getOptionLabel={(option) => option.name}
-                                                    value={selectedTags}
-                                                    onChange={handleTagChange}
-                                                    renderTags={(value, getTagProps) =>
-                                                        value.map((option, index) => (
-                                                            <Chip
-                                                                variant="outlined"
-                                                                label={option.name}
-                                                                {...getTagProps({ index })}
-                                                                key={option._id || index}
-                                                                sx={{
-                                                                    backgroundColor: option.color,
-                                                                    color: 'white',
-                                                                    '& .MuiChip-deleteIcon': {
-                                                                        color: 'white !important'
-                                                                    }
-                                                                }}
-                                                            />
-                                                        ))
-                                                    }
-                                                    renderInput={(params) => (
-                                                        <TextField
-                                                            {...params}
-                                                            placeholder="Select tags"
-                                                            size="small"
+                                                {isEditing ? (
+                                                    availableTags.length > 0 ? (
+                                                        <Autocomplete
+                                                            multiple
+                                                            options={availableTags}
+                                                            getOptionLabel={(option) => option.name || option}
+                                                            value={selectedTags}
+                                                            onChange={handleTagChange}
+                                                            renderTags={(value, getTagProps) =>
+                                                                value.map((option, index) => {
+                                                                    const tag = typeof option === 'string' 
+                                                                        ? availableTags.find(t => t.name === option) || { name: option, color: '#1976d2' }
+                                                                        : option;
+                                                                    return (
+                                                                        <Chip
+                                                                            {...getTagProps({ index })}
+                                                                            key={tag.name || index}
+                                                                            label={tag.name || tag}
+                                                                            sx={{
+                                                                                backgroundColor: tag.color || '#1976d2',
+                                                                                color: 'white',
+                                                                                '& .MuiChip-deleteIcon': {
+                                                                                    color: 'white !important'
+                                                                                }
+                                                                            }}
+                                                                            icon={<LocalOffer sx={{ color: 'white !important', fontSize: 14 }} />}
+                                                                        />
+                                                                    );
+                                                                })
+                                                            }
+                                                            renderInput={(params) => (
+                                                                <TextField
+                                                                    {...params}
+                                                                    placeholder="Add tags"
+                                                                    size="small"
+                                                                />
+                                                            )}
                                                         />
-                                                    )}
-                                                />
-                                            ) : (
-                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                                    {guest.tags && guest.tags.length > 0 ? (
-                                                        guest.tags.map((tag, index) => (
-                                                            <Chip
-                                                                key={tag._id || index}
-                                                                label={tag.name}
-                                                                size="small"
-                                                                sx={{
-                                                                    backgroundColor: tag.color,
-                                                                    color: 'white',
-                                                                    fontSize: '0.75rem'
-                                                                }}
-                                                                icon={<LocalOffer sx={{ fontSize: 14 }} />}
-                                                            />
-                                                        ))
                                                     ) : (
                                                         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                                            No tags assigned
+                                                            No tags available for this event
                                                         </Typography>
-                                                    )}
-                                                </Box>
-                                            )}
-                                        </Box>
-                                    </Grid>
-                                    */}
-                                </Grid>
+                                                    )
+                                                ) : (
+                                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                                        {guest.tags && guest.tags.length > 0 ? (
+                                                            guest.tags.map((tag, index) => (
+                                                                <Chip
+                                                                    key={tag._id || tag.name || index}
+                                                                    label={tag.name}
+                                                                    size="small"
+                                                                    sx={{
+                                                                        backgroundColor: tag.color || '#1976d2',
+                                                                        color: 'white',
+                                                                        fontSize: '0.75rem'
+                                                                    }}
+                                                                    icon={<LocalOffer sx={{ color: 'white !important', fontSize: 14 }} />}
+                                                                />
+                                                            ))
+                                                        ) : (
+                                                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                                                No tags assigned
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                )}
+                                            </Box>
+
+                                            {/* Notes */}
+                                            <Box>
+                                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                                    Notes
+                                                </Typography>
+                                                {isEditing ? (
+                                                    <TextField
+                                                        fullWidth
+                                                        multiline
+                                                        rows={4}
+                                                        value={editedGuest.notes}
+                                                        onChange={(e) => handleInputChange('notes', e.target.value)}
+                                                        size="small"
+                                                        placeholder="Add any notes about this guest..."
+                                                    />
+                                                ) : (
+                                                    <Typography variant="body1">
+                                                        {guest.notes || 'No notes available'}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+
+                                            {/* QR Code */}
+                                            <Box>
+                                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                                    QR Code
+                                                </Typography>
+                                                {isEditing ? (
+                                                    <TextField
+                                                        fullWidth
+                                                        value={editedGuest.qrCodeData}
+                                                        onChange={(e) => handleInputChange('qrCodeData', e.target.value)}
+                                                        size="small"
+                                                        placeholder="QR code data"
+                                                    />
+                                                ) : (
+                                                    <Typography variant="body1">
+                                                        {guest.qrCodeData || 'Not specified'}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        </Stack>
+                                    </Box>
+                                </Box>
                             </CardContent>
                         </Card>
 
@@ -597,52 +745,6 @@ export default function GuestDetailPage() {
                                     Gifts & Check-ins
                                 </Typography>
 
-                                {/* Check-in Status Summary */}
-                                <Box sx={{ mb: 3, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
-                                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                        Overall Check-in Status
-                                    </Typography>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        {(() => {
-                                            // Calculate check-in status like the guest table
-                                            const totalEvents = event?.isMainEvent ? 
-                                                (1 + (event.secondaryEvents?.length || 0)) : 1;
-                                            const checkedInEvents = guest.eventCheckins?.length || 0;
-                                            const isFullyCheckedIn = checkedInEvents >= totalEvents;
-                                            const isPartiallyCheckedIn = checkedInEvents > 0 && checkedInEvents < totalEvents;
-                                            
-                                            if (isFullyCheckedIn) {
-                                                return (
-                                                    <>
-                                                        <CheckCircle sx={{ color: 'success.main' }} />
-                                                        <Typography variant="body1" sx={{ color: 'success.main', fontWeight: 500 }}>
-                                                            Fully Checked In ({checkedInEvents}/{totalEvents} events)
-                                                        </Typography>
-                                                    </>
-                                                );
-                                            } else if (isPartiallyCheckedIn) {
-                                                return (
-                                                    <>
-                                                        <Star sx={{ color: 'warning.main' }} />
-                                                        <Typography variant="body1" sx={{ color: 'warning.main', fontWeight: 500 }}>
-                                                            Partially Checked In ({checkedInEvents}/{totalEvents} events)
-                                                        </Typography>
-                                                    </>
-                                                );
-                                            } else {
-                                                return (
-                                                    <>
-                                                        <Star sx={{ color: 'text.secondary' }} />
-                                                        <Typography variant="body1" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-                                                            Not Checked In
-                                                        </Typography>
-                                                    </>
-                                                );
-                                            }
-                                        })()}
-                                    </Box>
-                                </Box>
-
                                 {/* Gifts Table */}
                                 {guest.eventCheckins && guest.eventCheckins.length > 0 ? (
                                     <Box>
@@ -652,89 +754,77 @@ export default function GuestDetailPage() {
                                         <Stack spacing={2}>
                                             {guest.eventCheckins.map((checkin, index) => (
                                                 <Card key={index} variant="outlined" sx={{ p: 2 }}>
-                                                    <Grid container spacing={2} alignItems="center">
+                                                    <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' }, alignItems: { md: 'center' } }}>
                                                         {/* Event Info */}
-                                                        <Grid item xs={12} md={3}>
-                                                            <Box>
-                                                                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                                                                    {checkin.eventId?.eventName || 'Unknown Event'}
-                                                                </Typography>
-                                                                <Typography variant="caption" color="textSecondary">
-                                                                    {new Date(checkin.checkedInAt).toLocaleDateString()} at{' '}
-                                                                    {new Date(checkin.checkedInAt).toLocaleTimeString([], { 
-                                                                        hour: '2-digit', 
-                                                                        minute: '2-digit' 
-                                                                    })}
-                                                                </Typography>
-                                                            </Box>
-                                                        </Grid>
+                                                        <Box sx={{ flex: '0 0 200px', minWidth: 0 }}>
+                                                            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                                                                {checkin.eventId?.eventName || 'Unknown Event'}
+                                                            </Typography>
+                                                            <Typography variant="caption" color="textSecondary">
+                                                                {new Date(checkin.checkedInAt).toLocaleDateString()} at{' '}
+                                                                {new Date(checkin.checkedInAt).toLocaleTimeString([], { 
+                                                                    hour: '2-digit', 
+                                                                    minute: '2-digit' 
+                                                                })}
+                                                            </Typography>
+                                                        </Box>
 
                                                         {/* Gifts */}
-                                                        <Grid item xs={12} md={5}>
-                                                            <Box>
-                                                                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
-                                                                    Gifts Received
+                                                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                            <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
+                                                                Gifts Received
+                                                            </Typography>
+                                                            {checkin.giftsReceived && checkin.giftsReceived.length > 0 ? (
+                                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                                                    {checkin.giftsReceived.map((gift, giftIndex) => (
+                                                                        <Chip
+                                                                            key={giftIndex}
+                                                                            label={`${gift.inventoryId?.type || 'Unknown'} ${gift.inventoryId?.style ? `(${gift.inventoryId.style})` : ''} x${gift.quantity}`}
+                                                                            size="small"
+                                                                            variant="outlined"
+                                                                            color="primary"
+                                                                        />
+                                                                    ))}
+                                                                </Box>
+                                                            ) : (
+                                                                <Typography variant="body2" color="textSecondary" sx={{ fontStyle: 'italic' }}>
+                                                                    No gifts selected
                                                                 </Typography>
-                                                                {checkin.giftsReceived && checkin.giftsReceived.length > 0 ? (
-                                                                    <Stack direction="row" flexWrap="wrap" gap={1}>
-                                                                        {checkin.giftsReceived.map((gift, giftIndex) => (
-                                                                            <Chip
-                                                                                key={giftIndex}
-                                                                                label={`${gift.inventoryId?.type || 'Unknown'} ${gift.inventoryId?.style ? `(${gift.inventoryId.style})` : ''} x${gift.quantity}`}
-                                                                                size="small"
-                                                                                variant="outlined"
-                                                                                color="primary"
-                                                                            />
-                                                                        ))}
-                                                                    </Stack>
-                                                                ) : (
-                                                                    <Typography variant="body2" color="textSecondary" sx={{ fontStyle: 'italic' }}>
-                                                                        No gifts selected
-                                                                    </Typography>
-                                                                )}
-                                                            </Box>
-                                                        </Grid>
+                                                            )}
+                                                        </Box>
 
-                                                        {/* Status & Actions */}
-                                                        <Grid item xs={12} md={4}>
-                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                                                                <Chip
-                                                                    label="Checked In"
-                                                                    color="success"
-                                                                    size="small"
-                                                                    icon={<CheckCircle />}
-                                                                />
-                                                                <Button
-                                                                    variant="contained"
-                                                                    color="primary"
-                                                                    size="small"
-                                                                    startIcon={<SwapHoriz />}
-                                                                    onClick={() => openGiftModificationDialog(checkin)}
-                                                                    sx={{ 
-                                                                        minWidth: 'auto',
-                                                                        fontWeight: 600,
-                                                                        textTransform: 'none'
-                                                                    }}
-                                                                >
-                                                                    Modify Gifts
-                                                                </Button>
-                                                                <Button
-                                                                    variant="outlined"
-                                                                    color="warning"
-                                                                    size="small"
-                                                                    startIcon={<Undo />}
-                                                                    onClick={() => openUndoDialog(checkin)}
-                                                                    sx={{ 
-                                                                        minWidth: 'auto',
-                                                                        fontWeight: 600,
-                                                                        textTransform: 'none'
-                                                                    }}
-                                                                >
-                                                                    Undo
-                                                                </Button>
-                                                            </Box>
-                                                        </Grid>
-                                                    </Grid>
+                                                        {/* Actions */}
+                                                        <Box sx={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                                            <Button
+                                                                variant="contained"
+                                                                color="primary"
+                                                                size="small"
+                                                                startIcon={<SwapHoriz />}
+                                                                onClick={() => openGiftModificationDialog(checkin)}
+                                                                sx={{ 
+                                                                    minWidth: 'auto',
+                                                                    fontWeight: 600,
+                                                                    textTransform: 'none'
+                                                                }}
+                                                            >
+                                                                Modify Gifts
+                                                            </Button>
+                                                            <Button
+                                                                variant="outlined"
+                                                                color="warning"
+                                                                size="small"
+                                                                startIcon={<Undo />}
+                                                                onClick={() => openUndoDialog(checkin)}
+                                                                sx={{ 
+                                                                    minWidth: 'auto',
+                                                                    fontWeight: 600,
+                                                                    textTransform: 'none'
+                                                                }}
+                                                            >
+                                                                Undo
+                                                            </Button>
+                                                        </Box>
+                                                    </Box>
                                                 </Card>
                                             ))}
                                         </Stack>
@@ -750,41 +840,6 @@ export default function GuestDetailPage() {
                                         </Typography>
                                     </Box>
                                 )}
-                            </CardContent>
-                        </Card>
-
-                        {/* Notes & Additional Info */}
-                        <Card>
-                            <CardContent>
-                                <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: 'primary.main' }}>
-                                    Additional Information
-                                </Typography>
-
-                                <Grid container spacing={3}>
-                                    {/* Notes */}
-                                    <Grid item xs={12}>
-                                        <Box>
-                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                                Notes
-                                            </Typography>
-                                            {isEditing ? (
-                                                <TextField
-                                                    fullWidth
-                                                    multiline
-                                                    rows={4}
-                                                    value={editedGuest.notes}
-                                                    onChange={(e) => handleInputChange('notes', e.target.value)}
-                                                    size="small"
-                                                    placeholder="Add any notes about this guest..."
-                                                />
-                                            ) : (
-                                                <Typography variant="body1">
-                                                    {guest.notes || 'No notes available'}
-                                                </Typography>
-                                            )}
-                                        </Box>
-                                    </Grid>
-                                </Grid>
                             </CardContent>
                         </Card>
                     </Stack>
@@ -962,6 +1017,39 @@ export default function GuestDetailPage() {
                     </Dialog>
                 </Box>
             </Box>
+            {/* Delete Confirmation Dialog */}
+            <Dialog
+                open={deleteDialogOpen}
+                onClose={() => !deleting && setDeleteDialogOpen(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>Delete Guest</DialogTitle>
+                <DialogContent>
+                    <Typography>
+                        Are you sure you want to delete {guest?.firstName} {guest?.lastName}? This action cannot be undone.
+                    </Typography>
+                    {guest?.email && (
+                        <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                            Email: {guest.email}
+                        </Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleDeleteGuest}
+                        color="error"
+                        variant="contained"
+                        disabled={deleting}
+                        startIcon={deleting ? <CircularProgress size={20} /> : <Delete />}
+                    >
+                        {deleting ? 'Deleting...' : 'Delete'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </MainLayout>
     );
 }

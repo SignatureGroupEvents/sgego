@@ -238,7 +238,7 @@ export const bulkAddGuests = (eventId, guests) => {
 };
 
 export const bulkDeleteGuests = (eventId, guestIds) => {
-  return api.post('/guests/bulk-delete', { eventId, guestIds });
+  return api.delete('/guests/bulk', { data: { guestIds } });
 };
 
 // My Events API functions
