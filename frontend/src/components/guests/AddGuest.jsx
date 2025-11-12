@@ -14,7 +14,8 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
-  Chip
+  Chip,
+  Typography
 } from '@mui/material';
 import { createGuest } from '../../services/api';
 
@@ -130,7 +131,7 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
     <Dialog 
       open={open} 
       onClose={handleClose}
-      maxWidth="md"
+      maxWidth="sm"
       fullWidth
     >
       <DialogTitle>
@@ -151,74 +152,107 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
             </Alert>
           )}
 
-          <Grid container spacing={2}>
-            <Grid xs={12} sm={6}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {/* First Name */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ minWidth: 150, flexShrink: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  First Name <span style={{ color: 'red' }}>*</span>
+                </Typography>
+              </Box>
               <TextField
                 fullWidth
-                label="First Name *"
                 value={formData.firstName}
                 onChange={(e) => handleInputChange('firstName', e.target.value)}
                 required
                 disabled={loading}
+                size="small"
               />
-            </Grid>
-            
-            <Grid xs={12} sm={6}>
+            </Box>
+
+            {/* Last Name */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ minWidth: 150, flexShrink: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  Last Name <span style={{ color: 'red' }}>*</span>
+                </Typography>
+              </Box>
               <TextField
                 fullWidth
-                label="Last Name *"
                 value={formData.lastName}
                 onChange={(e) => handleInputChange('lastName', e.target.value)}
                 required
                 disabled={loading}
+                size="small"
               />
-            </Grid>
-            
-            <Grid xs={12} sm={6}>
+            </Box>
+
+            {/* Email */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ minWidth: 150, flexShrink: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  Email
+                </Typography>
+              </Box>
               <TextField
                 fullWidth
-                label="Email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => handleInputChange('email', e.target.value)}
                 disabled={loading}
-                helperText="Optional"
+                size="small"
               />
-            </Grid>
-            
-            <Grid xs={12} sm={6}>
+            </Box>
+
+            {/* Job Title */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ minWidth: 150, flexShrink: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  Job Title
+                </Typography>
+              </Box>
               <TextField
                 fullWidth
-                label="Job Title"
                 value={formData.jobTitle}
                 onChange={(e) => handleInputChange('jobTitle', e.target.value)}
                 disabled={loading}
-                helperText="Optional"
+                size="small"
               />
-            </Grid>
-            
-            <Grid xs={12} sm={6}>
+            </Box>
+
+            {/* Company */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ minWidth: 150, flexShrink: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  Company
+                </Typography>
+              </Box>
               <TextField
                 fullWidth
-                label="Company"
                 value={formData.company}
                 onChange={(e) => handleInputChange('company', e.target.value)}
                 disabled={loading}
-                helperText="Optional"
+                size="small"
               />
-            </Grid>
-            
-            <Grid xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>Attendee Type</InputLabel>
+            </Box>
+
+            {/* Attendee Type */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ minWidth: 150, flexShrink: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  Attendee Type
+                </Typography>
+              </Box>
+              <FormControl fullWidth size="small">
                 <Select
                   value={formData.attendeeType}
                   onChange={(e) => handleInputChange('attendeeType', e.target.value)}
-                  label="Attendee Type"
                   disabled={loading}
+                  displayEmpty
                   MenuProps={{
                     PaperProps: {
                       sx: {
+                        maxHeight: 300,
                         zIndex: 9999
                       }
                     }
@@ -234,21 +268,26 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
                   ))}
                 </Select>
               </FormControl>
-            </Grid>
-            
-            <Grid xs={12}>
+            </Box>
+
+            {/* Notes */}
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+              <Box sx={{ minWidth: 150, flexShrink: 0, pt: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  Notes
+                </Typography>
+              </Box>
               <TextField
                 fullWidth
-                label="Notes"
                 multiline
                 rows={3}
                 value={formData.notes}
                 onChange={(e) => handleInputChange('notes', e.target.value)}
                 disabled={loading}
-                helperText="Optional additional information"
+                size="small"
               />
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
         </DialogContent>
         
         <DialogActions>

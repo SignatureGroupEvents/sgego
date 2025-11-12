@@ -30,7 +30,11 @@ import {
   Stepper,
   Step,
   StepLabel,
-  Chip
+  Chip,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Divider
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -43,7 +47,8 @@ import {
   Delete as DeleteIcon,
   Visibility as VisibilityIcon,
   Save as SaveIcon,
-  TableChart as TableChartIcon
+  TableChart as TableChartIcon,
+  ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import api from '../../services/api';
@@ -80,15 +85,16 @@ const UploadGuest = () => {
   }, [eventId]);
 
   // Expected columns for guest data
+  // Note: At least one of firstName, lastName, or email is required
   const expectedColumns = {
-    firstName: { required: true, label: 'First Name' },
-    lastName: { required: true, label: 'Last Name' },
-    email: { required: false, label: 'Email' },
-    jobTitle: { required: false, label: 'Job Title' },
-    company: { required: false, label: 'Company' },
-    attendeeType: { required: false, label: 'Attendee Type' },
-    notes: { required: false, label: 'Notes' },
-    qrCodeData: { required: false, label: 'QR Code Data' }
+    firstName: { required: false, label: 'FIRST NAME', section: 'required' },
+    lastName: { required: false, label: 'LAST NAME', section: 'required' },
+    email: { required: false, label: 'EMAIL ADDRESS', section: 'required' },
+    jobTitle: { required: false, label: 'INVITEE TITLE', section: 'optional' },
+    company: { required: false, label: 'COMPANY', section: 'optional' },
+    attendeeType: { required: false, label: 'ATTENDEE TYPE', section: 'optional' },
+    notes: { required: false, label: 'NOTES', section: 'optional' },
+    qrCodeData: { required: false, label: 'QR CODE DATA', section: 'optional' }
   };
 
   // Parse CSV data
@@ -198,11 +204,23 @@ const UploadGuest = () => {
       validationErrors.push('No data rows found in the file');
     }
 
+    // Check that at least one required field is mapped (firstName, lastName, or email)
+    const requiredFieldsMapped = ['firstName', 'lastName', 'email'].some(
+      field => columnMapping[field] && columnMapping[field] !== ''
+    );
+    
+    if (!requiredFieldsMapped) {
+      validationErrors.push('At least one required field (First Name, Last Name, or Email Address) must be mapped');
+    }
+
     // Check for empty required fields in data
     data.forEach((row, index) => {
       const mappedRow = mapRowData(row);
-      if (!mappedRow.firstName || !mappedRow.lastName) {
-        validationWarnings.push(`Row ${index + 2}: Missing required name fields`);
+      const hasName = mappedRow.firstName || mappedRow.lastName;
+      const hasEmail = mappedRow.email;
+      
+      if (!hasName && !hasEmail) {
+        validationWarnings.push(`Row ${index + 2}: Missing required information (name or email)`);
       }
       
       // Validate email format if provided
@@ -215,10 +233,11 @@ const UploadGuest = () => {
   };
 
   // Map row data based on column mapping
+  // columnMapping now maps: { fieldName: csvColumnName }
   const mapRowData = (row) => {
     const mappedRow = {};
-    Object.entries(columnMapping).forEach(([csvColumn, guestField]) => {
-      if (guestField && guestField !== 'ignore') {
+    Object.entries(columnMapping).forEach(([guestField, csvColumn]) => {
+      if (csvColumn && csvColumn !== 'ignore' && row[csvColumn] !== undefined) {
         mappedRow[guestField] = row[csvColumn];
       }
     });
@@ -311,16 +330,21 @@ const UploadGuest = () => {
       setParsedData({ headers, data });
       
       // Auto-map columns that match expected names
+      // Reverse mapping: field -> csvColumn
       const autoMapping = {};
       headers.forEach(header => {
-        const lowerHeader = header.toLowerCase();
+        const lowerHeader = header.toLowerCase().trim();
         Object.entries(expectedColumns).forEach(([field, config]) => {
           const lowerLabel = config.label.toLowerCase();
-          if (lowerHeader.includes(lowerLabel.split(' ')[0]) || 
+          if (lowerHeader === lowerLabel ||
+              lowerHeader.includes(lowerLabel.split(' ')[0]) || 
               lowerHeader === field ||
               (field === 'firstName' && (lowerHeader.includes('first') || lowerHeader.includes('fname'))) ||
-              (field === 'lastName' && (lowerHeader.includes('last') || lowerHeader.includes('lname')))) {
-            autoMapping[header] = field;
+              (field === 'lastName' && (lowerHeader.includes('last') || lowerHeader.includes('lname'))) ||
+              (field === 'email' && (lowerHeader.includes('email') || lowerHeader.includes('e-mail'))) ||
+              (field === 'jobTitle' && (lowerHeader.includes('title') || lowerHeader.includes('job'))) ||
+              (field === 'company' && lowerHeader.includes('company'))) {
+            autoMapping[field] = header;
           }
         });
       });
@@ -335,10 +359,10 @@ const UploadGuest = () => {
     }
   };
 
-  const handleColumnMappingChange = (csvColumn, guestField) => {
+  const handleColumnMappingChange = (guestField, csvColumn) => {
     setColumnMapping(prev => ({
       ...prev,
-      [csvColumn]: guestField
+      [guestField]: csvColumn || ''
     }));
   };
 
@@ -585,35 +609,136 @@ const UploadGuest = () => {
                   <Typography variant="h6" gutterBottom>
                     Step 2: Map Columns to Guest Fields
                   </Typography>
-                  <Typography color="textSecondary" paragraph>
-                    Map each column from your file to the corresponding guest field.
+                  <Typography color="textSecondary" paragraph sx={{ mb: 4 }}>
+                    Select the column from your file that corresponds to each guest field.
                   </Typography>
-                  <Box sx={{
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(auto-fit, minmax(220px, 1fr))`,
-                    gap: 3,
-                    mb: 2
-                  }}>
-                    {parsedData.headers.map((header, index) => (
-                      <FormControl fullWidth key={index}>
-                        <InputLabel>Map "{header}" to</InputLabel>
-                        <Select
-                          value={columnMapping[header] || ''}
-                          onChange={(e) => handleColumnMappingChange(header, e.target.value)}
-                          label={`Map "${header}" to`}
-                        >
-                          <MenuItem value="">
-                            <em>Don't import this column</em>
-                          </MenuItem>
-                          {Object.entries(expectedColumns).map(([field, config]) => (
-                            <MenuItem key={field} value={field}>
-                              {config.label} {config.required && '*'}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    ))}
+                  
+                  {/* AT LEAST ONE REQUIRED Section */}
+                  <Box sx={{ mb: 4 }}>
+                    <Typography 
+                      variant="subtitle2" 
+                      sx={{ 
+                        fontWeight: 'bold',
+                        color: 'text.primary',
+                        mb: 3,
+                        textDecoration: 'underline',
+                        textDecorationStyle: 'dotted',
+                        textUnderlineOffset: '4px'
+                      }}
+                    >
+                      AT LEAST ONE REQUIRED
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {['firstName', 'lastName', 'email'].map((field) => {
+                        const config = expectedColumns[field];
+                        return (
+                          <Box key={field} sx={{ display: 'flex', alignItems: 'flex-start', gap: 3 }}>
+                            <Box sx={{ minWidth: 200, flexShrink: 0, pt: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                                {config.label}
+                              </Typography>
+                            </Box>
+                            <FormControl sx={{ minWidth: 320, maxWidth: 500 }}>
+                              <Select
+                                value={columnMapping[field] || ''}
+                                onChange={(e) => handleColumnMappingChange(field, e.target.value)}
+                                displayEmpty
+                                sx={{ 
+                                  backgroundColor: 'background.paper',
+                                  height: '40px',
+                                  '& .MuiSelect-select': {
+                                    color: columnMapping[field] ? 'text.primary' : '#999',
+                                    padding: '8px 14px'
+                                  },
+                                  '& .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: '#ddd'
+                                  },
+                                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: '#999'
+                                  },
+                                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: 'primary.main',
+                                    borderWidth: '2px'
+                                  }
+                                }}
+                              >
+                                <MenuItem value="" disabled>
+                                  <em style={{ color: '#999', fontStyle: 'normal' }}>Select Column</em>
+                                </MenuItem>
+                                {parsedData.headers.map((header) => (
+                                  <MenuItem key={header} value={header}>
+                                    {header}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Box>
+                        );
+                      })}
+                    </Box>
                   </Box>
+
+                  {/* OPTIONAL COLUMNS Section */}
+                  <Box sx={{ mb: 4 }}>
+                    <Typography 
+                      variant="subtitle2" 
+                      sx={{ 
+                        fontWeight: 'bold',
+                        color: 'text.primary',
+                        mb: 3
+                      }}
+                    >
+                      OPTIONAL COLUMNS
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {Object.entries(expectedColumns)
+                        .filter(([field, config]) => config.section === 'optional')
+                        .map(([field, config]) => (
+                          <Box key={field} sx={{ display: 'flex', alignItems: 'flex-start', gap: 3 }}>
+                            <Box sx={{ minWidth: 200, flexShrink: 0, pt: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                                {config.label}
+                              </Typography>
+                            </Box>
+                            <FormControl sx={{ minWidth: 320, maxWidth: 500 }}>
+                              <Select
+                                value={columnMapping[field] || ''}
+                                onChange={(e) => handleColumnMappingChange(field, e.target.value)}
+                                displayEmpty
+                                sx={{ 
+                                  backgroundColor: 'background.paper',
+                                  height: '40px',
+                                  '& .MuiSelect-select': {
+                                    color: columnMapping[field] ? 'text.primary' : '#999',
+                                    padding: '8px 14px'
+                                  },
+                                  '& .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: '#ddd'
+                                  },
+                                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: '#999'
+                                  },
+                                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: 'primary.main',
+                                    borderWidth: '2px'
+                                  }
+                                }}
+                              >
+                                <MenuItem value="" disabled>
+                                  <em style={{ color: '#999', fontStyle: 'normal' }}>Select Column</em>
+                                </MenuItem>
+                                {parsedData.headers.map((header) => (
+                                  <MenuItem key={header} value={header}>
+                                    {header}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Box>
+                        ))}
+                    </Box>
+                  </Box>
+
                   <Box display="flex" justifyContent="space-between" mt={4}>
                     <Button onClick={() => setActiveStep(0)}>
                       Back
@@ -621,7 +746,9 @@ const UploadGuest = () => {
                     <Button 
                       variant="contained" 
                       onClick={validateAndProceed}
-                      disabled={Object.keys(columnMapping).length === 0}
+                      disabled={!['firstName', 'lastName', 'email'].some(
+                        field => columnMapping[field] && columnMapping[field] !== ''
+                      )}
                     >
                       Next: Review Data
                     </Button>
@@ -738,50 +865,328 @@ const UploadGuest = () => {
 
             {activeStep === 3 && uploadResults && (
               <Card>
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <CheckCircleIcon sx={{ fontSize: 80, color: 'success.main', mb: 2 }} />
-                  <Typography variant="h5" gutterBottom>
-                    Upload Complete!
-                  </Typography>
+                <CardContent>
+                  <Box sx={{ textAlign: 'center', mb: 4 }}>
+                    <CheckCircleIcon sx={{ fontSize: 80, color: 'success.main', mb: 2 }} />
+                    <Typography variant="h5" gutterBottom>
+                      Upload Complete!
+                    </Typography>
+                  </Box>
                   
-                  <Grid container spacing={2}>
+                  <Grid container spacing={3}>
+                    {/* Success Section - Always shown first */}
                     <Grid xs={12}>
-                      <Paper sx={{ p: 3 }}>
-                        <Typography variant="h4" color="success.main" gutterBottom>
-                          {uploadResults.successful || 0}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Successfully Added
-                        </Typography>
+                      <Paper 
+                        sx={{ 
+                          p: 0,
+                          backgroundColor: 'background.paper',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          overflow: 'hidden',
+                          minHeight: 180
+                        }}
+                      >
+                        {/* Colored top bar */}
+                        <Box 
+                          sx={{ 
+                            height: 6,
+                            backgroundColor: 'success.main',
+                            width: '100%'
+                          }}
+                        />
+                        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', minHeight: 174 }}>
+                          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2} sx={{ flexShrink: 0 }}>
+                            <Box>
+                              <Typography variant="h4" sx={{ color: 'text.primary', fontWeight: 700 }} gutterBottom>
+                                {uploadResults.results?.added?.length || 0}
+                              </Typography>
+                              <Typography variant="body1" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                                Successfully Added
+                              </Typography>
+                            </Box>
+                            <CheckCircleIcon sx={{ fontSize: 48, color: 'success.main' }} />
+                          </Box>
+                        {(uploadResults.results?.added?.length || 0) > 0 && parsedData && (
+                          <Accordion sx={{ mt: 'auto', boxShadow: 'none', backgroundColor: 'transparent', flexShrink: 0 }}>
+                            <AccordionSummary
+                              expandIcon={<ExpandMoreIcon />}
+                              sx={{ 
+                                backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                                borderRadius: 1,
+                                '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.7)' }
+                              }}
+                            >
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                View Successfully Added Rows
+                              </Typography>
+                            </AccordionSummary>
+                            <AccordionDetails>
+                              <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
+                                {uploadResults.results.added.map((addedItem, index) => {
+                                  const rowIndex = addedItem.index - 1; // Convert 1-based to 0-based
+                                  const rowData = parsedData.data[rowIndex];
+                                  return (
+                                    <Box 
+                                      key={index} 
+                                      sx={{ 
+                                        mb: 2, 
+                                        p: 2, 
+                                        backgroundColor: 'background.paper',
+                                        borderRadius: 1,
+                                        border: '1px solid',
+                                        borderColor: 'divider'
+                                      }}
+                                    >
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: 'success.main' }}>
+                                        Row {addedItem.index}: {addedItem.name}
+                                      </Typography>
+                                      {rowData && (
+                                        <Box sx={{ mt: 1 }}>
+                                          <TableContainer>
+                                            <Table size="small">
+                                              <TableBody>
+                                                {parsedData.headers.map((header) => {
+                                                  const value = rowData[header];
+                                                  if (value === undefined || value === null || value === '') return null;
+                                                  return (
+                                                    <TableRow key={header}>
+                                                      <TableCell sx={{ fontWeight: 500, width: '40%' }}>
+                                                        {header}:
+                                                      </TableCell>
+                                                      <TableCell>{String(value)}</TableCell>
+                                                    </TableRow>
+                                                  );
+                                                })}
+                                              </TableBody>
+                                            </Table>
+                                          </TableContainer>
+                                        </Box>
+                                      )}
+                                    </Box>
+                                  );
+                                })}
+                              </Box>
+                            </AccordionDetails>
+                          </Accordion>
+                        )}
+                        </Box>
                       </Paper>
                     </Grid>
-                    {uploadResults.duplicates > 0 && (
+
+                    {/* Errors Section - Shown second */}
+                    {(uploadResults.results?.errors?.length || 0) > 0 && (
                       <Grid xs={12}>
-                        <Paper sx={{ p: 3 }}>
-                          <Typography variant="h4" color="warning.main" gutterBottom>
-                            {uploadResults.duplicates}
-                          </Typography>
-                          <Typography variant="body2" color="textSecondary">
-                            Duplicates Skipped
-                          </Typography>
-                        </Paper>
+                        <Paper 
+                          sx={{ 
+                            p: 0,
+                            backgroundColor: 'background.paper',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            overflow: 'hidden',
+                            minHeight: 180
+                          }}
+                        >
+                          {/* Colored top bar */}
+                          <Box 
+                            sx={{ 
+                              height: 6,
+                              backgroundColor: 'error.main',
+                              width: '100%'
+                            }}
+                          />
+                          <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', minHeight: 174 }}>
+                            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2} sx={{ flexShrink: 0 }}>
+                              <Box>
+                                <Typography variant="h4" sx={{ color: 'text.primary', fontWeight: 700 }} gutterBottom>
+                                  {uploadResults.results?.errors?.length || 0}
+                                </Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                                  Errors
+                                </Typography>
+                              </Box>
+                              <ErrorIcon sx={{ fontSize: 48, color: 'error.main' }} />
+                            </Box>
+                          <Accordion sx={{ mt: 'auto', boxShadow: 'none', backgroundColor: 'transparent', flexShrink: 0 }}>
+                            <AccordionSummary
+                              expandIcon={<ExpandMoreIcon />}
+                              sx={{ 
+                                backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                                borderRadius: 1,
+                                '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.7)' }
+                              }}
+                            >
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                View Error Details
+                              </Typography>
+                            </AccordionSummary>
+                            <AccordionDetails>
+                              <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
+                                {uploadResults.results.errors.map((errorItem, index) => {
+                                  const rowIndex = errorItem.index - 1; // Convert 1-based to 0-based
+                                  const rowData = parsedData.data[rowIndex];
+                                  return (
+                                    <Box 
+                                      key={index} 
+                                      sx={{ 
+                                        mb: 2, 
+                                        p: 2, 
+                                        backgroundColor: 'background.paper',
+                                        borderRadius: 1,
+                                        border: '1px solid',
+                                        borderColor: 'error.main'
+                                      }}
+                                    >
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: 'error.main' }}>
+                                        Row {errorItem.index}: {errorItem.name}
+                                      </Typography>
+                                      <Alert severity="error" sx={{ mb: 1.5 }}>
+                                        <Typography variant="body2">
+                                          {errorItem.error}
+                                        </Typography>
+                                      </Alert>
+                                      {rowData && (
+                                        <Box sx={{ mt: 1 }}>
+                                          <Typography variant="caption" color="textSecondary" sx={{ mb: 1, display: 'block' }}>
+                                            Full Row Data:
+                                          </Typography>
+                                          <TableContainer>
+                                            <Table size="small">
+                                              <TableBody>
+                                                {parsedData.headers.map((header) => {
+                                                  const value = rowData[header];
+                                                  return (
+                                                    <TableRow key={header}>
+                                                      <TableCell sx={{ fontWeight: 500, width: '40%' }}>
+                                                        {header}:
+                                                      </TableCell>
+                                                      <TableCell>{value !== undefined && value !== null ? String(value) : ''}</TableCell>
+                                                    </TableRow>
+                                                  );
+                                                })}
+                                              </TableBody>
+                                            </Table>
+                                          </TableContainer>
+                                        </Box>
+                                      )}
+                                    </Box>
+                                  );
+                                })}
+                              </Box>
+                            </AccordionDetails>
+                          </Accordion>
+                        </Box>
+                      </Paper>
                       </Grid>
                     )}
-                    {uploadResults.errors > 0 && (
+
+                    {/* Duplicates Section - Shown last */}
+                    {(uploadResults.results?.duplicates?.length || 0) > 0 && (
                       <Grid xs={12}>
-                        <Paper sx={{ p: 3 }}>
-                          <Typography variant="h4" color="error.main" gutterBottom>
-                            {uploadResults.errors}
-                          </Typography>
-                          <Typography variant="body2" color="textSecondary">
-                            Errors
-                          </Typography>
-                        </Paper>
+                        <Paper 
+                          sx={{ 
+                            p: 0,
+                            backgroundColor: 'background.paper',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            overflow: 'hidden',
+                            minHeight: 180
+                          }}
+                        >
+                          {/* Colored top bar */}
+                          <Box 
+                            sx={{ 
+                              height: 6,
+                              backgroundColor: 'warning.main',
+                              width: '100%'
+                            }}
+                          />
+                          <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', minHeight: 174 }}>
+                            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2} sx={{ flexShrink: 0 }}>
+                              <Box>
+                                <Typography variant="h4" sx={{ color: 'text.primary', fontWeight: 700 }} gutterBottom>
+                                  {uploadResults.results?.duplicates?.length || 0}
+                                </Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                                  Duplicates Skipped
+                                </Typography>
+                              </Box>
+                              <WarningIcon sx={{ fontSize: 48, color: 'warning.main' }} />
+                            </Box>
+                          <Accordion sx={{ mt: 'auto', boxShadow: 'none', backgroundColor: 'transparent', flexShrink: 0 }}>
+                            <AccordionSummary
+                              expandIcon={<ExpandMoreIcon />}
+                              sx={{ 
+                                backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                                borderRadius: 1,
+                                '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.7)' }
+                              }}
+                            >
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                View Duplicate Details
+                              </Typography>
+                            </AccordionSummary>
+                            <AccordionDetails>
+                              <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
+                                {uploadResults.results.duplicates.map((duplicate, index) => {
+                                  const rowIndex = duplicate.index - 1; // Convert 1-based to 0-based
+                                  const rowData = parsedData.data[rowIndex];
+                                  return (
+                                    <Box 
+                                      key={index} 
+                                      sx={{ 
+                                        mb: 2, 
+                                        p: 2, 
+                                        backgroundColor: 'background.paper',
+                                        borderRadius: 1,
+                                        border: '1px solid',
+                                        borderColor: 'warning.main'
+                                      }}
+                                    >
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: 'warning.main' }}>
+                                        Row {duplicate.index}: {duplicate.name}
+                                      </Typography>
+                                      <Alert severity="warning" sx={{ mb: 1.5 }}>
+                                        <Typography variant="body2">
+                                          {duplicate.reason}
+                                        </Typography>
+                                      </Alert>
+                                      {rowData && (
+                                        <Box sx={{ mt: 1 }}>
+                                          <Typography variant="caption" color="textSecondary" sx={{ mb: 1, display: 'block' }}>
+                                            Full Row Data:
+                                          </Typography>
+                                          <TableContainer>
+                                            <Table size="small">
+                                              <TableBody>
+                                                {parsedData.headers.map((header) => {
+                                                  const value = rowData[header];
+                                                  return (
+                                                    <TableRow key={header}>
+                                                      <TableCell sx={{ fontWeight: 500, width: '40%' }}>
+                                                        {header}:
+                                                      </TableCell>
+                                                      <TableCell>{value !== undefined && value !== null ? String(value) : ''}</TableCell>
+                                                    </TableRow>
+                                                  );
+                                                })}
+                                              </TableBody>
+                                            </Table>
+                                          </TableContainer>
+                                        </Box>
+                                      )}
+                                    </Box>
+                                  );
+                                })}
+                              </Box>
+                            </AccordionDetails>
+                          </Accordion>
+                        </Box>
+                      </Paper>
                       </Grid>
                     )}
                   </Grid>
 
-                  <Box display="flex" gap={2} justifyContent="center">
+                  <Box display="flex" gap={2} justifyContent="center" mt={4}>
                     <Button
                       variant="contained"
                       onClick={() => navigate(`/events/${eventId}`)}
@@ -818,16 +1223,22 @@ const UploadGuest = () => {
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          {parsedData.headers.map((header) => (
-                            <TableCell key={header}>
-                              <Box>
-                                <Typography variant="subtitle2">{header}</Typography>
-                                <Typography variant="caption" color="textSecondary">
-                                  → {columnMapping[header] ? expectedColumns[columnMapping[header]]?.label : 'Not mapped'}
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                          ))}
+                          {parsedData.headers.map((header) => {
+                            // Find which field maps to this header
+                            const mappedField = Object.entries(columnMapping).find(
+                              ([field, csvCol]) => csvCol === header
+                            )?.[0];
+                            return (
+                              <TableCell key={header}>
+                                <Box>
+                                  <Typography variant="subtitle2">{header}</Typography>
+                                  <Typography variant="caption" color="textSecondary">
+                                    → {mappedField ? expectedColumns[mappedField]?.label : 'Not mapped'}
+                                  </Typography>
+                                </Box>
+                              </TableCell>
+                            );
+                          })}
                         </TableRow>
                       </TableHead>
                       <TableBody>
