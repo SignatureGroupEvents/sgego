@@ -45,6 +45,7 @@ import {
   Save as SaveIcon,
   TableChart as TableChartIcon
 } from '@mui/icons-material';
+import * as XLSX from 'xlsx';
 import api from '../../services/api';
 import MainLayout from '../layout/MainLayout';
 import HomeIcon from '@mui/icons-material/Home';
@@ -131,6 +132,62 @@ const UploadGuest = () => {
     return { headers, data };
   };
 
+  // Parse Excel data
+  const parseExcel = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          const fileData = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(fileData, { type: 'array' });
+          
+          // Get the first worksheet
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          
+          // Convert to JSON with header row
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+            header: 1,
+            defval: '',
+            raw: false
+          });
+          
+          if (jsonData.length === 0) {
+            resolve({ headers: [], data: [] });
+            return;
+          }
+          
+          // First row is headers
+          const headers = jsonData[0].map(h => String(h || '').trim()).filter(h => h);
+          
+          // Remaining rows are data
+          const rowData = jsonData.slice(1)
+            .filter(row => row.some(cell => cell !== '')) // Filter out completely empty rows
+            .map((row, index) => {
+              const rowObj = {};
+              headers.forEach((header, i) => {
+                // Convert cell value to string, handling null/undefined
+                rowObj[header] = row[i] !== undefined && row[i] !== null ? String(row[i]).trim() : '';
+              });
+              rowObj._rowIndex = index + 2; // +2 because index 0 is header, and we start from row 2
+              return rowObj;
+            });
+          
+          resolve({ headers, data: rowData });
+        } catch (error) {
+          reject(new Error(`Error parsing Excel file: ${error.message}`));
+        }
+      };
+      
+      reader.onerror = () => {
+        reject(new Error('Error reading file'));
+      };
+      
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
   // Validate parsed data
   const validateData = (headers, data) => {
     const validationErrors = [];
@@ -197,9 +254,30 @@ const UploadGuest = () => {
     }
   };
 
+  // Check if file is Excel format
+  const isExcelFile = (file) => {
+    const excelTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'application/excel'
+    ];
+    const excelExtensions = ['.xlsx', '.xls'];
+    
+    return excelTypes.some(type => file.type.includes(type)) ||
+           excelExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+  };
+
+  // Check if file is CSV format
+  const isCSVFile = (file) => {
+    return file.type.includes('csv') || 
+           file.type === 'text/csv' ||
+           file.name.toLowerCase().endsWith('.csv');
+  };
+
   const handleFileSelection = async (selectedFile) => {
-    if (!selectedFile.type.includes('csv') && !selectedFile.name.endsWith('.csv')) {
-      setErrors(['Please select a CSV file']);
+    // Validate file type
+    if (!isCSVFile(selectedFile) && !isExcelFile(selectedFile)) {
+      setErrors(['Please select a CSV or Excel file (.csv, .xlsx, .xls)']);
       return;
     }
 
@@ -209,11 +287,24 @@ const UploadGuest = () => {
     setWarnings([]);
     
     try {
-      const text = await selectedFile.text();
-      const { headers, data } = parseCSV(text);
+      let headers, data;
+      
+      if (isExcelFile(selectedFile)) {
+        // Parse Excel file
+        const result = await parseExcel(selectedFile);
+        headers = result.headers;
+        data = result.data;
+      } else {
+        // Parse CSV file
+        const text = await selectedFile.text();
+        const result = parseCSV(text);
+        headers = result.headers;
+        data = result.data;
+      }
       
       if (headers.length === 0) {
         setErrors(['File appears to be empty or invalid']);
+        setIsProcessing(false);
         return;
       }
 
@@ -343,7 +434,7 @@ const UploadGuest = () => {
                   Upload Guest List
                 </Typography>
                 <Typography variant="subtitle1" color="textSecondary">
-                  Import guests from a CSV file
+                  Import guests from a CSV or Excel file
                 </Typography>
               </Box>
             </Box>
@@ -379,7 +470,7 @@ const UploadGuest = () => {
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    Step 1: Select CSV File
+                    Step 1: Select File
                   </Typography>
                   
                   {/* File Upload Area */}
@@ -405,7 +496,7 @@ const UploadGuest = () => {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".csv"
+                      accept=".csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
                       onChange={handleFileSelect}
                       style={{ display: 'none' }}
                     />
@@ -414,7 +505,7 @@ const UploadGuest = () => {
                       <Box>
                         <CloudUploadIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
                         <Typography variant="h6" gutterBottom>
-                          Drop your CSV file here
+                          Drop your CSV or Excel file here
                         </Typography>
                         <Typography color="textSecondary" paragraph>
                           or click to browse and select a file
@@ -466,11 +557,12 @@ const UploadGuest = () => {
                   {/* Expected Format Info */}
                   <Alert severity="info" sx={{ mb: 2 }}>
                     <Typography variant="subtitle2" gutterBottom>
-                      Expected CSV Format:
+                      Supported File Formats:
                     </Typography>
-                    <Typography variant="body2">
-                      Required columns: First Name, Last Name<br />
-                      Optional columns: Email, Job Title, Company, Attendee Type, Notes, QR Code Data
+                    <Typography variant="body2" component="div">
+                      <strong>CSV (.csv)</strong> or <strong>Excel (.xlsx, .xls)</strong> files are supported.<br />
+                      <strong>Required columns:</strong> First Name, Last Name<br />
+                      <strong>Optional columns:</strong> Email, Job Title, Company, Attendee Type, Notes, QR Code Data
                     </Typography>
                   </Alert>
 
@@ -491,10 +583,10 @@ const UploadGuest = () => {
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    Step 2: Map CSV Columns to Guest Fields
+                    Step 2: Map Columns to Guest Fields
                   </Typography>
                   <Typography color="textSecondary" paragraph>
-                    Map each column from your CSV file to the corresponding guest field.
+                    Map each column from your file to the corresponding guest field.
                   </Typography>
                   <Box sx={{
                     display: 'grid',
