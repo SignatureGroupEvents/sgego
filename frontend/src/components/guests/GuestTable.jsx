@@ -17,6 +17,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
   Tooltip,
   TextField,
   InputAdornment,
@@ -26,7 +27,11 @@ import {
   MenuItem,
   Grid,
   TableSortLabel,
-  Autocomplete
+  Autocomplete,
+  IconButton,
+  Alert,
+  CircularProgress,
+  Box as MuiBox
 } from '@mui/material';
 import {
   CheckCircleOutline as CheckCircleIcon,
@@ -37,12 +42,18 @@ import {
   AccountTree as InheritedIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
-  Clear as ClearIcon
+  Clear as ClearIcon,
+  Add as AddIcon,
+  LocalOffer as LocalOfferIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import GuestCheckIn from './GuestCheckIn';
 import { useNavigate, useParams } from 'react-router-dom';
+import api from '../../services/api';
+import toast from 'react-hot-toast';
 
 const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckInSuccess, inventory = [] }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
@@ -64,18 +75,42 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   
+  // Tag management state
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#1976d2');
+  const [tagDialogOpen, setTagDialogOpen] = useState(false);
+  const [editingTag, setEditingTag] = useState(null);
+  const [tagDescription, setTagDescription] = useState('');
+  const [savingTag, setSavingTag] = useState(false);
+  const [tagError, setTagError] = useState('');
+  const [availableTags, setAvailableTags] = useState(event?.availableTags || []);
+  
   // Determine permissions
   const canModifyEvents = isOperationsManager || isAdmin;
   const canPerformCheckins = isOperationsManager || isAdmin || currentUser?.role === 'staff';
+  
+  const presetColors = [
+    '#1976d2', '#d32f2f', '#388e3c', '#f57c00', '#7b1fa2',
+    '#0288d1', '#c2185b', '#00796b', '#e64a19', '#5d4037',
+    '#455a64', '#303f9f', '#512da8'
+  ];
 
-  // Get all unique tags for filter dropdown
+  // Get all unique tags for filter dropdown (from available tags, not just guest tags)
   const allTags = useMemo(() => {
     const tagSet = new Set();
+    availableTags.forEach(tag => tagSet.add(tag.name));
     guests.forEach(guest => {
       guest.tags?.forEach(tag => tagSet.add(tag.name));
     });
     return Array.from(tagSet).sort();
-  }, [guests]);
+  }, [guests, availableTags]);
+  
+  // Update available tags when event changes
+  React.useEffect(() => {
+    if (event?.availableTags) {
+      setAvailableTags(event.availableTags);
+    }
+  }, [event?.availableTags]);
 
   // Get all unique attendee types for filter dropdown
   const attendeeTypes = useMemo(() => {
@@ -95,6 +130,162 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
   const handleCloseCheckIn = () => {
     setCheckInGuest(null);
     setModalOpen(false);
+  };
+  
+  // Tag management handlers
+  const handleAddTag = async () => {
+    if (!newTagName.trim()) {
+      setTagError('Tag name is required');
+      return;
+    }
+    
+    // Check for duplicate names
+    const existingTag = availableTags.find(
+      t => t.name.toLowerCase() === newTagName.trim().toLowerCase()
+    );
+    if (existingTag) {
+      setTagError('A tag with this name already exists');
+      return;
+    }
+    
+    setSavingTag(true);
+    setTagError('');
+    
+    try {
+      const updatedTags = [...availableTags, {
+        name: newTagName.trim(),
+        color: newTagColor,
+        description: tagDescription.trim()
+      }];
+      
+      const response = await api.put(`/events/${event._id}`, {
+        availableTags: updatedTags
+      });
+      
+      setAvailableTags(updatedTags);
+      setNewTagName('');
+      setNewTagColor('#1976d2');
+      setTagDescription('');
+      setTagDialogOpen(false);
+      
+      // Update event if there's an onEventUpdate callback
+      if (event && typeof event === 'object') {
+        // Event will be updated by parent component
+      }
+      
+      toast.success('Tag created successfully');
+    } catch (err) {
+      setTagError(err.response?.data?.message || 'Failed to create tag');
+      toast.error(err.response?.data?.message || 'Failed to create tag');
+    } finally {
+      setSavingTag(false);
+    }
+  };
+  
+  const handleEditTag = (tag) => {
+    setEditingTag(tag);
+    setNewTagName(tag.name || '');
+    setNewTagColor(tag.color || '#1976d2');
+    setTagDescription(tag.description || '');
+    setTagError('');
+    setTagDialogOpen(true);
+  };
+  
+  const handleUpdateTag = async () => {
+    if (!newTagName.trim()) {
+      setTagError('Tag name is required');
+      return;
+    }
+    
+    // Check for duplicate names (excluding the tag being edited)
+    const existingTag = availableTags.find(
+      t => t.name.toLowerCase() === newTagName.trim().toLowerCase() && 
+      (editingTag && (t._id !== editingTag._id && t.name !== editingTag.name))
+    );
+    if (existingTag) {
+      setTagError('A tag with this name already exists');
+      return;
+    }
+    
+    setSavingTag(true);
+    setTagError('');
+    
+    try {
+      const updatedTags = availableTags.map(t => {
+        if ((t._id && t._id === editingTag._id) || (!t._id && t.name === editingTag.name)) {
+          return {
+            ...t,
+            name: newTagName.trim(),
+            color: newTagColor,
+            description: tagDescription.trim()
+          };
+        }
+        return t;
+      });
+      
+      const response = await api.put(`/events/${event._id}`, {
+        availableTags: updatedTags
+      });
+      
+      setAvailableTags(updatedTags);
+      setEditingTag(null);
+      setNewTagName('');
+      setNewTagColor('#1976d2');
+      setTagDescription('');
+      setTagDialogOpen(false);
+      
+      toast.success('Tag updated successfully');
+    } catch (err) {
+      setTagError(err.response?.data?.message || 'Failed to update tag');
+      toast.error(err.response?.data?.message || 'Failed to update tag');
+    } finally {
+      setSavingTag(false);
+    }
+  };
+  
+  const handleDeleteTag = async (tagToDelete) => {
+    if (!window.confirm(`Are you sure you want to delete the tag "${tagToDelete.name}"? This will remove it from all guests that have this tag.`)) {
+      return;
+    }
+    
+    try {
+      const updatedTags = availableTags.filter(t => 
+        (t._id && t._id !== tagToDelete._id) || 
+        (!t._id && t.name !== tagToDelete.name)
+      );
+      
+      const response = await api.put(`/events/${event._id}`, {
+        availableTags: updatedTags
+      });
+      
+      setAvailableTags(updatedTags);
+      toast.success('Tag deleted successfully');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete tag');
+    }
+  };
+  
+  const handleOpenTagDialog = () => {
+    // If we already have a tag name from the input, keep it
+    if (!newTagName.trim()) {
+      setNewTagName('');
+    }
+    setEditingTag(null);
+    if (!newTagName.trim()) {
+      setNewTagColor('#1976d2');
+      setTagDescription('');
+    }
+    setTagError('');
+    setTagDialogOpen(true);
+  };
+  
+  const handleCloseTagDialog = () => {
+    setTagDialogOpen(false);
+    setEditingTag(null);
+    setNewTagName('');
+    setNewTagColor('#1976d2');
+    setTagDescription('');
+    setTagError('');
   };
 
   const handleChangePage = (event, newPage) => {
@@ -458,6 +649,91 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
               </Button>
             </Box>
           </Box>
+
+          {/* Compact Tag Management */}
+          {canModifyEvents && (
+            <Box 
+              sx={{ 
+                mb: 3, 
+                p: 2, 
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 2,
+                backgroundColor: 'background.paper'
+              }}
+            >
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Box display="flex" alignItems="center" gap={1} flex={1}>
+                  <TextField
+                    placeholder="Add new tag..."
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    size="small"
+                    sx={{ flex: 1, maxWidth: 300 }}
+                    InputProps={{
+                      endAdornment: newTagName && (
+                        <InputAdornment position="end">
+                          <IconButton
+                            size="small"
+                            onClick={() => setNewTagName('')}
+                            edge="end"
+                          >
+                            <ClearIcon fontSize="small" />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && newTagName.trim()) {
+                        handleOpenTagDialog();
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={handleOpenTagDialog}
+                    disabled={!newTagName.trim()}
+                    sx={{ borderRadius: '20px', px: 2 }}
+                  >
+                    Add Tag
+                  </Button>
+                </Box>
+              </Box>
+              
+              {availableTags.length > 0 && (
+                <>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Or select an existing tag:
+                  </Typography>
+                  <Box display="flex" flexWrap="wrap" gap={1}>
+                    {availableTags.map((tag, index) => (
+                      <Chip
+                        key={tag._id || tag.name || index}
+                        label={tag.name}
+                        sx={{
+                          backgroundColor: tag.color || '#1976d2',
+                          color: 'white',
+                          '&:hover': {
+                            opacity: 0.8
+                          },
+                          cursor: 'pointer'
+                        }}
+                        icon={<LocalOfferIcon sx={{ color: 'white !important', fontSize: 14 }} />}
+                        onClick={() => handleEditTag(tag)}
+                        onDelete={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTag(tag);
+                        }}
+                        deleteIcon={<DeleteIcon sx={{ color: 'white !important', fontSize: 16 }} />}
+                      />
+                    ))}
+                  </Box>
+                </>
+              )}
+            </Box>
+          )}
 
           {/* Search and Filter Controls */}
           <Box mb={3}>
@@ -846,6 +1122,108 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
             />
           )}
         </DialogContent>
+      </Dialog>
+
+      {/* Tag Create/Edit Dialog */}
+      <Dialog 
+        open={tagDialogOpen} 
+        onClose={handleCloseTagDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {editingTag ? 'Edit Tag' : 'Create New Tag'}
+        </DialogTitle>
+        <DialogContent>
+          {tagError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {tagError}
+            </Alert>
+          )}
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              fullWidth
+              label="Tag Name"
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              required
+              placeholder="e.g., VIP, Speaker, Sponsor"
+            />
+
+            <TextField
+              fullWidth
+              label="Description (optional)"
+              value={tagDescription}
+              onChange={(e) => setTagDescription(e.target.value)}
+              multiline
+              rows={2}
+              placeholder="Add a description for this tag"
+            />
+
+            <Box>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                Tag Color
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <Box
+                  sx={{
+                    width: 50,
+                    height: 50,
+                    backgroundColor: newTagColor,
+                    borderRadius: 1,
+                    border: '2px solid',
+                    borderColor: 'divider',
+                    flexShrink: 0
+                  }}
+                />
+                <TextField
+                  value={newTagColor}
+                  onChange={(e) => setNewTagColor(e.target.value)}
+                  placeholder="#1976d2"
+                  size="small"
+                  sx={{ flex: 1 }}
+                  helperText="Enter hex color code (e.g., #1976d2)"
+                />
+              </Box>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {presetColors.map((color) => (
+                  <Box
+                    key={color}
+                    onClick={() => setNewTagColor(color)}
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      backgroundColor: color,
+                      borderRadius: 1,
+                      border: newTagColor === color ? '3px solid' : '1px solid',
+                      borderColor: newTagColor === color ? 'primary.main' : 'divider',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        opacity: 0.8,
+                        transform: 'scale(1.1)'
+                      },
+                      transition: 'all 0.2s'
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseTagDialog} disabled={savingTag}>
+            Cancel
+          </Button>
+          <Button
+            onClick={editingTag ? handleUpdateTag : handleAddTag}
+            variant="contained"
+            disabled={savingTag || !newTagName.trim()}
+            startIcon={savingTag ? <CircularProgress size={20} /> : null}
+          >
+            {savingTag ? 'Saving...' : editingTag ? 'Update' : 'Create'}
+          </Button>
+        </DialogActions>
       </Dialog>
     </>
   );

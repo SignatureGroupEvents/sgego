@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -15,9 +15,12 @@ import {
   Alert,
   CircularProgress,
   Chip,
-  Typography
+  Typography,
+  Autocomplete
 } from '@mui/material';
+import { LocalOffer as LocalOfferIcon } from '@mui/icons-material';
 import { createGuest } from '../../services/api';
+import { getEvent as getEventService } from '../../services/events';
 
 const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
   const [formData, setFormData] = useState({
@@ -27,11 +30,14 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
     jobTitle: '',
     company: '',
     attendeeType: '',
-    notes: ''
+    notes: '',
+    tags: []
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [availableTags, setAvailableTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
 
   const attendeeTypes = [
     'General',
@@ -42,6 +48,21 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
     'Staff',
     'Volunteer'
   ];
+
+  useEffect(() => {
+    const fetchEventTags = async () => {
+      if (open && eventId) {
+        try {
+          const eventData = await getEventService(eventId);
+          setAvailableTags(eventData?.availableTags || []);
+        } catch (err) {
+          console.error('Error fetching event tags:', err);
+        }
+      }
+    };
+
+    fetchEventTags();
+  }, [open, eventId]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -74,7 +95,11 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
         jobTitle: formData.jobTitle.trim() || undefined,
         company: formData.company.trim() || undefined,
         attendeeType: formData.attendeeType || undefined,
-        notes: formData.notes.trim() || undefined
+        notes: formData.notes.trim() || undefined,
+        tags: selectedTags.length > 0 ? selectedTags.map(tag => ({
+          name: tag.name || tag,
+          color: tag.color || '#1976d2'
+        })) : undefined
       };
 
       const response = await createGuest(guestData);
@@ -89,8 +114,10 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
         jobTitle: '',
         company: '',
         attendeeType: '',
-        notes: ''
+        notes: '',
+        tags: []
       });
+      setSelectedTags([]);
 
       // Notify parent component
       if (onGuestAdded) {
@@ -119,8 +146,10 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
         jobTitle: '',
         company: '',
         attendeeType: '',
-        notes: ''
+        notes: '',
+        tags: []
       });
+      setSelectedTags([]);
       setError('');
       setSuccess('');
       onClose();
@@ -269,6 +298,57 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
                 </Select>
               </FormControl>
             </Box>
+
+            {/* Tags */}
+            {availableTags.length > 0 && (
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                <Box sx={{ minWidth: 150, flexShrink: 0, pt: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    Tags
+                  </Typography>
+                </Box>
+                <Autocomplete
+                  multiple
+                  options={availableTags}
+                  getOptionLabel={(option) => option.name || option}
+                  value={selectedTags}
+                  onChange={(event, newValue) => {
+                    setSelectedTags(newValue);
+                  }}
+                  renderTags={(value, getTagProps) =>
+                    value.map((option, index) => {
+                      const tag = typeof option === 'string' 
+                        ? availableTags.find(t => t.name === option) || { name: option, color: '#1976d2' }
+                        : option;
+                      return (
+                        <Chip
+                          {...getTagProps({ index })}
+                          key={tag.name || index}
+                          label={tag.name || tag}
+                          sx={{
+                            backgroundColor: tag.color || '#1976d2',
+                            color: 'white',
+                            '& .MuiChip-deleteIcon': {
+                              color: 'white !important'
+                            }
+                          }}
+                          icon={<LocalOfferIcon sx={{ color: 'white !important', fontSize: 16 }} />}
+                        />
+                      );
+                    })
+                  }
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      placeholder="Select tags (optional)"
+                      size="small"
+                      disabled={loading}
+                    />
+                  )}
+                  disabled={loading}
+                />
+              </Box>
+            )}
 
             {/* Notes */}
             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>

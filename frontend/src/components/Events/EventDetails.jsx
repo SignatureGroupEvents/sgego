@@ -48,6 +48,7 @@ import api from '../../services/api';
 import MainLayout from '../layout/MainLayout';
 import toast from 'react-hot-toast';
 import EventHeader from './EventHeader';
+import TagManagement from './TagManagement';
 
 const EventDetails = () => {
   const { eventId } = useParams();
@@ -433,6 +434,17 @@ const EventDetails = () => {
             </Card>
           </Grid>
         </Grid>
+
+        {/* Tag Management */}
+        <Box sx={{ mt: 3 }}>
+          <TagManagement 
+            event={event} 
+            onUpdate={(updatedEvent) => {
+              setEvent(updatedEvent);
+              toast.success('Event updated successfully');
+            }}
+          />
+        </Box>
 
         {/* Delete Confirmation Dialog */}
         <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>

@@ -24,9 +24,8 @@ import {
     List,
     ListItem,
     ListItemText,
-    ListItemSecondaryAction
-    // Autocomplete, (disabled - no backend endpoint)
-    // FormHelperText (disabled - no backend endpoint)
+    ListItemSecondaryAction,
+    Autocomplete
 } from '@mui/material';
 import {
     ArrowBack,
@@ -39,8 +38,8 @@ import {
     Undo,
     SwapHoriz,
     Delete,
-    Add
-    // LocalOffer (disabled - no backend endpoint)
+    Add,
+    LocalOffer
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import api, { undoCheckin, updateCheckinGifts } from '../../services/api';
@@ -68,10 +67,9 @@ export default function GuestDetailPage() {
     const [saving, setSaving] = useState(false);
     const [event, setEvent] = useState(null);
     
-    // Tag management states - DISABLED (no backend endpoint)
-    // const [availableTags, setAvailableTags] = useState([]);
-    // const [selectedTags, setSelectedTags] = useState([]);
-    // const [tagLoading, setTagLoading] = useState(false);
+    // Tag management states
+    const [availableTags, setAvailableTags] = useState([]);
+    const [selectedTags, setSelectedTags] = useState([]);
     
     // Undo and gift modification states
     const [undoDialogOpen, setUndoDialogOpen] = useState(false);
@@ -103,14 +101,17 @@ export default function GuestDetailPage() {
                     notes: guestData.notes || ''
                 });
                 
-                // Set initial tags - DISABLED (no backend endpoint)
-                // setSelectedTags(guestData.tags || []);
+                // Set initial tags
+                setSelectedTags(guestData.tags || []);
                 
                 // Fetch event details
                 if (eventId) {
                     try {
                         const eventResponse = await api.get(`/events/${eventId}`);
-                        setEvent(eventResponse.data);
+                        const eventData = eventResponse.data.event || eventResponse.data;
+                        setEvent(eventData);
+                        // Set available tags from event
+                        setAvailableTags(eventData?.availableTags || []);
                     } catch (eventErr) {
                         console.warn('Failed to fetch event details:', eventErr);
                     }
@@ -134,16 +135,23 @@ export default function GuestDetailPage() {
         }));
     };
 
-    // Tag change handler - DISABLED (no backend endpoint)
-    // const handleTagChange = (event, newValue) => {
-    //     setSelectedTags(newValue);
-    // };
+    // Tag change handler
+    const handleTagChange = (event, newValue) => {
+        setSelectedTags(newValue);
+    };
 
     const handleSave = async () => {
         try {
             setSaving(true);
-            // Save guest data (tags disabled - no backend endpoint)
-            const response = await api.put(`/guests/${guestId}`, editedGuest);
+            // Save guest data including tags
+            const updateData = {
+                ...editedGuest,
+                tags: selectedTags.length > 0 ? selectedTags.map(tag => ({
+                    name: tag.name || tag,
+                    color: tag.color || '#1976d2'
+                })) : []
+            };
+            const response = await api.put(`/guests/${guestId}`, updateData);
             setGuest(response.data);
             setIsEditing(false);
             setError(''); // Clear any previous errors
@@ -164,8 +172,7 @@ export default function GuestDetailPage() {
             attendeeType: guest?.attendeeType || '',
             notes: guest?.notes || ''
         });
-        // Tags disabled - no backend endpoint
-        // setSelectedTags(guest?.tags || []);
+        setSelectedTags(guest?.tags || []);
         setIsEditing(false);
     };
 
@@ -521,71 +528,76 @@ export default function GuestDetailPage() {
                                         </Box>
                                     </Grid>
 
-                                    {/* Tags - DISABLED (no backend endpoint) */}
-                                    {/* 
-                                    <Grid item xs={12}>
-                                        <Box>
-                                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                                Tags
-                                            </Typography>
-                                            {isEditing ? (
-                                                <Autocomplete
-                                                    multiple
-                                                    options={availableTags}
-                                                    getOptionLabel={(option) => option.name}
-                                                    value={selectedTags}
-                                                    onChange={handleTagChange}
-                                                    renderTags={(value, getTagProps) =>
-                                                        value.map((option, index) => (
-                                                            <Chip
-                                                                variant="outlined"
-                                                                label={option.name}
-                                                                {...getTagProps({ index })}
-                                                                key={option._id || index}
-                                                                sx={{
-                                                                    backgroundColor: option.color,
-                                                                    color: 'white',
-                                                                    '& .MuiChip-deleteIcon': {
-                                                                        color: 'white !important'
-                                                                    }
-                                                                }}
-                                                            />
-                                                        ))
-                                                    }
-                                                    renderInput={(params) => (
-                                                        <TextField
-                                                            {...params}
-                                                            placeholder="Select tags"
-                                                            size="small"
-                                                        />
-                                                    )}
-                                                />
-                                            ) : (
-                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                                    {guest.tags && guest.tags.length > 0 ? (
-                                                        guest.tags.map((tag, index) => (
-                                                            <Chip
-                                                                key={tag._id || index}
-                                                                label={tag.name}
+                                    {/* Tags */}
+                                    {availableTags.length > 0 && (
+                                        <Grid item xs={12}>
+                                            <Box>
+                                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                                    Tags
+                                                </Typography>
+                                                {isEditing ? (
+                                                    <Autocomplete
+                                                        multiple
+                                                        options={availableTags}
+                                                        getOptionLabel={(option) => option.name || option}
+                                                        value={selectedTags}
+                                                        onChange={handleTagChange}
+                                                        renderTags={(value, getTagProps) =>
+                                                            value.map((option, index) => {
+                                                                const tag = typeof option === 'string' 
+                                                                    ? availableTags.find(t => t.name === option) || { name: option, color: '#1976d2' }
+                                                                    : option;
+                                                                return (
+                                                                    <Chip
+                                                                        {...getTagProps({ index })}
+                                                                        key={tag.name || index}
+                                                                        label={tag.name || tag}
+                                                                        sx={{
+                                                                            backgroundColor: tag.color || '#1976d2',
+                                                                            color: 'white',
+                                                                            '& .MuiChip-deleteIcon': {
+                                                                                color: 'white !important'
+                                                                            }
+                                                                        }}
+                                                                        icon={<LocalOffer sx={{ color: 'white !important', fontSize: 14 }} />}
+                                                                    />
+                                                                );
+                                                            })
+                                                        }
+                                                        renderInput={(params) => (
+                                                            <TextField
+                                                                {...params}
+                                                                placeholder="Select tags"
                                                                 size="small"
-                                                                sx={{
-                                                                    backgroundColor: tag.color,
-                                                                    color: 'white',
-                                                                    fontSize: '0.75rem'
-                                                                }}
-                                                                icon={<LocalOffer sx={{ fontSize: 14 }} />}
                                                             />
-                                                        ))
-                                                    ) : (
-                                                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                                            No tags assigned
-                                                        </Typography>
-                                                    )}
-                                                </Box>
-                                            )}
-                                        </Box>
-                                    </Grid>
-                                    */}
+                                                        )}
+                                                    />
+                                                ) : (
+                                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                                        {guest.tags && guest.tags.length > 0 ? (
+                                                            guest.tags.map((tag, index) => (
+                                                                <Chip
+                                                                    key={tag._id || tag.name || index}
+                                                                    label={tag.name}
+                                                                    size="small"
+                                                                    sx={{
+                                                                        backgroundColor: tag.color || '#1976d2',
+                                                                        color: 'white',
+                                                                        fontSize: '0.75rem'
+                                                                    }}
+                                                                    icon={<LocalOffer sx={{ color: 'white !important', fontSize: 14 }} />}
+                                                                />
+                                                            ))
+                                                        ) : (
+                                                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                                                No tags assigned
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                )}
+                                            </Box>
+                                        </Grid>
+                                    )}
                                 </Grid>
                             </CardContent>
                         </Card>
