@@ -45,6 +45,7 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [newItem, setNewItem] = useState({
     type: '',
     style: '',
+    product: '',
     size: '',
     gender: '',
     color: '',
@@ -56,6 +57,21 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [showTypeInput, setShowTypeInput] = useState(false);
   const [selectedItems, setSelectedItems] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [editItemModalOpen, setEditItemModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [editItem, setEditItem] = useState({
+    type: '',
+    style: '',
+    product: '',
+    size: '',
+    gender: '',
+    color: '',
+    qtyWarehouse: 0,
+    qtyBeforeEvent: 0,
+    postEventCount: 0
+  });
+  const [editTypeInputValue, setEditTypeInputValue] = useState('');
+  const [showEditTypeInput, setShowEditTypeInput] = useState(false);
 
   // Predefined types in alphabetical order
   const predefinedTypes = ['Accessories', 'Apparel', 'Bags', 'Electronics', 'Hats', 'Sandals', 'Sneakers', 'Sunglasses'];
@@ -188,6 +204,10 @@ const InventoryPage = ({ eventId, eventName }) => {
         case 'style':
           aValue = (a.style || '').toLowerCase();
           bValue = (b.style || '').toLowerCase();
+          break;
+        case 'product':
+          aValue = (a.product || '').toLowerCase();
+          bValue = (b.product || '').toLowerCase();
           break;
         case 'size':
           aValue = (a.size || '').toLowerCase();
@@ -444,6 +464,142 @@ const InventoryPage = ({ eventId, eventName }) => {
     }
   };
 
+  // Edit item handlers
+  const handleEditItemClick = (item) => {
+    setEditingItem(item);
+    setEditItem({
+      type: item.type || '',
+      style: item.style || '',
+      product: item.product || '',
+      size: item.size || '',
+      gender: item.gender || 'N/A',
+      color: item.color || '',
+      qtyWarehouse: item.qtyWarehouse || 0,
+      qtyBeforeEvent: item.qtyBeforeEvent || item.qtyOnSite || 0,
+      postEventCount: item.postEventCount || 0
+    });
+    setEditTypeInputValue('');
+    setShowEditTypeInput(false);
+    setEditItemModalOpen(true);
+  };
+
+  const handleCloseEditItemModal = () => {
+    setEditItemModalOpen(false);
+    setEditingItem(null);
+    setEditItem({
+      type: '',
+      style: '',
+      product: '',
+      size: '',
+      gender: '',
+      color: '',
+      qtyWarehouse: 0,
+      qtyBeforeEvent: 0,
+      postEventCount: 0
+    });
+    setEditTypeInputValue('');
+    setShowEditTypeInput(false);
+  };
+
+  const handleEditTypeChange = (value) => {
+    if (value === '__add_new__') {
+      setShowEditTypeInput(true);
+      setEditTypeInputValue('');
+    } else {
+      setEditItem(prev => ({ ...prev, type: value }));
+      setShowEditTypeInput(false);
+      setEditTypeInputValue('');
+    }
+  };
+
+  const handleEditTypeInputChange = (value) => {
+    setEditTypeInputValue(value);
+    // Capitalize first letter
+    const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+    
+    // Check for duplicates (case-insensitive)
+    const normalizedValue = capitalized.toLowerCase().trim();
+    const isDuplicate = allAvailableTypes.some(
+      existingType => existingType.toLowerCase().trim() === normalizedValue
+    );
+    
+    if (isDuplicate && normalizedValue) {
+      setError(`Type "${capitalized}" already exists. Please select it from the dropdown.`);
+    } else {
+      setError('');
+      setEditItem(prev => ({ ...prev, type: capitalized }));
+    }
+  };
+
+  const handleEditItemChange = (field, value) => {
+    setEditItem(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSaveEditItem = async () => {
+    if (!editingItem) return;
+
+    try {
+      // Validate required fields
+      if (!editItem.type || !editItem.style) {
+        setError('Type and Brand are required fields.');
+        return;
+      }
+
+      // Final validation for type - check for duplicates (but allow if it's the same as the original)
+      const normalizedType = editItem.type.toLowerCase().trim();
+      const originalNormalizedType = editingItem?.type?.toLowerCase().trim();
+      
+      // Only check for duplicates if the type has changed
+      if (normalizedType !== originalNormalizedType) {
+        const isDuplicate = allAvailableTypes.some(
+          existingType => existingType.toLowerCase().trim() === normalizedType
+        );
+        
+        if (isDuplicate) {
+          setError(`Type "${editItem.type}" already exists. Please select it from the dropdown.`);
+          return;
+        }
+      }
+
+      // Convert numeric fields
+      const itemData = {
+        type: editItem.type.trim(),
+        style: editItem.style.trim(),
+        product: editItem.product ? editItem.product.trim() : '',
+        size: editItem.size ? editItem.size.trim() : '',
+        gender: editItem.gender || 'N/A',
+        color: editItem.color ? editItem.color.trim() : '',
+        qtyWarehouse: Number(editItem.qtyWarehouse),
+        qtyBeforeEvent: Number(editItem.qtyBeforeEvent),
+        postEventCount: editItem.postEventCount ? Number(editItem.postEventCount) : null
+      };
+
+      // Validate numeric values
+      if (
+        isNaN(itemData.qtyWarehouse) ||
+        isNaN(itemData.qtyBeforeEvent) ||
+        (itemData.postEventCount !== null && isNaN(itemData.postEventCount)) ||
+        itemData.qtyWarehouse < 0 ||
+        itemData.qtyBeforeEvent < 0 ||
+        (itemData.postEventCount !== null && itemData.postEventCount < 0)
+      ) {
+        setError('All quantity fields must be valid numbers.');
+        return;
+      }
+
+      // Update the inventory item
+      await updateInventoryItem(editingItem._id, itemData);
+      setSuccess('Inventory item updated successfully!');
+      handleCloseEditItemModal();
+      loadInventory();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update inventory item.');
+    }
+  };
+
   const handleAllocationChange = async (item, newAllocatedEvents) => {
     try {
       await updateInventoryAllocation(item._id, newAllocatedEvents.map(ev => ev._id));
@@ -493,6 +649,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     setNewItem({
       type: '',
       style: '',
+      product: '',
       size: '',
       gender: '',
       color: '',
@@ -509,6 +666,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     setNewItem({
       type: '',
       style: '',
+      product: '',
       size: '',
       gender: '',
       color: '',
@@ -612,22 +770,6 @@ const InventoryPage = ({ eventId, eventName }) => {
       <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={allEvents.filter(ev => (parentEvent ? ev.parentEventId === (parentEvent._id) : ev.parentEventId === (event && event._id)) && ev._id !== (parentEvent ? parentEvent._id : event && event._id))} />
       <Typography variant="h4" gutterBottom>Inventory</Typography>
       <Box display="flex" gap={2} mb={2}>
-        {canModifyInventory && (
-          isEditMode ? (
-            <>
-              <Button variant="contained" color="success" onClick={handleSaveAllChanges} startIcon={<SaveIcon />}>
-                Save All Changes
-              </Button>
-              <Button variant="outlined" onClick={handleExitEditMode} startIcon={<CancelIcon />}>
-                Cancel
-              </Button>
-            </>
-          ) : (
-            <Button variant="contained" color="primary" onClick={handleEnterEditMode} startIcon={<EditIcon />}>
-              Edit
-            </Button>
-          )
-        )}
         <Button variant="contained" color="primary" onClick={handleExportCSV} startIcon={<FileDownloadIcon />}>
           Export CSV
         </Button>
@@ -690,7 +832,7 @@ const InventoryPage = ({ eventId, eventName }) => {
             <Box mb={3}>
               <Grid container spacing={2} alignItems="flex-start">
                 {/* Search Bar */}
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                   <TextField
                     fullWidth
                     size="small"
@@ -719,7 +861,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                 </Grid>
 
                 {/* Type Filter */}
-                <Grid item xs={12} sm={6} md={2}>
+                <Grid size={{ xs: 12, sm: 6, md: 2 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Type</InputLabel>
                     <Select
@@ -736,7 +878,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                 </Grid>
 
                 {/* Brand Filter */}
-                <Grid item xs={12} sm={6} md={2}>
+                <Grid size={{ xs: 12, sm: 6, md: 2 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Brand</InputLabel>
                     <Select
@@ -753,7 +895,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                 </Grid>
 
                 {/* Gender Filter */}
-                <Grid item xs={12} sm={6} md={2}>
+                <Grid size={{ xs: 12, sm: 6, md: 2 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Gender</InputLabel>
                     <Select
@@ -770,7 +912,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                 </Grid>
 
                 {/* Clear Filters */}
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                   <Button
                     variant="outlined"
                     size="small"
@@ -788,6 +930,40 @@ const InventoryPage = ({ eventId, eventName }) => {
               </Grid>
             </Box>
 
+            <Box display="flex" justifyContent="flex-end" mb={1}>
+              {canModifyInventory && (
+                isEditMode ? (
+                  <Box display="flex" gap={1}>
+                    <Button
+                      variant="contained"
+                      color="success"
+                      size="small"
+                      onClick={handleSaveAllChanges}
+                      startIcon={<SaveIcon />}
+                    >
+                      Save All Changes
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={handleExitEditMode}
+                      startIcon={<CancelIcon />}
+                    >
+                      Cancel
+                    </Button>
+                  </Box>
+                ) : (
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    onClick={handleEnterEditMode}
+                    startIcon={<EditIcon />}
+                  >
+                    Update Counts
+                  </Button>
+                )
+              )}
+            </Box>
             <TableContainer component={Paper}>
               <Table size="small">
                 <TableHead>
@@ -825,6 +1001,15 @@ const InventoryPage = ({ eventId, eventName }) => {
                         onClick={() => handleSort('style')}
                       >
                         Brand
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortBy === 'product'}
+                        direction={sortBy === 'product' ? sortOrder : 'asc'}
+                        onClick={() => handleSort('product')}
+                      >
+                        Product
                       </TableSortLabel>
                     </TableCell>
                     <TableCell>
@@ -873,7 +1058,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                 <TableBody>
                   {filteredAndSortedInventory.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={canModifyInventory ? 12 : 11} align="center">
+                      <TableCell colSpan={canModifyInventory ? 13 : 12} align="center">
                         {inventory.length === 0 ? 'No inventory found.' : 'No inventory matches your filters.'}
                       </TableCell>
                     </TableRow>
@@ -885,7 +1070,6 @@ const InventoryPage = ({ eventId, eventName }) => {
                           key={item._id}
                           sx={{
                             '&:hover': {
-                              cursor: 'pointer',
                               backgroundColor: 'action.hover',
                               ...(item.isInherited && {
                                 backgroundColor: 'rgba(25, 118, 210, 0.04)',
@@ -905,6 +1089,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                           )}
                           <TableCell>{item.type}</TableCell>
                           <TableCell>{item.style}</TableCell>
+                          <TableCell>{item.product || ''}</TableCell>
                           <TableCell>{item.size}</TableCell>
                           <TableCell>{item.gender}</TableCell>
                           <TableCell>{item.color}</TableCell>
@@ -969,7 +1154,14 @@ const InventoryPage = ({ eventId, eventName }) => {
 
                           <TableCell align="center">
                             {canModifyInventory && !isEditMode && (
-                              <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small"><DeleteIcon /></IconButton>
+                              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                                <IconButton color="primary" onClick={() => handleEditItemClick(item)} size="small" title="Edit item">
+                                  <EditIcon />
+                                </IconButton>
+                                <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small" title="Delete item">
+                                  <DeleteIcon />
+                                </IconButton>
+                              </Box>
                             )}
                           </TableCell>
                         </TableRow>
@@ -1095,6 +1287,12 @@ const InventoryPage = ({ eventId, eventName }) => {
               fullWidth
             />
             <TextField
+              label="Product"
+              value={newItem.product}
+              onChange={(e) => handleNewItemChange('product', e.target.value)}
+              fullWidth
+            />
+            <TextField
               label="Size"
               value={newItem.size}
               onChange={(e) => handleNewItemChange('size', e.target.value)}
@@ -1144,6 +1342,128 @@ const InventoryPage = ({ eventId, eventName }) => {
           </Button>
           <Button onClick={handleAddItem} variant="contained" color="primary">
             Add Item
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Item Modal */}
+      <Dialog
+        open={editItemModalOpen}
+        onClose={handleCloseEditItemModal}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            minWidth: 500,
+            maxWidth: 600
+          }
+        }}
+      >
+        <DialogTitle>Edit Inventory Item</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
+            {/* Type Dropdown with Add New Option */}
+            <FormControl fullWidth required>
+              <InputLabel>Type *</InputLabel>
+              {!showEditTypeInput ? (
+                <Select
+                  value={editItem.type}
+                  onChange={(e) => handleEditTypeChange(e.target.value)}
+                  label="Type *"
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        zIndex: 9999
+                      }
+                    }
+                  }}
+                >
+                  <MenuItem value="">
+                    <em>Select Type</em>
+                  </MenuItem>
+                  {allAvailableTypes.map(type => (
+                    <MenuItem key={type} value={type}>{type}</MenuItem>
+                  ))}
+                  <MenuItem value="__add_new__" sx={{ fontStyle: 'italic', color: 'primary.main' }}>
+                    + Add New Type
+                  </MenuItem>
+                </Select>
+              ) : (
+                <TextField
+                  label="Type *"
+                  value={editTypeInputValue}
+                  onChange={(e) => handleEditTypeInputChange(e.target.value)}
+                  required
+                  fullWidth
+                  autoFocus
+                  helperText={error && error.includes('already exists') ? error : 'Capitalize first letter automatically'}
+                  error={error && error.includes('already exists')}
+                />
+              )}
+            </FormControl>
+            <TextField
+              label="Brand *"
+              value={editItem.style}
+              onChange={(e) => handleEditItemChange('style', e.target.value)}
+              required
+              fullWidth
+            />
+            <TextField
+              label="Product"
+              value={editItem.product}
+              onChange={(e) => handleEditItemChange('product', e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Size"
+              value={editItem.size}
+              onChange={(e) => handleEditItemChange('size', e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Gender"
+              value={editItem.gender}
+              onChange={(e) => handleEditItemChange('gender', e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Color"
+              value={editItem.color}
+              onChange={(e) => handleEditItemChange('color', e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Qty Warehouse"
+              type="number"
+              value={editItem.qtyWarehouse}
+              onChange={(e) => handleEditItemChange('qtyWarehouse', e.target.value)}
+              fullWidth
+              inputProps={{ min: 0 }}
+            />
+            <TextField
+              label="Qty Before Event"
+              type="number"
+              value={editItem.qtyBeforeEvent}
+              onChange={(e) => handleEditItemChange('qtyBeforeEvent', e.target.value)}
+              fullWidth
+              inputProps={{ min: 0 }}
+            />
+            <TextField
+              label="Post Event Count"
+              type="number"
+              value={editItem.postEventCount}
+              onChange={(e) => handleEditItemChange('postEventCount', e.target.value)}
+              fullWidth
+              inputProps={{ min: 0 }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseEditItemModal} variant="outlined">
+            Cancel
+          </Button>
+          <Button onClick={handleSaveEditItem} variant="contained" color="primary">
+            Save Changes
           </Button>
         </DialogActions>
       </Dialog>

@@ -74,6 +74,7 @@ const UploadInventory = () => {
   const expectedColumns = {
     type: { required: true, label: 'TYPE', section: 'required' },
     style: { required: true, label: 'BRAND', section: 'required' },
+    product: { required: false, label: 'PRODUCT', section: 'optional' },
     size: { required: false, label: 'SIZE', section: 'optional' },
     gender: { required: false, label: 'GENDER', section: 'optional' },
     color: { required: false, label: 'COLOR', section: 'optional' },
@@ -341,8 +342,9 @@ const UploadInventory = () => {
           if (lowerHeader === lowerLabel ||
               lowerHeader.includes(lowerLabel.split(' ')[0]) || 
               lowerHeader === field ||
-              (field === 'type' && (lowerHeader.includes('type') || lowerHeader.includes('product'))) ||
+              (field === 'type' && (lowerHeader.includes('type'))) ||
               (field === 'style' && (lowerHeader.includes('brand'))) ||
+              (field === 'product' && (lowerHeader.includes('product') || lowerHeader.includes('product name'))) ||
               (field === 'size' && lowerHeader.includes('size')) ||
               (field === 'gender' && (lowerHeader.includes('gender') || lowerHeader.includes('sex') || lowerHeader.includes('style'))) ||
               (field === 'color' && (lowerHeader.includes('color') || lowerHeader.includes('colour'))) ||
@@ -392,18 +394,19 @@ const UploadInventory = () => {
       });
 
       // Check each mapped item against existing inventory
+      // All fields (Type, Brand, Product, Gender, Size, Color) must match for a duplicate
       mappedItems.forEach((item) => {
-        const itemKey = `${item.type || ''}-${item.style || ''}-${item.size || ''}-${item.gender || ''}-${item.color || ''}`;
+        const itemKey = `${item.type || ''}-${item.style || ''}-${item.product || ''}-${item.gender || ''}-${item.size || ''}-${item.color || ''}`;
         
         const isDuplicate = existing.some(existingItem => {
-          const existingKey = `${existingItem.type || ''}-${existingItem.style || ''}-${existingItem.size || ''}-${existingItem.gender || ''}-${existingItem.color || ''}`;
+          const existingKey = `${existingItem.type || ''}-${existingItem.style || ''}-${existingItem.product || ''}-${existingItem.gender || ''}-${existingItem.size || ''}-${existingItem.color || ''}`;
           return existingKey === itemKey;
         });
 
         if (isDuplicate) {
           duplicates.push({
             rowIndex: item._rowIndex,
-            item: `${item.type || ''} - ${item.style || ''} (${item.size || 'N/A'}, ${item.gender || 'N/A'}, ${item.color || 'N/A'})`,
+            item: `${item.type || ''} - ${item.style || ''}${item.product ? ` - ${item.product}` : ''} (${item.size || 'N/A'}, ${item.gender || 'N/A'}, ${item.color || 'N/A'})`,
             reason: 'Item already exists',
             rowData: item._originalRow
           });
@@ -465,8 +468,50 @@ const UploadInventory = () => {
       setActiveStep(3);
       
     } catch (error) {
-      setErrors([`Upload failed: ${error.response?.data?.message || error.message}`]);
+      const errorMessages = [];
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        // Handle duplicate errors with row information
+        if (errorData.message && (errorData.message.includes('duplicate') || errorData.message.includes('Duplicate'))) {
+          errorMessages.push('Duplicate inventory items found. Each combination of Type, Brand, Size, Gender, and Color must be unique.');
+          
+          // Add skipped items (already in database)
+          if (errorData.results?.skippedItems && errorData.results.skippedItems.length > 0) {
+            errorMessages.push(`\nRows already in database (${errorData.results.skippedItems.length}):`);
+            errorData.results.skippedItems.forEach((item) => {
+              errorMessages.push(`  Row ${item.row}: ${item.item} - ${item.reason}`);
+            });
+          }
+          
+          // Add file duplicates (duplicates within the uploaded file)
+          if (errorData.results?.fileDuplicates && errorData.results.fileDuplicates.length > 0) {
+            errorMessages.push(`\nDuplicate rows within file (${errorData.results.fileDuplicates.length}):`);
+            errorData.results.fileDuplicates.forEach((item) => {
+              errorMessages.push(`  Row ${item.row}: ${item.item} - ${item.reason}`);
+            });
+          }
+        } else {
+          // Other errors
+          errorMessages.push(errorData.message || 'Upload failed');
+          
+          // Add any row-specific errors
+          if (errorData.results?.errors && errorData.results.errors.length > 0) {
+            errorData.results.errors.forEach((err) => {
+              errorMessages.push(err);
+            });
+          }
+        }
+      } else if (error.message) {
+        errorMessages.push(error.message);
+      } else {
+        errorMessages.push('Upload failed');
+      }
+      
+      setErrors(errorMessages);
       setIsProcessing(false);
+      setUploadProgress(0);
     }
   };
 
@@ -871,6 +916,9 @@ const UploadInventory = () => {
                               <TableCell sx={{ fontWeight: 600 }}>Row</TableCell>
                               <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
                               <TableCell sx={{ fontWeight: 600 }}>Brand</TableCell>
+                              {columnMapping.product && (
+                                <TableCell sx={{ fontWeight: 600 }}>Product</TableCell>
+                              )}
                               {columnMapping.size && (
                                 <TableCell sx={{ fontWeight: 600 }}>Size</TableCell>
                               )}
@@ -898,6 +946,9 @@ const UploadInventory = () => {
                                   <TableCell>{rowIndex}</TableCell>
                                   <TableCell>{mappedRow.type || '-'}</TableCell>
                                   <TableCell>{mappedRow.style || '-'}</TableCell>
+                                  {columnMapping.product && (
+                                    <TableCell>{mappedRow.product || '-'}</TableCell>
+                                  )}
                                   {columnMapping.size && (
                                     <TableCell>{mappedRow.size || '-'}</TableCell>
                                   )}
@@ -1093,7 +1144,9 @@ const UploadInventory = () => {
                             <Box component="ul" sx={{ margin: 0, paddingLeft: 2 }}>
                               {uploadResults.results.errors.map((error, index) => (
                                 <li key={index}>
-                                  <Typography variant="body2">{error}</Typography>
+                                  <Typography variant="body2" component="pre" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
+                                    {error}
+                                  </Typography>
                                 </li>
                               ))}
                             </Box>
@@ -1102,15 +1155,15 @@ const UploadInventory = () => {
                       </Grid>
                     )}
 
-                    {/* Duplicates Section */}
-                    {(uploadResults.results?.duplicatesSkipped || 0) > 0 && (
+                    {/* Skipped Items Section (Duplicates) */}
+                    {((uploadResults.results?.skippedItems?.length || 0) > 0 || (uploadResults.results?.fileDuplicates?.length || 0) > 0) && (
                       <Grid size={12}>
                         <Paper 
                           sx={{ 
                             p: 0,
                             backgroundColor: 'background.paper',
                             border: '1px solid',
-                            borderColor: 'divider',
+                            borderColor: 'warning.main',
                             overflow: 'hidden'
                           }}
                         >
@@ -1125,7 +1178,7 @@ const UploadInventory = () => {
                             <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
                               <Box>
                                 <Typography variant="h4" sx={{ color: 'text.primary', fontWeight: 700 }} gutterBottom>
-                                  {uploadResults.results?.duplicatesSkipped || 0}
+                                  {(uploadResults.results?.skippedItems?.length || 0) + (uploadResults.results?.fileDuplicates?.length || 0)}
                                 </Typography>
                                 <Typography variant="body1" sx={{ fontWeight: 500, color: 'text.secondary' }}>
                                   Duplicates Skipped
@@ -1133,32 +1186,45 @@ const UploadInventory = () => {
                               </Box>
                               <WarningIcon sx={{ fontSize: 48, color: 'warning.main' }} />
                             </Box>
-                            {uploadResults.results?.skippedItems && (
-                              <TableContainer sx={{ maxHeight: 300, overflow: 'auto' }}>
-                                <Table size="small" stickyHeader>
-                                  <TableHead>
-                                    <TableRow>
-                                      <TableCell sx={{ fontWeight: 600 }}>Row</TableCell>
-                                      <TableCell sx={{ fontWeight: 600 }}>Item</TableCell>
-                                      <TableCell sx={{ fontWeight: 600 }}>Reason</TableCell>
-                                    </TableRow>
-                                  </TableHead>
-                                  <TableBody>
-                                    {uploadResults.results.skippedItems.map((item, index) => (
-                                      <TableRow key={index}>
-                                        <TableCell>{item.row}</TableCell>
-                                        <TableCell>{item.item}</TableCell>
-                                        <TableCell>{item.reason}</TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </TableContainer>
+                            
+                            {uploadResults.results?.skippedItems?.length > 0 && (
+                              <Box mb={2}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                                  Already in Database ({uploadResults.results.skippedItems.length}):
+                                </Typography>
+                                <Box component="ul" sx={{ margin: 0, paddingLeft: 2, maxHeight: 200, overflowY: 'auto' }}>
+                                  {uploadResults.results.skippedItems.map((item, index) => (
+                                    <li key={index}>
+                                      <Typography variant="body2">
+                                        <strong>Row {item.row}:</strong> {item.item}
+                                      </Typography>
+                                    </li>
+                                  ))}
+                                </Box>
+                              </Box>
+                            )}
+
+                            {uploadResults.results?.fileDuplicates?.length > 0 && (
+                              <Box>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                                  Duplicates Within File ({uploadResults.results.fileDuplicates.length}):
+                                </Typography>
+                                <Box component="ul" sx={{ margin: 0, paddingLeft: 2, maxHeight: 200, overflowY: 'auto' }}>
+                                  {uploadResults.results.fileDuplicates.map((item, index) => (
+                                    <li key={index}>
+                                      <Typography variant="body2">
+                                        <strong>Row {item.row}:</strong> {item.item} - {item.reason}
+                                      </Typography>
+                                    </li>
+                                  ))}
+                                </Box>
+                              </Box>
                             )}
                           </Box>
                         </Paper>
                       </Grid>
                     )}
+
                   </Grid>
 
                   <Box display="flex" gap={2} justifyContent="center" mt={4}>

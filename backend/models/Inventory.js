@@ -16,6 +16,12 @@ const inventorySchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  product: {
+    type: String,
+    required: false,
+    trim: true,
+    default: ''
+  },
   size: {
     type: String,
     required: false,
@@ -78,7 +84,7 @@ const inventorySchema = new mongoose.Schema({
   timestamps: true
 });
 
-inventorySchema.index({ eventId: 1, type: 1, style: 1, size: 1, gender: 1, color: 1 }, { unique: true });
+inventorySchema.index({ eventId: 1, type: 1, style: 1, product: 1, gender: 1, size: 1, color: 1 }, { unique: true });
 
 // Method to update inventory
 inventorySchema.methods.updateInventory = function(newCount, action, userId, reason = '') {
