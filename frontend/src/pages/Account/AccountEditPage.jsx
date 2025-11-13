@@ -293,7 +293,7 @@ const AccountEditPage = () => {
   const statusLabel = user.isActive ? 'Active' : 'Pending';
 
   return (
-    <MainLayout userName={user?.username}>
+    <MainLayout userName={user?.username || user?.email || 'User'}>
       {/* Header with Return Button */}
       <Box display="flex" alignItems="center" mb={4}>
           <Button

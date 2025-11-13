@@ -153,6 +153,43 @@ const BreadcrumbsNav = ({ eventName, userName, parentEventName, parentEventId })
     );
   }
 
+  // Show 'Profile / [User Name]' for /profile/:userId
+  if (
+    pathnames[0] === 'profile' &&
+    pathnames.length === 2 &&
+    pathnames[1] === params.userId
+  ) {
+    const userLabel = userName || 'Loading...';
+    return (
+      <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2, mt: 1 }}>
+        <Link color="inherit" underline="hover" onClick={() => navigate('/account')} sx={{ cursor: 'pointer', fontWeight: 500 }}>
+          Account
+        </Link>
+        <Typography color="text.primary" fontWeight={700}>{userLabel}</Typography>
+      </Breadcrumbs>
+    );
+  }
+
+  // Show 'Profile / Edit / [User Name]' for /profile/edit/:userId
+  if (
+    pathnames[0] === 'profile' &&
+    pathnames[1] === 'edit' &&
+    pathnames.length === 3
+  ) {
+    const userLabel = userName || 'Loading...';
+    return (
+      <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2, mt: 1 }}>
+        <Link color="inherit" underline="hover" onClick={() => navigate('/account')} sx={{ cursor: 'pointer', fontWeight: 500 }}>
+          Account
+        </Link>
+        <Link color="inherit" underline="hover" onClick={() => navigate(`/profile/${params.userId}`)} sx={{ cursor: 'pointer', fontWeight: 500 }}>
+          {userLabel}
+        </Link>
+        <Typography color="text.primary" fontWeight={700}>Edit</Typography>
+      </Breadcrumbs>
+    );
+  }
+
   const crumbs = getBreadcrumbs(location, params, { eventName, userName });
   if (crumbs.length === 0) return null;
 

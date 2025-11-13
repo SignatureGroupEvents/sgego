@@ -123,7 +123,7 @@ const UserProfile = () => {
   }
 
   return (
-    <MainLayout>
+    <MainLayout userName={user.username || user.email || 'User'}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
         <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
           👤 {isOwnProfile ? 'My Profile' : `${user.username || user.email}'s Profile`}
