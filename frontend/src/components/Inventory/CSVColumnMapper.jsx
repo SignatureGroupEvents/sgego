@@ -29,8 +29,8 @@ const CSVColumnMapper = ({
   // Define the required and optional fields for inventory
   const inventoryFields = {
     required: [
-      { key: 'type', label: 'Type', description: 'Product type (e.g., T-Shirt, Hoodie)' },
-      { key: 'style', label: 'Style', description: 'Style identifier' }
+      { key: 'type', label: 'Type', description: 'Product type (e.g., Sneakers, Hats, Bags)' },
+      { key: 'style', label: 'Brand', description: 'Brand name' }
     ],
     optional: [
       { key: 'size', label: 'Size', description: 'Size (S, M, L, XL, etc.)' },
@@ -83,9 +83,9 @@ const CSVColumnMapper = ({
         // Try to auto-match common variations
         const matches = {
           'type': ['type', 'producttype', 'itemtype'],
-          'style': ['style', 'stylename', 'stylenum', 'stylenumber'],
+          'style': ['brand'],
           'size': ['size', 'sizes'],
-          'gender': ['gender', 'sex'],
+          'gender': ['gender', 'sex', 'style'],
           'color': ['color', 'colour'],
           'qtyWarehouse': ['qtywarehouse', 'warehouseqty', 'warehouse', 'warehouseinventory', 'qtywh']
         };

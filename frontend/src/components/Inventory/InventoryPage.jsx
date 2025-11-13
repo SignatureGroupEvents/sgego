@@ -3,21 +3,21 @@ import {
   Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete,
   TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
-  DialogContent, DialogActions, TablePagination, Grid, InputAdornment, TableSortLabel, Tooltip
+  DialogContent, DialogActions, TablePagination, Grid, InputAdornment, TableSortLabel, Tooltip, Checkbox
 } from '@mui/material';
 import {
   Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
   Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon,
   Search as SearchIcon, FilterList as FilterIcon, Clear as ClearIcon, AccountTree as InheritIcon
 } from '@mui/icons-material';
-import { uploadInventoryCSV, fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
-import { useParams } from 'react-router-dom';
+import { fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, bulkDeleteInventory, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
+import { useParams, useNavigate } from 'react-router-dom';
 import MainLayout from '../layout/MainLayout';
 import { getEvent } from '../../services/events';
 import api from '../../services/api';
 import EventIcon from '@mui/icons-material/Event';
 import EventHeader from '../Events/EventHeader';
-import CSVColumnMapper from '../Inventory/CSVColumnMapper';
+import CSVColumnMapper from './CSVColumnMapper';
 
 // ✅ Use usePermissions only
 import { usePermissions } from '../../hooks/usePermissions';
@@ -26,12 +26,11 @@ import { usePermissions } from '../../hooks/usePermissions';
 
 
 const InventoryPage = ({ eventId, eventName }) => {
+  const navigate = useNavigate();
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef();
   const [editRowId, setEditRowId] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [deletingId, setDeletingId] = useState(null);
@@ -43,8 +42,6 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editValuesMap, setEditValuesMap] = useState({});
   const [addItemModalOpen, setAddItemModalOpen] = useState(false);
-  const [showColumnMapper, setShowColumnMapper] = useState(false);
-  const [pendingCsvFile, setPendingCsvFile] = useState(null);
   const [newItem, setNewItem] = useState({
     type: '',
     style: '',
@@ -55,6 +52,22 @@ const InventoryPage = ({ eventId, eventName }) => {
     qtyBeforeEvent: 0,
     postEventCount: 0
   });
+  const [typeInputValue, setTypeInputValue] = useState('');
+  const [showTypeInput, setShowTypeInput] = useState(false);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Predefined types in alphabetical order
+  const predefinedTypes = ['Accessories', 'Apparel', 'Bags', 'Electronics', 'Hats', 'Sandals', 'Sneakers', 'Sunglasses'];
+  
+  // Get all unique types from inventory + predefined types, sorted alphabetically
+  const allAvailableTypes = React.useMemo(() => {
+    const typeSet = new Set(predefinedTypes);
+    inventory.forEach(item => {
+      if (item.type) typeSet.add(item.type);
+    });
+    return Array.from(typeSet).sort();
+  }, [inventory]);
   const { isOperationsManager, isAdmin } = usePermissions();
 
   const [page, setPage] = useState(0);
@@ -70,11 +83,13 @@ const InventoryPage = ({ eventId, eventName }) => {
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
+    setSelectedItems([]); // Clear selections when changing pages
   };
 
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
+    setSelectedItems([]); // Clear selections when changing page size
   };
   // Determine if user can modify inventory
   const canModifyInventory = isOperationsManager || isAdmin;
@@ -135,6 +150,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     setSortBy('type');
     setSortOrder('asc');
     setPage(0);
+    setSelectedItems([]);
   };
 
   // Filter and sort inventory
@@ -145,7 +161,8 @@ const InventoryPage = ({ eventId, eventName }) => {
         item.type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.style?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.size?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.color?.toLowerCase().includes(searchQuery.toLowerCase());
+        item.color?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.gender?.toLowerCase().includes(searchQuery.toLowerCase());
 
       // Type filter
       const typeMatch = typeFilter === 'all' || item.type === typeFilter;
@@ -247,45 +264,8 @@ const InventoryPage = ({ eventId, eventName }) => {
   }, [eventId]);
 
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Instead of uploading immediately, show the column mapper
-    setPendingCsvFile(file);
-    setShowColumnMapper(true);
-
-    // Clear the file input
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleMappingComplete = async (mapping, file) => {
-    setUploading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      // Call the updated API function with mapping
-      const response = await uploadInventoryCSV(eventId, file, mapping);
-      // Handle the new detailed response
-      if (response.data.results) {
-        const { newItemsAdded, duplicatesSkipped, totalProcessed } = response.data.results;
-        setSuccess(
-          `Upload complete: ${newItemsAdded} new items added` +
-          (duplicatesSkipped > 0 ? `, ${duplicatesSkipped} duplicates skipped` : '') +
-          ` (${totalProcessed} total processed)`
-        );
-      } else {
-        setSuccess('Inventory uploaded successfully!');
-      }
-      loadInventory();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to upload inventory.');
-    } finally {
-      setUploading(false);
-      setShowColumnMapper(false);
-      setPendingCsvFile(null);
-    }
+  const handleUploadClick = () => {
+    navigate(`/events/${eventId}/inventory/upload`);
   };
 
 
@@ -413,6 +393,57 @@ const InventoryPage = ({ eventId, eventName }) => {
     setDeletingId(null);
   };
 
+  // Bulk delete handlers
+  const handleSelectItem = (itemId) => {
+    setSelectedItems(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
+  };
+
+  const handleSelectAll = (event) => {
+    if (event.target.checked) {
+      const currentPageItems = filteredAndSortedInventory
+        .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+        .map(item => item._id);
+      setSelectedItems(currentPageItems);
+    } else {
+      setSelectedItems([]);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedItems.length === 0) {
+      setError('Please select at least one item to delete.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedItems.length} inventory item(s)? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setBulkDeleting(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      // Delete items one by one (since bulk delete endpoint expects eventId and might have different logic)
+      const deletePromises = selectedItems.map(itemId => deleteInventoryItem(itemId));
+      await Promise.all(deletePromises);
+      
+      setSuccess(`Successfully deleted ${selectedItems.length} inventory item(s).`);
+      setSelectedItems([]);
+      loadInventory();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete inventory items.');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const handleAllocationChange = async (item, newAllocatedEvents) => {
     try {
       await updateInventoryAllocation(item._id, newAllocatedEvents.map(ev => ev._id));
@@ -469,6 +500,8 @@ const InventoryPage = ({ eventId, eventName }) => {
       qtyBeforeEvent: 0,
       postEventCount: 0
     });
+    setTypeInputValue('');
+    setShowTypeInput(false);
   };
 
   const handleCloseAddItemModal = () => {
@@ -483,6 +516,38 @@ const InventoryPage = ({ eventId, eventName }) => {
       qtyBeforeEvent: 0,
       postEventCount: 0
     });
+    setTypeInputValue('');
+    setShowTypeInput(false);
+  };
+
+  const handleTypeChange = (value) => {
+    if (value === '__add_new__') {
+      setShowTypeInput(true);
+      setTypeInputValue('');
+    } else {
+      setNewItem(prev => ({ ...prev, type: value }));
+      setShowTypeInput(false);
+      setTypeInputValue('');
+    }
+  };
+
+  const handleTypeInputChange = (value) => {
+    setTypeInputValue(value);
+    // Capitalize first letter
+    const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+    
+    // Check for duplicates (case-insensitive)
+    const normalizedValue = capitalized.toLowerCase().trim();
+    const isDuplicate = allAvailableTypes.some(
+      existingType => existingType.toLowerCase().trim() === normalizedValue
+    );
+    
+    if (isDuplicate && normalizedValue) {
+      setError(`Type "${capitalized}" already exists. Please select it from the dropdown.`);
+    } else {
+      setError('');
+      setNewItem(prev => ({ ...prev, type: capitalized }));
+    }
   };
 
   const handleNewItemChange = (field, value) => {
@@ -496,7 +561,18 @@ const InventoryPage = ({ eventId, eventName }) => {
     try {
       // Validate required fields
       if (!newItem.type || !newItem.style) {
-        setError('Type and Style are required fields.');
+        setError('Type and Brand are required fields.');
+        return;
+      }
+
+      // Final validation for type - check for duplicates
+      const normalizedType = newItem.type.toLowerCase().trim();
+      const isDuplicate = allAvailableTypes.some(
+        existingType => existingType.toLowerCase().trim() === normalizedType && existingType !== newItem.type
+      );
+      
+      if (isDuplicate) {
+        setError(`Type "${newItem.type}" already exists. Please select it from the dropdown.`);
         return;
       }
 
@@ -570,29 +646,34 @@ const InventoryPage = ({ eventId, eventName }) => {
         }
       </Typography>
       {canModifyInventory && event?.isMainEvent && (
-        <Box sx={{ display: 'flex', gap: 2, mb: 3, justifyContent: 'space-between' }}>
-          <Button
-            variant="contained"
-            startIcon={<UploadIcon />}
-            component="label"
-            disabled={uploading}
-          >
-            {uploading ? 'Uploading...' : 'Upload Inventory CSV'}
-            <input
-              type="file"
-              accept=".csv"
-              hidden
-              ref={fileInputRef}
-              onChange={handleFileChange}
-            />
-          </Button>
-          <Button
-            variant="contained"
-            color="secondary"
-            onClick={handleOpenAddItemModal}
-          >
-            Add Item
-          </Button>
+        <Box sx={{ display: 'flex', gap: 2, mb: 3, justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<UploadIcon />}
+              onClick={handleUploadClick}
+            >
+              Upload Inventory
+            </Button>
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={handleOpenAddItemModal}
+            >
+              Add Item
+            </Button>
+          </Box>
+          {selectedItems.length > 0 && (
+            <Button
+              variant="contained"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+            >
+              {bulkDeleting ? 'Deleting...' : `Delete ${selectedItems.length} Item(s)`}
+            </Button>
+          )}
         </Box>
       )}
 
@@ -654,16 +735,16 @@ const InventoryPage = ({ eventId, eventName }) => {
                   </FormControl>
                 </Grid>
 
-                {/* Style Filter */}
+                {/* Brand Filter */}
                 <Grid item xs={12} sm={6} md={2}>
                   <FormControl fullWidth size="small">
-                    <InputLabel>Style</InputLabel>
+                    <InputLabel>Brand</InputLabel>
                     <Select
                       value={styleFilter}
                       onChange={(e) => setStyleFilter(e.target.value)}
-                      label="Style"
+                      label="Brand"
                     >
-                      <MenuItem value="all">All Styles</MenuItem>
+                      <MenuItem value="all">All Brands</MenuItem>
                       {allStyles.map(style => (
                         <MenuItem key={style} value={style}>{style}</MenuItem>
                       ))}
@@ -711,6 +792,23 @@ const InventoryPage = ({ eventId, eventName }) => {
               <Table size="small">
                 <TableHead>
                   <TableRow>
+                    {canModifyInventory && (
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          indeterminate={
+                            filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
+                            selectedItems.length > 0 &&
+                            selectedItems.length < filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length
+                          }
+                          checked={
+                            filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
+                            selectedItems.length === filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length
+                          }
+                          onChange={handleSelectAll}
+                          inputProps={{ 'aria-label': 'select all items' }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell>
                       <TableSortLabel
                         active={sortBy === 'type'}
@@ -726,7 +824,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                         direction={sortBy === 'style' ? sortOrder : 'asc'}
                         onClick={() => handleSort('style')}
                       >
-                        Style
+                        Brand
                       </TableSortLabel>
                     </TableCell>
                     <TableCell>
@@ -775,7 +873,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                 <TableBody>
                   {filteredAndSortedInventory.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} align="center">
+                      <TableCell colSpan={canModifyInventory ? 12 : 11} align="center">
                         {inventory.length === 0 ? 'No inventory found.' : 'No inventory matches your filters.'}
                       </TableCell>
                     </TableRow>
@@ -796,6 +894,15 @@ const InventoryPage = ({ eventId, eventName }) => {
                             }
                           }}
                         >
+                          {canModifyInventory && (
+                            <TableCell padding="checkbox">
+                              <Checkbox
+                                checked={selectedItems.includes(item._id)}
+                                onChange={() => handleSelectItem(item._id)}
+                                inputProps={{ 'aria-label': `select ${item.type} ${item.style}` }}
+                              />
+                            </TableCell>
+                          )}
                           <TableCell>{item.type}</TableCell>
                           <TableCell>{item.style}</TableCell>
                           <TableCell>{item.size}</TableCell>
@@ -941,15 +1048,47 @@ const InventoryPage = ({ eventId, eventName }) => {
         <DialogTitle>Add Inventory Item</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
+            {/* Type Dropdown with Add New Option */}
+            <FormControl fullWidth required>
+              <InputLabel>Type *</InputLabel>
+              {!showTypeInput ? (
+                <Select
+                  value={newItem.type}
+                  onChange={(e) => handleTypeChange(e.target.value)}
+                  label="Type *"
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        zIndex: 9999
+                      }
+                    }
+                  }}
+                >
+                  <MenuItem value="">
+                    <em>Select Type</em>
+                  </MenuItem>
+                  {allAvailableTypes.map(type => (
+                    <MenuItem key={type} value={type}>{type}</MenuItem>
+                  ))}
+                  <MenuItem value="__add_new__" sx={{ fontStyle: 'italic', color: 'primary.main' }}>
+                    + Add New Type
+                  </MenuItem>
+                </Select>
+              ) : (
+                <TextField
+                  label="Type *"
+                  value={typeInputValue}
+                  onChange={(e) => handleTypeInputChange(e.target.value)}
+                  required
+                  fullWidth
+                  autoFocus
+                  helperText={error && error.includes('already exists') ? error : 'Capitalize first letter automatically'}
+                  error={error && error.includes('already exists')}
+                />
+              )}
+            </FormControl>
             <TextField
-              label="Type *"
-              value={newItem.type}
-              onChange={(e) => handleNewItemChange('type', e.target.value)}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Style *"
+              label="Brand *"
               value={newItem.style}
               onChange={(e) => handleNewItemChange('style', e.target.value)}
               required
@@ -961,28 +1100,12 @@ const InventoryPage = ({ eventId, eventName }) => {
               onChange={(e) => handleNewItemChange('size', e.target.value)}
               fullWidth
             />
-            <FormControl fullWidth>
-              <InputLabel>Gender</InputLabel>
-              <Select
-                value={newItem.gender}
-                onChange={(e) => handleNewItemChange('gender', e.target.value)}
-                label="Gender"
-                MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      zIndex: 9999
-                    }
-                  }
-                }}
-              >
-                <MenuItem value="">
-                  <em>Select gender (optional)</em>
-                </MenuItem>
-                <MenuItem value="M">Male (M)</MenuItem>
-                <MenuItem value="W">Female (W)</MenuItem>
-                <MenuItem value="N/A">Not Applicable (N/A)</MenuItem>
-              </Select>
-            </FormControl>
+            <TextField
+              label="Gender"
+              value={newItem.gender}
+              onChange={(e) => handleNewItemChange('gender', e.target.value)}
+              fullWidth
+            />
             <TextField
               label="Color"
               value={newItem.color}
@@ -1024,14 +1147,6 @@ const InventoryPage = ({ eventId, eventName }) => {
           </Button>
         </DialogActions>
       </Dialog>
-      {/* Add this right before </MainLayout> */}
-      <CSVColumnMapper
-        open={showColumnMapper}
-        onClose={() => setShowColumnMapper(false)}
-        csvFile={pendingCsvFile}
-        onMappingComplete={handleMappingComplete}
-        eventId={eventId}
-      />
     </MainLayout>
   );
 };

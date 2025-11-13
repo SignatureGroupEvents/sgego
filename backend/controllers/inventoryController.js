@@ -3,6 +3,7 @@ const Event = require('../models/Event');
 const ActivityLog = require('../models/ActivityLog');
 const csv = require('csv-parser');
 const fs = require('fs');
+const path = require('path');
 const { Parser } = require('json2csv');
 
 // Helper function to emit analytics update
@@ -20,7 +21,7 @@ const emitAnalyticsUpdate = (eventId) => {
 exports.getInventory = async (req, res) => {
   try {
     const { eventId } = req.params;
-    
+
     // First, get the event to determine if it's a main event or secondary event
     const event = await Event.findById(eventId);
     if (!event) {
@@ -35,9 +36,9 @@ exports.getInventory = async (req, res) => {
     const mainEventId = getMainEventId(event);
 
     // Fetch inventory from the main event (shared inventory pool)
-    let inventory = await Inventory.find({ 
-      eventId: mainEventId, 
-      isActive: true 
+    let inventory = await Inventory.find({
+      eventId: mainEventId,
+      isActive: true
     })
       .populate('eventId', 'eventName isMainEvent')
       .sort({ type: 1, style: 1, size: 1 });
@@ -45,8 +46,8 @@ exports.getInventory = async (req, res) => {
     // Filter inventory based on event type
     if (!event.isMainEvent) {
       // For secondary events, only show inventory allocated to this specific event
-      inventory = inventory.filter(item => 
-        item.allocatedEvents && 
+      inventory = inventory.filter(item =>
+        item.allocatedEvents &&
         item.allocatedEvents.map(id => id.toString()).includes(eventId.toString())
       );
     }
@@ -73,8 +74,8 @@ exports.getInventory = async (req, res) => {
       return acc;
     }, {});
 
-    res.json({ 
-      inventory: inventoryWithInheritance, 
+    res.json({
+      inventory: inventoryWithInheritance,
       groupedInventory,
       eventType: event.isMainEvent ? 'main' : 'secondary',
       parentEventId: event.parentEventId,
@@ -128,25 +129,86 @@ exports.uploadInventory = async (req, res) => {
     const results = [];
 
     // Add error handling for file reading
-    if (!fs.existsSync(file.path)) {
-      return res.status(500).json({ message: 'Uploaded file not found on server' });
+    // Construct absolute path from uploads directory and filename
+    // Multer may return a relative path in file.path, so we construct it ourselves
+    const uploadsDir = path.join(__dirname, '..', 'uploads');
+    
+    // Try multiple approaches to find the file
+    let filePath;
+    
+    // First, try using file.filename (most reliable)
+    if (file.filename) {
+      filePath = path.join(uploadsDir, file.filename);
+    } 
+    // If that doesn't work, try file.path
+    else if (file.path) {
+      if (path.isAbsolute(file.path)) {
+        filePath = file.path;
+      } else {
+        // Resolve relative path
+        filePath = path.join(uploadsDir, path.basename(file.path));
+      }
+    } else {
+      return res.status(500).json({
+        message: 'File information missing',
+        details: 'No filename or path provided by multer'
+      });
+    }
+    
+    // Normalize the path
+    filePath = path.normalize(filePath);
+
+    console.log('📂 File details:', {
+      originalname: file.originalname,
+      filename: file.filename,
+      originalPath: file.path,
+      resolvedPath: filePath,
+      isAbsolute: path.isAbsolute(filePath),
+      exists: fs.existsSync(filePath),
+      uploadsDir: uploadsDir,
+      uploadsDirExists: fs.existsSync(uploadsDir),
+      __dirname: __dirname
+    });
+
+    if (!fs.existsSync(filePath)) {
+      console.error('❌ File not found:', filePath);
+      console.error('📁 Uploads directory:', uploadsDir);
+      console.error('📁 Directory exists:', fs.existsSync(uploadsDir));
+      if (fs.existsSync(uploadsDir)) {
+        try {
+          const files = fs.readdirSync(uploadsDir);
+          console.error('📁 Files in uploads:', files);
+          console.error('📁 Looking for:', file.filename || path.basename(file.path));
+        } catch (err) {
+          console.error('📁 Error reading uploads directory:', err);
+        }
+      }
+      return res.status(500).json({
+        message: 'Uploaded file not found on server',
+        details: `Expected path: ${filePath}`,
+        filename: file.filename,
+        originalPath: file.path
+      });
     }
 
-    fs.createReadStream(file.path)
+    fs.createReadStream(filePath)
       .pipe(csv())
       .on('data', (data) => results.push(data))
       .on('error', (error) => {
         console.error('CSV parsing error:', error);
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
         }
-        return res.status(400).json({ message: 'Error parsing CSV file: ' + error.message });
+        // Don't use return here - send response directly
+        if (!res.headersSent) {
+          res.status(400).json({ message: 'Error parsing CSV file: ' + error.message });
+        }
       })
       .on('end', async () => {
         try {
           if (results.length === 0) {
-            if (fs.existsSync(file.path)) {
-              fs.unlinkSync(file.path);
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
             }
             return res.status(400).json({ message: 'CSV file appears to be empty or invalid' });
           }
@@ -188,16 +250,17 @@ exports.uploadInventory = async (req, res) => {
             }
           };
 
+          // Get the main event ID - all inventory is stored under the main event
+          const getMainEventId = (event) => {
+            return event.isMainEvent ? event._id : event.parentEventId;
+          };
+
+          const mainEventId = getMainEventId(event);
+
           for (let i = 0; i < results.length; i++) {
             const row = results[i];
 
             try {
-              // Get the main event ID - all inventory is stored under the main event
-              const getMainEventId = (event) => {
-                return event.isMainEvent ? event._id : event.parentEventId;
-              };
-
-              const mainEventId = getMainEventId(event);
 
               // NEW: Use mapping-aware value extraction
               const inventoryItem = {
@@ -288,8 +351,8 @@ exports.uploadInventory = async (req, res) => {
           }
 
           if (inventoryItems.length === 0) {
-            if (fs.existsSync(file.path)) {
-              fs.unlinkSync(file.path);
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
             }
             return res.status(400).json({
               message: 'No valid inventory items found in CSV',
@@ -298,8 +361,9 @@ exports.uploadInventory = async (req, res) => {
           }
 
           // Check for existing items to avoid duplicates
+          // Use mainEventId since all inventory is stored under the main event
           const existingItems = await Inventory.find({
-            eventId,
+            eventId: mainEventId,
             $or: inventoryItems.map(item => ({
               type: item.type,
               style: item.style,
@@ -342,12 +406,12 @@ exports.uploadInventory = async (req, res) => {
           }
 
           // Clean up file
-          if (fs.existsSync(file.path)) {
-            fs.unlinkSync(file.path);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
           }
 
           // Emit WebSocket update for analytics
-          emitAnalyticsUpdate(eventId);
+          emitAnalyticsUpdate(mainEventId);
 
           // Enhanced response with detailed results
           const response = {
@@ -378,8 +442,8 @@ exports.uploadInventory = async (req, res) => {
 
         } catch (error) {
           console.error('Inventory upload error:', error);
-          if (fs.existsSync(file.path)) {
-            fs.unlinkSync(file.path);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
           }
 
           // Handle duplicate key errors specifically
@@ -399,8 +463,11 @@ exports.uploadInventory = async (req, res) => {
 
   } catch (error) {
     console.error('Upload inventory outer error:', error);
-    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    if (req.file && req.file.path) {
+      const filePath = path.isAbsolute(req.file.path) ? req.file.path : path.join(__dirname, '..', req.file.path);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
     res.status(500).json({
       message: 'Error uploading inventory: ' + error.message,

@@ -13,6 +13,7 @@ import ArchivedEventsList from './components/Events/ArchivedEventsList.jsx';
 import CreateEvent from './components/Events/CreateEvent.jsx';
 import EventDetails from './components/Events/EventDetails.jsx';
 import UploadGuest from './components/guests/UploadGuest.jsx';
+import UploadInventory from './components/Inventory/UploadInventory.jsx';
 import DashboardLayout from './components/layout/DashboardLayout';
 import EventDashboardWrapper from './components/Events/EventDashboardWrapper.jsx';
 import InventoryPageWrapper from './components/Inventory/InventoryPage.jsx';
@@ -106,6 +107,11 @@ function App() {
             <Route path="/events/:eventId/inventory" element={
               <ProtectedRoute>
                 <InventoryPageWrapper />
+              </ProtectedRoute>
+            } />
+            <Route path="/events/:eventId/inventory/upload" element={
+              <ProtectedRoute>
+                <UploadInventory />
               </ProtectedRoute>
             } />
             <Route path="/events/:eventId/guests/:guestId" element={
