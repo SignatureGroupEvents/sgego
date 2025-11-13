@@ -16,10 +16,10 @@ function stringToColor(string) {
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
-function stringAvatar(name) {
+function stringAvatar(name, profileColor) {
   return {
     sx: {
-      bgcolor: stringToColor(name),
+      bgcolor: profileColor || stringToColor(name),
     },
   };
 }       
@@ -51,9 +51,10 @@ export default function AvatarIcon({ user, userId, showTooltip = true }) {
 
   const initials = getInitials(user.username);
   const displayName = user.username || 'Unknown';
+  const profileColor = user.profileColor || null;
 
   const avatarElement = (
-    <Avatar {...stringAvatar(displayName)}>
+    <Avatar {...stringAvatar(displayName, profileColor)}>
       {initials}
     </Avatar>
   );

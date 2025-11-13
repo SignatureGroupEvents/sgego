@@ -1,8 +1,9 @@
 import React from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import { AppBar, Toolbar, IconButton, Typography, Box, Button, Avatar, Breadcrumbs, Link } from '@mui/material';
+import { AppBar, Toolbar, IconButton, Typography, Box, Button, Breadcrumbs, Link } from '@mui/material';
 import { ArrowBack as ArrowBackIcon, Logout as LogoutIcon, Person as PersonIcon } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import AvatarIcon from '../dashboard/AvatarIcon';
 
 const TopNavBar = ({ breadcrumbs = [], leftAction }) => {
     const navigate = useNavigate();
@@ -38,7 +39,11 @@ const TopNavBar = ({ breadcrumbs = [], leftAction }) => {
                 </Box>
                 {user && (
                     <Box display="flex" alignItems="center" gap={1}>
-                        <Avatar sx={{ width: 32, height: 32 }}>{user.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || '?'}</Avatar>
+                        <AvatarIcon 
+                            user={user} 
+                            userId={user.id}
+                            showTooltip={true}
+                        />
                         <Typography variant="body2" color="textSecondary">
                             {user.username || user.email}
                         </Typography>

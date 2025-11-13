@@ -49,6 +49,18 @@ const userSchema = new mongoose.Schema({
   resetTokenExpires: {
     type: Date,
     default: null
+  },
+  profileColor: {
+    type: String,
+    default: null // Will be generated from username if not set
+  },
+  firstName: {
+    type: String,
+    default: null
+  },
+  lastName: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true

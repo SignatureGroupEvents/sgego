@@ -121,7 +121,7 @@ const updateUserProfile = async (req, res) => {
   try {
     console.log('PUT /users/profile body:', req.body);
     const { userId } = req.params;
-    const { email, username, currentPassword, newPassword } = req.body;
+    const { email, username, firstName, lastName, profileColor, currentPassword, newPassword } = req.body;
     const targetUserId = userId || req.user.id;
     const user = await User.findById(targetUserId);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -138,6 +138,9 @@ const updateUserProfile = async (req, res) => {
       if (usernameExists) return res.status(400).json({ message: 'Username already in use' });
       user.username = username;
     }
+    if (firstName !== undefined) user.firstName = firstName;
+    if (lastName !== undefined) user.lastName = lastName;
+    if (profileColor !== undefined) user.profileColor = profileColor || null;
     if (newPassword) {
       if (!currentPassword) return res.status(400).json({ message: 'Current password is required' });
       const isPasswordValid = await user.comparePassword(currentPassword);
@@ -152,6 +155,9 @@ const updateUserProfile = async (req, res) => {
         id: user._id,
         email: user.email,
         username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileColor: user.profileColor,
         role: user.role
       }
     });
@@ -280,8 +286,8 @@ const getEventAssignedUsers = async (req, res) => {
       eventId, 
       isActive: true 
     })
-      .populate('userId', 'username email role')
-      .populate('assignedBy', 'username email')
+      .populate('userId', 'username email role profileColor firstName lastName')
+      .populate('assignedBy', 'username email profileColor firstName lastName')
       .populate('allocatedToSecondaryEventId', 'eventName eventContractNumber')
       .sort({ assignedAt: -1 });
 
@@ -616,7 +622,7 @@ const getMyEvents = async (req, res) => {
           select: 'eventName eventContractNumber eventStart eventEnd isMainEvent parentEventId status includeStyles allowMultipleGifts createdBy',
           populate: {
             path: 'createdBy',
-            select: 'username email'
+            select: 'username email profileColor firstName lastName'
           }
         })
         .sort({ assignedAt: -1 });
@@ -636,7 +642,7 @@ const getMyEvents = async (req, res) => {
         select: 'eventName eventContractNumber eventStart eventEnd isMainEvent parentEventId status includeStyles allowMultipleGifts createdBy',
         populate: {
           path: 'createdBy',
-          select: 'username email'
+          select: 'username email profileColor firstName lastName'
         }
       })
       .sort({ position: 1, addedAt: -1 });
@@ -659,7 +665,7 @@ const getMyAssignedEvents = async (req, res) => {
         select: 'eventName eventContractNumber eventStart eventEnd isMainEvent parentEventId status includeStyles allowMultipleGifts createdBy isArchived',
         populate: {
           path: 'createdBy',
-          select: 'username email'
+          select: 'username email profileColor firstName lastName'
         }
       })
       .populate('allocatedToSecondaryEventId', 'eventName eventContractNumber')
@@ -736,7 +742,7 @@ const getMyCreatedEvents = async (req, res) => {
       sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
       
       const events = await Event.find(filter)
-        .populate('createdBy', 'username email')
+        .populate('createdBy', 'username email profileColor firstName lastName')
         .sort(sortOptions)
         .limit(limit * 1)
         .skip((page - 1) * limit);
@@ -784,7 +790,7 @@ const getMyCreatedEvents = async (req, res) => {
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
     
     const events = await Event.find(filter)
-      .populate('createdBy', 'username email')
+      .populate('createdBy', 'username email profileColor firstName lastName')
       .sort(sortOptions)
       .limit(limit * 1)
       .skip((page - 1) * limit);
