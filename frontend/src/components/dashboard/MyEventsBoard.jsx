@@ -39,7 +39,7 @@ import {
   Event as EventIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { getMyEvents, getMyCreatedEvents, addToMyEvents, removeFromMyEvents } from '../../services/api';
+import { getMyEvents, getMyCreatedEvents, getMyAssignedEvents, addToMyEvents, removeFromMyEvents } from '../../services/api';
 import { getEvents } from '../../services/events';
 import { usePermissions } from '../../hooks/usePermissions';
 import toast from 'react-hot-toast';
@@ -48,12 +48,24 @@ import AvatarIcon from './AvatarIcon';
 
 const MyEventsBoard = () => {
   const navigate = useNavigate();
-  const { isOperationsManager, isAdmin } = usePermissions();
+  const { isOperationsManager, isAdmin, isStaff } = usePermissions();
   
   // State management
-  const [activeTab, setActiveTab] = useState(0);
+  // All tabs are always rendered: tab 0 = My Events, tab 1 = Assigned Events, tab 2 = Added Events
+  // For staff, tabs 0 and 2 are hidden but still exist in the DOM
+  const [activeTab, setActiveTab] = useState(isStaff ? 1 : 0); // Staff starts on Assigned Events tab
+  
+  // Helper to get the correct tab index for content rendering
+  const getTabIndex = (tabName) => {
+    // All tabs are always at the same indices regardless of user role
+    if (tabName === 'created') return 0;
+    if (tabName === 'assigned') return 1;
+    if (tabName === 'added') return 2;
+    return -1;
+  };
   const [myAddedEvents, setMyAddedEvents] = useState([]);
   const [myCreatedEvents, setMyCreatedEvents] = useState([]);
+  const [myAssignedEvents, setMyAssignedEvents] = useState([]);
   const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -74,6 +86,12 @@ const MyEventsBoard = () => {
   const [addedEventsStatusFilter, setAddedEventsStatusFilter] = useState('Active');
   const [addedEventsSortBy, setAddedEventsSortBy] = useState('eventStart');
   const [addedEventsSortOrder, setAddedEventsSortOrder] = useState('desc');
+  
+  // Filter and sort state for assigned events (client-side)
+  const [assignedEventsSearchTerm, setAssignedEventsSearchTerm] = useState('');
+  const [assignedEventsStatusFilter, setAssignedEventsStatusFilter] = useState('Active');
+  const [assignedEventsSortBy, setAssignedEventsSortBy] = useState('eventStart');
+  const [assignedEventsSortOrder, setAssignedEventsSortOrder] = useState('desc');
   
   // Status filter for created events
   const [createdEventsStatusFilter, setCreatedEventsStatusFilter] = useState('Active');
@@ -132,21 +150,34 @@ const MyEventsBoard = () => {
 
   useEffect(() => {
     loadAllData();
-  }, []);
+  }, [isStaff]);
 
   useEffect(() => {
-    if (activeTab === 0) {
+    // Tab indices are now consistent: 0 = My Events, 1 = Assigned Events, 2 = Added Events
+    if (activeTab === 0 && !isStaff) {
+      // Load created events for ops/admin
       loadMyCreatedEvents();
+    } else if (activeTab === 1) {
+      // Load assigned events for all users
+      loadMyAssignedEvents();
     }
-  }, [activeTab, page, rowsPerPage, sortBy, sortOrder, searchTerm, createdEventsStatusFilter]);
+    // Tab 2 (Added Events) data is already loaded in loadAllData
+  }, [activeTab, page, rowsPerPage, sortBy, sortOrder, searchTerm, createdEventsStatusFilter, isStaff]);
 
   const loadAllData = async () => {
     setLoading(true);
     try {
-      await Promise.all([
-        loadMyAddedEvents(),
-        loadAllEvents()
-      ]);
+      const promises = [loadAllEvents()];
+      
+      // Only load added events for non-staff users
+      if (!isStaff) {
+        promises.push(loadMyAddedEvents());
+      }
+      
+      // Load assigned events for all users
+      promises.push(loadMyAssignedEvents());
+      
+      await Promise.all(promises);
     } finally {
       setLoading(false);
     }
@@ -159,6 +190,16 @@ const MyEventsBoard = () => {
     } catch (error) {
       console.error('Error loading my added events:', error);
       toast.error('Failed to load your added events');
+    }
+  };
+
+  const loadMyAssignedEvents = async () => {
+    try {
+      const response = await getMyAssignedEvents();
+      setMyAssignedEvents(response.data.assignedEvents || []);
+    } catch (error) {
+      console.error('Error loading my assigned events:', error);
+      toast.error('Failed to load your assigned events');
     }
   };
 
@@ -341,6 +382,80 @@ const MyEventsBoard = () => {
     }
   };
 
+  // Filter and sort assigned events (client-side)
+  const getFilteredAndSortedAssignedEvents = () => {
+    let filtered = [...myAssignedEvents];
+
+    // Apply status filter
+    if (assignedEventsStatusFilter !== 'All') {
+      filtered = filtered.filter(event => {
+        return matchesStatusFilter(event, assignedEventsStatusFilter);
+      });
+    }
+
+    // Apply search filter
+    if (assignedEventsSearchTerm) {
+      const searchLower = assignedEventsSearchTerm.toLowerCase();
+      filtered = filtered.filter(event =>
+        event.eventName?.toLowerCase().includes(searchLower) ||
+        event.eventContractNumber?.toLowerCase().includes(searchLower) ||
+        event.allocatedToSecondaryEvent?.eventName?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+
+      switch (assignedEventsSortBy) {
+        case 'eventName':
+          aValue = a.eventName || '';
+          bValue = b.eventName || '';
+          break;
+        case 'eventStart':
+          aValue = a.eventStart ? new Date(a.eventStart).getTime() : 0;
+          bValue = b.eventStart ? new Date(b.eventStart).getTime() : 0;
+          break;
+        case 'eventEnd':
+          aValue = a.eventEnd ? new Date(a.eventEnd).getTime() : 0;
+          bValue = b.eventEnd ? new Date(b.eventEnd).getTime() : 0;
+          break;
+        case 'createdAt':
+          aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          break;
+        case 'eventContractNumber':
+          aValue = a.eventContractNumber || '';
+          bValue = b.eventContractNumber || '';
+          break;
+        default:
+          aValue = a.eventStart ? new Date(a.eventStart).getTime() : 0;
+          bValue = b.eventStart ? new Date(b.eventStart).getTime() : 0;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return assignedEventsSortOrder === 'asc'
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      } else {
+        return assignedEventsSortOrder === 'asc'
+          ? aValue - bValue
+          : bValue - aValue;
+      }
+    });
+
+    return filtered;
+  };
+
+  const handleAssignedEventsSortChange = (newSortBy) => {
+    if (assignedEventsSortBy === newSortBy) {
+      setAssignedEventsSortOrder(assignedEventsSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setAssignedEventsSortBy(newSortBy);
+      setAssignedEventsSortOrder('desc');
+    }
+  };
+
   const renderEventsTable = (events, showRemoveButton = false) => (
     <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
       <TableContainer>
@@ -499,33 +614,249 @@ const MyEventsBoard = () => {
                 Create New Event
               </Button>
             )}
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => setAddDialogOpen(true)}
-              size="small"
-            >
-              Add Event To My Board
-            </Button>
+            {!isStaff && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => setAddDialogOpen(true)}
+                size="small"
+              >
+                Add Event To My Board
+              </Button>
+            )}
           </Box>
         </Box>
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            Your personal events board contains events you've created and events you've added to your board.<br></br>
-            Add events you're working on to keep them easily accessible.
+            {isStaff ? (
+              <>
+                Events assigned to you by Operations Managers or Admins will appear here.<br></br>
+                You can view and work with the events you've been assigned to.
+              </>
+            ) : (
+              <>
+                Your personal events board contains events you've created and events you've added to your board.<br></br>
+                Add events you're working on to keep them easily accessible.
+              </>
+            )}
           </Typography>
         </Box>
         <Tabs 
           value={activeTab} 
-          onChange={(e, newValue) => setActiveTab(newValue)}
+          onChange={(e, newValue) => {
+            // Prevent staff from accessing hidden tabs
+            if (isStaff && (newValue === 0 || newValue === 2)) {
+              return;
+            }
+            setActiveTab(newValue);
+          }}
           sx={{ mb: 3 }}
         >
-          <Tab label={`My Events (${totalCreatedEvents})`} />
-          <Tab label={`Added Events (${myAddedEvents.length})`} />
+          <Tab 
+            label={`My Events (${totalCreatedEvents})`}
+            sx={{ display: isStaff ? 'none' : 'flex' }}
+            disabled={isStaff}
+          />
+          <Tab label={`Assigned Events (${myAssignedEvents.length})`} />
+          <Tab 
+            label={`Added Events (${myAddedEvents.length})`}
+            sx={{ display: isStaff ? 'none' : 'flex' }}
+            disabled={isStaff}
+          />
         </Tabs>
 
-        {/* My Events Tab (Created Events) */}
-        {activeTab === 0 && (
+        {/* Assigned Events Tab */}
+        {activeTab === getTabIndex('assigned') && (
+          <>
+            {/* Search, Filter and Sort Controls */}
+            <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField
+                placeholder="Search events..."
+                value={assignedEventsSearchTerm}
+                onChange={(e) => setAssignedEventsSearchTerm(e.target.value)}
+                size="small"
+                InputProps={{
+                  startAdornment: (
+                    <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
+                  ),
+                }}
+                sx={{ flexGrow: 1, minWidth: 200 }}
+              />
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={assignedEventsStatusFilter}
+                  onChange={(e) => setAssignedEventsStatusFilter(e.target.value)}
+                  label="Status"
+                >
+                  <MenuItem value="Active">Active</MenuItem>
+                  <MenuItem value="Completed">Completed</MenuItem>
+                  <MenuItem value="Archived">Archived</MenuItem>
+                  <MenuItem value="All">All</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>Sort By</InputLabel>
+                <Select
+                  value={assignedEventsSortBy}
+                  onChange={(e) => setAssignedEventsSortBy(e.target.value)}
+                  label="Sort By"
+                >
+                  <MenuItem value="eventStart">Start Date</MenuItem>
+                  <MenuItem value="eventEnd">End Date</MenuItem>
+                  <MenuItem value="eventName">Event Name</MenuItem>
+                  <MenuItem value="eventContractNumber">Contract #</MenuItem>
+                  <MenuItem value="createdAt">Created Date</MenuItem>
+                </Select>
+              </FormControl>
+              <Tooltip title={`Sort ${assignedEventsSortOrder === 'asc' ? 'Descending' : 'Ascending'}`}>
+                <IconButton onClick={() => handleAssignedEventsSortChange(assignedEventsSortBy)}>
+                  <SortIcon sx={{ transform: assignedEventsSortOrder === 'desc' ? 'rotate(180deg)' : 'none' }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            {(() => {
+              const filteredAndSortedEvents = getFilteredAndSortedAssignedEvents();
+              if (filteredAndSortedEvents.length === 0) {
+                const hasFilters = assignedEventsSearchTerm || assignedEventsStatusFilter !== 'All';
+                const emptyMessage = myAssignedEvents.length === 0 
+                  ? 'No events assigned to you yet'
+                  : hasFilters
+                    ? 'No events match your filters'
+                    : 'No events found';
+                const emptyDescription = myAssignedEvents.length === 0
+                  ? "You'll see events here once an Operations Manager or Admin assigns them to you"
+                  : 'Try adjusting your search or filter criteria';
+                
+                return (
+                  <Box textAlign="center" py={4}>
+                    <EventIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      {emptyMessage}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {emptyDescription}
+                    </Typography>
+                  </Box>
+                );
+              }
+              
+              // Render table with assigned events, showing allocation info
+              return (
+                <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+                  <TableContainer>
+                    <Table>
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: 'grey.50' }}>
+                          <TableCell sx={{ fontWeight: 600 }}>Event Name</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Contract #</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Start Date</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>End Date</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Allocated To</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Created By</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {filteredAndSortedEvents.map((event) => {
+                          const isActive = isEventActive(event);
+                          return (
+                            <TableRow key={event._id} hover>
+                              <TableCell>
+                                <Typography 
+                                  variant="subtitle2" 
+                                  fontWeight={600}
+                                  onClick={() => navigate(`/events/${event._id}`)}
+                                  sx={{ 
+                                    color: 'primary.main',
+                                    cursor: 'pointer',
+                                    '&:hover': { textDecoration: 'underline' }
+                                  }}
+                                >
+                                  {event.eventName}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" color="text.secondary">
+                                  {event.eventContractNumber}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight={500}>
+                                  {formatDate(event.eventStart)}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight={500}>
+                                  {formatDate(event.eventEnd)}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Chip 
+                                    label={formatStatusForDisplay(event)} 
+                                    size="small" 
+                                    color={
+                                      event.isArchived 
+                                        ? 'default' 
+                                        : normalizeStatus(event.status) === 'closed' 
+                                          ? 'success' 
+                                          : 'default'
+                                    }
+                                    sx={{ borderRadius: 1 }}
+                                  />
+                                  {isActive && (
+                                    <Tooltip title="Live Event - Currently Open">
+                                      <Box
+                                        sx={{
+                                          width: 10,
+                                          height: 10,
+                                          borderRadius: '50%',
+                                          backgroundColor: '#393ce0',
+                                          boxShadow: '0 0 6px #393ce0, 0 0 10px #393ce0',
+                                          animation: 'pulse-glow 2s ease-in-out infinite',
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                    </Tooltip>
+                                  )}
+                                </Box>
+                              </TableCell>
+                              <TableCell>
+                                {event.allocatedToSecondaryEvent ? (
+                                  <Typography variant="body2" color="primary.main" fontWeight={500}>
+                                    {event.allocatedToSecondaryEvent.eventName}
+                                  </Typography>
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Main Event
+                                  </Typography>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                  <AvatarIcon 
+                                    user={event.createdBy || { username: 'Unknown' }} 
+                                    userId={event.createdBy?._id}
+                                    showTooltip={true}
+                                  />
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Paper>
+              );
+            })()}
+          </>
+        )}
+
+        {/* My Events Tab (Created Events) - Only for ops/admin */}
+        {activeTab === getTabIndex('created') && (
           <>
             {/* Search, Filter and Sort Controls */}
             <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -610,8 +941,8 @@ const MyEventsBoard = () => {
           </>
         )}
 
-        {/* Added Events Tab */}
-        {activeTab === 1 && (
+        {/* Added Events Tab - Only for ops/admin */}
+        {activeTab === getTabIndex('added') && (
           <>
             {/* Search, Filter and Sort Controls */}
             <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>

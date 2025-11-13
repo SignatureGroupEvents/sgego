@@ -400,6 +400,56 @@ const removeUserFromEvent = async (req, res) => {
   }
 };
 
+// Update a user's event allocation
+const updateUserAssignment = async (req, res) => {
+  try {
+    const { id: eventId, assignmentId } = req.params;
+    const { allocatedToSecondaryEventId } = req.body;
+
+    if (req.user.role === 'staff') {
+      return res.status(403).json({ message: 'Staff cannot update event assignments' });
+    }
+
+    const assignment = await UserAssignment.findById(assignmentId);
+    if (!assignment) {
+      return res.status(404).json({ message: 'Assignment not found' });
+    }
+
+    if (assignment.eventId.toString() !== eventId) {
+      return res.status(400).json({ message: 'Assignment does not belong to this event' });
+    }
+
+    // Validate secondary event if provided
+    if (allocatedToSecondaryEventId) {
+      const secondaryEvent = await Event.findById(allocatedToSecondaryEventId);
+      if (!secondaryEvent) {
+        return res.status(404).json({ message: 'Secondary event not found' });
+      }
+      // Check if secondary event belongs to the main event
+      if (secondaryEvent.parentEventId?.toString() !== eventId && secondaryEvent._id.toString() !== eventId) {
+        return res.status(400).json({ message: 'Secondary event must be a child of the main event' });
+      }
+    }
+
+    // Update the allocation
+    assignment.allocatedToSecondaryEventId = allocatedToSecondaryEventId || null;
+    assignment.assignedBy = req.user.id;
+    assignment.assignedAt = new Date();
+    await assignment.save();
+
+    res.json({ 
+      success: true, 
+      message: 'User allocation updated successfully',
+      assignment: {
+        _id: assignment._id,
+        allocatedToSecondaryEventId: assignment.allocatedToSecondaryEventId
+      }
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
 const deactivateUser = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -592,6 +642,42 @@ const getMyEvents = async (req, res) => {
       .sort({ position: 1, addedAt: -1 });
     
     res.json({ myEvents: myEvents.map(f => f.eventId).filter(e => e !== null) });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Get events assigned to the current user (via UserAssignment)
+const getMyAssignedEvents = async (req, res) => {
+  try {
+    const assignments = await UserAssignment.find({ 
+      userId: req.user.id, 
+      isActive: true 
+    })
+      .populate({
+        path: 'eventId',
+        select: 'eventName eventContractNumber eventStart eventEnd isMainEvent parentEventId status includeStyles allowMultipleGifts createdBy isArchived',
+        populate: {
+          path: 'createdBy',
+          select: 'username email'
+        }
+      })
+      .populate('allocatedToSecondaryEventId', 'eventName eventContractNumber')
+      .sort({ assignedAt: -1 });
+    
+    // Filter out null events (in case event was deleted)
+    const events = assignments
+      .map(a => {
+        const event = a.eventId;
+        if (!event) return null;
+        return {
+          ...event.toObject(),
+          allocatedToSecondaryEvent: a.allocatedToSecondaryEventId
+        };
+      })
+      .filter(e => e !== null);
+    
+    res.json({ assignedEvents: events });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -807,12 +893,14 @@ module.exports = {
   getEventAssignedUsers,
   assignUsersToEvent,
   removeUserFromEvent,
+  updateUserAssignment,
   deactivateUser,
   deleteUser,
   resetUserPassword,
   sendPasswordResetLink,
   getMyEvents,
   getMyCreatedEvents,
+  getMyAssignedEvents,
   addToMyEvents,
   removeFromMyEvents,
   updateMyEventsPositions

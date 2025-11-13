@@ -17,7 +17,6 @@ import ManageSection from './ManageSection';
 import EventHeader from '../Events/EventHeader';
 import GuestTable from '../guests/GuestTable';
 import AdvancedView from './AdvancedView/AdvancedView';
-import ManageTeam from './ManageTeam';
 import toast from 'react-hot-toast';
 
 
@@ -44,7 +43,6 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const [addGuestModalOpen, setAddGuestModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [manageTeamDialogOpen, setManageTeamDialogOpen] = useState(false);
 
   // Update local guests when props change
   React.useEffect(() => {
@@ -254,7 +252,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         onAddGuest={handleAddGuest}
         onAddEvent={() => setSecondaryModalOpen(true)}
         onDeleteEvent={handleDeleteEvent}
-        onManageTeam={() => setManageTeamDialogOpen(true)}
+        onManageTeam={() => navigate(`/events/${eventId}/team`)}
         canModify={canModifyEvents}
         canManageTeam={canModifyEvents}
       />
@@ -364,33 +362,6 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         </DialogActions>
       </Dialog>
 
-      {/* Manage Team Dialog */}
-      <Dialog
-        open={manageTeamDialogOpen}
-        onClose={() => setManageTeamDialogOpen(false)}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{
-          sx: { minHeight: '60vh' }
-        }}
-      >
-        <DialogTitle>
-          <Box display="flex" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6" fontWeight={600}>
-              Manage Your Team
-            </Typography>
-            <Button
-              onClick={() => setManageTeamDialogOpen(false)}
-              size="small"
-            >
-              Close
-            </Button>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <ManageTeam eventId={eventId} />
-        </DialogContent>
-      </Dialog>
     </MainLayout>
   );
 };

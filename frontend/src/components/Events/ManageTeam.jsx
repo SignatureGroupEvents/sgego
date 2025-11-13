@@ -35,15 +35,21 @@ import {
   People as PeopleIcon,
   PersonAdd as PersonAddIcon,
   Delete as DeleteIcon,
-  Search as SearchIcon
+  Search as SearchIcon,
+  Edit as EditIcon,
+  ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
-import { getEventAssignedUsers, assignUsersToEvent, removeUserFromEvent, getAllUsers } from '../../services/api';
+import { getEventAssignedUsers, assignUsersToEvent, removeUserFromEvent, getAllUsers, updateUserAssignment } from '../../services/api';
 import { getEvent } from '../../services/events';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import AvatarIcon from '../dashboard/AvatarIcon';
+import MainLayout from '../layout/MainLayout';
+import EventHeader from './EventHeader';
+import { useParams, useNavigate } from 'react-router-dom';
 
-const ManageTeam = ({ eventId }) => {
+const ManageTeam = ({ eventId, eventName }) => {
+  const navigate = useNavigate();
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAssignForm, setShowAssignForm] = useState(false);
@@ -54,9 +60,14 @@ const ManageTeam = ({ eventId }) => {
   const [secondaryEvents, setSecondaryEvents] = useState([]);
   const [selectedSecondaryEvent, setSelectedSecondaryEvent] = useState('');
   const [event, setEvent] = useState(null);
+  const [parentEvent, setParentEvent] = useState(null);
   const [searchInput, setSearchInput] = useState('');
   const [showUserList, setShowUserList] = useState(false);
   const searchRef = useRef(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState(null);
+  const [editSecondaryEvent, setEditSecondaryEvent] = useState('');
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -92,9 +103,9 @@ const ManageTeam = ({ eventId }) => {
     try {
       const response = await getAllUsers();
       console.log('All users response:', response.data);
-      // Filter to only show staff and operations_manager (not admin for assignment)
+      // Filter to show staff, operations_manager, and admin users for assignment
       const users = (response.data.users || []).filter(
-        user => user.isActive && (user.role === 'staff' || user.role === 'operations_manager')
+        user => user.isActive && (user.role === 'staff' || user.role === 'operations_manager' || user.role === 'admin')
       );
       console.log('Filtered users for assignment:', users);
       setAllUsers(users);
@@ -108,6 +119,12 @@ const ManageTeam = ({ eventId }) => {
     try {
       const eventData = await getEvent(eventId);
       setEvent(eventData);
+      
+      // Load parent event if this is a secondary event
+      if (eventData.parentEventId) {
+        const parent = await getEvent(eventData.parentEventId);
+        setParentEvent(parent);
+      }
       
       // Determine main event ID
       let mainEventId = eventId;
@@ -180,6 +197,35 @@ const ManageTeam = ({ eventId }) => {
     }
   };
 
+  const handleOpenEditDialog = (assignment) => {
+    setEditingAssignment(assignment);
+    setEditSecondaryEvent(assignment.allocatedToSecondaryEvent?._id || '');
+    setEditDialogOpen(true);
+  };
+
+  const handleCloseEditDialog = () => {
+    setEditDialogOpen(false);
+    setEditingAssignment(null);
+    setEditSecondaryEvent('');
+  };
+
+  const handleUpdateAssignment = async () => {
+    if (!editingAssignment) return;
+
+    try {
+      setUpdating(true);
+      const allocatedToSecondaryEventId = editSecondaryEvent || null;
+      await updateUserAssignment(eventId, editingAssignment._id, allocatedToSecondaryEventId);
+      toast.success('User allocation updated successfully');
+      await loadAssignments();
+      handleCloseEditDialog();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update allocation');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const getUserDisplayName = (user) => {
     if (user.username) return user.username;
     if (user.firstName && user.lastName) return `${user.firstName} ${user.lastName}`;
@@ -218,6 +264,10 @@ const ManageTeam = ({ eventId }) => {
     } else {
       setSelectedUsers([...selectedUsers, user]);
     }
+    // Close dropdown after selection
+    setTimeout(() => {
+      setShowUserList(false);
+    }, 100);
   };
 
   const handleSearchFocus = () => {
@@ -227,27 +277,63 @@ const ManageTeam = ({ eventId }) => {
   const handleSearchBlur = (e) => {
     // Delay to allow click on list item
     setTimeout(() => {
-      if (!searchRef.current?.contains(e.relatedTarget)) {
+      // Check if the click was outside the search container
+      if (!searchRef.current?.contains(document.activeElement)) {
         setShowUserList(false);
       }
-    }, 200);
+    }, 150);
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showUserList && searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowUserList(false);
+      }
+    };
+
+    if (showUserList) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showUserList]);
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" p={4}>
-        <CircularProgress />
-      </Box>
+      <MainLayout eventName={eventName || 'Loading Event...'}>
+        <Box display="flex" justifyContent="center" p={4}>
+          <CircularProgress />
+        </Box>
+      </MainLayout>
     );
   }
 
   return (
-    <Box>
+    <MainLayout eventName={event?.eventName || eventName || 'Manage Team'}>
+      {event && (
+        <EventHeader 
+          event={event} 
+          mainEvent={parentEvent || event} 
+          showDropdown={true}
+        />
+      )}
+      <Box sx={{ px: 3, py: 2 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h6" fontWeight={600}>
-          <PeopleIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Team Members
-        </Typography>
+        <Box display="flex" alignItems="center" gap={2}>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate(`/events/${eventId}`)}
+            sx={{ minWidth: 'auto' }}
+          >
+            Back
+          </Button>
+          <Typography variant="h6" fontWeight={600}>
+            <PeopleIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+            Team Members
+          </Typography>
+        </Box>
         <Button
           variant="contained"
           startIcon={<PersonAddIcon />}
@@ -297,9 +383,17 @@ const ManageTeam = ({ eventId }) => {
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={assignment.user.role === 'operations_manager' ? 'Operations' : 'Staff'}
+                      label={
+                        assignment.user.role === 'operations_manager' ? 'Operations' :
+                        assignment.user.role === 'admin' ? 'Admin' :
+                        'Staff'
+                      }
                       size="small"
-                      color={assignment.user.role === 'operations_manager' ? 'primary' : 'default'}
+                      color={
+                        assignment.user.role === 'operations_manager' ? 'primary' :
+                        assignment.user.role === 'admin' ? 'error' :
+                        'default'
+                      }
                       sx={{ textTransform: 'capitalize' }}
                     />
                   </TableCell>
@@ -320,15 +414,26 @@ const ManageTeam = ({ eventId }) => {
                     </Typography>
                   </TableCell>
                   <TableCell align="center">
-                    <Tooltip title="Remove from Event">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleRemoveUser(assignment._id)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
+                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                      <Tooltip title="Edit Allocation">
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => handleOpenEditDialog(assignment)}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Remove from Event">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleRemoveUser(assignment._id)}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}
@@ -413,6 +518,7 @@ const ManageTeam = ({ eventId }) => {
                   left: 0,
                   right: 0,
                   mt: 0.5,
+                  mb: 2, // Add margin bottom to prevent covering buttons
                   maxHeight: '300px',
                   overflow: 'auto',
                   zIndex: 1500,
@@ -505,12 +611,12 @@ const ManageTeam = ({ eventId }) => {
             )}
 
             {selectedUsers.length > 0 && (
-              <Alert severity="info" sx={{ mt: 2 }}>
+              <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
                 {selectedUsers.length} user(s) selected for assignment
               </Alert>
             )}
 
-            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+            <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
               <Button onClick={handleCloseAssignForm} disabled={assigning}>
                 Cancel
               </Button>
@@ -526,9 +632,80 @@ const ManageTeam = ({ eventId }) => {
           </Box>
         </Paper>
       )}
-    </Box>
+
+      {/* Edit Allocation Dialog */}
+      <Dialog
+        open={editDialogOpen}
+        onClose={handleCloseEditDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit Event Allocation</DialogTitle>
+        <DialogContent>
+          {editingAssignment && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Update the event allocation for <strong>{getUserDisplayName(editingAssignment.user)}</strong>
+              </Typography>
+              
+              {secondaryEvents.length > 0 ? (
+                <FormControl fullWidth sx={{ mt: 3 }}>
+                  <InputLabel>Allocate to Event</InputLabel>
+                  <Select
+                    value={editSecondaryEvent}
+                    onChange={(e) => setEditSecondaryEvent(e.target.value)}
+                    label="Allocate to Event"
+                  >
+                    <MenuItem value="">
+                      <em>Main Event (Default)</em>
+                    </MenuItem>
+                    {secondaryEvents.map((secEvent) => (
+                      <MenuItem key={secEvent._id} value={secEvent._id}>
+                        {secEvent.eventName}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              ) : (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  This event has no secondary events. The user will be allocated to the main event.
+                </Alert>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseEditDialog} disabled={updating}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleUpdateAssignment}
+            variant="contained"
+            disabled={updating}
+            startIcon={updating ? <CircularProgress size={16} /> : <EditIcon />}
+          >
+            {updating ? 'Updating...' : 'Update Allocation'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      </Box>
+    </MainLayout>
   );
 };
 
-export default ManageTeam;
+// Wrapper component for routing
+function ManageTeamWrapper() {
+  const { eventId } = useParams();
+  const [event, setEvent] = useState(null);
+  
+  useEffect(() => {
+    if (eventId) {
+      getEvent(eventId).then(setEvent).catch(console.error);
+    }
+  }, [eventId]);
+  
+  return <ManageTeam eventId={eventId} eventName={event?.eventName || 'Loading Event...'} />;
+}
+
+export default ManageTeamWrapper;
 

@@ -16,7 +16,8 @@ const {
 const {
   getEventAssignedUsers,
   assignUsersToEvent,
-  removeUserFromEvent
+  removeUserFromEvent,
+  updateUserAssignment
 } = require('../controllers/userController');
 const { protect, requireOperationsOrAdmin } = require('../middleware/auth');
 
@@ -40,6 +41,7 @@ router.get('/check-contract/:contractNumber', checkContractAvailability);
 // Event team management routes - MUST come before /:id route to avoid route conflicts
 router.get('/:id/assigned-users', requireOperationsOrAdmin, getEventAssignedUsers);
 router.post('/:id/assign-users', requireOperationsOrAdmin, assignUsersToEvent);
+router.put('/:id/assigned-users/:assignmentId', requireOperationsOrAdmin, updateUserAssignment);
 router.delete('/:id/assigned-users/:assignmentId', requireOperationsOrAdmin, removeUserFromEvent);
 
 // Other specific routes - must come before generic /:id route
