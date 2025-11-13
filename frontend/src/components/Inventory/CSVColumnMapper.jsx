@@ -29,7 +29,7 @@ const CSVColumnMapper = ({
   // Define the required and optional fields for inventory
   const inventoryFields = {
     required: [
-      { key: 'type', label: 'Type', description: 'Product type (e.g., Sneakers, Hats, Bags)' },
+      { key: 'type', label: 'Category', description: 'Product category (e.g., Sneakers, Hats, Bags)' },
       { key: 'style', label: 'Brand', description: 'Brand name' }
     ],
     optional: [

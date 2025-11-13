@@ -84,7 +84,7 @@ const InventoryPage = ({ eventId, eventName }) => {
       }
     }
     // Default: show Brand and Size
-    return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+    return { type: false, brand: true, product: false, size: false, gender: false, color: false };
   });
 
   const handlePickupFieldToggle = (field) => {
@@ -544,7 +544,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     );
     
     if (isDuplicate && normalizedValue) {
-      setError(`Type "${capitalized}" already exists. Please select it from the dropdown.`);
+      setError(`Category "${capitalized}" already exists. Please select it from the dropdown.`);
     } else {
       setError('');
       setEditItem(prev => ({ ...prev, type: capitalized }));
@@ -564,7 +564,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     try {
       // Validate required fields
       if (!editItem.type || !editItem.style) {
-        setError('Type and Brand are required fields.');
+        setError('Category and Brand are required fields.');
         return;
       }
 
@@ -721,7 +721,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     );
     
     if (isDuplicate && normalizedValue) {
-      setError(`Type "${capitalized}" already exists. Please select it from the dropdown.`);
+      setError(`Category "${capitalized}" already exists. Please select it from the dropdown.`);
     } else {
       setError('');
       setNewItem(prev => ({ ...prev, type: capitalized }));
@@ -739,7 +739,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     try {
       // Validate required fields
       if (!newItem.type || !newItem.style) {
-        setError('Type and Brand are required fields.');
+        setError('Category and Brand are required fields.');
         return;
       }
 
@@ -859,9 +859,9 @@ const InventoryPage = ({ eventId, eventName }) => {
                 <Checkbox
                   checked={pickupFieldPreferences.type}
                   onChange={() => handlePickupFieldToggle('type')}
-                  inputProps={{ 'aria-label': 'Show Type in pick-up modal' }}
+                  inputProps={{ 'aria-label': 'Show Category in pick-up modal' }}
                 />
-                <Typography>Type</Typography>
+                <Typography>Category</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Checkbox
@@ -881,14 +881,6 @@ const InventoryPage = ({ eventId, eventName }) => {
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Checkbox
-                  checked={pickupFieldPreferences.size}
-                  onChange={() => handlePickupFieldToggle('size')}
-                  inputProps={{ 'aria-label': 'Show Size in pick-up modal' }}
-                />
-                <Typography>Size</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
                   checked={pickupFieldPreferences.gender}
                   onChange={() => handlePickupFieldToggle('gender')}
                   inputProps={{ 'aria-label': 'Show Gender in pick-up modal' }}
@@ -902,6 +894,14 @@ const InventoryPage = ({ eventId, eventName }) => {
                   inputProps={{ 'aria-label': 'Show Color in pick-up modal' }}
                 />
                 <Typography>Color</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Checkbox
+                  checked={pickupFieldPreferences.size}
+                  onChange={() => handlePickupFieldToggle('size')}
+                  inputProps={{ 'aria-label': 'Show Size in pick-up modal' }}
+                />
+                <Typography>Size</Typography>
               </Box>
             </Box>
           </CardContent>
@@ -944,16 +944,16 @@ const InventoryPage = ({ eventId, eventName }) => {
                   />
                 </Grid>
 
-                {/* Type Filter */}
+                {/* Category Filter */}
                 <Grid size={{ xs: 12, sm: 6, md: 2 }}>
                   <FormControl fullWidth size="small">
-                    <InputLabel>Type</InputLabel>
+                    <InputLabel>Category</InputLabel>
                     <Select
                       value={typeFilter}
                       onChange={(e) => setTypeFilter(e.target.value)}
-                      label="Type"
+                      label="Category"
                     >
-                      <MenuItem value="all">All Types</MenuItem>
+                      <MenuItem value="all">All Categories</MenuItem>
                       {allTypes.map(type => (
                         <MenuItem key={type} value={type}>{type}</MenuItem>
                       ))}
@@ -1075,7 +1075,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                         direction={sortBy === 'type' ? sortOrder : 'asc'}
                         onClick={() => handleSort('type')}
                       >
-                        Type
+                        Category
                       </TableSortLabel>
                     </TableCell>
                     <TableCell>
@@ -1324,14 +1324,14 @@ const InventoryPage = ({ eventId, eventName }) => {
         <DialogTitle>Add Inventory Item</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
-            {/* Type Dropdown with Add New Option */}
+            {/* Category Dropdown with Add New Option */}
             <FormControl fullWidth required>
-              <InputLabel>Type *</InputLabel>
+              <InputLabel>Category *</InputLabel>
               {!showTypeInput ? (
                 <Select
                   value={newItem.type}
                   onChange={(e) => handleTypeChange(e.target.value)}
-                  label="Type *"
+                  label="Category *"
                   MenuProps={{
                     PaperProps: {
                       sx: {
@@ -1341,18 +1341,18 @@ const InventoryPage = ({ eventId, eventName }) => {
                   }}
                 >
                   <MenuItem value="">
-                    <em>Select Type</em>
+                    <em>Select Category</em>
                   </MenuItem>
                   {allAvailableTypes.map(type => (
                     <MenuItem key={type} value={type}>{type}</MenuItem>
                   ))}
                   <MenuItem value="__add_new__" sx={{ fontStyle: 'italic', color: 'primary.main' }}>
-                    + Add New Type
+                    + Add New Category
                   </MenuItem>
                 </Select>
               ) : (
                 <TextField
-                  label="Type *"
+                  label="Category *"
                   value={typeInputValue}
                   onChange={(e) => handleTypeInputChange(e.target.value)}
                   required
@@ -1446,14 +1446,14 @@ const InventoryPage = ({ eventId, eventName }) => {
         <DialogTitle>Edit Inventory Item</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
-            {/* Type Dropdown with Add New Option */}
+            {/* Category Dropdown with Add New Option */}
             <FormControl fullWidth required>
-              <InputLabel>Type *</InputLabel>
+              <InputLabel>Category *</InputLabel>
               {!showEditTypeInput ? (
                 <Select
                   value={editItem.type}
                   onChange={(e) => handleEditTypeChange(e.target.value)}
-                  label="Type *"
+                  label="Category *"
                   MenuProps={{
                     PaperProps: {
                       sx: {
@@ -1463,18 +1463,18 @@ const InventoryPage = ({ eventId, eventName }) => {
                   }}
                 >
                   <MenuItem value="">
-                    <em>Select Type</em>
+                    <em>Select Category</em>
                   </MenuItem>
                   {allAvailableTypes.map(type => (
                     <MenuItem key={type} value={type}>{type}</MenuItem>
                   ))}
                   <MenuItem value="__add_new__" sx={{ fontStyle: 'italic', color: 'primary.main' }}>
-                    + Add New Type
+                    + Add New Category
                   </MenuItem>
                 </Select>
               ) : (
                 <TextField
-                  label="Type *"
+                  label="Category *"
                   value={editTypeInputValue}
                   onChange={(e) => handleEditTypeInputChange(e.target.value)}
                   required

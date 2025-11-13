@@ -72,7 +72,7 @@ const UploadInventory = () => {
 
   // Expected columns for inventory data
   const expectedColumns = {
-    type: { required: true, label: 'TYPE', section: 'required' },
+    type: { required: true, label: 'CATEGORY', section: 'required' },
     style: { required: true, label: 'BRAND', section: 'required' },
     product: { required: false, label: 'PRODUCT', section: 'optional' },
     size: { required: false, label: 'SIZE', section: 'optional' },
@@ -222,7 +222,7 @@ const UploadInventory = () => {
     );
     
     if (!requiredFieldsMapped) {
-      validationErrors.push('Required fields (Type and Brand) must be mapped');
+      validationErrors.push('Required fields (Category and Brand) must be mapped');
     }
 
     // Check for empty required fields in data
@@ -230,7 +230,7 @@ const UploadInventory = () => {
       const mappedRow = mapRowData(row);
       
       if (!mappedRow.type || !mappedRow.style) {
-        validationWarnings.push(`Row ${index + 2}: Missing required information (type or brand)`);
+        validationWarnings.push(`Row ${index + 2}: Missing required information (category or brand)`);
       }
     });
 
@@ -394,7 +394,7 @@ const UploadInventory = () => {
       });
 
       // Check each mapped item against existing inventory
-      // All fields (Type, Brand, Product, Gender, Size, Color) must match for a duplicate
+      // All fields (Category, Brand, Product, Gender, Size, Color) must match for a duplicate
       mappedItems.forEach((item) => {
         const itemKey = `${item.type || ''}-${item.style || ''}-${item.product || ''}-${item.gender || ''}-${item.size || ''}-${item.color || ''}`;
         

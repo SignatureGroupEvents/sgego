@@ -176,6 +176,7 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, eventName }
     <Box>
       {fieldOrder.map((field, level) => {
         const fieldLabel = field === 'brand' ? 'Brand' : 
+                          field === 'type' ? 'Category' :
                           field.charAt(0).toUpperCase() + field.slice(1);
         const uniqueValues = getUniqueValuesForLevel(level);
         const currentValue = selections[field] || '';
