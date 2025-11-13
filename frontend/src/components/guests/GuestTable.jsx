@@ -468,8 +468,23 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
     let checkedInEvents = 0;
     
     eventsToCheck.forEach(ev => {
-      const gifts = getGiftSelectionsForEvent(guest, ev._id);
-      if (gifts.length > 0) {
+      // Check if there's an eventCheckin record for this event (regardless of gifts)
+      const checkin = guest.eventCheckins?.find(ec => {
+        // Handle both populated and unpopulated eventId
+        let checkinEventId;
+        if (ec.eventId && typeof ec.eventId === 'object') {
+          // Populated eventId object - use _id property
+          checkinEventId = ec.eventId._id || ec.eventId.toString();
+        } else {
+          // Unpopulated eventId string
+          checkinEventId = ec.eventId;
+        }
+        
+        return checkinEventId?.toString() === ev._id?.toString();
+      });
+      
+      // If there's a checkin record, the guest is checked in (even if no gifts)
+      if (checkin) {
         checkedInEvents++;
       }
     });
@@ -501,18 +516,28 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
   // Determine check-in button state for a guest
   const getCheckInButtonState = (guest) => {
     if (event?.isMainEvent) {
-      // Main event view - check if there are any pending gifts across all events
+      // Main event view - check if there are any pending check-ins across all events
       const eventsToCheck = getEventsToDisplay();
-      let hasPendingGifts = false;
+      let hasPendingCheckIns = false;
       
       eventsToCheck.forEach(ev => {
-        const gifts = getGiftSelectionsForEvent(guest, ev._id);
-        if (gifts.length === 0) {
-          hasPendingGifts = true;
+        // Check if there's an eventCheckin record for this event
+        const checkin = guest.eventCheckins?.find(ec => {
+          let checkinEventId;
+          if (ec.eventId && typeof ec.eventId === 'object') {
+            checkinEventId = ec.eventId._id || ec.eventId.toString();
+          } else {
+            checkinEventId = ec.eventId;
+          }
+          return checkinEventId?.toString() === ev._id?.toString();
+        });
+        
+        if (!checkin) {
+          hasPendingCheckIns = true;
         }
       });
       
-      if (hasPendingGifts) {
+      if (hasPendingCheckIns) {
         return {
           active: true,
           label: 'Pick Up',
@@ -529,9 +554,17 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
       }
     } else {
       // Secondary event view - check only this specific event
-      const gifts = getGiftSelectionsForEvent(guest, event._id);
+      const checkin = guest.eventCheckins?.find(ec => {
+        let checkinEventId;
+        if (ec.eventId && typeof ec.eventId === 'object') {
+          checkinEventId = ec.eventId._id || ec.eventId.toString();
+        } else {
+          checkinEventId = ec.eventId;
+        }
+        return checkinEventId?.toString() === event._id?.toString();
+      });
       
-      if (gifts.length === 0) {
+      if (!checkin) {
         return {
           active: true,
           label: 'Pick Up',

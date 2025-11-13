@@ -40,6 +40,12 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
     return { type: false, brand: true, product: false, size: true, gender: false, color: false };
   };
 
+  // Check if any fields are selected for gift selection
+  const hasGiftSelectionFields = () => {
+    const prefs = getPickupFieldPreferences();
+    return prefs.type || prefs.brand || prefs.product || prefs.gender || prefs.size || prefs.color;
+  };
+
   // Format inventory item display based on preferences
   const formatInventoryItemDisplay = (item) => {
     const prefs = getPickupFieldPreferences();
@@ -271,29 +277,40 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
     if (!guest || !event) return false;
     
     if (event?.isMainEvent) {
-      // Main event view - check if there are any pending gifts across all events
+      // Main event view - check if there are any pending check-ins across all events
       const eventsToCheck = [event, ...(event?.secondaryEvents || [])];
-      let hasPendingGifts = false;
+      let hasPendingCheckIns = false;
       
       eventsToCheck.forEach(ev => {
-        const gifts = guest.eventCheckins?.find(ec => 
-          ec.eventId?.toString() === ev._id?.toString() || 
-          ec.eventId === ev._id
-        )?.giftsReceived || [];
-        if (gifts.length === 0) {
-          hasPendingGifts = true;
+        const checkin = guest.eventCheckins?.find(ec => {
+          let checkinEventId;
+          if (ec.eventId && typeof ec.eventId === 'object') {
+            checkinEventId = ec.eventId._id || ec.eventId.toString();
+          } else {
+            checkinEventId = ec.eventId;
+          }
+          return checkinEventId?.toString() === ev._id?.toString();
+        });
+        
+        if (!checkin) {
+          hasPendingCheckIns = true;
         }
       });
       
-      return hasPendingGifts;
+      return hasPendingCheckIns;
     } else {
       // Secondary event view - check only this specific event
-      const gifts = guest.eventCheckins?.find(ec => 
-        ec.eventId?.toString() === event._id?.toString() || 
-        ec.eventId === event._id
-      )?.giftsReceived || [];
+      const checkin = guest.eventCheckins?.find(ec => {
+        let checkinEventId;
+        if (ec.eventId && typeof ec.eventId === 'object') {
+          checkinEventId = ec.eventId._id || ec.eventId.toString();
+        } else {
+          checkinEventId = ec.eventId;
+        }
+        return checkinEventId?.toString() === event._id?.toString();
+      });
       
-      return gifts.length === 0;
+      return !checkin;
     }
   };
 
@@ -361,41 +378,44 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
             Type: {guest.type || 'General'}
           </Typography>
           
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              Select Gifts:
-            </Typography>
-            {/* Filter out main events if secondary events exist */}
-            {(() => {
-              const hasSecondaryEvents = context.availableEvents.some(ev => !ev.isMainEvent);
-              const eventsToShow = hasSecondaryEvents 
-                ? context.availableEvents.filter(ev => !ev.isMainEvent)
-                : context.availableEvents;
-              
-              return eventsToShow.map(ev => {
-              const currentSelection = giftSelections[ev._id]?.inventoryId || '';
-              console.log(`Rendering dropdown for ${ev.eventName} (${ev._id}):`, {
-                currentSelection,
-                allGiftSelections: giftSelections,
-                availableInventory: context.inventoryByEvent?.[ev._id] || []
-              });
-              
-              return (
-                <Box key={ev._id} sx={{ mb: 3 }}>
-                  <Typography variant="body2" fontWeight={500} gutterBottom>
-                    {ev.eventName} Gift:
-                  </Typography>
-                  <HierarchicalInventorySelector
-                    inventory={context.inventoryByEvent?.[ev._id] || []}
-                    value={currentSelection}
-                    onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
-                    eventName={ev.eventName}
-                  />
-                </Box>
-              );
-              });
-            })()}
-          </Box>
+          {/* Only show gift selection if fields are configured */}
+          {hasGiftSelectionFields() && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                Select Gifts:
+              </Typography>
+              {/* Filter out main events if secondary events exist */}
+              {(() => {
+                const hasSecondaryEvents = context.availableEvents.some(ev => !ev.isMainEvent);
+                const eventsToShow = hasSecondaryEvents 
+                  ? context.availableEvents.filter(ev => !ev.isMainEvent)
+                  : context.availableEvents;
+                
+                return eventsToShow.map(ev => {
+                const currentSelection = giftSelections[ev._id]?.inventoryId || '';
+                console.log(`Rendering dropdown for ${ev.eventName} (${ev._id}):`, {
+                  currentSelection,
+                  allGiftSelections: giftSelections,
+                  availableInventory: context.inventoryByEvent?.[ev._id] || []
+                });
+                
+                return (
+                  <Box key={ev._id} sx={{ mb: 3 }}>
+                    <Typography variant="body2" fontWeight={500} gutterBottom>
+                      {ev.eventName} Gift:
+                    </Typography>
+                    <HierarchicalInventorySelector
+                      inventory={context.inventoryByEvent?.[ev._id] || []}
+                      value={currentSelection}
+                      onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
+                      eventName={ev.eventName}
+                    />
+                  </Box>
+                );
+                });
+              })()}
+            </Box>
+          )}
           
           <Button 
             variant="contained" 
