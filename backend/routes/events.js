@@ -13,6 +13,11 @@ const {
   unarchiveEvent,
   updateEventStatus
 } = require('../controllers/eventController');
+const {
+  getEventAssignedUsers,
+  assignUsersToEvent,
+  removeUserFromEvent
+} = require('../controllers/userController');
 const { protect, requireOperationsOrAdmin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -31,9 +36,18 @@ router.use(protect);
 // View routes - allow all authenticated users (including staff)
 router.get('/', getEvents);
 router.get('/check-contract/:contractNumber', checkContractAvailability);
-router.get('/:id', getEvent);
+
+// Event team management routes - MUST come before /:id route to avoid route conflicts
+router.get('/:id/assigned-users', requireOperationsOrAdmin, getEventAssignedUsers);
+router.post('/:id/assign-users', requireOperationsOrAdmin, assignUsersToEvent);
+router.delete('/:id/assigned-users/:assignmentId', requireOperationsOrAdmin, removeUserFromEvent);
+
+// Other specific routes - must come before generic /:id route
 router.get('/:id/analytics', getEventAnalytics);
 router.get('/:id/inventory', getEventInventory);
+
+// Generic routes - must come last
+router.get('/:id', getEvent);
 
 // Modification routes - restrict to operations manager and admin
 router.post('/', requireOperationsOrAdmin, createEvent);

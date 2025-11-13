@@ -163,6 +163,22 @@ export const getAvailableEvents = () => {
   return api.get('/users/available-events');
 };
 
+// Event-based user assignment functions
+export const getEventAssignedUsers = (eventId) => {
+  return api.get(`/events/${eventId}/assigned-users`);
+};
+
+export const assignUsersToEvent = (eventId, userIds, allocatedToSecondaryEventId = null) => {
+  return api.post(`/events/${eventId}/assign-users`, { 
+    userIds, 
+    allocatedToSecondaryEventId 
+  });
+};
+
+export const removeUserFromEvent = (eventId, assignmentId) => {
+  return api.delete(`/events/${eventId}/assigned-users/${assignmentId}`);
+};
+
 export const deactivateUser = (userId) => {
   return api.put(`/users/${userId}/deactivate`);
 };

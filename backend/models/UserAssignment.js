@@ -16,6 +16,12 @@ const userAssignmentSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  // Optional: specific secondary event allocation
+  allocatedToSecondaryEventId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Event',
+    default: null
+  },
   isActive: {
     type: Boolean,
     default: true
