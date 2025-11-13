@@ -1038,8 +1038,11 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                             sx={{ 
                               borderRadius: 1, 
                               fontSize: '0.75rem',
-                              backgroundColor: tagColor,
-                              color: 'white',
+                              backgroundColor: `${tagColor} !important`,
+                              color: 'white !important',
+                              '& .MuiChip-label': {
+                                color: 'white !important'
+                              },
                               '& .MuiChip-deleteIcon': {
                                 color: 'white !important'
                               }
@@ -1252,19 +1255,25 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                       </TableCell>
                       <TableCell>
                         <Box display="flex" gap={0.5} flexWrap="wrap">
-                          {guest.tags?.map((tag, index) => (
-                            <Chip
-                              key={index}
-                              label={tag.name}
-                              size="small"
-                              sx={{
-                                backgroundColor: tag.color,
-                                color: 'white',
-                                fontSize: '0.7rem',
-                                borderRadius: 1
-                              }}
-                            />
-                          ))}
+                          {guest.tags?.map((tag, index) => {
+                            const tagColor = tag.color || '#1976d2';
+                            return (
+                              <Chip
+                                key={index}
+                                label={tag.name}
+                                size="small"
+                                sx={{
+                                  backgroundColor: `${tagColor} !important`,
+                                  color: 'white !important',
+                                  fontSize: '0.7rem',
+                                  borderRadius: 1,
+                                  '& .MuiChip-label': {
+                                    color: 'white !important'
+                                  }
+                                }}
+                              />
+                            );
+                          })}
                         </Box>
                       </TableCell>
                       {canModifyEvents && (
