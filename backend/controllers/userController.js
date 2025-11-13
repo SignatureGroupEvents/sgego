@@ -437,12 +437,27 @@ const getMyEvents = async (req, res) => {
 // Get events created by the current user
 const getMyCreatedEvents = async (req, res) => {
   try {
-    const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search = '' } = req.query;
+    const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search = '', status } = req.query;
     
     const filter = { 
       createdBy: req.user.id,
       isActive: true 
     };
+    
+    // Add status filter
+    if (status) {
+      // Normalize status values
+      const statusLower = status.toLowerCase();
+      if (statusLower === 'archived') {
+        filter.isArchived = true;
+      } else {
+        filter.isArchived = false;
+        filter.status = statusLower;
+      }
+    } else {
+      // By default, exclude archived events
+      filter.isArchived = false;
+    }
     
     // Add search filter
     if (search) {
