@@ -69,6 +69,12 @@ export const deleteInventoryItem = (inventoryId) => {
   return api.delete(`/inventory/${inventoryId}`);
 };
 
+export const bulkDeleteInventory = (eventId, inventoryIds) => {
+  return api.delete(`/inventory/bulk/${eventId}`, {
+    data: { inventoryIds }
+  });
+};
+
 export const getCheckinContext = (eventId) => {
   return api.get(`/checkins/context/${eventId}`);
 };

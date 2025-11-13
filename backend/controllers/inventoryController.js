@@ -3,6 +3,7 @@ const Event = require('../models/Event');
 const ActivityLog = require('../models/ActivityLog');
 const csv = require('csv-parser');
 const fs = require('fs');
+const path = require('path');
 const { Parser } = require('json2csv');
 
 // Helper function to emit analytics update
@@ -20,7 +21,7 @@ const emitAnalyticsUpdate = (eventId) => {
 exports.getInventory = async (req, res) => {
   try {
     const { eventId } = req.params;
-    
+
     // First, get the event to determine if it's a main event or secondary event
     const event = await Event.findById(eventId);
     if (!event) {
@@ -35,9 +36,9 @@ exports.getInventory = async (req, res) => {
     const mainEventId = getMainEventId(event);
 
     // Fetch inventory from the main event (shared inventory pool)
-    let inventory = await Inventory.find({ 
-      eventId: mainEventId, 
-      isActive: true 
+    let inventory = await Inventory.find({
+      eventId: mainEventId,
+      isActive: true
     })
       .populate('eventId', 'eventName isMainEvent')
       .sort({ type: 1, style: 1, size: 1 });
@@ -45,8 +46,8 @@ exports.getInventory = async (req, res) => {
     // Filter inventory based on event type
     if (!event.isMainEvent) {
       // For secondary events, only show inventory allocated to this specific event
-      inventory = inventory.filter(item => 
-        item.allocatedEvents && 
+      inventory = inventory.filter(item =>
+        item.allocatedEvents &&
         item.allocatedEvents.map(id => id.toString()).includes(eventId.toString())
       );
     }
@@ -73,8 +74,8 @@ exports.getInventory = async (req, res) => {
       return acc;
     }, {});
 
-    res.json({ 
-      inventory: inventoryWithInheritance, 
+    res.json({
+      inventory: inventoryWithInheritance,
       groupedInventory,
       eventType: event.isMainEvent ? 'main' : 'secondary',
       parentEventId: event.parentEventId,
@@ -128,25 +129,86 @@ exports.uploadInventory = async (req, res) => {
     const results = [];
 
     // Add error handling for file reading
-    if (!fs.existsSync(file.path)) {
-      return res.status(500).json({ message: 'Uploaded file not found on server' });
+    // Construct absolute path from uploads directory and filename
+    // Multer may return a relative path in file.path, so we construct it ourselves
+    const uploadsDir = path.join(__dirname, '..', 'uploads');
+    
+    // Try multiple approaches to find the file
+    let filePath;
+    
+    // First, try using file.filename (most reliable)
+    if (file.filename) {
+      filePath = path.join(uploadsDir, file.filename);
+    } 
+    // If that doesn't work, try file.path
+    else if (file.path) {
+      if (path.isAbsolute(file.path)) {
+        filePath = file.path;
+      } else {
+        // Resolve relative path
+        filePath = path.join(uploadsDir, path.basename(file.path));
+      }
+    } else {
+      return res.status(500).json({
+        message: 'File information missing',
+        details: 'No filename or path provided by multer'
+      });
+    }
+    
+    // Normalize the path
+    filePath = path.normalize(filePath);
+
+    console.log('📂 File details:', {
+      originalname: file.originalname,
+      filename: file.filename,
+      originalPath: file.path,
+      resolvedPath: filePath,
+      isAbsolute: path.isAbsolute(filePath),
+      exists: fs.existsSync(filePath),
+      uploadsDir: uploadsDir,
+      uploadsDirExists: fs.existsSync(uploadsDir),
+      __dirname: __dirname
+    });
+
+    if (!fs.existsSync(filePath)) {
+      console.error('❌ File not found:', filePath);
+      console.error('📁 Uploads directory:', uploadsDir);
+      console.error('📁 Directory exists:', fs.existsSync(uploadsDir));
+      if (fs.existsSync(uploadsDir)) {
+        try {
+          const files = fs.readdirSync(uploadsDir);
+          console.error('📁 Files in uploads:', files);
+          console.error('📁 Looking for:', file.filename || path.basename(file.path));
+        } catch (err) {
+          console.error('📁 Error reading uploads directory:', err);
+        }
+      }
+      return res.status(500).json({
+        message: 'Uploaded file not found on server',
+        details: `Expected path: ${filePath}`,
+        filename: file.filename,
+        originalPath: file.path
+      });
     }
 
-    fs.createReadStream(file.path)
+    fs.createReadStream(filePath)
       .pipe(csv())
       .on('data', (data) => results.push(data))
       .on('error', (error) => {
         console.error('CSV parsing error:', error);
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
         }
-        return res.status(400).json({ message: 'Error parsing CSV file: ' + error.message });
+        // Don't use return here - send response directly
+        if (!res.headersSent) {
+          res.status(400).json({ message: 'Error parsing CSV file: ' + error.message });
+        }
       })
       .on('end', async () => {
         try {
           if (results.length === 0) {
-            if (fs.existsSync(file.path)) {
-              fs.unlinkSync(file.path);
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
             }
             return res.status(400).json({ message: 'CSV file appears to be empty or invalid' });
           }
@@ -188,16 +250,17 @@ exports.uploadInventory = async (req, res) => {
             }
           };
 
+          // Get the main event ID - all inventory is stored under the main event
+          const getMainEventId = (event) => {
+            return event.isMainEvent ? event._id : event.parentEventId;
+          };
+
+          const mainEventId = getMainEventId(event);
+
           for (let i = 0; i < results.length; i++) {
             const row = results[i];
 
             try {
-              // Get the main event ID - all inventory is stored under the main event
-              const getMainEventId = (event) => {
-                return event.isMainEvent ? event._id : event.parentEventId;
-              };
-
-              const mainEventId = getMainEventId(event);
 
               // NEW: Use mapping-aware value extraction
               const inventoryItem = {
@@ -208,6 +271,7 @@ exports.uploadInventory = async (req, res) => {
                 style: getValueFromRow(row, 'style', ['Style', 'style', 'STYLE']),
 
                 // Optional fields with fallbacks
+                product: getValueFromRow(row, 'product', ['Product', 'product', 'PRODUCT', 'Product Name', 'product_name']),
                 size: getValueFromRow(row, 'size', ['Size', 'size', 'SIZE']),
                 color: getValueFromRow(row, 'color', ['Color', 'color', 'COLOR']),
 
@@ -288,8 +352,8 @@ exports.uploadInventory = async (req, res) => {
           }
 
           if (inventoryItems.length === 0) {
-            if (fs.existsSync(file.path)) {
-              fs.unlinkSync(file.path);
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
             }
             return res.status(400).json({
               message: 'No valid inventory items found in CSV',
@@ -298,21 +362,25 @@ exports.uploadInventory = async (req, res) => {
           }
 
           // Check for existing items to avoid duplicates
+          // Use mainEventId since all inventory is stored under the main event
+          // All fields (Type, Brand, Product, Gender, Size, Color) must match for an item to be considered a duplicate
           const existingItems = await Inventory.find({
-            eventId,
+            eventId: mainEventId,
             $or: inventoryItems.map(item => ({
               type: item.type,
               style: item.style,
-              size: item.size,
+              product: item.product || '',
               gender: item.gender,
+              size: item.size,
               color: item.color
             }))
           });
 
           // Create a set of existing item keys for quick lookup
+          // All fields (Type, Brand, Product, Gender, Size, Color) are included in uniqueness check
           const existingKeys = new Set(
             existingItems.map(item =>
-              `${item.type}-${item.style}-${item.size}-${item.gender}-${item.color}`
+              `${item.type}-${item.style}-${item.product || ''}-${item.gender}-${item.size}-${item.color}`
             )
           );
 
@@ -320,34 +388,85 @@ exports.uploadInventory = async (req, res) => {
           const newItems = [];
           const skippedItems = [];
 
+          // First pass: Check against existing items
+          // All fields (Type, Brand, Product, Gender, Size, Color) must match for a duplicate
           inventoryItems.forEach((item, index) => {
-            const itemKey = `${item.type}-${item.style}-${item.size}-${item.gender}-${item.color}`;
+            const itemKey = `${item.type}-${item.style}-${item.product || ''}-${item.gender}-${item.size}-${item.color}`;
 
             if (existingKeys.has(itemKey)) {
               skippedItems.push({
                 row: index + 1,
-                item: `${item.type} - ${item.style} (${item.size}, ${item.gender}, ${item.color})`,
-                reason: 'Already exists'
+                item: `${item.type} - ${item.style}${item.product ? ` - ${item.product}` : ''} (${item.size || 'N/A'}, ${item.gender || 'N/A'}, ${item.color})`,
+                reason: 'Already exists in database'
               });
             } else {
               newItems.push(item);
             }
           });
 
+          // Second pass: Check for duplicates within the newItems array itself
+          // We need to track which original CSV rows these items came from
+          const itemToRowMap = new Map(); // Maps item key to original row number
+          const seenKeys = new Map(); // Map to track first occurrence of each key
+          const fileDuplicates = [];
+
+          // Build a map of item keys to their original row numbers
+          // All fields (Type, Brand, Product, Gender, Size, Color) are included in uniqueness check
+          inventoryItems.forEach((item, index) => {
+            const itemKey = `${item.type}-${item.style}-${item.product || ''}-${item.gender}-${item.size}-${item.color}`;
+            if (!existingKeys.has(itemKey)) {
+              // Only track items that are in newItems
+              if (!itemToRowMap.has(itemKey)) {
+                itemToRowMap.set(itemKey, index + 1);
+              }
+            }
+          });
+
+          // Now check newItems for duplicates
+          // All fields (Type, Brand, Product, Gender, Size, Color) must match for a duplicate
+          newItems.forEach((item) => {
+            const itemKey = `${item.type}-${item.style}-${item.product || ''}-${item.gender}-${item.size}-${item.color}`;
+            const rowNumber = itemToRowMap.get(itemKey);
+
+            if (seenKeys.has(itemKey)) {
+              // This is a duplicate within the file
+              const firstRow = seenKeys.get(itemKey);
+              fileDuplicates.push({
+                row: rowNumber,
+                item: `${item.type} - ${item.style}${item.product ? ` - ${item.product}` : ''} (${item.size || 'N/A'}, ${item.gender || 'N/A'}, ${item.color})`,
+                reason: `Duplicate of row ${firstRow}`
+              });
+            } else {
+              seenKeys.set(itemKey, rowNumber);
+            }
+          });
+
+          // Remove duplicates from newItems (keep only the first occurrence)
+          // All fields (Type, Brand, Product, Gender, Size, Color) must match for a duplicate
+          const uniqueNewItems = [];
+          const seenUniqueKeys = new Set();
+          newItems.forEach((item) => {
+            const itemKey = `${item.type}-${item.style}-${item.product || ''}-${item.gender}-${item.size}-${item.color}`;
+            if (!seenUniqueKeys.has(itemKey)) {
+              seenUniqueKeys.add(itemKey);
+              uniqueNewItems.push(item);
+            }
+          });
+
           let insertedItems = [];
 
-          // Only insert new items if there are any
-          if (newItems.length > 0) {
-            insertedItems = await Inventory.insertMany(newItems, { ordered: false });
+          // Only insert new items if there are any (use uniqueNewItems to avoid file duplicates)
+          if (uniqueNewItems.length > 0) {
+            insertedItems = await Inventory.insertMany(uniqueNewItems, { ordered: false });
           }
 
           // Clean up file
-          if (fs.existsSync(file.path)) {
-            fs.unlinkSync(file.path);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
           }
 
           // Emit WebSocket update for analytics
-          emitAnalyticsUpdate(eventId);
+          emitAnalyticsUpdate(mainEventId);
 
           // Enhanced response with detailed results
           const response = {
@@ -356,7 +475,7 @@ exports.uploadInventory = async (req, res) => {
             results: {
               totalProcessed: inventoryItems.length,
               newItemsAdded: insertedItems.length,
-              duplicatesSkipped: skippedItems.length,
+              duplicatesSkipped: skippedItems.length + fileDuplicates.length,
               errors: errors.length > 0 ? errors : undefined
             },
             mappingUsed: Object.keys(columnMapping).length > 0 ? columnMapping : 'fallback method'
@@ -365,7 +484,13 @@ exports.uploadInventory = async (req, res) => {
           // Add details about skipped items if any
           if (skippedItems.length > 0) {
             response.results.skippedItems = skippedItems;
-            response.message += `, ${skippedItems.length} duplicates skipped`;
+            response.message += `, ${skippedItems.length} duplicates skipped (already in database)`;
+          }
+
+          // Add details about file duplicates if any
+          if (fileDuplicates.length > 0) {
+            response.results.fileDuplicates = fileDuplicates;
+            response.message += `, ${fileDuplicates.length} duplicates within file skipped`;
           }
 
           // Add sample format info
@@ -378,15 +503,18 @@ exports.uploadInventory = async (req, res) => {
 
         } catch (error) {
           console.error('Inventory upload error:', error);
-          if (fs.existsSync(file.path)) {
-            fs.unlinkSync(file.path);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
           }
 
           // Handle duplicate key errors specifically
           if (error.code === 11000) {
+            // Try to extract duplicate information from the error
+            const duplicateInfo = error.message.match(/dup key: \{ ([^}]+) \}/);
             return res.status(400).json({
-              message: 'Duplicate inventory items found. Each combination of Type, Style, Size, Gender, and Color must be unique.',
-              error: error.message
+              message: 'Duplicate inventory items found. Each combination of Type, Brand, Product, Gender, Size, and Color must be unique.',
+              error: error.message,
+              duplicateInfo: duplicateInfo ? duplicateInfo[1] : null
             });
           }
 
@@ -399,8 +527,11 @@ exports.uploadInventory = async (req, res) => {
 
   } catch (error) {
     console.error('Upload inventory outer error:', error);
-    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    if (req.file && req.file.path) {
+      const filePath = path.isAbsolute(req.file.path) ? req.file.path : path.join(__dirname, '..', req.file.path);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
     res.status(500).json({
       message: 'Error uploading inventory: ' + error.message,
@@ -412,7 +543,22 @@ exports.uploadInventory = async (req, res) => {
 exports.updateInventoryCount = async (req, res) => {
   try {
     const { inventoryId } = req.params;
-    const { newCount, qtyWarehouse, qtyOnSite, qtyBeforeEvent, postEventCount, reason, action } = req.body;
+    const { 
+      newCount, 
+      qtyWarehouse, 
+      qtyOnSite, 
+      qtyBeforeEvent, 
+      postEventCount, 
+      reason, 
+      action,
+      // Allow updating all item fields
+      type,
+      style,
+      product,
+      size,
+      gender,
+      color
+    } = req.body;
 
     const inventoryItem = await Inventory.findById(inventoryId);
     if (!inventoryItem) {
@@ -423,8 +569,30 @@ exports.updateInventoryCount = async (req, res) => {
     const previousCount = inventoryItem.currentInventory;
     const previousWarehouse = inventoryItem.qtyWarehouse;
     const previousOnSite = inventoryItem.qtyOnSite;
+    const previousType = inventoryItem.type;
+    const previousStyle = inventoryItem.style;
+    const previousProduct = inventoryItem.product;
+    const previousSize = inventoryItem.size;
+    const previousGender = inventoryItem.gender;
+    const previousColor = inventoryItem.color;
 
-    // Update fields if provided - handle both old and new field names
+    // Update basic fields if provided
+    if (typeof type !== 'undefined' && type !== null) inventoryItem.type = type.trim();
+    if (typeof style !== 'undefined' && style !== null) inventoryItem.style = style.trim();
+    if (typeof product !== 'undefined') inventoryItem.product = product ? product.trim() : '';
+    if (typeof size !== 'undefined') inventoryItem.size = size ? size.trim() : '';
+    if (typeof gender !== 'undefined') {
+      // Normalize gender value
+      const normalizedGender = gender ? gender.trim().toUpperCase() : 'N/A';
+      if (['M', 'W', 'N/A'].includes(normalizedGender)) {
+        inventoryItem.gender = normalizedGender;
+      } else {
+        inventoryItem.gender = 'N/A';
+      }
+    }
+    if (typeof color !== 'undefined') inventoryItem.color = color ? color.trim() : '';
+
+    // Update quantity fields if provided - handle both old and new field names
     if (typeof qtyWarehouse !== 'undefined') inventoryItem.qtyWarehouse = Number(qtyWarehouse);
     if (typeof qtyOnSite !== 'undefined') inventoryItem.qtyOnSite = Number(qtyOnSite);
     if (typeof qtyBeforeEvent !== 'undefined') inventoryItem.qtyOnSite = Number(qtyBeforeEvent); // Map qtyBeforeEvent to qtyOnSite
@@ -462,6 +630,19 @@ exports.updateInventoryCount = async (req, res) => {
         previousOnSite: previousOnSite,
         newOnSite: inventoryItem.qtyOnSite,
         previousPostEventCount: inventoryItem.postEventCount,
+        // Track field changes
+        previousType: previousType,
+        newType: inventoryItem.type,
+        previousStyle: previousStyle,
+        newStyle: inventoryItem.style,
+        previousProduct: previousProduct,
+        newProduct: inventoryItem.product,
+        previousSize: previousSize,
+        newSize: inventoryItem.size,
+        previousGender: previousGender,
+        newGender: inventoryItem.gender,
+        previousColor: previousColor,
+        newColor: inventoryItem.color,
         action: action || 'manual_adjustment',
         reason: reason
       },
@@ -730,6 +911,7 @@ exports.addInventoryItem = async (req, res) => {
         inventoryId: inventoryItem._id,
         type: inventoryItem.type,
         style: inventoryItem.style,
+        product: inventoryItem.product,
         size: inventoryItem.size,
         gender: inventoryItem.gender,
         color: inventoryItem.color,
@@ -749,9 +931,9 @@ exports.addInventoryItem = async (req, res) => {
 
   } catch (error) {
     if (error.code === 11000) {
-      // Duplicate key error (type, style, size, gender, color combination already exists)
+      // Duplicate key error (type, style, product, gender, size, color combination already exists)
       return res.status(400).json({
-        message: 'An inventory item with this type, style, size, gender, and color combination already exists for this event'
+        message: 'An inventory item with this type, brand, product, gender, size, and color combination already exists for this event'
       });
     }
     res.status(400).json({ message: error.message });

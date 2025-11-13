@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { CheckCircleOutline as CheckCircleIcon } from '@mui/icons-material';
 import HomeIcon from '@mui/icons-material/Home';
+import HierarchicalInventorySelector from './HierarchicalInventorySelector';
 
 const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onInventoryChange }) => {
   const [qrData, setQrData] = useState('');
@@ -24,6 +25,58 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [isCheckedIn, setIsCheckedIn] = useState(false);
+
+  // Get pick-up modal field display preferences from localStorage
+  const getPickupFieldPreferences = () => {
+    const saved = localStorage.getItem('inventoryPickupFieldPreferences');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+      }
+    }
+    // Default: show Brand and Size
+    return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+  };
+
+  // Check if any fields are selected for gift selection
+  const hasGiftSelectionFields = () => {
+    const prefs = getPickupFieldPreferences();
+    return prefs.type || prefs.brand || prefs.product || prefs.gender || prefs.size || prefs.color;
+  };
+
+  // Format inventory item display based on preferences
+  const formatInventoryItemDisplay = (item) => {
+    const prefs = getPickupFieldPreferences();
+    const parts = [];
+
+    if (prefs.type && item.type) {
+      parts.push(item.type);
+    }
+    if (prefs.brand && item.style) {
+      parts.push(item.style);
+    }
+    if (prefs.product && item.product) {
+      parts.push(item.product);
+    }
+    if (prefs.size && item.size) {
+      parts.push(`Size ${item.size}`);
+    }
+    if (prefs.gender && item.gender && item.gender !== 'N/A') {
+      parts.push(item.gender);
+    }
+    if (prefs.color && item.color) {
+      parts.push(item.color);
+    }
+
+    // If no fields are selected, show at least brand and size as fallback
+    if (parts.length === 0) {
+      return `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''}`;
+    }
+
+    return parts.join(' - ');
+  };
 
   React.useEffect(() => {
     // Always fetch check-in context for the event
@@ -224,29 +277,40 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
     if (!guest || !event) return false;
     
     if (event?.isMainEvent) {
-      // Main event view - check if there are any pending gifts across all events
+      // Main event view - check if there are any pending check-ins across all events
       const eventsToCheck = [event, ...(event?.secondaryEvents || [])];
-      let hasPendingGifts = false;
+      let hasPendingCheckIns = false;
       
       eventsToCheck.forEach(ev => {
-        const gifts = guest.eventCheckins?.find(ec => 
-          ec.eventId?.toString() === ev._id?.toString() || 
-          ec.eventId === ev._id
-        )?.giftsReceived || [];
-        if (gifts.length === 0) {
-          hasPendingGifts = true;
+        const checkin = guest.eventCheckins?.find(ec => {
+          let checkinEventId;
+          if (ec.eventId && typeof ec.eventId === 'object') {
+            checkinEventId = ec.eventId._id || ec.eventId.toString();
+          } else {
+            checkinEventId = ec.eventId;
+          }
+          return checkinEventId?.toString() === ev._id?.toString();
+        });
+        
+        if (!checkin) {
+          hasPendingCheckIns = true;
         }
       });
       
-      return hasPendingGifts;
+      return hasPendingCheckIns;
     } else {
       // Secondary event view - check only this specific event
-      const gifts = guest.eventCheckins?.find(ec => 
-        ec.eventId?.toString() === event._id?.toString() || 
-        ec.eventId === event._id
-      )?.giftsReceived || [];
+      const checkin = guest.eventCheckins?.find(ec => {
+        let checkinEventId;
+        if (ec.eventId && typeof ec.eventId === 'object') {
+          checkinEventId = ec.eventId._id || ec.eventId.toString();
+        } else {
+          checkinEventId = ec.eventId;
+        }
+        return checkinEventId?.toString() === event._id?.toString();
+      });
       
-      return gifts.length === 0;
+      return !checkin;
     }
   };
 
@@ -314,61 +378,44 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
             Type: {guest.type || 'General'}
           </Typography>
           
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              Select Gifts:
-            </Typography>
-            {/* Filter out main events if secondary events exist */}
-            {(() => {
-              const hasSecondaryEvents = context.availableEvents.some(ev => !ev.isMainEvent);
-              const eventsToShow = hasSecondaryEvents 
-                ? context.availableEvents.filter(ev => !ev.isMainEvent)
-                : context.availableEvents;
-              
-              return eventsToShow.map(ev => {
-              const currentSelection = giftSelections[ev._id]?.inventoryId || '';
-              console.log(`Rendering dropdown for ${ev.eventName} (${ev._id}):`, {
-                currentSelection,
-                allGiftSelections: giftSelections,
-                availableInventory: context.inventoryByEvent?.[ev._id] || []
-              });
-              
-              return (
-                <Box key={ev._id} sx={{ mb: 2 }}>
-                  <Typography variant="body2" fontWeight={500} gutterBottom>
-                    {ev.eventName} Gift:
-                  </Typography>
-                  <FormControl fullWidth size="small">
-                    <InputLabel id={`${ev._id}-gift-label`}>Select a gift</InputLabel>
-                    <Select
-                      labelId={`${ev._id}-gift-label`}
-                      id={`${ev._id}-gift`}
+          {/* Only show gift selection if fields are configured */}
+          {hasGiftSelectionFields() && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                Select Gifts:
+              </Typography>
+              {/* Filter out main events if secondary events exist */}
+              {(() => {
+                const hasSecondaryEvents = context.availableEvents.some(ev => !ev.isMainEvent);
+                const eventsToShow = hasSecondaryEvents 
+                  ? context.availableEvents.filter(ev => !ev.isMainEvent)
+                  : context.availableEvents;
+                
+                return eventsToShow.map(ev => {
+                const currentSelection = giftSelections[ev._id]?.inventoryId || '';
+                console.log(`Rendering dropdown for ${ev.eventName} (${ev._id}):`, {
+                  currentSelection,
+                  allGiftSelections: giftSelections,
+                  availableInventory: context.inventoryByEvent?.[ev._id] || []
+                });
+                
+                return (
+                  <Box key={ev._id} sx={{ mb: 3 }}>
+                    <Typography variant="body2" fontWeight={500} gutterBottom>
+                      {ev.eventName} Gift:
+                    </Typography>
+                    <HierarchicalInventorySelector
+                      inventory={context.inventoryByEvent?.[ev._id] || []}
                       value={currentSelection}
-                      label="Select a gift"
-                      onChange={e => handleGiftChange(ev._id, e.target.value)}
-                      MenuProps={{
-                        PaperProps: {
-                          sx: {
-                            zIndex: 9999
-                          }
-                        }
-                      }}
-                    >
-                      <MenuItem value="">
-                        <em>None</em>
-                      </MenuItem>
-                      {(context.inventoryByEvent?.[ev._id] || []).map(gift => (
-                        <MenuItem key={gift._id} value={gift._id}>
-                          {gift.style} ({gift.size})
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Box>
-              );
-              });
-            })()}
-          </Box>
+                      onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
+                      eventName={ev.eventName}
+                    />
+                  </Box>
+                );
+                });
+              })()}
+            </Box>
+          )}
           
           <Button 
             variant="contained" 

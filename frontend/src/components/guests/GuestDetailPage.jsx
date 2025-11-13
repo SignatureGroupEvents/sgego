@@ -45,6 +45,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api, { undoCheckin, updateCheckinGifts, deleteGuest } from '../../services/api';
 import MainLayout from '../layout/MainLayout';
 import toast from 'react-hot-toast';
+import HierarchicalInventorySelector from './HierarchicalInventorySelector';
 
 // Undo reason options - these map to string values sent to backend
 const UNDO_REASONS = [
@@ -53,6 +54,17 @@ const UNDO_REASONS = [
     { value: 'incorrect_gifts', label: 'Incorrect Gifts Distributed' },
     { value: 'guest_cancelled', label: 'Guest Cancelled' },
     { value: 'system_error', label: 'System Error' },
+    { value: 'staff_mistake', label: 'Staff Mistake' },
+    { value: 'other', label: 'Other' }
+];
+
+// Gift modification reason options
+const GIFT_MODIFICATION_REASONS = [
+    { value: 'wrong_item', label: 'Wrong Item Distributed' },
+    { value: 'guest_request', label: 'Guest Requested Change' },
+    { value: 'inventory_correction', label: 'Inventory Correction' },
+    { value: 'damaged_item', label: 'Item Was Damaged' },
+    { value: 'size_exchange', label: 'Size Exchange' },
     { value: 'staff_mistake', label: 'Staff Mistake' },
     { value: 'other', label: 'Other' }
 ];
@@ -67,6 +79,52 @@ export default function GuestDetailPage() {
     const [editedGuest, setEditedGuest] = useState({});
     const [saving, setSaving] = useState(false);
     const [event, setEvent] = useState(null);
+
+    // Get pick-up modal field display preferences from localStorage
+    const getPickupFieldPreferences = () => {
+        const saved = localStorage.getItem('inventoryPickupFieldPreferences');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+            }
+        }
+        // Default: show Brand and Size
+        return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+    };
+
+    // Format inventory item display based on preferences
+    const formatInventoryItemDisplay = (item) => {
+        const prefs = getPickupFieldPreferences();
+        const parts = [];
+
+        if (prefs.type && item.type) {
+            parts.push(item.type);
+        }
+        if (prefs.brand && item.style) {
+            parts.push(item.style);
+        }
+        if (prefs.product && item.product) {
+            parts.push(item.product);
+        }
+        if (prefs.size && item.size) {
+            parts.push(`Size ${item.size}`);
+        }
+        if (prefs.gender && item.gender && item.gender !== 'N/A') {
+            parts.push(item.gender);
+        }
+        if (prefs.color && item.color) {
+            parts.push(item.color);
+        }
+
+        // If no fields are selected, show at least brand and size as fallback
+        if (parts.length === 0) {
+            return `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''}`;
+        }
+
+        return parts.join(' - ');
+    };
     
     // Tag management states
     const [availableTags, setAvailableTags] = useState([]);
@@ -80,6 +138,8 @@ export default function GuestDetailPage() {
     const [selectedUndoReason, setSelectedUndoReason] = useState('');
     const [customUndoReason, setCustomUndoReason] = useState('');
     const [giftModificationReason, setGiftModificationReason] = useState('');
+    const [selectedGiftModificationReason, setSelectedGiftModificationReason] = useState('');
+    const [customGiftModificationReason, setCustomGiftModificationReason] = useState('');
     const [availableInventory, setAvailableInventory] = useState([]);
     const [modifiedGifts, setModifiedGifts] = useState([]);
     const [undoLoading, setUndoLoading] = useState(false);
@@ -235,7 +295,12 @@ export default function GuestDetailPage() {
     };
 
     const handleModifyGifts = async () => {
-        if (!selectedCheckin || !giftModificationReason.trim()) {
+        // Get the reason from dropdown or custom input
+        const reason = selectedGiftModificationReason === 'other' 
+            ? customGiftModificationReason.trim() 
+            : selectedGiftModificationReason;
+        
+        if (!selectedCheckin || !reason) {
             setError('Please provide a reason for modifying gifts');
             return;
         }
@@ -243,7 +308,7 @@ export default function GuestDetailPage() {
         try {
             setGiftModificationLoading(true);
             // Use the imported updateCheckinGifts function - pass additional data to help backend find the correct checkin
-            await updateCheckinGifts(selectedCheckin._id, modifiedGifts, giftModificationReason, guestId, selectedCheckin.eventId._id);
+            await updateCheckinGifts(selectedCheckin._id, modifiedGifts, reason, guestId, selectedCheckin.eventId._id);
             
             // Refresh guest data
             const guestResponse = await api.get(`/guests/${guestId}`);
@@ -251,6 +316,8 @@ export default function GuestDetailPage() {
             
             setGiftModificationDialogOpen(false);
             setGiftModificationReason('');
+            setSelectedGiftModificationReason('');
+            setCustomGiftModificationReason('');
             setSelectedCheckin(null);
             setModifiedGifts([]);
             setError(''); // Clear any previous errors
@@ -280,6 +347,8 @@ export default function GuestDetailPage() {
     const openGiftModificationDialog = async (checkin) => {
         setSelectedCheckin(checkin);
         setGiftModificationReason('');
+        setSelectedGiftModificationReason('');
+        setCustomGiftModificationReason('');
         
         // Fetch available inventory for the event
         try {
@@ -920,21 +989,34 @@ export default function GuestDetailPage() {
                                 Modify the gifts distributed to this guest. Changes will be reflected in inventory.
                             </Typography>
                             
-                            <Typography variant="body2" sx={{ mb: 2, p: 1, bgcolor: 'info.light', borderRadius: 1 }}>
-                                💡 <strong>Note:</strong> When modifying gifts, the system first restores the original gifts to inventory, then distributes the new gifts. Items showing "Out of Stock" may become available after the original gifts are restored.
-                            </Typography>
+                            <FormControl fullWidth sx={{ mb: 2 }}>
+                                <InputLabel>Reason for modification</InputLabel>
+                                <Select
+                                    value={selectedGiftModificationReason}
+                                    onChange={(e) => setSelectedGiftModificationReason(e.target.value)}
+                                    label="Reason for modification"
+                                >
+                                    {GIFT_MODIFICATION_REASONS.map((reason) => (
+                                        <MenuItem key={reason.value} value={reason.value}>
+                                            {reason.label}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
                             
-                            <TextField
-                                fullWidth
-                                label="Reason for modification"
-                                value={giftModificationReason}
-                                onChange={(e) => setGiftModificationReason(e.target.value)}
-                                multiline
-                                rows={2}
-                                placeholder="Enter a reason for modifying gifts..."
-                                sx={{ mb: 3 }}
-                                required
-                            />
+                            {selectedGiftModificationReason === 'other' && (
+                                <TextField
+                                    fullWidth
+                                    label="Please specify the reason"
+                                    value={customGiftModificationReason}
+                                    onChange={(e) => setCustomGiftModificationReason(e.target.value)}
+                                    multiline
+                                    rows={2}
+                                    placeholder="Enter the specific reason..."
+                                    sx={{ mb: 3 }}
+                                    required
+                                />
+                            )}
 
                             <Typography variant="subtitle2" sx={{ mb: 2 }}>
                                 Gifts ({modifiedGifts.length})
@@ -946,30 +1028,26 @@ export default function GuestDetailPage() {
                                         <ListItem key={index} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, mb: 1 }}>
                                             <ListItemText
                                                 primary={
-                                                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                                                        <FormControl size="small" sx={{ minWidth: 200 }}>
-                                                            <InputLabel>Gift</InputLabel>
-                                                            <Select
-                                                                value={gift.inventoryId}
-                                                                onChange={(e) => updateGift(index, 'inventoryId', e.target.value)}
-                                                                label="Gift"
-                                                            >
-                                                                {(Array.isArray(availableInventory) ? availableInventory : []).map((item) => (
-                                                                    <MenuItem key={item._id} value={item._id}>
-                                                                        {item.type} - {item.style} ({item.size})
-                                                                    </MenuItem>
-                                                                ))}
-                                                            </Select>
-                                                        </FormControl>
-                                                        <TextField
-                                                            type="number"
-                                                            label="Quantity"
-                                                            value={gift.quantity}
-                                                            onChange={(e) => updateGift(index, 'quantity', parseInt(e.target.value) || 1)}
-                                                            size="small"
-                                                            sx={{ width: 100 }}
-                                                            inputProps={{ min: 1 }}
-                                                        />
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                                                            <Box sx={{ flex: 1 }}>
+                                                                <HierarchicalInventorySelector
+                                                                    inventory={Array.isArray(availableInventory) ? availableInventory : []}
+                                                                    value={gift.inventoryId}
+                                                                    onChange={(inventoryId) => updateGift(index, 'inventoryId', inventoryId)}
+                                                                    eventName={selectedCheckin?.eventId?.eventName || 'Event'}
+                                                                />
+                                                            </Box>
+                                                            <TextField
+                                                                type="number"
+                                                                label="Quantity"
+                                                                value={gift.quantity}
+                                                                onChange={(e) => updateGift(index, 'quantity', parseInt(e.target.value) || 1)}
+                                                                size="small"
+                                                                sx={{ width: 100 }}
+                                                                inputProps={{ min: 1 }}
+                                                            />
+                                                        </Box>
                                                     </Box>
                                                 }
                                             />
@@ -1008,7 +1086,7 @@ export default function GuestDetailPage() {
                                 onClick={handleModifyGifts} 
                                 color="primary" 
                                 variant="contained"
-                                disabled={giftModificationLoading || !giftModificationReason.trim()}
+                                disabled={giftModificationLoading || !selectedGiftModificationReason || (selectedGiftModificationReason === 'other' && !customGiftModificationReason.trim())}
                                 startIcon={giftModificationLoading ? <CircularProgress size={20} /> : <SwapHoriz />}
                             >
                                 {giftModificationLoading ? 'Updating...' : 'Update Gifts'}
