@@ -73,6 +73,26 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [editTypeInputValue, setEditTypeInputValue] = useState('');
   const [showEditTypeInput, setShowEditTypeInput] = useState(false);
 
+  // Pick-up modal field display preferences (stored in localStorage)
+  const [pickupFieldPreferences, setPickupFieldPreferences] = useState(() => {
+    const saved = localStorage.getItem('inventoryPickupFieldPreferences');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+      }
+    }
+    // Default: show Brand and Size
+    return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+  });
+
+  const handlePickupFieldToggle = (field) => {
+    const updated = { ...pickupFieldPreferences, [field]: !pickupFieldPreferences[field] };
+    setPickupFieldPreferences(updated);
+    localStorage.setItem('inventoryPickupFieldPreferences', JSON.stringify(updated));
+  };
+
   // Predefined types in alphabetical order
   const predefinedTypes = ['Accessories', 'Apparel', 'Bags', 'Electronics', 'Hats', 'Sandals', 'Sneakers', 'Sunglasses'];
   
@@ -823,6 +843,70 @@ const InventoryPage = ({ eventId, eventName }) => {
       {success && <Snackbar open autoHideDuration={3000} onClose={() => setSuccess('')} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
         <Alert onClose={() => setSuccess('')} severity="success" sx={{ width: '100%' }}>{success}</Alert>
       </Snackbar>}
+
+      {/* Pick-up Modal Field Preferences Section - Only visible to Ops and Admin */}
+      {canModifyInventory && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Pick-up Modal Display Settings
+            </Typography>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+              Select which fields should appear in the guest pick-up modal dropdowns:
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Checkbox
+                  checked={pickupFieldPreferences.type}
+                  onChange={() => handlePickupFieldToggle('type')}
+                  inputProps={{ 'aria-label': 'Show Type in pick-up modal' }}
+                />
+                <Typography>Type</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Checkbox
+                  checked={pickupFieldPreferences.brand}
+                  onChange={() => handlePickupFieldToggle('brand')}
+                  inputProps={{ 'aria-label': 'Show Brand in pick-up modal' }}
+                />
+                <Typography>Brand</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Checkbox
+                  checked={pickupFieldPreferences.product}
+                  onChange={() => handlePickupFieldToggle('product')}
+                  inputProps={{ 'aria-label': 'Show Product in pick-up modal' }}
+                />
+                <Typography>Product</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Checkbox
+                  checked={pickupFieldPreferences.size}
+                  onChange={() => handlePickupFieldToggle('size')}
+                  inputProps={{ 'aria-label': 'Show Size in pick-up modal' }}
+                />
+                <Typography>Size</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Checkbox
+                  checked={pickupFieldPreferences.gender}
+                  onChange={() => handlePickupFieldToggle('gender')}
+                  inputProps={{ 'aria-label': 'Show Gender in pick-up modal' }}
+                />
+                <Typography>Gender</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Checkbox
+                  checked={pickupFieldPreferences.color}
+                  onChange={() => handlePickupFieldToggle('color')}
+                  inputProps={{ 'aria-label': 'Show Color in pick-up modal' }}
+                />
+                <Typography>Color</Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
       {loading ? (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px"><CircularProgress /></Box>
       ) : (

@@ -67,6 +67,52 @@ export default function GuestDetailPage() {
     const [editedGuest, setEditedGuest] = useState({});
     const [saving, setSaving] = useState(false);
     const [event, setEvent] = useState(null);
+
+    // Get pick-up modal field display preferences from localStorage
+    const getPickupFieldPreferences = () => {
+        const saved = localStorage.getItem('inventoryPickupFieldPreferences');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+            }
+        }
+        // Default: show Brand and Size
+        return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+    };
+
+    // Format inventory item display based on preferences
+    const formatInventoryItemDisplay = (item) => {
+        const prefs = getPickupFieldPreferences();
+        const parts = [];
+
+        if (prefs.type && item.type) {
+            parts.push(item.type);
+        }
+        if (prefs.brand && item.style) {
+            parts.push(item.style);
+        }
+        if (prefs.product && item.product) {
+            parts.push(item.product);
+        }
+        if (prefs.size && item.size) {
+            parts.push(`Size ${item.size}`);
+        }
+        if (prefs.gender && item.gender && item.gender !== 'N/A') {
+            parts.push(item.gender);
+        }
+        if (prefs.color && item.color) {
+            parts.push(item.color);
+        }
+
+        // If no fields are selected, show at least brand and size as fallback
+        if (parts.length === 0) {
+            return `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''}`;
+        }
+
+        return parts.join(' - ');
+    };
     
     // Tag management states
     const [availableTags, setAvailableTags] = useState([]);
@@ -956,7 +1002,7 @@ export default function GuestDetailPage() {
                                                             >
                                                                 {(Array.isArray(availableInventory) ? availableInventory : []).map((item) => (
                                                                     <MenuItem key={item._id} value={item._id}>
-                                                                        {item.type} - {item.style} ({item.size})
+                                                                        {formatInventoryItemDisplay(item)}
                                                                     </MenuItem>
                                                                 ))}
                                                             </Select>

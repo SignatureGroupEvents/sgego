@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { CheckCircleOutline as CheckCircleIcon } from '@mui/icons-material';
 import HomeIcon from '@mui/icons-material/Home';
+import HierarchicalInventorySelector from './HierarchicalInventorySelector';
 
 const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onInventoryChange }) => {
   const [qrData, setQrData] = useState('');
@@ -24,6 +25,52 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [isCheckedIn, setIsCheckedIn] = useState(false);
+
+  // Get pick-up modal field display preferences from localStorage
+  const getPickupFieldPreferences = () => {
+    const saved = localStorage.getItem('inventoryPickupFieldPreferences');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+      }
+    }
+    // Default: show Brand and Size
+    return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+  };
+
+  // Format inventory item display based on preferences
+  const formatInventoryItemDisplay = (item) => {
+    const prefs = getPickupFieldPreferences();
+    const parts = [];
+
+    if (prefs.type && item.type) {
+      parts.push(item.type);
+    }
+    if (prefs.brand && item.style) {
+      parts.push(item.style);
+    }
+    if (prefs.product && item.product) {
+      parts.push(item.product);
+    }
+    if (prefs.size && item.size) {
+      parts.push(`Size ${item.size}`);
+    }
+    if (prefs.gender && item.gender && item.gender !== 'N/A') {
+      parts.push(item.gender);
+    }
+    if (prefs.color && item.color) {
+      parts.push(item.color);
+    }
+
+    // If no fields are selected, show at least brand and size as fallback
+    if (parts.length === 0) {
+      return `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''}`;
+    }
+
+    return parts.join(' - ');
+  };
 
   React.useEffect(() => {
     // Always fetch check-in context for the event
@@ -334,36 +381,16 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
               });
               
               return (
-                <Box key={ev._id} sx={{ mb: 2 }}>
+                <Box key={ev._id} sx={{ mb: 3 }}>
                   <Typography variant="body2" fontWeight={500} gutterBottom>
                     {ev.eventName} Gift:
                   </Typography>
-                  <FormControl fullWidth size="small">
-                    <InputLabel id={`${ev._id}-gift-label`}>Select a gift</InputLabel>
-                    <Select
-                      labelId={`${ev._id}-gift-label`}
-                      id={`${ev._id}-gift`}
-                      value={currentSelection}
-                      label="Select a gift"
-                      onChange={e => handleGiftChange(ev._id, e.target.value)}
-                      MenuProps={{
-                        PaperProps: {
-                          sx: {
-                            zIndex: 9999
-                          }
-                        }
-                      }}
-                    >
-                      <MenuItem value="">
-                        <em>None</em>
-                      </MenuItem>
-                      {(context.inventoryByEvent?.[ev._id] || []).map(gift => (
-                        <MenuItem key={gift._id} value={gift._id}>
-                          {gift.style} ({gift.size})
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <HierarchicalInventorySelector
+                    inventory={context.inventoryByEvent?.[ev._id] || []}
+                    value={currentSelection}
+                    onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
+                    eventName={ev.eventName}
+                  />
                 </Box>
               );
               });
