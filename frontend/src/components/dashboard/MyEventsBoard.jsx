@@ -112,6 +112,24 @@ const MyEventsBoard = () => {
     return normalizedEventStatus === normalizedFilterStatus && !event.isArchived;
   };
 
+  // Helper function to check if event is currently active
+  const isEventActive = (event) => {
+    if (event.isArchived) return false;
+    const status = normalizeStatus(event.status);
+    if (status !== 'active') return false;
+    
+    // Check if event is within date range (optional - can be enhanced)
+    const now = new Date();
+    const startDate = event.eventStart ? new Date(event.eventStart) : null;
+    const endDate = event.eventEnd ? new Date(event.eventEnd) : null;
+    
+    // Event is active if it has started and hasn't ended (or has no end date)
+    if (startDate && now < startDate) return false;
+    if (endDate && now > endDate) return false;
+    
+    return true;
+  };
+
   useEffect(() => {
     loadAllData();
   }, []);
@@ -342,7 +360,9 @@ const MyEventsBoard = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {events.map((event) => (
+            {events.map((event) => {
+              const isActive = isEventActive(event);
+              return (
               <TableRow key={event._id} hover>
                 <TableCell>
                   <Typography 
@@ -374,18 +394,35 @@ const MyEventsBoard = () => {
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <Chip 
-                    label={formatStatusForDisplay(event)} 
-                    size="small" 
-                    color={
-                      event.isArchived 
-                        ? 'default' 
-                        : normalizeStatus(event.status) === 'closed' 
-                          ? 'success' 
-                          : 'default'
-                    }
-                    sx={{ borderRadius: 1 }}
-                  />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip 
+                      label={formatStatusForDisplay(event)} 
+                      size="small" 
+                      color={
+                        event.isArchived 
+                          ? 'default' 
+                          : normalizeStatus(event.status) === 'closed' 
+                            ? 'success' 
+                            : 'default'
+                      }
+                      sx={{ borderRadius: 1 }}
+                    />
+                    {isActive && (
+                      <Tooltip title="Live Event - Currently Open">
+                        <Box
+                          sx={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: '50%',
+                            backgroundColor: '#393ce0',
+                            boxShadow: '0 0 6px #393ce0, 0 0 10px #393ce0',
+                            animation: 'pulse-glow 2s ease-in-out infinite',
+                            flexShrink: 0,
+                          }}
+                        />
+                      </Tooltip>
+                    )}
+                  </Box>
                 </TableCell>
                 <TableCell>
                   <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -424,7 +461,8 @@ const MyEventsBoard = () => {
                   </TableCell>
                 )}
               </TableRow>
-            ))}
+            );
+            })}
           </TableBody>
         </Table>
       </TableContainer>
@@ -727,7 +765,9 @@ const MyEventsBoard = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredAvailableEvents.map((event) => (
+                    {filteredAvailableEvents.map((event) => {
+                      const isActive = isEventActive(event);
+                      return (
                       <TableRow 
                         key={event._id}
                         hover
@@ -765,18 +805,35 @@ const MyEventsBoard = () => {
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Chip 
-                            label={formatStatusForDisplay(event)} 
-                            size="small" 
-                            color={
-                              event.isArchived 
-                                ? 'default' 
-                                : normalizeStatus(event.status) === 'closed' 
-                                  ? 'success' 
-                                  : 'default'
-                            }
-                            sx={{ borderRadius: 1 }}
-                          />
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Chip 
+                              label={formatStatusForDisplay(event)} 
+                              size="small" 
+                              color={
+                                event.isArchived 
+                                  ? 'default' 
+                                  : normalizeStatus(event.status) === 'closed' 
+                                    ? 'success' 
+                                    : 'default'
+                              }
+                              sx={{ borderRadius: 1 }}
+                            />
+                            {isActive && (
+                              <Tooltip title="Active Event">
+                                <Box
+                                  sx={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: '50%',
+                                    backgroundColor: '#393ce0',
+                                    boxShadow: '0 0 6px #393ce0, 0 0 10px #393ce0',
+                                    animation: 'pulse-glow 2s ease-in-out infinite',
+                                    flexShrink: 0,
+                                  }}
+                                />
+                              </Tooltip>
+                            )}
+                          </Box>
                         </TableCell>
                         {/* <TableCell>
                           <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -804,7 +861,8 @@ const MyEventsBoard = () => {
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    );
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>

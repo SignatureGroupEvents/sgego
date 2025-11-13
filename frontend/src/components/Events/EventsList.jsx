@@ -158,6 +158,43 @@ const EventsList = () => {
   // Staff can view all events but cannot modify them
   const canViewEvents = isOperationsManager || isAdmin || currentUser?.role === 'staff';
 
+  // Helper function to normalize status for comparison
+  const normalizeStatus = (status) => {
+    if (!status) return 'active';
+    const statusLower = status.toLowerCase();
+    // Map common status values to backend values
+    if (statusLower === 'completed' || statusLower === 'closed') return 'closed';
+    if (statusLower === 'archived') return 'archived';
+    return 'active'; // default
+  };
+
+  // Helper function to format status for display
+  const formatStatusForDisplay = (event) => {
+    if (event.isArchived) return 'Archived';
+    if (!event.status) return 'Active';
+    const statusLower = event.status.toLowerCase();
+    if (statusLower === 'closed' || statusLower === 'completed') return 'Completed';
+    return 'Active'; // default
+  };
+
+  // Helper function to check if event is currently active
+  const isEventActive = (event) => {
+    if (event.isArchived) return false;
+    const status = normalizeStatus(event.status);
+    if (status !== 'active') return false;
+    
+    // Check if event is within date range
+    const now = new Date();
+    const startDate = event.eventStart ? new Date(event.eventStart) : null;
+    const endDate = event.eventEnd ? new Date(event.eventEnd) : null;
+    
+    // Event is active if it has started and hasn't ended (or has no end date)
+    if (startDate && now < startDate) return false;
+    if (endDate && now > endDate) return false;
+    
+    return true;
+  };
+
   useEffect(() => {
     const fetchAllEvents = async () => {
       try {
@@ -529,12 +566,35 @@ const EventsList = () => {
                           </Box>
                         </TableCell>
                         <TableCell>
-                          <Chip
-                            label={event.status || 'Active'}
-                            size="small"
-                            color={event.status === 'closed' ? 'error' : event.status === 'active' ? 'success' : 'default'}
-                            sx={{ borderRadius: 1 }}
-                          />
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Chip
+                              label={formatStatusForDisplay(event)}
+                              size="small"
+                              color={
+                                event.isArchived 
+                                  ? 'default' 
+                                  : normalizeStatus(event.status) === 'closed' 
+                                    ? 'success' 
+                                    : 'default'
+                              }
+                              sx={{ borderRadius: 1 }}
+                            />
+                            {isEventActive(event) && (
+                              <Tooltip title="Live Event - Currently Open">
+                                <Box
+                                  sx={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: '50%',
+                                    backgroundColor: '#393ce0',
+                                    boxShadow: '0 0 6px #393ce0, 0 0 10px #393ce0',
+                                    animation: 'pulse-glow 2s ease-in-out infinite',
+                                    flexShrink: 0,
+                                  }}
+                                />
+                              </Tooltip>
+                            )}
+                          </Box>
                         </TableCell>
                         <TableCell align="center">
                           <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
