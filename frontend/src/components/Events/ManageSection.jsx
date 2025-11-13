@@ -5,6 +5,7 @@ import UploadIcon from '@mui/icons-material/Upload';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventIcon from '@mui/icons-material/Event';
 import DeleteIcon from '@mui/icons-material/Delete';
+import PeopleIcon from '@mui/icons-material/People';
 
 const BUTTON_SIZE = { xs: '100%', sm: 250 };
 
@@ -14,7 +15,9 @@ const ManageSection = ({
   onAddGuest,
   onAddEvent,
   onDeleteEvent,
-  canModify
+  onManageTeam,
+  canModify,
+  canManageTeam
 }) => (
   <Box
     sx={{
@@ -133,6 +136,22 @@ const ManageSection = ({
           }}
         >
           Delete Event
+        </Button>
+      )}
+      {canManageTeam && (
+        <Button
+          variant="outlined"
+          startIcon={<PeopleIcon />}
+          onClick={onManageTeam}
+          sx={{
+            borderRadius: 5,
+            fontWeight: 600,
+            minWidth: BUTTON_SIZE,
+            width: BUTTON_SIZE,
+            height: 40,
+          }}
+        >
+          Manage Your Team
         </Button>
       )}
     </Box>

@@ -17,6 +17,7 @@ import UploadInventory from './components/Inventory/UploadInventory.jsx';
 import DashboardLayout from './components/layout/DashboardLayout';
 import EventDashboardWrapper from './components/Events/EventDashboardWrapper.jsx';
 import InventoryPageWrapper from './components/Inventory/InventoryPage.jsx';
+import ManageTeamWrapper from './components/Events/ManageTeam.jsx';
 import AccountPage from "./pages/account/AccountPage.jsx";
 import AccountEditPage from "./pages/account/AccountEditPage.jsx";
 // import f from "./pages/user-management/UserManagement.jsx";
@@ -112,6 +113,11 @@ function App() {
             <Route path="/events/:eventId/inventory/upload" element={
               <ProtectedRoute>
                 <UploadInventory />
+              </ProtectedRoute>
+            } />
+            <Route path="/events/:eventId/team" element={
+              <ProtectedRoute>
+                <ManageTeamWrapper />
               </ProtectedRoute>
             } />
             <Route path="/events/:eventId/guests/:guestId" element={

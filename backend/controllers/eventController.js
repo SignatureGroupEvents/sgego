@@ -26,7 +26,7 @@ exports.getEvents = async (req, res) => {
     }
 
     const events = await Event.find(filter)
-      .populate('createdBy', 'username email')
+      .populate('createdBy', 'username email profileColor firstName lastName')
       .sort({ createdAt: -1 });
 
     res.json({ events });
@@ -87,7 +87,7 @@ exports.createEvent = async (req, res) => {
     }
 
     const event = await Event.create(eventData);
-    await event.populate(['createdBy']);
+    await event.populate('createdBy', 'username email profileColor firstName lastName');
 
     // Log event creation
     await ActivityLog.create({
@@ -116,7 +116,7 @@ exports.createEvent = async (req, res) => {
 exports.getEvent = async (req, res) => {
   try {
     const event = await Event.findById(req.params.id)
-      .populate('createdBy', 'username email');
+      .populate('createdBy', 'username email profileColor firstName lastName');
 
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
@@ -143,7 +143,7 @@ exports.updateEvent = async (req, res) => {
       req.params.id,
       req.body,
       { new: true, runValidators: true }
-    ).populate('createdBy', 'username email');
+    ).populate('createdBy', 'username email profileColor firstName lastName');
 
     // Log event update
     await ActivityLog.create({
@@ -712,7 +712,7 @@ exports.updateEventStatus = async (req, res) => {
       req.params.id,
       { status },
       { new: true, runValidators: true }
-    ).populate('createdBy', 'username email');
+    ).populate('createdBy', 'username email profileColor firstName lastName');
 
     console.log('UpdateEventStatus - Event updated successfully:', updatedEvent);
 

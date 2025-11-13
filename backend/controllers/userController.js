@@ -121,7 +121,7 @@ const updateUserProfile = async (req, res) => {
   try {
     console.log('PUT /users/profile body:', req.body);
     const { userId } = req.params;
-    const { email, username, currentPassword, newPassword } = req.body;
+    const { email, username, firstName, lastName, profileColor, currentPassword, newPassword } = req.body;
     const targetUserId = userId || req.user.id;
     const user = await User.findById(targetUserId);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -138,6 +138,9 @@ const updateUserProfile = async (req, res) => {
       if (usernameExists) return res.status(400).json({ message: 'Username already in use' });
       user.username = username;
     }
+    if (firstName !== undefined) user.firstName = firstName;
+    if (lastName !== undefined) user.lastName = lastName;
+    if (profileColor !== undefined) user.profileColor = profileColor || null;
     if (newPassword) {
       if (!currentPassword) return res.status(400).json({ message: 'Current password is required' });
       const isPasswordValid = await user.comparePassword(currentPassword);
@@ -152,6 +155,9 @@ const updateUserProfile = async (req, res) => {
         id: user._id,
         email: user.email,
         username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileColor: user.profileColor,
         role: user.role
       }
     });
@@ -257,6 +263,194 @@ const getAvailableEvents = async (req, res) => {
       .select('eventName eventContractNumber eventStart')
       .sort({ eventStart: -1 });
     res.json({ events });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Get all users assigned to a specific event
+const getEventAssignedUsers = async (req, res) => {
+  try {
+    const { id: eventId } = req.params;
+    
+    if (req.user.role === 'staff') {
+      return res.status(403).json({ message: 'Staff cannot view event assignments' });
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    const assignments = await UserAssignment.find({ 
+      eventId, 
+      isActive: true 
+    })
+      .populate('userId', 'username email role profileColor firstName lastName')
+      .populate('assignedBy', 'username email profileColor firstName lastName')
+      .populate('allocatedToSecondaryEventId', 'eventName eventContractNumber')
+      .sort({ assignedAt: -1 });
+
+    res.json({ 
+      success: true,
+      assignments: assignments.map(a => ({
+        _id: a._id,
+        user: a.userId,
+        assignedBy: a.assignedBy,
+        allocatedToSecondaryEvent: a.allocatedToSecondaryEventId,
+        assignedAt: a.assignedAt
+      }))
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Assign users to an event
+const assignUsersToEvent = async (req, res) => {
+  try {
+    const { id: eventId } = req.params;
+    const { userIds, allocatedToSecondaryEventId } = req.body;
+
+    if (req.user.role === 'staff') {
+      return res.status(403).json({ message: 'Staff cannot assign users to events' });
+    }
+
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ message: 'User IDs array is required' });
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    // Validate secondary event if provided
+    if (allocatedToSecondaryEventId) {
+      const secondaryEvent = await Event.findById(allocatedToSecondaryEventId);
+      if (!secondaryEvent) {
+        return res.status(404).json({ message: 'Secondary event not found' });
+      }
+      if (secondaryEvent.parentEventId?.toString() !== eventId && secondaryEvent._id.toString() !== eventId) {
+        return res.status(400).json({ message: 'Secondary event must be a child of the main event' });
+      }
+    }
+
+    // Validate all users exist
+    const users = await User.find({ _id: { $in: userIds }, isActive: true });
+    if (users.length !== userIds.length) {
+      return res.status(400).json({ message: 'One or more users not found or inactive' });
+    }
+
+    // Create or update assignments
+    const assignments = [];
+    for (const userId of userIds) {
+      // Check if assignment already exists
+      const existing = await UserAssignment.findOne({ userId, eventId, isActive: true });
+      if (existing) {
+        // Update existing assignment
+        existing.allocatedToSecondaryEventId = allocatedToSecondaryEventId || null;
+        existing.assignedBy = req.user.id;
+        existing.assignedAt = new Date();
+        await existing.save();
+        assignments.push(existing);
+      } else {
+        // Create new assignment
+        const assignment = await UserAssignment.create({
+          userId,
+          eventId,
+          assignedBy: req.user.id,
+          allocatedToSecondaryEventId: allocatedToSecondaryEventId || null
+        });
+        assignments.push(assignment);
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Users assigned to event successfully',
+      assignments: assignments.length
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Remove a user from an event
+const removeUserFromEvent = async (req, res) => {
+  try {
+    const { id: eventId, assignmentId } = req.params;
+
+    if (req.user.role === 'staff') {
+      return res.status(403).json({ message: 'Staff cannot remove users from events' });
+    }
+
+    const assignment = await UserAssignment.findById(assignmentId);
+    if (!assignment) {
+      return res.status(404).json({ message: 'Assignment not found' });
+    }
+
+    if (assignment.eventId.toString() !== eventId) {
+      return res.status(400).json({ message: 'Assignment does not belong to this event' });
+    }
+
+    assignment.isActive = false;
+    await assignment.save();
+
+    res.json({ 
+      success: true, 
+      message: 'User removed from event successfully' 
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Update a user's event allocation
+const updateUserAssignment = async (req, res) => {
+  try {
+    const { id: eventId, assignmentId } = req.params;
+    const { allocatedToSecondaryEventId } = req.body;
+
+    if (req.user.role === 'staff') {
+      return res.status(403).json({ message: 'Staff cannot update event assignments' });
+    }
+
+    const assignment = await UserAssignment.findById(assignmentId);
+    if (!assignment) {
+      return res.status(404).json({ message: 'Assignment not found' });
+    }
+
+    if (assignment.eventId.toString() !== eventId) {
+      return res.status(400).json({ message: 'Assignment does not belong to this event' });
+    }
+
+    // Validate secondary event if provided
+    if (allocatedToSecondaryEventId) {
+      const secondaryEvent = await Event.findById(allocatedToSecondaryEventId);
+      if (!secondaryEvent) {
+        return res.status(404).json({ message: 'Secondary event not found' });
+      }
+      // Check if secondary event belongs to the main event
+      if (secondaryEvent.parentEventId?.toString() !== eventId && secondaryEvent._id.toString() !== eventId) {
+        return res.status(400).json({ message: 'Secondary event must be a child of the main event' });
+      }
+    }
+
+    // Update the allocation
+    assignment.allocatedToSecondaryEventId = allocatedToSecondaryEventId || null;
+    assignment.assignedBy = req.user.id;
+    assignment.assignedAt = new Date();
+    await assignment.save();
+
+    res.json({ 
+      success: true, 
+      message: 'User allocation updated successfully',
+      assignment: {
+        _id: assignment._id,
+        allocatedToSecondaryEventId: assignment.allocatedToSecondaryEventId
+      }
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -417,18 +611,79 @@ const sendPasswordResetLink = async (req, res) => {
 // Get user's My Events board (events they added to their board)
 const getMyEvents = async (req, res) => {
   try {
+    // For staff users, only show events they're assigned to
+    if (req.user.role === 'staff') {
+      const assignments = await UserAssignment.find({ 
+        userId: req.user.id, 
+        isActive: true 
+      })
+        .populate({
+          path: 'eventId',
+          select: 'eventName eventContractNumber eventStart eventEnd isMainEvent parentEventId status includeStyles allowMultipleGifts createdBy',
+          populate: {
+            path: 'createdBy',
+            select: 'username email profileColor firstName lastName'
+          }
+        })
+        .sort({ assignedAt: -1 });
+      
+      // Filter out null events (in case event was deleted)
+      const events = assignments
+        .map(a => a.eventId)
+        .filter(e => e !== null);
+      
+      return res.json({ myEvents: events });
+    }
+    
+    // For ops and admin, show events they added to their board
     const myEvents = await UserMyEvent.find({ userId: req.user.id })
       .populate({
         path: 'eventId',
         select: 'eventName eventContractNumber eventStart eventEnd isMainEvent parentEventId status includeStyles allowMultipleGifts createdBy',
         populate: {
           path: 'createdBy',
-          select: 'username email'
+          select: 'username email profileColor firstName lastName'
         }
       })
       .sort({ position: 1, addedAt: -1 });
     
-    res.json({ myEvents: myEvents.map(f => f.eventId) });
+    res.json({ myEvents: myEvents.map(f => f.eventId).filter(e => e !== null) });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Get events assigned to the current user (via UserAssignment)
+const getMyAssignedEvents = async (req, res) => {
+  try {
+    const assignments = await UserAssignment.find({ 
+      userId: req.user.id, 
+      isActive: true 
+    })
+      .populate({
+        path: 'eventId',
+        select: 'eventName eventContractNumber eventStart eventEnd isMainEvent parentEventId status includeStyles allowMultipleGifts createdBy isArchived',
+        populate: {
+          path: 'createdBy',
+          select: 'username email profileColor firstName lastName'
+        }
+      })
+      .populate('allocatedToSecondaryEventId', 'eventName eventContractNumber')
+      .sort({ assignedAt: -1 });
+    
+    // Filter out null events (in case event was deleted)
+    const events = assignments
+      .map(a => {
+        const event = a.eventId;
+        if (!event) return null;
+        return {
+          ...event.toObject(),
+          allocatedToSecondaryEvent: a.allocatedToSecondaryEventId
+        };
+      })
+      .filter(e => e !== null);
+    
+    res.json({ assignedEvents: events });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -439,6 +694,70 @@ const getMyCreatedEvents = async (req, res) => {
   try {
     const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search = '', status } = req.query;
     
+    // For staff users, show events they're assigned to (not events they created, since staff can't create events)
+    if (req.user.role === 'staff') {
+      const assignments = await UserAssignment.find({ 
+        userId: req.user.id, 
+        isActive: true 
+      }).select('eventId');
+      
+      const assignedEventIds = assignments.map(a => a.eventId);
+      
+      if (assignedEventIds.length === 0) {
+        return res.json({
+          events: [],
+          totalPages: 0,
+          currentPage: page,
+          total: 0
+        });
+      }
+      
+      const filter = { 
+        _id: { $in: assignedEventIds },
+        isActive: true 
+      };
+      
+      // Add status filter
+      if (status) {
+        const statusLower = status.toLowerCase();
+        if (statusLower === 'archived') {
+          filter.isArchived = true;
+        } else {
+          filter.isArchived = false;
+          filter.status = statusLower;
+        }
+      } else {
+        filter.isArchived = false;
+      }
+      
+      // Add search filter
+      if (search) {
+        filter.$or = [
+          { eventName: { $regex: search, $options: 'i' } },
+          { eventContractNumber: { $regex: search, $options: 'i' } }
+        ];
+      }
+      
+      const sortOptions = {};
+      sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+      
+      const events = await Event.find(filter)
+        .populate('createdBy', 'username email profileColor firstName lastName')
+        .sort(sortOptions)
+        .limit(limit * 1)
+        .skip((page - 1) * limit);
+      
+      const total = await Event.countDocuments(filter);
+      
+      return res.json({
+        events,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        total
+      });
+    }
+    
+    // For ops and admin, show events they created
     const filter = { 
       createdBy: req.user.id,
       isActive: true 
@@ -471,7 +790,7 @@ const getMyCreatedEvents = async (req, res) => {
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
     
     const events = await Event.find(filter)
-      .populate('createdBy', 'username email')
+      .populate('createdBy', 'username email profileColor firstName lastName')
       .sort(sortOptions)
       .limit(limit * 1)
       .skip((page - 1) * limit);
@@ -577,12 +896,17 @@ module.exports = {
   assignUserToEvents,
   getUserAssignedEvents,
   getAvailableEvents,
+  getEventAssignedUsers,
+  assignUsersToEvent,
+  removeUserFromEvent,
+  updateUserAssignment,
   deactivateUser,
   deleteUser,
   resetUserPassword,
   sendPasswordResetLink,
   getMyEvents,
   getMyCreatedEvents,
+  getMyAssignedEvents,
   addToMyEvents,
   removeFromMyEvents,
   updateMyEventsPositions

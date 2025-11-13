@@ -252,7 +252,9 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         onAddGuest={handleAddGuest}
         onAddEvent={() => setSecondaryModalOpen(true)}
         onDeleteEvent={handleDeleteEvent}
+        onManageTeam={() => navigate(`/events/${eventId}/team`)}
         canModify={canModifyEvents}
+        canManageTeam={canModifyEvents}
       />
 
       {/* Guest Table */}
@@ -359,6 +361,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
           </Button>
         </DialogActions>
       </Dialog>
+
     </MainLayout>
   );
 };

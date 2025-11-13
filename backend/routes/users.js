@@ -18,6 +18,7 @@ const {
   sendPasswordResetLink,
   getMyEvents,
   getMyCreatedEvents,
+  getMyAssignedEvents,
   addToMyEvents,
   removeFromMyEvents,
   updateMyEventsPositions
@@ -66,6 +67,7 @@ router.post('/:userId/send-reset-link', requireRole('admin'), sendPasswordResetL
 // My Events routes
 router.get('/my-events', getMyEvents);
 router.get('/my-created-events', getMyCreatedEvents);
+router.get('/my-assigned-events', getMyAssignedEvents);
 router.post('/my-events', addToMyEvents);
 router.delete('/my-events/:eventId', removeFromMyEvents);
 router.put('/my-events/positions', updateMyEventsPositions);

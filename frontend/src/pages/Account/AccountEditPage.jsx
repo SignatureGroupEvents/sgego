@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box, Typography, TextField, Button, Alert, CircularProgress, Card, CardContent, MenuItem, Snackbar, Table, TableBody, TableCell, TableRow, IconButton, Select, FormControl, Divider, InputAdornment, Paper
+  Box, Typography, TextField, Button, Alert, CircularProgress, Card, CardContent, MenuItem, Snackbar, Table, TableBody, TableCell, TableRow, IconButton, Select, FormControl, Divider, InputAdornment, Paper, Grid, Tooltip, Avatar
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
@@ -27,7 +27,16 @@ const fields = [
 const AccountEditPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user: currentUser } = useAuth();
+  
+  // Determine where to navigate back to based on the route
+  const getReturnPath = () => {
+    if (location.pathname.includes('/profile/edit')) {
+      return `/profile/${userId}`;
+    }
+    return '/account';
+  };
   const { isAdmin, isOperationsManager } = usePermissions();
     const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +58,7 @@ const AccountEditPage = () => {
   // Password visibility states
   const [showPassword, setShowPassword] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   // Determine if current user can modify this profile
   const canModifyProfile = isAdmin || isOperationsManager || (currentUser?.id === userId);
@@ -60,6 +70,7 @@ const AccountEditPage = () => {
     lastName: '',
     email: '',
     role: '',
+    profileColor: '',
   });
   useEffect(() => {
     if (user) {
@@ -76,6 +87,7 @@ const AccountEditPage = () => {
         lastName,
         email: user.email || '',
         role: user.role || '',
+        profileColor: user.profileColor || '',
       });
     }
   }, [user]);
@@ -85,7 +97,8 @@ const AccountEditPage = () => {
     formState.firstName !== (user?.firstName || '') ||
     formState.lastName !== (user?.lastName || '') ||
     formState.email !== (user?.email || '') ||
-    formState.role !== (user?.role || '');
+    formState.role !== (user?.role || '') ||
+    formState.profileColor !== (user?.profileColor || '');
 
   // Handlers for field changes
   const handleFieldChange = (key, value) => {
@@ -133,6 +146,7 @@ const AccountEditPage = () => {
     if (formState.lastName !== (user?.lastName || '')) { updates.lastName = formState.lastName; nameChanged = true; }
     if (formState.email !== (user?.email || '')) updates.email = formState.email;
     if (formState.role !== (user?.role || '')) updates.role = formState.role;
+    if (formState.profileColor !== (user?.profileColor || '')) updates.profileColor = formState.profileColor || null;
     if (nameChanged) updates.username = `${formState.firstName} ${formState.lastName}`.trim();
     if (Object.keys(updates).length === 0) return;
     setSaving(true);
@@ -141,7 +155,7 @@ const AccountEditPage = () => {
       if (updates.role) {
         await updateUserRole(userId, updates.role);
       }
-      if (updates.firstName || updates.lastName || updates.email || updates.username) {
+      if (updates.firstName || updates.lastName || updates.email || updates.username || updates.profileColor !== undefined) {
         await api.put(`/users/profile/${userId}`, updates);
       }
       toast.success('Account updated successfully!');
@@ -259,7 +273,15 @@ const AccountEditPage = () => {
     );
   }
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <MainLayout>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <CircularProgress size={60} />
+        </Box>
+      </MainLayout>
+    );
+  }
 
   // Role-based edit permissions
   const canEditNames = isAdmin || isOperationsManager;
@@ -271,13 +293,13 @@ const AccountEditPage = () => {
   const statusLabel = user.isActive ? 'Active' : 'Pending';
 
   return (
-    <MainLayout userName={user?.username}>
+    <MainLayout userName={user?.username || user?.email || 'User'}>
       {/* Header with Return Button */}
       <Box display="flex" alignItems="center" mb={4}>
           <Button
             variant="contained"
             startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/account')}
+            onClick={() => navigate(getReturnPath())}
             sx={{ 
               backgroundColor: '#1bcddc', 
               color: '#fff', 
@@ -289,7 +311,7 @@ const AccountEditPage = () => {
               '&:hover': { backgroundColor: '#17b3c0' } 
             }}
           >
-            RETURN TO ACCOUNT PAGE
+            {location.pathname.includes('/profile/edit') ? 'RETURN TO PROFILE' : 'RETURN TO ACCOUNT PAGE'}
           </Button>
         </Box>
 
@@ -382,6 +404,96 @@ const AccountEditPage = () => {
                   </Box>
                 )}
               </Box>
+              {/* Profile Color Picker - Only for own profile */}
+              {isOwnProfile && (
+                <Box>
+                  <Typography fontWeight={600} mb={1} color="#222">Profile Color</Typography>
+                  <Box display="flex" alignItems="center" gap={2} mb={1}>
+                    <Avatar
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        bgcolor: formState.profileColor || undefined,
+                        border: '2px solid',
+                        borderColor: 'divider',
+                        cursor: 'pointer',
+                        fontSize: '1.5rem',
+                        fontWeight: 600
+                      }}
+                      onClick={() => setShowColorPicker(!showColorPicker)}
+                    >
+                      {user?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
+                    </Avatar>
+                    <Button
+                      variant="outlined"
+                      onClick={() => setShowColorPicker(!showColorPicker)}
+                      sx={{ borderRadius: 2 }}
+                    >
+                      {showColorPicker ? 'Hide Colors' : 'Choose Color'}
+                    </Button>
+                    {formState.profileColor && (
+                      <Button
+                        variant="text"
+                        size="small"
+                        onClick={() => handleFieldChange('profileColor', '')}
+                        sx={{ color: 'text.secondary' }}
+                      >
+                        Reset
+                      </Button>
+                    )}
+                  </Box>
+                  {showColorPicker && (
+                    <Paper
+                      elevation={3}
+                      sx={{
+                        mt: 2,
+                        p: 2,
+                        borderRadius: 2,
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 1.5,
+                        maxWidth: 500,
+                        backgroundColor: '#fafafa'
+                      }}
+                    >
+                      {[
+                        '#1bcddc', '#31365E', '#CB1033', '#FAA951',
+                        '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
+                        '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
+                        '#BB8FCE', '#85C1E2', '#F8B739', '#E74C3C',
+                        '#3498DB', '#2ECC71', '#9B59B6', '#E67E22',
+                        '#1ABC9C', '#34495E', '#F39C12', '#E91E63'
+                      ].map((color) => (
+                        <Tooltip key={color} title={color}>
+                          <Box
+                            onClick={() => {
+                              handleFieldChange('profileColor', color);
+                              setShowColorPicker(false);
+                            }}
+                            sx={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: '50%',
+                              bgcolor: color,
+                              cursor: 'pointer',
+                              border: formState.profileColor === color ? '3px solid #31365E' : '2px solid #ddd',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                transform: 'scale(1.2)',
+                                boxShadow: `0 0 0 4px ${color}40`,
+                                zIndex: 1
+                              }
+                            }}
+                          />
+                        </Tooltip>
+                      ))}
+                    </Paper>
+                  )}
+                  <Typography variant="caption" color="text.secondary" mt={1} display="block">
+                    Choose a color for your profile avatar. Leave empty to use auto-generated color.
+                  </Typography>
+                </Box>
+              )}
             </Box>
             {error && <Alert severity="error" sx={{ my: 2 }}>{error}</Alert>}
             <Box mt={5} display="flex" justifyContent="flex-end">
