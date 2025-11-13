@@ -65,9 +65,70 @@ const MyEventsBoard = () => {
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [totalCreatedEvents, setTotalCreatedEvents] = useState(0);
   
-  // Sorting state
+  // Sorting state for created events (server-side)
   const [sortBy, setSortBy] = useState('eventStart');
   const [sortOrder, setSortOrder] = useState('desc');
+  
+  // Filter and sort state for added events (client-side)
+  const [addedEventsSearchTerm, setAddedEventsSearchTerm] = useState('');
+  const [addedEventsStatusFilter, setAddedEventsStatusFilter] = useState('Active');
+  const [addedEventsSortBy, setAddedEventsSortBy] = useState('eventStart');
+  const [addedEventsSortOrder, setAddedEventsSortOrder] = useState('desc');
+  
+  // Status filter for created events
+  const [createdEventsStatusFilter, setCreatedEventsStatusFilter] = useState('Active');
+
+  // Helper function to normalize status for comparison and API calls
+  const normalizeStatus = (status) => {
+    if (!status) return 'active';
+    const statusLower = status.toLowerCase();
+    // Map common status values to backend values
+    if (statusLower === 'completed' || statusLower === 'closed') return 'closed';
+    if (statusLower === 'archived') return 'archived';
+    return 'active'; // default
+  };
+
+  // Helper function to format status for display
+  const formatStatusForDisplay = (event) => {
+    if (event.isArchived) return 'Archived';
+    if (!event.status) return 'Active';
+    const statusLower = event.status.toLowerCase();
+    if (statusLower === 'closed' || statusLower === 'completed') return 'Completed';
+    return 'Active'; // default
+  };
+
+  // Helper function to check if event matches filter status (for client-side filtering)
+  const matchesStatusFilter = (event, filterStatus) => {
+    if (filterStatus === 'All') return true;
+    
+    // Check for archived events
+    if (filterStatus === 'Archived') {
+      return event.isArchived === true;
+    }
+    
+    // For non-archived events, check status
+    const normalizedEventStatus = normalizeStatus(event.status);
+    const normalizedFilterStatus = normalizeStatus(filterStatus);
+    return normalizedEventStatus === normalizedFilterStatus && !event.isArchived;
+  };
+
+  // Helper function to check if event is currently active
+  const isEventActive = (event) => {
+    if (event.isArchived) return false;
+    const status = normalizeStatus(event.status);
+    if (status !== 'active') return false;
+    
+    // Check if event is within date range (optional - can be enhanced)
+    const now = new Date();
+    const startDate = event.eventStart ? new Date(event.eventStart) : null;
+    const endDate = event.eventEnd ? new Date(event.eventEnd) : null;
+    
+    // Event is active if it has started and hasn't ended (or has no end date)
+    if (startDate && now < startDate) return false;
+    if (endDate && now > endDate) return false;
+    
+    return true;
+  };
 
   useEffect(() => {
     loadAllData();
@@ -77,7 +138,7 @@ const MyEventsBoard = () => {
     if (activeTab === 0) {
       loadMyCreatedEvents();
     }
-  }, [activeTab, page, rowsPerPage, sortBy, sortOrder, searchTerm]);
+  }, [activeTab, page, rowsPerPage, sortBy, sortOrder, searchTerm, createdEventsStatusFilter]);
 
   const loadAllData = async () => {
     setLoading(true);
@@ -108,10 +169,17 @@ const MyEventsBoard = () => {
         limit: rowsPerPage,
         sortBy,
         sortOrder,
-        search: searchTerm
+        search: searchTerm,
+        status: createdEventsStatusFilter === 'All' 
+          ? undefined 
+          : createdEventsStatusFilter === 'Archived' 
+            ? 'archived' 
+            : normalizeStatus(createdEventsStatusFilter)
       };
       const response = await getMyCreatedEvents(params);
-      setMyCreatedEvents(response.data.events || []);
+      const events = response.data.events || [];
+      
+      setMyCreatedEvents(events);
       setTotalCreatedEvents(response.data.total || 0);
     } catch (error) {
       console.error('Error loading my created events:', error);
@@ -200,6 +268,79 @@ const MyEventsBoard = () => {
     setPage(0);
   };
 
+  // Filter and sort added events (client-side)
+  const getFilteredAndSortedAddedEvents = () => {
+    let filtered = [...myAddedEvents];
+
+    // Apply status filter
+    if (addedEventsStatusFilter !== 'All') {
+      filtered = filtered.filter(event => {
+        return matchesStatusFilter(event, addedEventsStatusFilter);
+      });
+    }
+
+    // Apply search filter
+    if (addedEventsSearchTerm) {
+      const searchLower = addedEventsSearchTerm.toLowerCase();
+      filtered = filtered.filter(event =>
+        event.eventName?.toLowerCase().includes(searchLower) ||
+        event.eventContractNumber?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+
+      switch (addedEventsSortBy) {
+        case 'eventName':
+          aValue = a.eventName || '';
+          bValue = b.eventName || '';
+          break;
+        case 'eventStart':
+          aValue = a.eventStart ? new Date(a.eventStart).getTime() : 0;
+          bValue = b.eventStart ? new Date(b.eventStart).getTime() : 0;
+          break;
+        case 'eventEnd':
+          aValue = a.eventEnd ? new Date(a.eventEnd).getTime() : 0;
+          bValue = b.eventEnd ? new Date(b.eventEnd).getTime() : 0;
+          break;
+        case 'createdAt':
+          aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          break;
+        case 'eventContractNumber':
+          aValue = a.eventContractNumber || '';
+          bValue = b.eventContractNumber || '';
+          break;
+        default:
+          aValue = a.eventStart ? new Date(a.eventStart).getTime() : 0;
+          bValue = b.eventStart ? new Date(b.eventStart).getTime() : 0;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return addedEventsSortOrder === 'asc'
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      } else {
+        return addedEventsSortOrder === 'asc'
+          ? aValue - bValue
+          : bValue - aValue;
+      }
+    });
+
+    return filtered;
+  };
+
+  const handleAddedEventsSortChange = (newSortBy) => {
+    if (addedEventsSortBy === newSortBy) {
+      setAddedEventsSortOrder(addedEventsSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setAddedEventsSortBy(newSortBy);
+      setAddedEventsSortOrder('desc');
+    }
+  };
+
   const renderEventsTable = (events, showRemoveButton = false) => (
     <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
       <TableContainer>
@@ -219,7 +360,9 @@ const MyEventsBoard = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {events.map((event) => (
+            {events.map((event) => {
+              const isActive = isEventActive(event);
+              return (
               <TableRow key={event._id} hover>
                 <TableCell>
                   <Typography 
@@ -251,12 +394,35 @@ const MyEventsBoard = () => {
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <Chip 
-                    label={event.status || 'Active'} 
-                    size="small" 
-                    color={event.status === 'Completed' ? 'success' : 'default'}
-                    sx={{ borderRadius: 1 }}
-                  />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip 
+                      label={formatStatusForDisplay(event)} 
+                      size="small" 
+                      color={
+                        event.isArchived 
+                          ? 'default' 
+                          : normalizeStatus(event.status) === 'closed' 
+                            ? 'success' 
+                            : 'default'
+                      }
+                      sx={{ borderRadius: 1 }}
+                    />
+                    {isActive && (
+                      <Tooltip title="Live Event - Currently Open">
+                        <Box
+                          sx={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: '50%',
+                            backgroundColor: '#393ce0',
+                            boxShadow: '0 0 6px #393ce0, 0 0 10px #393ce0',
+                            animation: 'pulse-glow 2s ease-in-out infinite',
+                            flexShrink: 0,
+                          }}
+                        />
+                      </Tooltip>
+                    )}
+                  </Box>
                 </TableCell>
                 <TableCell>
                   <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -295,7 +461,8 @@ const MyEventsBoard = () => {
                   </TableCell>
                 )}
               </TableRow>
-            ))}
+            );
+            })}
           </TableBody>
         </Table>
       </TableContainer>
@@ -360,8 +527,8 @@ const MyEventsBoard = () => {
         {/* My Events Tab (Created Events) */}
         {activeTab === 0 && (
           <>
-            {/* Search and Sort Controls */}
-            <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+            {/* Search, Filter and Sort Controls */}
+            <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
               <TextField
                 placeholder="Search events..."
                 value={searchTerm}
@@ -372,8 +539,24 @@ const MyEventsBoard = () => {
                     <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
                   ),
                 }}
-                sx={{ flexGrow: 1 }}
+                sx={{ flexGrow: 1, minWidth: 200 }}
               />
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={createdEventsStatusFilter}
+                  onChange={(e) => {
+                    setCreatedEventsStatusFilter(e.target.value);
+                    setPage(0);
+                  }}
+                  label="Status"
+                >
+                  <MenuItem value="Active">Active</MenuItem>
+                  <MenuItem value="Completed">Completed</MenuItem>
+                  <MenuItem value="Archived">Archived</MenuItem>
+                  <MenuItem value="All">All</MenuItem>
+                </Select>
+              </FormControl>
               <FormControl size="small" sx={{ minWidth: 120 }}>
                 <InputLabel>Sort By</InputLabel>
                 <Select
@@ -430,26 +613,90 @@ const MyEventsBoard = () => {
         {/* Added Events Tab */}
         {activeTab === 1 && (
           <>
-            {myAddedEvents.length === 0 ? (
-              <Box textAlign="center" py={4}>
-                <EventIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                <Typography variant="h6" color="text.secondary" gutterBottom>
-                  No events on your board yet
-                </Typography>
-                <Typography variant="body2" color="text.secondary" mb={3}>
-                  Add events you're working on to keep them easily accessible
-                </Typography>
-                <Button
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  onClick={() => setAddDialogOpen(true)}
+            {/* Search, Filter and Sort Controls */}
+            <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField
+                placeholder="Search events..."
+                value={addedEventsSearchTerm}
+                onChange={(e) => setAddedEventsSearchTerm(e.target.value)}
+                size="small"
+                InputProps={{
+                  startAdornment: (
+                    <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
+                  ),
+                }}
+                sx={{ flexGrow: 1, minWidth: 200 }}
+              />
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={addedEventsStatusFilter}
+                  onChange={(e) => setAddedEventsStatusFilter(e.target.value)}
+                  label="Status"
                 >
-                  Add Your First Event
-                </Button>
-              </Box>
-            ) : (
-              renderEventsTable(myAddedEvents, true)
-            )}
+                  <MenuItem value="Active">Active</MenuItem>
+                  <MenuItem value="Completed">Completed</MenuItem>
+                  <MenuItem value="Archived">Archived</MenuItem>
+                  <MenuItem value="All">All</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>Sort By</InputLabel>
+                <Select
+                  value={addedEventsSortBy}
+                  onChange={(e) => setAddedEventsSortBy(e.target.value)}
+                  label="Sort By"
+                >
+                  <MenuItem value="eventStart">Start Date</MenuItem>
+                  <MenuItem value="eventEnd">End Date</MenuItem>
+                  <MenuItem value="eventName">Event Name</MenuItem>
+                  <MenuItem value="eventContractNumber">Contract #</MenuItem>
+                  <MenuItem value="createdAt">Created Date</MenuItem>
+                </Select>
+              </FormControl>
+              <Tooltip title={`Sort ${addedEventsSortOrder === 'asc' ? 'Descending' : 'Ascending'}`}>
+                <IconButton onClick={() => handleAddedEventsSortChange(addedEventsSortBy)}>
+                  <SortIcon sx={{ transform: addedEventsSortOrder === 'desc' ? 'rotate(180deg)' : 'none' }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            {(() => {
+              const filteredAndSortedEvents = getFilteredAndSortedAddedEvents();
+              if (filteredAndSortedEvents.length === 0) {
+                const hasFilters = addedEventsSearchTerm || addedEventsStatusFilter !== 'All';
+                const emptyMessage = myAddedEvents.length === 0 
+                  ? 'No events on your board yet'
+                  : hasFilters
+                    ? 'No events match your filters'
+                    : 'No events found';
+                const emptyDescription = myAddedEvents.length === 0
+                  ? "Add events you're working on to keep them easily accessible"
+                  : 'Try adjusting your search or filter criteria';
+                
+                return (
+                  <Box textAlign="center" py={4}>
+                    <EventIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      {emptyMessage}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" mb={3}>
+                      {emptyDescription}
+                    </Typography>
+                    {myAddedEvents.length === 0 && (
+                      <Button
+                        variant="outlined"
+                        startIcon={<AddIcon />}
+                        onClick={() => setAddDialogOpen(true)}
+                      >
+                        Add Your First Event
+                      </Button>
+                    )}
+                  </Box>
+                );
+              }
+              return renderEventsTable(filteredAndSortedEvents, true);
+            })()}
           </>
         )}
 
@@ -518,7 +765,9 @@ const MyEventsBoard = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredAvailableEvents.map((event) => (
+                    {filteredAvailableEvents.map((event) => {
+                      const isActive = isEventActive(event);
+                      return (
                       <TableRow 
                         key={event._id}
                         hover
@@ -556,12 +805,35 @@ const MyEventsBoard = () => {
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Chip 
-                            label={event.status || 'Active'} 
-                            size="small" 
-                            color={event.status === 'Completed' ? 'success' : 'default'}
-                            sx={{ borderRadius: 1 }}
-                          />
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Chip 
+                              label={formatStatusForDisplay(event)} 
+                              size="small" 
+                              color={
+                                event.isArchived 
+                                  ? 'default' 
+                                  : normalizeStatus(event.status) === 'closed' 
+                                    ? 'success' 
+                                    : 'default'
+                              }
+                              sx={{ borderRadius: 1 }}
+                            />
+                            {isActive && (
+                              <Tooltip title="Active Event">
+                                <Box
+                                  sx={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: '50%',
+                                    backgroundColor: '#393ce0',
+                                    boxShadow: '0 0 6px #393ce0, 0 0 10px #393ce0',
+                                    animation: 'pulse-glow 2s ease-in-out infinite',
+                                    flexShrink: 0,
+                                  }}
+                                />
+                              </Tooltip>
+                            )}
+                          </Box>
                         </TableCell>
                         {/* <TableCell>
                           <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -589,7 +861,8 @@ const MyEventsBoard = () => {
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    );
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>

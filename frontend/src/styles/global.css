@@ -76,3 +76,17 @@ ul, ol {
 .MuiModal-root {
   z-index: 9999 !important;
 }
+
+/* Active event glowing indicator animation */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 8px #393ce0, 0 0 12px #393ce0;
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+    box-shadow: 0 0 12px #393ce0, 0 0 20px #393ce0, 0 0 30px #393ce0;
+  }
+}
