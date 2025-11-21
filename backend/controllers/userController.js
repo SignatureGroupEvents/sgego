@@ -345,10 +345,11 @@ const assignUsersToEvent = async (req, res) => {
     // Create or update assignments
     const assignments = [];
     for (const userId of userIds) {
-      // Check if assignment already exists
-      const existing = await UserAssignment.findOne({ userId, eventId, isActive: true });
+      // Check if assignment already exists (active or inactive)
+      const existing = await UserAssignment.findOne({ userId, eventId });
       if (existing) {
-        // Update existing assignment
+        // Reactivate and update existing assignment
+        existing.isActive = true;
         existing.allocatedToSecondaryEventId = allocatedToSecondaryEventId || null;
         existing.assignedBy = req.user.id;
         existing.assignedAt = new Date();
@@ -394,8 +395,9 @@ const removeUserFromEvent = async (req, res) => {
       return res.status(400).json({ message: 'Assignment does not belong to this event' });
     }
 
-    assignment.isActive = false;
-    await assignment.save();
+    // Delete the assignment completely to avoid duplicate key errors on re-assignment
+    // This ensures the unique index (userId + eventId) is cleared for future assignments
+    await UserAssignment.findByIdAndDelete(assignmentId);
 
     res.json({ 
       success: true, 
