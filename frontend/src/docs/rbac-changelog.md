@@ -30,7 +30,7 @@ Every RBAC modification must document:
 | Approver | Who signed off |
 | Date | Date change was merged |
 
-### Example Entry
+<!-- ### Example Entry
 
 #### v1.1.0 — Added Analytics Tier Permissions
 **Changes**
@@ -43,4 +43,32 @@ Every RBAC modification must document:
 - Staff cannot see analytics tab
 
 **Approver:** Alyssa H.  
-**Date:** 2025-10-27
+**Date:** 2025-10-27 -->
+
+## v1.0.1 — Phase 2 Route-Based Access Control
+
+**Date:** 2025-02-____  
+**Owner:** Alyssa Herrera  
+**Status:** COMPLETE
+
+### Changes
+- Implemented capability-based ProtectedRoute system
+- Eliminated all direct role string checks from routes
+- Mapped all App routes to RBAC capabilities
+- Added Access Denied UI messaging
+- Ensured unauthorized direct URL access is blocked
+- Aligned ProtectedRoute with permissions.js capability flags
+
+### Impact
+- Frontend routing is now decoupled from roles
+- Routes can adapt to RBAC changes without code rewrites
+- System is resilient to new roles and permission modifications
+
+### Testing Result
+✔ Staff restricted from MANAGE_EVENTS, MANAGE_INVENTORY, and ANALYTICS  
+✔ Ops restricted from ACCESS_ANALYTICS_FULL  
+✔ Admin has universal route access  
+✔ Unauthenticated users redirected to login
+
+
+

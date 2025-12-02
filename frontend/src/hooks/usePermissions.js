@@ -4,8 +4,11 @@ import { PERMISSIONS } from '../constants/permissions';
 export const usePermissions = () => {
   const { user } = useAuth();
   const role = user?.role || 'staff';
+  
+  // Normalize role name: backend uses 'operations_manager', permissions.js uses 'operationsManager'
+  const normalizedRole = role === 'operations_manager' ? 'operationsManager' : role;
 
-  const can = (capability) => PERMISSIONS[capability].includes(role);
+  const can = (capability) => PERMISSIONS[capability].includes(normalizedRole);
 
   return {
     role,

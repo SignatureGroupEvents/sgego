@@ -1,5 +1,6 @@
 import React from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import LoginForm from '../../components/auth/LoginForm';
 import RegisterForm from '../../components/auth/RegisterForm';
 import ResetPasswordForm from '../../components/auth/ResetPasswordForm';
@@ -8,18 +9,26 @@ import ForgotPasswordForm from '../../components/auth/ForgotPasswordForm';
 const AuthPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   const view = searchParams.get('view') || 'login';
   const token = searchParams.get('token');
 
+  // Redirect all users to dashboard after login
+  const getRedirectPath = (userRole) => {
+    return '/dashboard';
+  };
+
   const handleLoginSuccess = (result) => {
-    // Redirect to events page after successful login
-    navigate('/dashboard');
+    // User data is included in result from login function
+    const userRole = result?.user?.role || user?.role;
+    navigate(getRedirectPath(userRole));
   };
 
   const handleRegisterSuccess = (result) => {
-    // Redirect to events page after successful registration
-    navigate('/dashboard');
+    // User data is included in result from RegisterForm's auto-login
+    const userRole = result?.user?.role || user?.role;
+    navigate(getRedirectPath(userRole));
   };
 
   const handleResetSuccess = (result) => {

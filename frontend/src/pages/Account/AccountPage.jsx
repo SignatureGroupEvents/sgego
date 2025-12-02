@@ -52,6 +52,7 @@ const AccountPage = () => {
   const {
     canInviteUsers,
     canManageUsers,
+    canDeleteUsers,
     canViewEvents,
     isAdmin,
     isStaff
@@ -244,7 +245,7 @@ const AccountPage = () => {
                       </Button>
                     )}
 
-                    {isAdmin && (
+                    {canDeleteUsers && (
                       <Button
                         variant="contained"
                         size="small"

@@ -1,4 +1,5 @@
-![RBAC Version](https://img.shields.io/badge/RBAC-v1.0.0-blue)
+![RBAC Version](https://img.shields.io/badge/RBAC-v1.0.1-blue)
+
 
 SGEGO Role-Based Access Control (RBAC) Permission Matrix
 
