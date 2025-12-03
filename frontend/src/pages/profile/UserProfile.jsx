@@ -209,7 +209,11 @@ const UserProfile = () => {
   }
 
   return (
-    <MainLayout userName={user.username || user.email || 'User'}>
+    <MainLayout userName={
+      user.firstName && user.lastName 
+        ? `${user.firstName} ${user.lastName}`
+        : user.firstName || user.lastName || user.email || 'User'
+    }>
       <Box display="flex" gap={3} sx={{ height: 'calc(100vh - 120px)' }}>
         {/* Left Panel - Profile Details */}
         <Box flex={1} sx={{ overflowY: 'auto', pr: 2 }}>
@@ -221,13 +225,22 @@ const UserProfile = () => {
                 sx={{
                   width: 120,
                   height: 120,
-                  bgcolor: profileColor || stringToColor(user.username || user.email),
+                  bgcolor: profileColor || stringToColor(
+                    user.firstName && user.lastName 
+                      ? `${user.firstName} ${user.lastName}`
+                      : user.firstName || user.lastName || user.email
+                  ),
                   fontSize: '3rem',
                   fontWeight: 700,
                   border: '3px solid #e0e0e0'
                 }}
               >
-                {getInitials(user.username, user.email)}
+                {getInitials(
+                  user.firstName && user.lastName 
+                    ? `${user.firstName} ${user.lastName}`
+                    : user.firstName || user.lastName || user.username || user.email,
+                  user.email
+                )}
               </Avatar>
               
               {/* Pencil icon overlay (bottom right) for color editing */}
@@ -255,7 +268,13 @@ const UserProfile = () => {
             {/* Name and Info */}
             <Box flex={1}>
               <Typography variant="h4" fontWeight={700} color="#1a1a1a" mb={1}>
-                {user.username || user.email}
+                {user.firstName && user.lastName 
+                  ? `${user.firstName} ${user.lastName}`
+                  : user.firstName 
+                  ? user.firstName 
+                  : user.lastName 
+                  ? user.lastName 
+                  : user.email}
               </Typography>
               <Box display="flex" alignItems="center" gap={1}>
                 <Typography variant="body2" color="text.secondary">
@@ -381,13 +400,19 @@ const UserProfile = () => {
                     </Typography>
                   </Box>
 
-                  {/* Username */}
+                  {/* Name */}
                   <Box>
                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', mb: 0.5, display: 'block' }}>
-                      Username
+                      Name
                     </Typography>
                     <Typography variant="body2" color="#1a1a1a">
-                      {user.username || 'Not set'}
+                      {user.firstName && user.lastName 
+                        ? `${user.firstName} ${user.lastName}`
+                        : user.firstName 
+                        ? user.firstName 
+                        : user.lastName 
+                        ? user.lastName 
+                        : 'Not set'}
                     </Typography>
                   </Box>
 
@@ -527,7 +552,13 @@ const UserProfile = () => {
                               fontSize: '0.9375rem'
                             }}
                           >
-                            {contactUser.username || contactUser.email}
+                            {contactUser.firstName && contactUser.lastName
+                              ? `${contactUser.firstName} ${contactUser.lastName}`
+                              : contactUser.firstName 
+                              ? contactUser.firstName 
+                              : contactUser.lastName 
+                              ? contactUser.lastName 
+                              : contactUser.email}
                           </Typography>
                           {contactUser._id === currentUser?.id && (
                             <Tooltip title="Your profile">
