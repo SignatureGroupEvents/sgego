@@ -89,14 +89,11 @@ exports.acceptInvite = async (req, res) => {
       user.lastName = lastName.trim();
     }
     
-    // Set username from firstName and lastName if not already set
-    if (!user.username && firstName && lastName) {
-      console.log('📝 Setting username from first and last name');
-      user.username = `${firstName} ${lastName}`.trim();
-    } else if (!user.username && firstName) {
-      user.username = firstName.trim();
-    } else if (!user.username && lastName) {
-      user.username = lastName.trim();
+    // Set username to email (email is unique, so this avoids conflicts)
+    // This allows multiple users to have the same first/last name
+    if (!user.username) {
+      console.log('📝 Setting username to email:', user.email);
+      user.username = user.email;
     }
     
     user.isInvited = false;
@@ -108,6 +105,11 @@ exports.acceptInvite = async (req, res) => {
     await invite.deleteOne();
 
     console.log('🎫 Generating login token...');
+    // Validate JWT_SECRET before generating token
+    if (!process.env.JWT_SECRET) {
+      console.error('❌ JWT_SECRET environment variable is not set');
+      throw new Error('Server configuration error: JWT_SECRET is not set');
+    }
     // Generate login token
     const loginToken = generateToken(user._id);
 
@@ -123,8 +125,30 @@ exports.acceptInvite = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('💥 Accept invite error:', error.message);
-    res.status(500).json({ message: error.message });
+    console.error('💥 Accept invite error:', error);
+    console.error('💥 Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      name: error.name
+    });
+    
+    // Provide more helpful error messages
+    let errorMessage = 'Failed to accept invite. Please try again.';
+    if (error.code === 11000) {
+      // MongoDB duplicate key error
+      if (error.keyPattern?.username) {
+        errorMessage = 'Username already exists. Please contact your administrator.';
+      } else if (error.keyPattern?.email) {
+        errorMessage = 'Email already exists. Please contact your administrator.';
+      } else {
+        errorMessage = 'A user with this information already exists.';
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.status(500).json({ message: errorMessage });
   }
 };
 
