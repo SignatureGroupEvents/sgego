@@ -18,8 +18,8 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import EventDashboardWrapper from './components/Events/EventDashboardWrapper.jsx';
 import InventoryPageWrapper from './components/Inventory/InventoryPage.jsx';
 import ManageTeamWrapper from './components/Events/ManageTeam.jsx';
-import AccountPage from "./pages/account/AccountPage.jsx";
-import AccountEditPage from "./pages/account/AccountEditPage.jsx";
+import AccountPage from "./pages/Account/AccountPage.jsx";
+import AccountEditPage from "./pages/Account/AccountEditPage.jsx";
 // import f from "./pages/user-management/UserManagement.jsx";
 import UserProfile from "./pages/profile/UserProfile.jsx";
 import AuthPage from "./pages/auth/AuthPage.jsx";
@@ -57,85 +57,101 @@ function App() {
             <Route path="/reset-password/:token" element={<ResetPasswordTokenRedirect />} />
 
             {/* Dashboard + event routes */}
+            {/* VIEW_EVENTS: Admin, Ops, Staff - all authenticated users */}
             <Route path="/dashboard" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="VIEW_EVENTS">
                 <DashboardLayout />
               </ProtectedRoute>
             } />
             <Route path="/events" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="VIEW_EVENTS">
                 <EventsList />
               </ProtectedRoute>
             } />
             <Route path="/events/archived" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="VIEW_EVENTS">
                 <ArchivedEventsList />
               </ProtectedRoute>
             } />
+            
+            {/* MANAGE_EVENTS: Admin, Ops only */}
             <Route path="/events/new" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="MANAGE_EVENTS">
                 <CreateEvent />
               </ProtectedRoute>
             } />
+            
+            {/* VIEW_EVENTS: Admin, Ops, Staff */}
             <Route path="/events/:eventId" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="VIEW_EVENTS">
                 <EventDashboardWrapper />
               </ProtectedRoute>
             } />
             <Route path="/events/:eventId/dashboard" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="VIEW_EVENTS">
                 <EventDashboardWrapper />
               </ProtectedRoute>
             } />
 
-            {/* ✅ NEW ROUTE for advanced view */}
+            {/* ACCESS_ANALYTICS_FULL: Admin only */}
             <Route path="/events/:eventId/dashboard/advanced" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="ACCESS_ANALYTICS_FULL">
                 <AdvancedDashboard />
               </ProtectedRoute>
             } />
 
+            {/* VIEW_EVENTS: Admin, Ops, Staff */}
             <Route path="/events/:eventId/details" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="VIEW_EVENTS">
                 <EventDetails />
               </ProtectedRoute>
             } />
+            
+            {/* CHECK_IN_GUESTS: Admin, Ops, Staff */}
             <Route path="/events/:eventId/upload" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="CHECK_IN_GUESTS">
                 <UploadGuest />
               </ProtectedRoute>
             } />
+            
+            {/* MANAGE_INVENTORY: Admin, Ops only */}
             <Route path="/events/:eventId/inventory" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="MANAGE_INVENTORY">
                 <InventoryPageWrapper />
               </ProtectedRoute>
             } />
             <Route path="/events/:eventId/inventory/upload" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="MANAGE_INVENTORY">
                 <UploadInventory />
               </ProtectedRoute>
             } />
+            
+            {/* MANAGE_EVENTS: Admin, Ops only */}
             <Route path="/events/:eventId/team" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="MANAGE_EVENTS">
                 <ManageTeamWrapper />
               </ProtectedRoute>
             } />
+            
+            {/* CHECK_IN_GUESTS: Admin, Ops, Staff */}
             <Route path="/events/:eventId/guests/:guestId" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="CHECK_IN_GUESTS">
                 <GuestDetailPage />
               </ProtectedRoute>
             } />
             {/* Account Routes */}
+            {/* EDIT_ANY_USER or EDIT_STAFF_ONLY: Admin can see all, Ops can see Staff/Ops */}
             <Route path="/account" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability={["EDIT_ANY_USER", "EDIT_STAFF_ONLY"]} requireAny>
                 <AccountPage />
               </ProtectedRoute>
             } />
             <Route path="/account/:userId" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability={["EDIT_ANY_USER", "EDIT_STAFF_ONLY"]} requireAny>
                 <AccountPage />
               </ProtectedRoute>
             } />
+            {/* Component-level checks handle who can edit which user */}
             <Route path="/account/edit/:userId" element={
               <ProtectedRoute>
                 <AccountEditPage />
@@ -143,6 +159,7 @@ function App() {
             } />
 
             {/* Profile Routes */}
+            {/* Component handles own profile vs others - no route restriction needed */}
             <Route path="/profile" element={
               <ProtectedRoute>
                 <UserProfile />
@@ -158,6 +175,8 @@ function App() {
                 <AccountEditPage />
               </ProtectedRoute>
             } />
+            
+            {/* Help - All authenticated users */}
             <Route path="/help" element={
               <ProtectedRoute>
                 <HelpPage />
@@ -166,18 +185,19 @@ function App() {
             {/* Remove duplicate routes - these are handled by the event-specific routes above */}
 
             {/* 🧪 TEST ROUTES for Analytics Components */}
+            {/* ACCESS_ANALYTICS_FULL: Admin only */}
             <Route path="/test-analytics/:eventId" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="ACCESS_ANALYTICS_FULL">
                 <SpecificAnalyticsExamples />
               </ProtectedRoute>
             } />
             <Route path="/comprehensive-analytics/:eventId" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="ACCESS_ANALYTICS_FULL">
                 <ComprehensiveAnalytics />
               </ProtectedRoute>
             } />
             <Route path="/events/:eventId/analytics" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredCapability="ACCESS_ANALYTICS_FULL">
                 <SpecificAnalyticsExamples />
               </ProtectedRoute>
             } />

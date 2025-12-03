@@ -1,0 +1,83 @@
+###############################################################################
+# GLOBAL TEXT NORMALIZATION
+# Ensure consistent LF line endings across all environments
+###############################################################################
+* text=auto eol=lf
+
+###############################################################################
+# JAVASCRIPT / TYPESCRIPT SOURCE FILES
+###############################################################################
+*.js   text eol=lf
+*.jsx  text eol=lf
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+*.html text eol=lf
+*.css  text eol=lf
+*.scss text eol=lf
+*.env  text eol=lf
+
+###############################################################################
+# NODE / BUNDLER GENERATED FILES - KEEP AS BINARY
+###############################################################################
+*.map binary
+dist/** binary
+build/** binary
+
+###############################################################################
+# IMAGES & MEDIA AS BINARY
+###############################################################################
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg binary
+*.ico binary
+*.webp binary
+
+###############################################################################
+# FONT FILES AS BINARY
+###############################################################################
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+
+###############################################################################
+# DOCUMENT + DESIGN AS BINARY
+###############################################################################
+*.pdf binary
+*.psd binary
+*.ai binary
+*.fig binary
+*.sketch binary
+*.pptx binary
+*.xlsx binary
+
+###############################################################################
+# OS / EDITOR JUNK — BINARY TO AVOID TEXT NORMALIZATION ISSUES
+###############################################################################
+*.exe binary
+*.dll binary
+*.bin binary
+
+###############################################################################
+# SH & BATCH SCRIPTS — CONVERT TO LF (NOT CRLF)
+###############################################################################
+*.sh   text eol=lf
+*.bash text eol=lf
+
+
+###############################################################################
+# WINDOWS BATCH FILES — KEEP CRLF
+###############################################################################
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+###############################################################################
+# MARK THIS FILE AS TEXT
+###############################################################################
+.gitattributes text eol=lf

@@ -120,9 +120,9 @@ const RegisterForm = ({ token, onSuccess, onBackToLogin }) => {
       
       // Auto-login if possible
       try {
-        await login({ email: formData.email, password: formData.password });
-        if (onSuccess) {
-          onSuccess(data);
+        const loginResult = await login({ email: formData.email, password: formData.password });
+        if (loginResult.success && onSuccess) {
+          onSuccess({ ...data, user: loginResult.user });
         }
       } catch (loginErr) {
         // If auto-login fails, redirect to login after a short delay
@@ -167,9 +167,9 @@ const RegisterForm = ({ token, onSuccess, onBackToLogin }) => {
       
       // Auto-login if possible
       try {
-        await login({ email: formData.email, password: formData.password });
-        if (onSuccess) {
-          onSuccess(data);
+        const loginResult = await login({ email: formData.email, password: formData.password });
+        if (loginResult.success && onSuccess) {
+          onSuccess({ ...data, user: loginResult.user });
         }
       } catch (loginErr) {
         // If auto-login fails, redirect to login after a short delay

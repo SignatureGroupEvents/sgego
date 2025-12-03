@@ -46,8 +46,24 @@ const resendInvite = async (req, res) => {
 
 const inviteUser = async (req, res) => {
   try {
-    const { email, role } = req.body;
-    if (!['admin', 'operations_manager'].includes(req.user.role)) {
+    const { email, role } = req.body; // role = requested role for new user
+    const inviterRole = req.user.role;
+
+    // Staff can ONLY invite staff
+    if (inviterRole === 'staff' && role !== 'staff') {
+      return res.status(403).json({
+        message: 'Staff can only invite Staff roles.'
+      });
+    }
+
+    // Operations Managers cannot invite Admin
+    if (inviterRole === 'operations_manager' && role === 'admin') {
+      return res.status(403).json({
+        message: 'Operations Managers cannot invite Admin users.'
+      });
+    }
+
+    if (!['admin', 'operations_manager', 'staff'].includes(inviterRole)) {
       return res.status(403).json({ message: 'Not authorized to invite users' });
     }
 
@@ -86,6 +102,7 @@ const inviteUser = async (req, res) => {
   console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
 };
 
+
 const getAllUsers = async (req, res) => {
   try {
     const users = await User.find({}).select('-password').sort({ createdAt: -1 });
@@ -120,34 +137,79 @@ const getUserProfile = async (req, res) => {
 const updateUserProfile = async (req, res) => {
   try {
     console.log('PUT /users/profile body:', req.body);
+
     const { userId } = req.params;
     const { email, username, firstName, lastName, profileColor, currentPassword, newPassword } = req.body;
+
+    // If no userId is provided, update the user's own profile
     const targetUserId = userId || req.user.id;
+
+    // Fetch the user being modified
     const user = await User.findById(targetUserId);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    if (req.user.role === 'staff' && req.user.id !== targetUserId) {
-      return res.status(403).json({ message: 'Access denied' });
+
+    // -------------------------
+    // ROLE PERMISSION CHECKING
+    // -------------------------
+    const requesterRole = req.user.role; // role of person making the request
+    const targetRole = user.role;        // role of the user being edited
+
+    // Staff can ONLY edit Staff
+    if (requesterRole === 'staff' && targetRole !== 'staff') {
+      return res.status(403).json({ message: 'Staff can only update other Staff users' });
     }
+
+    // Ops Managers can edit Staff + Ops, but not Admins
+    if (requesterRole === 'operations_manager' && targetRole === 'admin') {
+      return res.status(403).json({ message: 'Operations Managers cannot update Admin accounts' });
+    }
+
+    // Admin has no restrictions
+
+    // ------------------------
+    // UPDATE FIELDS
+    // ------------------------
     if (email && email !== user.email) {
+      const requesterRole = req.user.role;
+      const targetRole = user.role;
+    
+      // STAFF can NEVER update emails
+      if (requesterRole === 'staff') {
+        return res.status(403).json({ message: 'Staff cannot change email addresses. Contact your Ops Manager.' });
+      }
+    
+      // OPS cannot update ADMIN emails
+      if (requesterRole === 'operations_manager' && targetRole === 'admin') {
+        return res.status(403).json({ message: 'Ops Managers cannot update Admin email addresses.' });
+      }
+    
+      // Validate email uniqueness
       const emailExists = await User.findOne({ email, _id: { $ne: targetUserId } });
       if (emailExists) return res.status(400).json({ message: 'Email already in use' });
+    
       user.email = email;
     }
+
     if (username && username !== user.username) {
       const usernameExists = await User.findOne({ username, _id: { $ne: targetUserId } });
       if (usernameExists) return res.status(400).json({ message: 'Username already in use' });
       user.username = username;
     }
+
     if (firstName !== undefined) user.firstName = firstName;
     if (lastName !== undefined) user.lastName = lastName;
     if (profileColor !== undefined) user.profileColor = profileColor || null;
+
+    // Handle password change
     if (newPassword) {
       if (!currentPassword) return res.status(400).json({ message: 'Current password is required' });
       const isPasswordValid = await user.comparePassword(currentPassword);
       if (!isPasswordValid) return res.status(400).json({ message: 'Current password is incorrect' });
       user.password = newPassword;
     }
+
     await user.save();
+
     res.json({
       success: true,
       message: 'Profile updated successfully',
@@ -161,11 +223,11 @@ const updateUserProfile = async (req, res) => {
         role: user.role
       }
     });
+
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 };
-
 const createUser = async (req, res) => {
   try {
     const { email, username, password, role } = req.body;

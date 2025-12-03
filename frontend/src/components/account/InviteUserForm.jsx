@@ -1,5 +1,6 @@
 // src/components/account/InviteUserForm.tsx
 import React, { useState } from 'react';
+import { usePermissions } from '../../hooks/usePermissions';
 import {
   Box,
   TextField,
@@ -21,6 +22,18 @@ const InviteUserForm = ({ onSubmit, onCancel }) => {
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const { isAdmin, isOperationsManager, isStaff } = usePermissions();
+
+  const availableRoles = [
+    { value: 'staff', label: 'Staff' },
+    { value: 'operations_manager', label: 'Operations Manager' },
+    { value: 'admin', label: 'Administrator' }
+  ].filter(role => {
+    if (isStaff) return role.value === 'staff';
+    if (isOperationsManager) return role.value !== 'admin';
+    return true; // admin sees everything
+  });
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -72,18 +85,17 @@ const InviteUserForm = ({ onSubmit, onCancel }) => {
         placeholder="Enter full name (optional)"
       />
       <FormControl fullWidth margin="normal">
-        <InputLabel>Role</InputLabel>
-        <Select
-          value={formData.role}
-          onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-          label="Role"
-        >
-          <MenuItem value="staff">Staff</MenuItem>
-          <MenuItem value="operations_manager">Operations Manager</MenuItem>
-          <MenuItem value="admin">Administrator</MenuItem>
-        </Select>
-      </FormControl>
-
+  <InputLabel>Role</InputLabel>
+  <Select
+    value={formData.role}
+    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+    label="Role"
+  >
+    {availableRoles.map(r => (
+      <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>
+    ))}
+  </Select>
+</FormControl>
       <DialogActions sx={{ px: 0, pt: 2 }}>
         <Button
           type="submit"
