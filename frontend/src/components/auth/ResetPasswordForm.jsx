@@ -290,16 +290,6 @@ const ResetPasswordForm = ({ token, onSuccess, onBackToLogin }) => {
                 Return to Login
               </Button>
             </form>
-            
-            <Box sx={{ mt: 3, textAlign: 'center' }}>
-              <Button
-                variant="text"
-                onClick={onBackToLogin}
-                disabled={loading}
-              >
-                ← Back to Login
-              </Button>
-            </Box>
           </CardContent>
         </Card>
       </Box>

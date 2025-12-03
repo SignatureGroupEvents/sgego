@@ -21,7 +21,10 @@ const {
   getMyAssignedEvents,
   addToMyEvents,
   removeFromMyEvents,
-  updateMyEventsPositions
+  updateMyEventsPositions,
+  requestAccountRemoval,
+  cancelAccountRemovalRequest,
+  getPendingRemovalRequests
 } = require('../controllers/userController');
 
 const { protect, requireRole, requireOperationsOrAdmin } = require('../middleware/auth');
@@ -63,6 +66,11 @@ router.delete('/:userId', requireRole('admin'), deleteUser);
 router.put('/:userId/reset-password', requireRole('admin'), resetUserPassword);
 router.post('/:userId/resend-invite', requireRole('admin'), resendInvite);
 router.post('/:userId/send-reset-link', requireRole('admin'), sendPasswordResetLink);
+router.get('/pending-removal-requests', requireRole('admin'), getPendingRemovalRequests);
+
+// Account removal requests - users can request, admin approves via deleteUser endpoint
+router.post('/request-account-removal', requestAccountRemoval);
+router.post('/cancel-account-removal-request', cancelAccountRemovalRequest);
 
 // My Events routes
 router.get('/my-events', getMyEvents);

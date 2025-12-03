@@ -16,11 +16,12 @@ const generateToken = (id) => {
 exports.acceptInvite = async (req, res) => {
   try {
     const { token } = req.params;
-    const { password, name } = req.body;
+    const { password, firstName, lastName } = req.body;
 
     console.log('🎫 Accept invite attempt with token:', token ? '[MASKED]' : '[MISSING]');
     console.log('📝 Password provided:', password ? '[MASKED]' : '[MISSING]');
-    console.log('📝 Name provided:', name ? '[PROVIDED]' : '[NOT PROVIDED]');
+    console.log('📝 First name provided:', firstName ? '[PROVIDED]' : '[NOT PROVIDED]');
+    console.log('📝 Last name provided:', lastName ? '[PROVIDED]' : '[NOT PROVIDED]');
 
     if (!password) {
       console.log('❌ Accept invite failed: Password is required');
@@ -78,10 +79,24 @@ exports.acceptInvite = async (req, res) => {
     console.log('🔐 Assigning raw password (will be hashed by pre-save hook)...');
     user.password = password;
     
-    // Set name if provided (for new users)
-    if (name && !user.username) {
-      console.log('📝 Setting username from provided name');
-      user.username = name;
+    // Update firstName and lastName if provided
+    if (firstName) {
+      console.log('📝 Setting first name');
+      user.firstName = firstName.trim();
+    }
+    if (lastName) {
+      console.log('📝 Setting last name');
+      user.lastName = lastName.trim();
+    }
+    
+    // Set username from firstName and lastName if not already set
+    if (!user.username && firstName && lastName) {
+      console.log('📝 Setting username from first and last name');
+      user.username = `${firstName} ${lastName}`.trim();
+    } else if (!user.username && firstName) {
+      user.username = firstName.trim();
+    } else if (!user.username && lastName) {
+      user.username = lastName.trim();
     }
     
     user.isInvited = false;
@@ -408,6 +423,8 @@ exports.validateInvite = async (req, res) => {
     
     res.json({
       email: user.email,
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
       role: user.role,
       status,
       message
@@ -505,7 +522,15 @@ exports.sendPasswordResetLink = async (req, res) => {
     console.log('✅ Reset token generated and saved');
 
     // Create reset link
+    if (!process.env.CLIENT_URL) {
+      console.error('❌ CLIENT_URL environment variable is not set');
+      return res.status(500).json({ 
+        message: 'Server configuration error: CLIENT_URL is not set. Please contact your administrator.' 
+      });
+    }
+    
     const resetLink = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+    console.log('🔗 Reset link generated:', resetLink.replace(resetToken, '***'));
 
     // Send email with reset link
     await sendEmail({
@@ -543,8 +568,26 @@ exports.sendPasswordResetLink = async (req, res) => {
     });
     
   } catch (error) {
-    console.error('💥 Send password reset link error:', error.message);
-    res.status(500).json({ message: error.message });
+    console.error('💥 Send password reset link error:', error);
+    console.error('💥 Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
+    
+    // Provide more helpful error messages
+    let errorMessage = 'Failed to send password reset link.';
+    if (error.message.includes('Invalid login')) {
+      errorMessage = 'Email service authentication failed. Please check email credentials.';
+    } else if (error.message.includes('ECONNREFUSED') || error.message.includes('ETIMEDOUT')) {
+      errorMessage = 'Unable to connect to email server. Please check EMAIL_HOST configuration.';
+    } else if (error.message.includes('CLIENT_URL')) {
+      errorMessage = 'CLIENT_URL environment variable is not set.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.status(500).json({ message: errorMessage });
   }
 };
 

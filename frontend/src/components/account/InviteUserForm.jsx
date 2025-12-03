@@ -17,7 +17,8 @@ import {
 const InviteUserForm = ({ onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
     email: '',
-    name: '',
+    firstName: '',
+    lastName: '',
     role: 'staff'
   });
   const [loading, setLoading] = useState(false);
@@ -30,7 +31,7 @@ const InviteUserForm = ({ onSubmit, onCancel }) => {
     { value: 'admin', label: 'Administrator' }
   ].filter(role => {
     if (isStaff) return role.value === 'staff';
-    if (isOperationsManager) return role.value !== 'admin';
+    if (isOperationsManager) return role.value !== 'admin'; // Ops can invite Ops and Staff, but not Admin
     return true; // admin sees everything
   });
 
@@ -40,9 +41,21 @@ const InviteUserForm = ({ onSubmit, onCancel }) => {
     setLoading(true);
     setErrors({});
 
+    // Validate required fields
+    const newErrors = {};
+    if (!formData.email.trim()) newErrors.email = 'Email is required';
+    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setLoading(false);
+      return;
+    }
+
     try {
       await onSubmit(formData);
-      setFormData({ email: '', name: '', role: 'staff' });
+      setFormData({ email: '', firstName: '', lastName: '', role: 'staff' });
     } catch (error) {
       const message = error.message?.toLowerCase() || '';
       setErrors({
@@ -50,7 +63,9 @@ const InviteUserForm = ({ onSubmit, onCancel }) => {
           ? 'User with this email already exists'
           : message.includes('invalid email')
           ? 'Please enter a valid email address'
-          : '',
+          : newErrors.email || '',
+        firstName: newErrors.firstName || '',
+        lastName: newErrors.lastName || '',
         general: message || 'Failed to send invite'
       });
     } finally {
@@ -76,14 +91,34 @@ const InviteUserForm = ({ onSubmit, onCancel }) => {
         error={!!errors.email}
         helperText={errors.email}
       />
-      <TextField
-        fullWidth
-        label="Name"
-        value={formData.name}
-        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-        margin="normal"
-        placeholder="Enter full name (optional)"
-      />
+      <Box sx={{ display: 'flex', gap: 2 }}>
+        <TextField
+          fullWidth
+          label="First Name"
+          value={formData.firstName}
+          onChange={(e) => {
+            setFormData({ ...formData, firstName: e.target.value });
+            if (errors.firstName) setErrors({ ...errors, firstName: '' });
+          }}
+          required
+          margin="normal"
+          error={!!errors.firstName}
+          helperText={errors.firstName}
+        />
+        <TextField
+          fullWidth
+          label="Last Name"
+          value={formData.lastName}
+          onChange={(e) => {
+            setFormData({ ...formData, lastName: e.target.value });
+            if (errors.lastName) setErrors({ ...errors, lastName: '' });
+          }}
+          required
+          margin="normal"
+          error={!!errors.lastName}
+          helperText={errors.lastName}
+        />
+      </Box>
       <FormControl fullWidth margin="normal">
   <InputLabel>Role</InputLabel>
   <Select

@@ -22,10 +22,10 @@ The table below defines which role can perform which action.
 
 Capability	Admin	Ops Manager	Staff	Notes
 INVITE_ADMIN	✔	✖	✖	Only Admins can create more Admins
-INVITE_OPS	✔	✖	✖	Prevent privilege escalation
+INVITE_OPS	✔	✔	✖	Admin and Ops can invite Operations Managers
 INVITE_STAFF	✔	✔	✔	Staff may only invite Staff (backend enforced)
 RESEND_INVITE	✔	✔	✖	Staff cannot resend invites
-DELETE_USER	✔	✔*	✖	Ops may delete staff only
+DELETE_USER	✔	✖	✖	Only Admin can delete users
 EDIT_ANY_USER	✔	✖	✖	Only Admin can modify anyone
 EDIT_STAFF_ONLY	✖	✔	✖	Ops can edit Staff and Ops (not Admins)
 EDIT_OWN_PROFILE	✔	✔	✔	Staff may only edit name (email locked)
@@ -86,7 +86,7 @@ The UI never checks role === "admin" — it checks capabilities.
 
 Staff cannot escalate privileges — they may only invite Staff
 
-Ops cannot assign roles or create Admins
+Ops cannot assign roles or create Admins (but can invite other Ops and Staff)
 
 Emails are immutable after registration
 

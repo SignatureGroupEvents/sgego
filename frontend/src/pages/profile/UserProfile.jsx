@@ -9,21 +9,32 @@ import {
   CircularProgress,
   Avatar,
   Divider,
-  Chip
+  Chip,
+  Paper,
+  Tooltip,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemAvatar,
+  ListItemText,
+  IconButton
 } from '@mui/material';
 import {
-  Edit as EditIcon,
   Person as PersonIcon,
   Email as EmailIcon,
   Security as SecurityIcon,
-  CalendarToday as CalendarIcon
+  CalendarToday as CalendarIcon,
+  Lock as LockIcon,
+  Edit as EditIcon,
+  ContentCopy as ContentCopyIcon
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
+import api from '../../services/api';
+import toast from 'react-hot-toast';
 
 import MainLayout from '../../components/layout/MainLayout';
 import { useAuth } from '../../contexts/AuthContext';
-import { usePermissions } from '../../hooks/usePermissions';
-import { getUserProfile } from '../../services/api';
+import { getUserProfile, getAllUsers } from '../../services/api';
 import AvatarIcon from '../../components/dashboard/AvatarIcon';
 
 const ROLE_LABELS = {
@@ -38,22 +49,65 @@ const ROLE_COLORS = {
   operations_manager: '#31365E'
 };
 
+// Helper function to generate color from string
+function stringToColor(string) {
+  let hash = 0;
+  for (let i = 0; i < string.length; i++) {
+    hash = string.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 70%, 50%)`;
+}
+
+// Extract initials from name
+function getInitials(name, email) {
+  if (name) {
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) {
+      return parts[0].substring(0, 2).toUpperCase();
+    } else {
+      const firstInitial = parts[0].charAt(0).toUpperCase();
+      const lastInitial = parts[parts.length - 1].charAt(0).toUpperCase();
+      return firstInitial + lastInitial;
+    }
+  }
+  // Fallback to email initials
+  if (email) {
+    return email.substring(0, 2).toUpperCase();
+  }
+  return 'U';
+}
+
 const UserProfile = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
-  const { isAdmin, isOperationsManager } = usePermissions();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [user, setUser] = useState(null);
+  const [profileColor, setProfileColor] = useState('');
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [savingColor, setSavingColor] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
+  // Determine if viewing own profile
+  // If no userId param, it's the current user's own profile
+  // If userId matches currentUser.id, it's own profile
+  // Otherwise, viewing someone else's profile (read-only)
   const isOwnProfile = !userId || userId === currentUser?.id;
-  const canEditProfile = isOwnProfile || isAdmin || isOperationsManager;
 
   useEffect(() => {
     loadProfile();
+    loadAllUsers();
   }, [userId]);
+  
+  // Edit permissions:
+  // - Users can ONLY edit their own profile
+  // - Admins/Ops should use Account Settings to edit other users
+  // - All other profiles are view-only
+  const canEditProfile = isOwnProfile;
 
   const loadProfile = async () => {
     setLoading(true);
@@ -61,10 +115,42 @@ const UserProfile = () => {
     try {
       const response = await getUserProfile(userId);
       setUser(response.data.user);
+      setProfileColor(response.data.user.profileColor || '');
     } catch (err) {
       setError('Failed to load profile.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAllUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const response = await getAllUsers();
+      setAllUsers(response.data.users || []);
+    } catch (err) {
+      console.error('Failed to load users:', err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleColorChange = async (color) => {
+    if (!isOwnProfile) return;
+    setSavingColor(true);
+    try {
+      await api.put(`/users/profile/${user._id}`, { profileColor: color || null });
+      setProfileColor(color);
+      setUser({ ...user, profileColor: color || null });
+      setShowColorPicker(false);
+      toast.success('Profile color updated!');
+      // Reload profile to refresh avatar icon color
+      await loadProfile();
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || 'Failed to update profile color.';
+      toast.error(errorMsg);
+    } finally {
+      setSavingColor(false);
     }
   };
 
@@ -124,157 +210,345 @@ const UserProfile = () => {
 
   return (
     <MainLayout userName={user.username || user.email || 'User'}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-        <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
-          👤 {isOwnProfile ? 'My Profile' : `${user.username || user.email}'s Profile`}
-        </Typography>
-        {canEditProfile && (
-          <Button
-            variant="contained"
-            startIcon={<EditIcon />}
-            onClick={() => navigate(`/profile/edit/${user._id}`)}
-            sx={{ 
-              backgroundColor: '#1bcddc', 
-              color: '#fff', 
-              fontWeight: 700, 
-              px: 3, 
-              borderRadius: 2, 
-              boxShadow: 'none', 
-              '&:hover': { backgroundColor: '#17b3c0' } 
-            }}
-          >
-            Edit Profile
-          </Button>
-        )}
-      </Box>
-
-      <Box display="flex" gap={4}>
-        {/* Profile Card */}
-        <Card sx={{ borderRadius: 3, boxShadow: '0 2px 8px #eee', p: 3, minWidth: 300 }}>
-          <Box display="flex" flexDirection="column" alignItems="center" mb={3}>
-            <AvatarIcon 
-              user={user} 
-              userId={user._id}
-              showTooltip={false}
-            />
-            <Typography variant="h5" fontWeight={600} mt={2} textAlign="center">
-              {user.username || 'No username set'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" textAlign="center">
-              {user.email}
-            </Typography>
-          </Box>
-
-          <Divider sx={{ mb: 3 }} />
-
-          <Box display="flex" flexDirection="column" gap={2}>
-            <Box display="flex" alignItems="center" gap={2}>
-              <SecurityIcon color="primary" />
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Role
-                </Typography>
-                <Chip
-                  label={ROLE_LABELS[user.role] || user.role}
-                  size="small"
+      <Box display="flex" gap={3} sx={{ height: 'calc(100vh - 120px)' }}>
+        {/* Left Panel - Profile Details */}
+        <Box flex={1} sx={{ overflowY: 'auto', pr: 2 }}>
+          {/* Profile Header - Horizontal Layout */}
+          <Box display="flex" alignItems="flex-start" gap={3} mb={4}>
+            {/* Large Avatar with Big Initials */}
+            <Box position="relative">
+              <Avatar
+                sx={{
+                  width: 120,
+                  height: 120,
+                  bgcolor: profileColor || stringToColor(user.username || user.email),
+                  fontSize: '3rem',
+                  fontWeight: 700,
+                  border: '3px solid #e0e0e0'
+                }}
+              >
+                {getInitials(user.username, user.email)}
+              </Avatar>
+              
+              {/* Pencil icon overlay (bottom right) for color editing */}
+              {isOwnProfile && (
+                <IconButton
                   sx={{
-                    backgroundColor: ROLE_COLORS[user.role] || '#666',
-                    color: 'white',
-                    fontWeight: 600,
-                    borderRadius: 1,
-                    mt: 0.5
+                    position: 'absolute',
+                    bottom: 0,
+                    right: 0,
+                    bgcolor: '#fff',
+                    border: '2px solid #e0e0e0',
+                    width: 36,
+                    height: 36,
+                    '&:hover': {
+                      bgcolor: '#f5f5f5'
+                    }
                   }}
-                />
-              </Box>
+                  onClick={() => setShowColorPicker(!showColorPicker)}
+                >
+                  <EditIcon sx={{ fontSize: 18, color: '#666' }} />
+                </IconButton>
+              )}
             </Box>
-
-            <Box display="flex" alignItems="center" gap={2}>
-              <CalendarIcon color="primary" />
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Account Status
-                </Typography>
-                <Chip
-                  label={user.isActive ? 'Active' : 'Inactive'}
-                  size="small"
-                  color={user.isActive ? 'success' : 'default'}
-                  sx={{ borderRadius: 1, mt: 0.5 }}
-                />
-              </Box>
-            </Box>
-
-            {user.lastLogin && (
-              <Box display="flex" alignItems="center" gap={2}>
-                <CalendarIcon color="primary" />
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Last Login
-                  </Typography>
-                  <Typography variant="body2" fontWeight={500}>
-                    {formatDateTime(user.lastLogin)}
-                  </Typography>
-                </Box>
-              </Box>
-            )}
-
-            <Box display="flex" alignItems="center" gap={2}>
-              <CalendarIcon color="primary" />
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Member Since
-                </Typography>
-                <Typography variant="body2" fontWeight={500}>
-                  {formatDate(user.createdAt)}
-                </Typography>
-              </Box>
-            </Box>
-          </Box>
-        </Card>
-
-        {/* Additional Info Card */}
-        <Card sx={{ borderRadius: 3, boxShadow: '0 2px 8px #eee', p: 3, flex: 1 }}>
-          <Typography variant="h6" fontWeight={600} mb={3}>
-            Account Information
-          </Typography>
-
-          <Box display="flex" flexDirection="column" gap={3}>
-            <Box>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Email Address
+            
+            {/* Name and Info */}
+            <Box flex={1}>
+              <Typography variant="h4" fontWeight={700} color="#1a1a1a" mb={1}>
+                {user.username || user.email}
               </Typography>
               <Box display="flex" alignItems="center" gap={1}>
-                <EmailIcon color="primary" fontSize="small" />
-                <Typography variant="body1" fontWeight={500}>
+                <Typography variant="body2" color="text.secondary">
                   {user.email}
                 </Typography>
+                <Tooltip title="Copy email to clipboard">
+                  <IconButton
+                    size="small"
+                    sx={{ 
+                      color: '#666',
+                      '&:hover': {
+                        color: '#1bcddc',
+                        backgroundColor: 'rgba(27, 205, 220, 0.1)'
+                      }
+                    }}
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(user.email);
+                        toast.success('Email copied to clipboard!');
+                      } catch (err) {
+                        // Fallback for older browsers
+                        const textArea = document.createElement('textarea');
+                        textArea.value = user.email;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        try {
+                          document.execCommand('copy');
+                          toast.success('Email copied to clipboard!');
+                        } catch (fallbackErr) {
+                          toast.error('Failed to copy email');
+                        }
+                        document.body.removeChild(textArea);
+                      }
+                    }}
+                  >
+                    <ContentCopyIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
               </Box>
             </Box>
+          </Box>
 
-            <Box>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Username
+          {/* Profile Color Picker - Only for own profile */}
+          {isOwnProfile && showColorPicker && (
+            <Paper
+              elevation={3}
+              sx={{
+                mb: 4,
+                p: 3,
+                borderRadius: 2,
+                backgroundColor: '#fafafa',
+                border: '1px solid #e0e0e0'
+              }}
+            >
+              <Typography variant="body2" fontWeight={600} mb={2} color="#222">
+                Choose Profile Color
               </Typography>
-              <Box display="flex" alignItems="center" gap={1}>
-                <PersonIcon color="primary" fontSize="small" />
-                <Typography variant="body1" fontWeight={500}>
-                  {user.username || 'Not set'}
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                {[
+                  '#1bcddc', '#31365E', '#CB1033', '#FAA951',
+                  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
+                  '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
+                  '#BB8FCE', '#85C1E2', '#F8B739', '#E74C3C',
+                  '#3498DB', '#2ECC71', '#9B59B6', '#E67E22',
+                  '#1ABC9C', '#34495E', '#F39C12', '#E91E63'
+                ].map((color) => (
+                  <Tooltip key={color} title={color}>
+                    <Box
+                      onClick={() => handleColorChange(color)}
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: '50%',
+                        bgcolor: color,
+                        cursor: 'pointer',
+                        border: profileColor === color ? '4px solid #31365E' : '2px solid #ddd',
+                        transition: 'all 0.2s',
+                        '&:hover': { transform: 'scale(1.15)' }
+                      }}
+                    />
+                  </Tooltip>
+                ))}
+              </Box>
+              {profileColor && (
+                <Box mt={2}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handleColorChange('')}
+                    disabled={savingColor}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Reset to Default
+                  </Button>
+                </Box>
+              )}
+            </Paper>
+          )}
+
+          {/* Account Information Card - Condensed */}
+          <Box mb={4}>
+            <Card sx={{ 
+              borderRadius: 2, 
+              boxShadow: '0 1px 3px rgba(0,0,0,0.12)', 
+              border: '1px solid #e0e0e0',
+              width: '100%'
+            }}>
+              <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0', backgroundColor: '#fafafa' }}>
+                <Typography variant="subtitle1" fontWeight={600} color="#1a1a1a">
+                  Account Information
                 </Typography>
               </Box>
-            </Box>
+              
+              <Box sx={{ p: 2 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
+                  {/* Email */}
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', mb: 0.5, display: 'block' }}>
+                      Email
+                    </Typography>
+                    <Typography variant="body2" color="#1a1a1a">
+                      {user.email}
+                    </Typography>
+                  </Box>
 
-            {user.isInvited && (
-              <Alert severity="info" sx={{ mt: 2 }}>
-                This user was invited and may not have completed their account setup yet.
-              </Alert>
-            )}
+                  {/* Username */}
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', mb: 0.5, display: 'block' }}>
+                      Username
+                    </Typography>
+                    <Typography variant="body2" color="#1a1a1a">
+                      {user.username || 'Not set'}
+                    </Typography>
+                  </Box>
 
-            {!user.isActive && (
-              <Alert severity="warning" sx={{ mt: 2 }}>
-                This account is currently inactive.
-              </Alert>
-            )}
+                  {/* Role */}
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', mb: 0.5, display: 'block' }}>
+                      Role
+                    </Typography>
+                    <Chip
+                      label={ROLE_LABELS[user.role] || user.role}
+                      size="small"
+                      sx={{
+                        backgroundColor: ROLE_COLORS[user.role] || '#666',
+                        color: 'white',
+                        fontWeight: 600,
+                        height: 24,
+                        fontSize: '0.75rem'
+                      }}
+                    />
+                  </Box>
+
+                  {/* Status */}
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', mb: 0.5, display: 'block' }}>
+                      Status
+                    </Typography>
+                    <Chip
+                      label={user.isActive ? 'Active' : 'Inactive'}
+                      size="small"
+                      color={user.isActive ? 'success' : 'default'}
+                      sx={{ 
+                        height: 24,
+                        fontSize: '0.75rem'
+                      }}
+                    />
+                  </Box>
+
+                  {/* Last Login */}
+                  {user.lastLogin && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', mb: 0.5, display: 'block' }}>
+                        Last Login
+                      </Typography>
+                      <Typography variant="body2" color="#1a1a1a">
+                        {formatDateTime(user.lastLogin)}
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {/* Member Since */}
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', mb: 0.5, display: 'block' }}>
+                      Member Since
+                    </Typography>
+                    <Typography variant="body2" color="#1a1a1a">
+                      {formatDate(user.createdAt)}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {(user.isInvited || !user.isActive) && (
+                  <Box mt={2}>
+                    {user.isInvited && (
+                      <Alert severity="info" sx={{ py: 1, fontSize: '0.875rem' }}>
+                        Invited - account setup pending
+                      </Alert>
+                    )}
+                    {!user.isActive && (
+                      <Alert severity="warning" sx={{ py: 1, fontSize: '0.875rem' }}>
+                        Account inactive
+                      </Alert>
+                    )}
+                  </Box>
+                )}
+              </Box>
+            </Card>
           </Box>
-        </Card>
+        </Box>
+
+        {/* Right Panel - Contact List */}
+        <Box sx={{ width: 320, borderLeft: '1px solid #e0e0e0', pl: 3 }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Typography variant="h6" fontWeight={600} color="#1a1a1a">
+                Contact list
+              </Typography>
+              <LockIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            </Box>
+          </Box>
+
+          {loadingUsers ? (
+            <Box display="flex" justifyContent="center" p={3}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : (
+            <List sx={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', pr: 1 }}>
+              {allUsers.filter(u => u.isActive).map((contactUser) => (
+                <ListItem
+                  key={contactUser._id}
+                  disablePadding
+                  sx={{
+                    mb: 0.5,
+                    borderRadius: 1,
+                    backgroundColor: contactUser._id === user._id ? '#e3f2fd' : 'transparent',
+                    '&:hover': {
+                      backgroundColor: contactUser._id === user._id ? '#e3f2fd' : '#f5f5f5'
+                    }
+                  }}
+                >
+                  <ListItemButton
+                    onClick={() => navigate(`/profile/${contactUser._id}`)}
+                    selected={contactUser._id === user._id}
+                    sx={{
+                      borderRadius: 1,
+                      py: 1.5,
+                      '&.Mui-selected': {
+                        backgroundColor: '#e3f2fd',
+                        '&:hover': {
+                          backgroundColor: '#e3f2fd'
+                        }
+                      }
+                    }}
+                  >
+                    <ListItemAvatar>
+                      <AvatarIcon 
+                        user={contactUser}
+                        userId={contactUser._id}
+                        showTooltip={false}
+                      />
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Typography
+                            sx={{
+                              fontWeight: contactUser._id === user._id ? 600 : 400,
+                              fontSize: '0.9375rem'
+                            }}
+                          >
+                            {contactUser.username || contactUser.email}
+                          </Typography>
+                          {contactUser._id === currentUser?.id && (
+                            <Tooltip title="Your profile">
+                              <PersonIcon 
+                                sx={{ 
+                                  fontSize: 16, 
+                                  color: '#1bcddc',
+                                  ml: 0.5
+                                }} 
+                              />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      }
+                    />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </Box>
       </Box>
     </MainLayout>
   );

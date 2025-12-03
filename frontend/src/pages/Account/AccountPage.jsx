@@ -28,8 +28,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import InviteUserForm from '../../components/account/InviteUserForm';
 import AccountFilters from '../../components/account/AccountFilters';
+import AvatarIcon from '../../components/dashboard/AvatarIcon';
 
-import { getUserProfile, getAllUsers, deleteUser, inviteUser } from '../../services/api';
+import { getUserProfile, getAllUsers, inviteUser } from '../../services/api';
 
 const ROLE_LABELS = {
   admin: 'Admin',
@@ -52,9 +53,9 @@ const AccountPage = () => {
   const {
     canInviteUsers,
     canManageUsers,
-    canDeleteUsers,
     canViewEvents,
     isAdmin,
+    isOperationsManager,
     isStaff
   } = usePermissions();
 
@@ -116,21 +117,11 @@ const AccountPage = () => {
     }
   };
 
-  const handleDeleteUser = async id => {
-    try {
-      const response = await deleteUser(id);
-      if (response?.status >= 200 && response?.status < 300) {
-        toast.success('User deleted successfully!');
-        loadAllUsers();
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete user.');
-    }
-  };
 
   const filteredUsers = allUsers.filter(u => {
     if (filterStatus === 'pending' && !(u.isInvited && !u.isActive)) return false;
     if (filterStatus === 'expired' && !(u.isInvited && !u.isActive && u.inviteExpired)) return false;
+    if (filterStatus === 'removal_requested' && !u.accountRemovalRequested) return false;
     if (filterRole !== 'all' && u.role !== filterRole) return false;
 
     const match =
@@ -208,7 +199,18 @@ const AccountPage = () => {
             <TableBody>
               {pagedUsers.map(u => (
                 <TableRow key={u._id}>
-                  <TableCell>{u.username || '-'}</TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <AvatarIcon 
+                        user={u}
+                        userId={u._id}
+                        showTooltip={true}
+                      />
+                      <Typography variant="body2" fontWeight={500}>
+                        {u.username || '-'}
+                      </Typography>
+                    </Box>
+                  </TableCell>
                   <TableCell>{u.email}</TableCell>
 
                   <TableCell>
@@ -225,10 +227,31 @@ const AccountPage = () => {
                     />
                   </TableCell>
 
-                  <TableCell>{u.isActive ? 'Active' : 'Pending'}</TableCell>
+                  <TableCell>
+                    {u.accountRemovalRequested ? (
+                      <Chip
+                        label="Request for Removal"
+                        size="small"
+                        sx={{
+                          fontWeight: 600,
+                          color: '#fff',
+                          bgcolor: '#CB1033',
+                          borderRadius: 2
+                        }}
+                      />
+                    ) : u.isActive ? (
+                      'Active'
+                    ) : (
+                      'Pending'
+                    )}
+                  </TableCell>
 
                   <TableCell>
-                    {(canManageUsers || (u.role === 'staff' && isStaff)) && (
+                    {/* Edit button visibility:
+                        - Admin/Ops: can edit users (Ops cannot edit Admin)
+                        - Staff: can only edit their own account */}
+                    {(canManageUsers && !(isOperationsManager && u.role === 'admin')) || 
+                     (isStaff && u._id === currentUser?.id) ? (
                       <Button
                         variant="contained"
                         size="small"
@@ -243,29 +266,7 @@ const AccountPage = () => {
                       >
                         Edit
                       </Button>
-                    )}
-
-                    {canDeleteUsers && (
-                      <Button
-                        variant="contained"
-                        size="small"
-                        sx={{
-                          backgroundColor: '#CB1033',
-                          color: '#fff',
-                          fontWeight: 700,
-                          borderRadius: 2,
-                          ml: 1,
-                          '&:hover': { backgroundColor: '#a00000' }
-                        }}
-                        onClick={() => {
-                          if (window.confirm(`Delete ${u.username || u.email}? This cannot be undone.`)) {
-                            handleDeleteUser(u._id);
-                          }
-                        }}
-                      >
-                        Delete
-                      </Button>
-                    )}
+                    ) : null}
                   </TableCell>
                 </TableRow>
               ))}

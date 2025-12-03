@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, TextField, Button, Alert, CircularProgress, Card, MenuItem, Snackbar, Select, FormControl, Divider, Paper, Tooltip, Avatar
+  Box, Typography, TextField, Button, Alert, CircularProgress, Card, MenuItem, Snackbar, Select, FormControl, Divider, Table, TableBody, TableCell, TableRow, Paper
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import EmailIcon from '@mui/icons-material/Email';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import api, { resendUserInvite, sendPasswordResetLink, updateUserRole } from '../../services/api';
+import LockResetIcon from '@mui/icons-material/LockReset';
+import api, { resendUserInvite, sendPasswordResetLink, updateUserRole, requestAccountRemoval, cancelAccountRemovalRequest, deleteUser } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import MainLayout from '../../components/layout/MainLayout';
 import toast from 'react-hot-toast';
@@ -15,17 +15,8 @@ import { usePermissions } from '../../hooks/usePermissions';
 const AccountEditPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const { user: currentUser } = useAuth();
-  const { isAdmin, isOperationsManager, isStaff } = usePermissions();
-  
-  // Determine where to navigate back to based on the route
-  const getReturnPath = () => {
-    if (location.pathname.includes('/profile/edit')) {
-      return `/profile/${userId}`;
-    }
-    return '/account';
-  };
+  const { isAdmin, isOperationsManager, isStaff, canDeleteUsers } = usePermissions();
 
   // Staff can edit ONLY their own profile
   const canEditThisUser =
@@ -42,7 +33,9 @@ const AccountEditPage = () => {
   const [resendInviteSuccess, setResendInviteSuccess] = useState(false);
   const [sendResetLinkLoading, setSendResetLinkLoading] = useState(false);
   const [sendResetLinkSuccess, setSendResetLinkSuccess] = useState(false);
-  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [removalRequestLoading, setRemovalRequestLoading] = useState(false);
+  const [removalRequestSuccess, setRemovalRequestSuccess] = useState(false);
+  const [deleteUserLoading, setDeleteUserLoading] = useState(false);
 
   const isOwnProfile = currentUser?.id === userId;
 
@@ -52,7 +45,6 @@ const AccountEditPage = () => {
     lastName: '',
     email: '',
     role: '',
-    profileColor: '',
   });
 
   useEffect(() => {
@@ -70,7 +62,6 @@ const AccountEditPage = () => {
         lastName,
         email: user.email || '',
         role: user.role || '',
-        profileColor: user.profileColor || '',
       });
     }
   }, [user]);
@@ -80,8 +71,7 @@ const AccountEditPage = () => {
     formState.firstName !== (user?.firstName || '') ||
     formState.lastName !== (user?.lastName || '') ||
     formState.email !== (user?.email || '') ||
-    formState.role !== (user?.role || '') ||
-    formState.profileColor !== (user?.profileColor || '');
+    formState.role !== (user?.role || '');
 
   // Handlers for field changes
   const handleFieldChange = (key, value) => {
@@ -112,7 +102,6 @@ const AccountEditPage = () => {
     if (formState.lastName !== (user?.lastName || '')) { updates.lastName = formState.lastName; nameChanged = true; }
     if (formState.email !== (user?.email || '')) updates.email = formState.email;
     if (formState.role !== (user?.role || '')) updates.role = formState.role;
-    if (formState.profileColor !== (user?.profileColor || '')) updates.profileColor = formState.profileColor || null;
     if (nameChanged) updates.username = `${formState.firstName} ${formState.lastName}`.trim();
     if (Object.keys(updates).length === 0) return;
     setSaving(true);
@@ -121,7 +110,7 @@ const AccountEditPage = () => {
       if (updates.role) {
         await updateUserRole(userId, updates.role);
       }
-      if (updates.firstName || updates.lastName || updates.email || updates.username || updates.profileColor !== undefined) {
+      if (updates.firstName || updates.lastName || updates.email || updates.username) {
         await api.put(`/users/profile/${userId}`, updates);
       }
       toast.success('Account updated successfully!');
@@ -156,17 +145,90 @@ const AccountEditPage = () => {
 
   const handleSendResetLink = async () => {
     setSendResetLinkLoading(true);
+    setError('');
     try {
-      await sendPasswordResetLink(userId);
-      toast.success('Password reset link sent successfully!');
+      if (isOwnProfile) {
+        // User requesting their own password reset
+        await api.post('/auth/request-reset-link', { email: user.email });
+        toast.success('Password reset link sent to your email!');
+      } else {
+        // Admin sending reset link for another user
+        const response = await sendPasswordResetLink(userId);
+        if (response?.data?.success) {
+          toast.success('Password reset link sent successfully!');
+        } else {
+          throw new Error(response?.data?.message || 'Failed to send reset link');
+        }
+      }
       setSendResetLinkSuccess(true);
       setTimeout(() => setSendResetLinkSuccess(false), 3000);
     } catch (err) {
-      const errorMsg = err.response?.data?.message || 'Failed to send reset link.';
+      console.error('Password reset link error:', err);
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to send reset link. Please check email configuration and try again.';
       setError(errorMsg);
       toast.error(errorMsg);
     } finally {
       setSendResetLinkLoading(false);
+    }
+  };
+
+  const handleRequestAccountRemoval = async () => {
+    if (!window.confirm('Are you sure you want to request account removal? An administrator will review your request. This action cannot be undone once approved.')) {
+      return;
+    }
+
+    setRemovalRequestLoading(true);
+    try {
+      await requestAccountRemoval();
+      toast.success('Account removal request submitted. An administrator will review your request.');
+      setRemovalRequestSuccess(true);
+      // Re-fetch user to update the accountRemovalRequested status
+      const res = await api.get(`/users/profile/${userId}`);
+      setUser(res.data.user);
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || 'Failed to submit removal request.';
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setRemovalRequestLoading(false);
+    }
+  };
+
+  const handleCancelRemovalRequest = async () => {
+    setRemovalRequestLoading(true);
+    try {
+      await cancelAccountRemovalRequest();
+      toast.success('Account removal request cancelled.');
+      setRemovalRequestSuccess(true);
+      // Re-fetch user to update the accountRemovalRequested status
+      const res = await api.get(`/users/profile/${userId}`);
+      setUser(res.data.user);
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || 'Failed to cancel removal request.';
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setRemovalRequestLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${user?.username || user?.email || 'this user'}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeleteUserLoading(true);
+    try {
+      await deleteUser(userId);
+      toast.success('User deleted successfully!');
+      // Navigate back to account list after deletion
+      navigate('/account');
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || 'Failed to delete user.';
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setDeleteUserLoading(false);
     }
   };
 
@@ -200,258 +262,399 @@ const AccountEditPage = () => {
 
   // Role-based edit permissions
   const canEditNames = canEditThisUser;
+  // Staff cannot edit email (even their own). Admin/Ops can edit emails (with restrictions)
   const canEditEmail =
-    isAdmin ||
-    (isOperationsManager && user?.role !== 'admin');
+    !isStaff && ( // Staff cannot edit email at all
+      isOwnProfile || // Admin/Ops can edit their own email
+      isAdmin ||
+      (isOperationsManager && user?.role !== 'admin')
+    );
   const canEditRole = isAdmin && userId !== currentUser?.id;
-  const canResendInvite = user.isInvited && (isAdmin || isOperationsManager);
-  const canResetPassword = isAdmin;
+  // Show resend invite button for pending users (not active)
+  // Ops can resend invite to Ops and Staff (not Admin), Admin can resend to anyone
+  // User must be pending (not active) to show the button
+  const canResendInvite = !user.isActive && (
+    isAdmin || 
+    (isOperationsManager && user?.role !== 'admin')
+  );
+  const canResetPassword = isAdmin || isOwnProfile; // Admin can reset for others, anyone can reset their own
   const statusLabel = user.isActive ? 'Active' : 'Pending';
 
   return (
     <MainLayout userName={user?.username || user?.email || 'User'}>
-      {/* Header with Return Button */}
-      <Box display="flex" alignItems="center" mb={4}>
-        <Button
-          variant="contained"
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate(getReturnPath())}
-          sx={{ 
-            backgroundColor: '#1bcddc', 
-            color: '#fff', 
-            fontWeight: 700, 
-            px: 3, 
-            borderRadius: 2, 
-            boxShadow: 'none', 
-            mr: 3,
-            '&:hover': { backgroundColor: '#17b3c0' } 
-          }}
-        >
-          {location.pathname.includes('/profile/edit') ? 'RETURN TO PROFILE' : 'RETURN TO ACCOUNT PAGE'}
-        </Button>
-      </Box>
-
       {/* Page Title */}
-      <Typography variant="h5" fontWeight={700} letterSpacing={2} mb={4} color="#31365E">
-        Edit User Account
+      <Typography variant="h4" fontWeight={600} mb={1} color="#1a1a1a">
+        Account Settings
+      </Typography>
+      <Typography variant="body2" color="text.secondary" mb={4}>
+        Manage account information and settings
       </Typography>
 
-      {/* Main Content Card */}
-      <Card sx={{ borderRadius: 3, boxShadow: '0 2px 8px #eee', p: 4 }}>
-        <Box component="form" autoComplete="off" onSubmit={e => { e.preventDefault(); handleSave(); }}>
-          <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }} gap={4} mb={4}>
-            {/* First Name */}
-            <Box>
-              <Typography fontWeight={600} mb={1} color="#222">First Name</Typography>
-              <TextField
-                value={formState.firstName}
-                onChange={e => handleFieldChange('firstName', e.target.value)}
-                size="medium"
-                fullWidth
-                disabled={!canEditNames}
-                InputProps={{
-                  style: !canEditNames ? { background: '#f5f5f7', color: '#888' } : { background: '#fff' }
-                }}
-                sx={{ borderRadius: 2, mb: 2 }}
-              />
-            </Box>
-            {/* Last Name */}
-            <Box>
-              <Typography fontWeight={600} mb={1} color="#222">Last Name</Typography>
-              <TextField
-                value={formState.lastName}
-                onChange={e => handleFieldChange('lastName', e.target.value)}
-                size="medium"
-                fullWidth
-                disabled={!canEditNames}
-                InputProps={{
-                  style: !canEditNames ? { background: '#f5f5f7', color: '#888' } : { background: '#fff' }
-                }}
-                sx={{ borderRadius: 2, mb: 2 }}
-              />
-            </Box>
-            {/* Email */}
-            <Box>
-              <Typography fontWeight={600} mb={1} color="#222">Email</Typography>
-              <TextField
-                value={formState.email}
-                onChange={e => handleFieldChange('email', e.target.value)}
-                size="medium"
-                fullWidth
-                disabled={!canEditEmail}
-                helperText={!canEditEmail ? "Email can only be updated by an Ops Manager or Admin" : ""}
-                InputProps={{
-                  style: !canEditEmail ? { background: '#f5f5f7', color: '#888' } : { background: '#fff' }
-                }}
-                sx={{ borderRadius: 2, mb: 2 }}
-              />
-            </Box>
-            {/* Role + Resend Invite */}
-            <Box>
-              <Typography fontWeight={600} mb={1} color="#222">Role</Typography>
-              <Box display="flex" alignItems="center">
-                <FormControl size="medium" fullWidth>
-                  <Select
-                    value={formState.role}
-                    onChange={e => handleFieldChange('role', e.target.value)}
-                    disabled={!canEditRole}
-                    sx={{ background: !canEditRole ? '#f5f5f7' : '#fff', color: !canEditRole ? '#888' : '#222', borderRadius: 2 }}
-                  >
-                    <MenuItem value="admin">Administrator</MenuItem>
-                    <MenuItem value="operations_manager">Operations Manager</MenuItem>
-                    <MenuItem value="staff">Staff</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
-              <Typography variant="caption" color="text.secondary" mt={1}>
-                {statusLabel}
-              </Typography>
-              {canResendInvite && (
-                <Box mt={1}>
-                  <Button
-                    variant="text"
-                    size="small"
-                    startIcon={<EmailIcon />}
-                    onClick={handleResendInvite}
-                    sx={{ fontWeight: 600, color: 'primary.main', textTransform: 'none' }}
-                    disabled={resendInviteLoading}
-                  >
-                    {resendInviteLoading ? 'Sending...' : 'Resend Invite'}
-                  </Button>
-                </Box>
-              )}
-            </Box>
-            {/* Profile Color Picker - Only for own profile */}
-            {isOwnProfile && (
-              <Box>
-                <Typography fontWeight={600} mb={1} color="#222">Profile Color</Typography>
-                <Box display="flex" alignItems="center" gap={2} mb={1}>
-                  <Avatar
-                    sx={{
-                      width: 56,
-                      height: 56,
-                      bgcolor: formState.profileColor || undefined,
-                      border: '2px solid',
-                      borderColor: 'divider',
-                      cursor: 'pointer',
-                      fontSize: '1.5rem',
-                      fontWeight: 600
-                    }}
-                    onClick={() => setShowColorPicker(!showColorPicker)}
-                  >
-                    {user?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
-                  </Avatar>
-                  <Button
-                    variant="outlined"
-                    onClick={() => setShowColorPicker(!showColorPicker)}
-                    sx={{ borderRadius: 2 }}
-                  >
-                    {showColorPicker ? 'Hide Colors' : 'Choose Color'}
-                  </Button>
-                  {formState.profileColor && (
-                    <Button
-                      variant="text"
+      {/* Main Content - Asana-style structured layout */}
+      <Box>
+        {/* Account Information Section */}
+        <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, mb: 3, overflow: 'hidden' }}>
+          <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0', backgroundColor: '#fafafa' }}>
+            <Typography variant="h6" fontWeight={600} color="#1a1a1a">
+              Account Information
+            </Typography>
+            <Typography variant="body2" color="text.secondary" mt={0.5}>
+              Update your name and email address
+            </Typography>
+          </Box>
+          
+          <Box component="form" autoComplete="off" onSubmit={e => { e.preventDefault(); handleSave(); }}>
+            <Table>
+              <TableBody>
+                {/* First Name */}
+                <TableRow>
+                  <TableCell sx={{ width: '200px', fontWeight: 500, color: '#666', borderBottom: '1px solid #f0f0f0', verticalAlign: 'top', pt: 3 }}>
+                    First Name
+                  </TableCell>
+                  <TableCell sx={{ borderBottom: '1px solid #f0f0f0', pt: 3, pb: 3 }}>
+                    <TextField
+                      value={formState.firstName}
+                      onChange={e => handleFieldChange('firstName', e.target.value)}
                       size="small"
-                      onClick={() => handleFieldChange('profileColor', '')}
-                      sx={{ color: 'text.secondary' }}
-                    >
-                      Reset
-                    </Button>
-                  )}
-                </Box>
-                {showColorPicker && (
-                  <Paper
-                    elevation={3}
-                    sx={{
-                      mt: 2,
-                      p: 2,
-                      borderRadius: 2,
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: 1.5,
-                      maxWidth: 500,
-                      backgroundColor: '#fafafa'
-                    }}
-                  >
-                    {[
-                      '#1bcddc', '#31365E', '#CB1033', '#FAA951',
-                      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
-                      '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
-                      '#BB8FCE', '#85C1E2', '#F8B739', '#E74C3C',
-                      '#3498DB', '#2ECC71', '#9B59B6', '#E67E22',
-                      '#1ABC9C', '#34495E', '#F39C12', '#E91E63'
-                    ].map((color) => (
-                      <Tooltip key={color} title={color}>
-                        <Box
-                          onClick={() => {
-                            handleFieldChange('profileColor', color);
-                            setShowColorPicker(false);
-                          }}
+                      fullWidth
+                      disabled={!canEditNames}
+                      variant="outlined"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          backgroundColor: !canEditNames ? '#f9f9f9' : '#fff',
+                          '& fieldset': {
+                            borderColor: '#e0e0e0',
+                          },
+                          '&:hover fieldset': {
+                            borderColor: !canEditNames ? '#e0e0e0' : '#999',
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: '#1bcddc',
+                            borderWidth: '1px',
+                          },
+                        },
+                      }}
+                    />
+                  </TableCell>
+                </TableRow>
+                
+                {/* Last Name */}
+                <TableRow>
+                  <TableCell sx={{ width: '200px', fontWeight: 500, color: '#666', borderBottom: '1px solid #f0f0f0', verticalAlign: 'top', pt: 3 }}>
+                    Last Name
+                  </TableCell>
+                  <TableCell sx={{ borderBottom: '1px solid #f0f0f0', pt: 3, pb: 3 }}>
+                    <TextField
+                      value={formState.lastName}
+                      onChange={e => handleFieldChange('lastName', e.target.value)}
+                      size="small"
+                      fullWidth
+                      disabled={!canEditNames}
+                      variant="outlined"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          backgroundColor: !canEditNames ? '#f9f9f9' : '#fff',
+                          '& fieldset': {
+                            borderColor: '#e0e0e0',
+                          },
+                          '&:hover fieldset': {
+                            borderColor: !canEditNames ? '#e0e0e0' : '#999',
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: '#1bcddc',
+                            borderWidth: '1px',
+                          },
+                        },
+                      }}
+                    />
+                  </TableCell>
+                </TableRow>
+                
+                {/* Email */}
+                <TableRow>
+                  <TableCell sx={{ width: '200px', fontWeight: 500, color: '#666', borderBottom: '1px solid #f0f0f0', verticalAlign: 'top', pt: 3 }}>
+                    Email
+                  </TableCell>
+                  <TableCell sx={{ borderBottom: '1px solid #f0f0f0', pt: 3, pb: 3 }}>
+                    <TextField
+                      value={formState.email}
+                      onChange={e => handleFieldChange('email', e.target.value)}
+                      size="small"
+                      fullWidth
+                      disabled={!canEditEmail}
+                      variant="outlined"
+                      helperText={!canEditEmail ? (isStaff ? "Staff cannot update email addresses. Please contact an Operations Manager or Admin." : "Email can only be updated by an Ops Manager or Admin") : ""}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          backgroundColor: !canEditEmail ? '#f9f9f9' : '#fff',
+                          '& fieldset': {
+                            borderColor: '#e0e0e0',
+                          },
+                          '&:hover fieldset': {
+                            borderColor: !canEditEmail ? '#e0e0e0' : '#999',
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: '#1bcddc',
+                            borderWidth: '1px',
+                          },
+                        },
+                      }}
+                    />
+                  </TableCell>
+                </TableRow>
+                
+                {/* Role */}
+                <TableRow>
+                  <TableCell sx={{ width: '200px', fontWeight: 500, color: '#666', borderBottom: 'none', verticalAlign: 'top', pt: 3 }}>
+                    Role
+                  </TableCell>
+                  <TableCell sx={{ borderBottom: 'none', pt: 3, pb: 3 }}>
+                    <Box display="flex" alignItems="center" gap={2}>
+                      <FormControl size="small" sx={{ minWidth: 200 }}>
+                        <Select
+                          value={formState.role}
+                          onChange={e => handleFieldChange('role', e.target.value)}
+                          disabled={!canEditRole}
                           sx={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: '50%',
-                            bgcolor: color,
-                            cursor: 'pointer',
-                            border: formState.profileColor === color ? '3px solid #31365E' : '2px solid #ddd',
-                            transition: 'all 0.2s',
+                            backgroundColor: !canEditRole ? '#f9f9f9' : '#fff',
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#e0e0e0',
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: !canEditRole ? '#e0e0e0' : '#999',
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#1bcddc',
+                            },
+                          }}
+                        >
+                          <MenuItem value="admin">Administrator</MenuItem>
+                          <MenuItem value="operations_manager">Operations Manager</MenuItem>
+                          <MenuItem value="staff">Staff</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <Typography variant="caption" color="text.secondary">
+                        {statusLabel}
+                      </Typography>
+                      {canResendInvite && (
+                        <Button
+                          variant="text"
+                          size="small"
+                          startIcon={<EmailIcon />}
+                          onClick={handleResendInvite}
+                          sx={{ 
+                            fontWeight: 500, 
+                            color: '#1bcddc', 
+                            textTransform: 'none',
+                            ml: 'auto',
                             '&:hover': {
-                              transform: 'scale(1.2)',
-                              boxShadow: `0 0 0 4px ${color}40`,
-                              zIndex: 1
+                              backgroundColor: '#f0f9fa'
                             }
                           }}
-                        />
-                      </Tooltip>
-                    ))}
-                  </Paper>
-                )}
-                <Typography variant="caption" color="text.secondary" mt={1} display="block">
-                  Choose a color for your profile avatar. Leave empty to use auto-generated color.
-                </Typography>
-              </Box>
-            )}
-          </Box>
-          {error && <Alert severity="error" sx={{ my: 2 }}>{error}</Alert>}
-          <Box mt={5} display="flex" justifyContent="flex-end">
-            <Button
-              type="submit"
-              variant="contained"
-              color="primary"
-              startIcon={<SaveIcon />}
-              disabled={!isDirty || saving}
-              sx={{ minWidth: 180, fontWeight: 600, fontSize: 18, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </Box>
-          {canResetPassword && (
-            <Box mt={8}>
-              <Divider sx={{ mb: 4 }} />
-              <Typography fontWeight={600} mb={3} letterSpacing={1} color="#222">
-                SEND PASSWORD RESET LINK
-              </Typography>
+                          disabled={resendInviteLoading}
+                        >
+                          {resendInviteLoading ? 'Sending...' : 'Resend Invite'}
+                        </Button>
+                      )}
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+            
+            {error && <Alert severity="error" sx={{ m: 3, mt: 2 }}>{error}</Alert>}
+            
+            {/* Save Button */}
+            <Box sx={{ p: 3, borderTop: '1px solid #e0e0e0', backgroundColor: '#fafafa', display: 'flex', justifyContent: 'flex-end' }}>
               <Button
+                type="submit"
                 variant="contained"
-                color="error"
-                onClick={handleSendResetLink}
-                disabled={sendResetLinkLoading}
-                sx={{ fontWeight: 700, minWidth: 260, borderRadius: 3 }}
+                disabled={!isDirty || saving}
+                sx={{ 
+                  backgroundColor: '#1bcddc',
+                  color: '#fff',
+                  fontWeight: 500,
+                  px: 3,
+                  textTransform: 'none',
+                  '&:hover': { 
+                    backgroundColor: '#17b3c0' 
+                  },
+                  '&.Mui-disabled': {
+                    backgroundColor: '#e0e0e0',
+                    color: '#999'
+                  }
+                }}
               >
-                {sendResetLinkLoading ? 'Sending...' : 'Send Reset Password Link'}
+                {saving ? 'Saving...' : 'Save Changes'}
               </Button>
             </Box>
-          )}
-        </Box>
-      </Card>
+          </Box>
+        </Paper>
+
+        {/* Security Section */}
+        {(canResetPassword || canResendInvite || isOwnProfile || canDeleteUsers) && (
+          <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, overflow: 'hidden' }}>
+            <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0', backgroundColor: '#fafafa' }}>
+              <Typography variant="h6" fontWeight={600} color="#1a1a1a">
+                Security
+              </Typography>
+              <Typography variant="body2" color="text.secondary" mt={0.5}>
+                Manage password and account access
+              </Typography>
+            </Box>
+            
+            <Table>
+              <TableBody>
+                {/* Reset Password */}
+                {canResetPassword && (
+                  <TableRow>
+                    <TableCell sx={{ width: '200px', fontWeight: 500, color: '#666', borderBottom: user?.accountRemovalRequested && isOwnProfile ? '1px solid #f0f0f0' : 'none', pt: 3, pb: 3 }}>
+                      {isOwnProfile ? 'Reset My Password' : 'Reset Password'}
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: user?.accountRemovalRequested && isOwnProfile ? '1px solid #f0f0f0' : 'none', pt: 3, pb: 3 }}>
+                      <Box display="flex" alignItems="center" gap={2}>
+                        <Typography variant="body2" color="text.secondary" flex={1}>
+                          {isOwnProfile 
+                            ? "We'll send a password reset link to your email address."
+                            : "Send a password reset link to this user's email address."}
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<LockResetIcon />}
+                          onClick={handleSendResetLink}
+                          disabled={sendResetLinkLoading}
+                          sx={{ 
+                            fontWeight: 500,
+                            textTransform: 'none',
+                            borderColor: '#e0e0e0',
+                            color: '#666',
+                            '&:hover': {
+                              borderColor: '#999',
+                              backgroundColor: '#f5f5f5'
+                            }
+                          }}
+                        >
+                          {sendResetLinkLoading ? 'Sending...' : 'Send Reset Link'}
+                        </Button>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                )}
+                
+                {/* Request Account Removal - Only for own account */}
+                {isOwnProfile && (
+                  <TableRow>
+                    <TableCell sx={{ width: '200px', fontWeight: 500, color: '#666', borderBottom: canDeleteUsers && !isOwnProfile ? '1px solid #f0f0f0' : 'none', pt: 3, pb: 3 }}>
+                      Request Account Removal
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: canDeleteUsers && !isOwnProfile ? '1px solid #f0f0f0' : 'none', pt: 3, pb: 3 }}>
+                      <Box display="flex" alignItems="center" gap={2}>
+                        <Typography variant="body2" color="text.secondary" flex={1}>
+                          {user?.accountRemovalRequested 
+                            ? 'Your account removal request is pending administrator approval. You can cancel this request if needed.'
+                            : 'Request to have your account permanently removed. An administrator must approve this request.'}
+                        </Typography>
+                        {user?.accountRemovalRequested ? (
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            color="warning"
+                            onClick={handleCancelRemovalRequest}
+                            disabled={removalRequestLoading}
+                            sx={{ 
+                              fontWeight: 500,
+                              textTransform: 'none',
+                              borderColor: '#faa951',
+                              color: '#faa951',
+                              '&:hover': {
+                                borderColor: '#e89a40',
+                                backgroundColor: '#fff8f0'
+                              }
+                            }}
+                          >
+                            {removalRequestLoading ? 'Cancelling...' : 'Cancel Request'}
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            color="error"
+                            onClick={handleRequestAccountRemoval}
+                            disabled={removalRequestLoading}
+                            sx={{ 
+                              fontWeight: 500,
+                              textTransform: 'none',
+                              borderColor: '#CB1033',
+                              color: '#CB1033',
+                              '&:hover': {
+                                borderColor: '#a00d2a',
+                                backgroundColor: '#fff5f5'
+                              }
+                            }}
+                          >
+                            {removalRequestLoading ? 'Submitting...' : 'Request Removal'}
+                          </Button>
+                        )}
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                )}
+                
+                {/* Delete User - Admin only, not for own account */}
+                {canDeleteUsers && !isOwnProfile && (
+                  <TableRow>
+                    <TableCell sx={{ width: '200px', fontWeight: 500, color: '#666', borderBottom: 'none', pt: 3, pb: 3 }}>
+                      Delete Account
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: 'none', pt: 3, pb: 3 }}>
+                      <Box display="flex" alignItems="center" gap={2}>
+                        <Typography variant="body2" color="text.secondary" flex={1}>
+                          Permanently delete this user's account. This action cannot be undone. If the user has associated events or check-ins, they must first request account removal.
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          color="error"
+                          onClick={handleDeleteUser}
+                          disabled={deleteUserLoading}
+                          sx={{ 
+                            fontWeight: 500,
+                            textTransform: 'none',
+                            borderColor: '#CB1033',
+                            color: '#CB1033',
+                            '&:hover': {
+                              borderColor: '#a00d2a',
+                              backgroundColor: '#fff5f5'
+                            }
+                          }}
+                        >
+                          {deleteUserLoading ? 'Deleting...' : 'Delete User'}
+                        </Button>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Paper>
+        )}
+      </Box>
+      
       <Snackbar
-        open={success || resendInviteSuccess || sendResetLinkSuccess}
-        autoHideDuration={2000}
-        onClose={() => { setSuccess(false); setResendInviteSuccess(false); setSendResetLinkSuccess(false); }}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        open={success || resendInviteSuccess || sendResetLinkSuccess || removalRequestSuccess}
+        autoHideDuration={3000}
+        onClose={() => { 
+          setSuccess(false); 
+          setResendInviteSuccess(false); 
+          setSendResetLinkSuccess(false);
+          setRemovalRequestSuccess(false);
+        }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
         <Alert severity="success" sx={{ width: '100%' }}>
-          {sendResetLinkSuccess ? 'Reset link sent successfully!' : 
+          {removalRequestSuccess ? 'Request submitted successfully!' :
+           sendResetLinkSuccess ? (isOwnProfile ? 'Password reset link sent to your email!' : 'Password reset link sent successfully!') : 
            resendInviteSuccess ? 'Invite sent successfully!' : 
            'Account updated successfully!'}
         </Alert>

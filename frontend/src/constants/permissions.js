@@ -5,7 +5,7 @@
 export const PERMISSIONS = {
     INVITE_ADMIN: ['admin'], // Only Admin may create Admin users
   
-    INVITE_OPS: ['admin'], // Prevent privilege escalation
+    INVITE_OPS: ['admin', 'operationsManager'], // Admin and Ops can invite Operations Managers
   
     INVITE_STAFF: ['admin', 'operationsManager', 'staff'],
     // Admin → Staff
@@ -14,8 +14,7 @@ export const PERMISSIONS = {
   
     RESEND_INVITE: ['admin', 'operationsManager'],
   
-    DELETE_USER: ['admin', 'operationsManager'],
-    // Ops may delete/deactivate staff only (backend enforced)
+    DELETE_USER: ['admin'], // Only Admin can delete users
   
     EDIT_ANY_USER: ['admin'],
     EDIT_STAFF_ONLY: ['operationsManager'],

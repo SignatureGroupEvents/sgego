@@ -22,7 +22,7 @@ import AccountPage from "./pages/Account/AccountPage.jsx";
 import AccountEditPage from "./pages/Account/AccountEditPage.jsx";
 // import f from "./pages/user-management/UserManagement.jsx";
 import UserProfile from "./pages/profile/UserProfile.jsx";
-import AuthPage from "./pages/auth/AuthPage.jsx";
+import AuthPage from "./pages/Auth/AuthPage.jsx";
 import AdvancedDashboard from './pages/Dashboard/AdvancedDashboard';
 import HelpPage from "./pages/HelpPage";
 import GuestDetailPage from './components/guests/GuestDetailPage';
@@ -33,6 +33,10 @@ import ComprehensiveAnalytics from './components/analytics/ComprehensiveAnalytic
 
 function InviteRedirect() {
   const { token } = useParams();
+  // Ensure token is present and redirect to register form
+  if (!token) {
+    return <Navigate to="/auth?view=login" replace />;
+  }
   return <Navigate to={`/auth?view=register&token=${token}`} replace />;
 }
 
@@ -140,14 +144,14 @@ function App() {
               </ProtectedRoute>
             } />
             {/* Account Routes */}
-            {/* EDIT_ANY_USER or EDIT_STAFF_ONLY: Admin can see all, Ops can see Staff/Ops */}
+            {/* EDIT_ANY_USER, EDIT_STAFF_ONLY, or INVITE_STAFF: Admin/Ops can manage users, Staff can invite */}
             <Route path="/account" element={
-              <ProtectedRoute requiredCapability={["EDIT_ANY_USER", "EDIT_STAFF_ONLY"]} requireAny>
+              <ProtectedRoute requiredCapability={["EDIT_ANY_USER", "EDIT_STAFF_ONLY", "INVITE_STAFF"]} requireAny>
                 <AccountPage />
               </ProtectedRoute>
             } />
             <Route path="/account/:userId" element={
-              <ProtectedRoute requiredCapability={["EDIT_ANY_USER", "EDIT_STAFF_ONLY"]} requireAny>
+              <ProtectedRoute requiredCapability={["EDIT_ANY_USER", "EDIT_STAFF_ONLY", "INVITE_STAFF"]} requireAny>
                 <AccountPage />
               </ProtectedRoute>
             } />
@@ -168,11 +172,6 @@ function App() {
             <Route path="/profile/:userId" element={
               <ProtectedRoute>
                 <UserProfile />
-              </ProtectedRoute>
-            } />
-            <Route path="/profile/edit/:userId" element={
-              <ProtectedRoute>
-                <AccountEditPage />
               </ProtectedRoute>
             } />
             
