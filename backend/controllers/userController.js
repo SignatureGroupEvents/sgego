@@ -46,8 +46,15 @@ const resendInvite = async (req, res) => {
 
 const inviteUser = async (req, res) => {
   try {
-    const { email, role } = req.body; // role = requested role for new user
+    const { email, role, firstName, lastName } = req.body; // role = requested role for new user
     const inviterRole = req.user.role;
+
+    // Validate required fields
+    if (!email || !firstName || !lastName) {
+      return res.status(400).json({ 
+        message: 'Email, first name, and last name are required' 
+      });
+    }
 
     // Staff can ONLY invite staff
     if (inviterRole === 'staff' && role !== 'staff') {
@@ -74,6 +81,8 @@ const inviteUser = async (req, res) => {
 
     user = await User.create({
       email,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       role,
       invitedBy: req.user.id,
       isInvited: true,
@@ -87,19 +96,28 @@ const inviteUser = async (req, res) => {
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     });
 
+    // Validate CLIENT_URL before generating link
+    if (!process.env.CLIENT_URL) {
+      console.error('❌ CLIENT_URL environment variable is not set');
+      return res.status(500).json({ 
+        message: 'Server configuration error: CLIENT_URL is not set. Please contact your administrator.' 
+      });
+    }
+
     const inviteLink = `${process.env.CLIENT_URL}/invite/${token}`;
+    console.log('🔗 Invite link generated:', inviteLink.replace(token, '***[token]'));
+    console.log('📧 Sending invite to:', email);
 
     await sendEmail({
       to: email,
       subject: "You've Been Invited to Join SGEGO 🏱",
-      html: `<p>Hello,</p><p>You've been invited to join <strong>SGEGO</strong> as a <strong>${role}</strong>.</p><p>Click the link below to complete your registration:</p><p><a href="${inviteLink}">${inviteLink}</a></p><p>This invitation will expire in 7 days.</p>`
+      html: `<p>Hello ${firstName},</p><p>You've been invited to join <strong>SGEGO</strong> as a <strong>${role}</strong>.</p><p>Click the link below to complete your registration:</p><p><a href="${inviteLink}">${inviteLink}</a></p><p>This invitation will expire in 7 days.</p>`
     });
 
     res.status(201).json({ message: 'User invited successfully', inviteLink });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-  console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
 };
 
 
@@ -172,10 +190,11 @@ const updateUserProfile = async (req, res) => {
     if (email && email !== user.email) {
       const requesterRole = req.user.role;
       const targetRole = user.role;
+      const isOwnAccount = req.user.id === targetUserId;
     
-      // STAFF can NEVER update emails
+      // STAFF cannot update email at all (not even their own)
       if (requesterRole === 'staff') {
-        return res.status(403).json({ message: 'Staff cannot change email addresses. Contact your Ops Manager.' });
+        return res.status(403).json({ message: 'Staff cannot update email addresses. Please contact an Operations Manager or Admin for assistance.' });
       }
     
       // OPS cannot update ADMIN emails
@@ -561,12 +580,157 @@ const deleteUser = async (req, res) => {
     const checkinCount = await Checkin.countDocuments({ checkedInBy: userId });
     if (eventCount > 0 || checkinCount > 0) {
       user.isActive = false;
+      // Clear removal request when deactivating
+      user.accountRemovalRequested = false;
+      user.accountRemovalRequestedAt = null;
       await user.save();
       return res.json({ success: true, message: `User ${user.username} has been deactivated (has ${eventCount} events and ${checkinCount} check-ins)` });
     }
     await User.findByIdAndDelete(userId);
     await UserAssignment.deleteMany({ userId });
     res.json({ success: true, message: `User ${user.username} has been deleted` });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Request account removal - user requests their own account deletion
+const requestAccountRemoval = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (user.accountRemovalRequested) {
+      return res.status(400).json({ message: 'Account removal has already been requested. Please wait for administrator approval.' });
+    }
+
+    user.accountRemovalRequested = true;
+    user.accountRemovalRequestedAt = new Date();
+    await user.save();
+
+    // Notify all administrators via email
+    try {
+      console.log('📧 Starting account removal email notification process...');
+      const adminUsers = await User.find({ 
+        role: 'admin', 
+        isActive: true 
+      }).select('email username');
+
+      console.log(`📧 Found ${adminUsers.length} active admin user(s)`);
+      
+      if (adminUsers.length === 0) {
+        console.warn('⚠️  No active admin users found to notify about account removal request');
+      } else {
+        const userDisplayName = user.username || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+        const accountUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://sgego.netlify.app';
+        
+        console.log(`📧 User requesting removal: ${userDisplayName} (${user.email})`);
+        
+        // Send email to each admin individually for better reliability
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const admin of adminUsers) {
+          try {
+            console.log(`📧 Sending email to admin: ${admin.email} (${admin.username || 'no username'})`);
+            await sendEmail({
+              to: admin.email,
+              subject: `Account Removal Request - ${userDisplayName}`,
+              html: `
+                <p>Hello Administrator,</p>
+                <p>A user has requested account removal:</p>
+                <ul>
+                  <li><strong>Name:</strong> ${userDisplayName}</li>
+                  <li><strong>Email:</strong> ${user.email}</li>
+                  <li><strong>Role:</strong> ${user.role}</li>
+                  <li><strong>Requested At:</strong> ${new Date(user.accountRemovalRequestedAt).toLocaleString()}</li>
+                </ul>
+                <p>Please review and process this request in the Account Settings:</p>
+                <p><a href="${accountUrl}/account/edit/${user._id}">View User Account</a></p>
+                <p>Or view all pending removal requests:</p>
+                <p><a href="${accountUrl}/account">User Management</a></p>
+                <p>Best regards,<br>SGEGO System</p>
+              `
+            });
+            successCount++;
+            console.log(`✅ Email sent successfully to ${admin.email}`);
+          } catch (adminEmailError) {
+            failCount++;
+            console.error(`❌ Failed to send email to ${admin.email}:`, adminEmailError.message);
+          }
+        }
+        
+        console.log(`📧 Email notification summary: ${successCount} succeeded, ${failCount} failed out of ${adminUsers.length} total admin(s)`);
+      }
+    } catch (emailError) {
+      // Don't fail the request if email fails, but log it with full details
+      console.error('❌ Failed to send account removal notification email');
+      console.error('❌ Error message:', emailError.message);
+      console.error('❌ Error stack:', emailError.stack);
+      console.error('❌ Error code:', emailError.code);
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Account removal request submitted. An administrator will review your request.' 
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Cancel account removal request - user cancels their own request
+const cancelAccountRemovalRequest = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (!user.accountRemovalRequested) {
+      return res.status(400).json({ message: 'No pending removal request found.' });
+    }
+
+    user.accountRemovalRequested = false;
+    user.accountRemovalRequestedAt = null;
+    await user.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Account removal request cancelled.' 
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Get pending account removal requests - admin only
+const getPendingRemovalRequests = async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only administrators can view removal requests' });
+    }
+
+    const users = await User.find({ 
+      accountRemovalRequested: true,
+      isActive: true 
+    })
+    .select('email username firstName lastName role accountRemovalRequestedAt createdAt')
+    .sort({ accountRemovalRequestedAt: 1 });
+
+    res.json({ 
+      success: true, 
+      requests: users.map(user => ({
+        userId: user._id,
+        email: user.email,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        requestedAt: user.accountRemovalRequestedAt,
+        accountCreatedAt: user.createdAt
+      }))
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -973,5 +1137,8 @@ module.exports = {
   getMyAssignedEvents,
   addToMyEvents,
   removeFromMyEvents,
-  updateMyEventsPositions
+  updateMyEventsPositions,
+  requestAccountRemoval,
+  cancelAccountRemovalRequest,
+  getPendingRemovalRequests
 };

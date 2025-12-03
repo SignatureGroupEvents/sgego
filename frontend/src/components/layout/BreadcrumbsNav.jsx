@@ -57,6 +57,11 @@ const BreadcrumbsNav = ({ eventName, userName, parentEventName, parentEventId })
     return null;
   }
 
+  // Hide breadcrumb on profile pages
+  if (pathnames[0] === 'profile') {
+    return null;
+  }
+
   // Show 'Account / Edit Account' for /account/edit or /account/edit/:userId
   if (
     (location.pathname === '/account/edit') ||

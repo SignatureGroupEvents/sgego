@@ -61,6 +61,14 @@ const userSchema = new mongoose.Schema({
   lastName: {
     type: String,
     default: null
+  },
+  accountRemovalRequested: {
+    type: Boolean,
+    default: false
+  },
+  accountRemovalRequestedAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true

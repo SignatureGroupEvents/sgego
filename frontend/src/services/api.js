@@ -211,6 +211,19 @@ export const sendPasswordResetLink = (userId) => {
   return api.post(`/auth/send-reset-link/${userId}`);
 };
 
+// Account removal request API functions
+export const requestAccountRemoval = () => {
+  return api.post('/users/request-account-removal');
+};
+
+export const cancelAccountRemovalRequest = () => {
+  return api.post('/users/cancel-account-removal-request');
+};
+
+export const getPendingRemovalRequests = () => {
+  return api.get('/users/pending-removal-requests');
+};
+
 // Invite validation API function
 export const validateInviteToken = (token) => {
   return api.get(`/auth/validate-invite/${token}`);

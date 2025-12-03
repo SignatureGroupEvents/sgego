@@ -36,6 +36,7 @@ const AccountFilters = ({
           <Tab label="All" value="all" />
           <Tab label="Pending" value="pending" />
           <Tab label="Expired" value="expired" />
+          <Tab label="Request for Removal" value="removal_requested" />
         </Tabs>
 
         {/* Filters on the right */}

@@ -19,6 +19,7 @@ export const usePermissions = () => {
     canInviteAdmin: can('INVITE_ADMIN'),
     canInviteOps: can('INVITE_OPS'),
     canInviteStaff: can('INVITE_STAFF'),
+    canInviteUsers: can('INVITE_ADMIN') || can('INVITE_OPS') || can('INVITE_STAFF'), // Can invite any user type
     canResendInvite: can('RESEND_INVITE'),
 
     // USER MANAGEMENT

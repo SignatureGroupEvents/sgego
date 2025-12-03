@@ -27,7 +27,8 @@ const RegisterForm = ({ token, onSuccess, onBackToLogin }) => {
   
   // State for forms
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -55,10 +56,13 @@ const RegisterForm = ({ token, onSuccess, onBackToLogin }) => {
         const data = response.data;
         setValidation(data);
         
-        // Pre-fill email if available
-        if (data.email) {
-          setFormData(prev => ({ ...prev, email: data.email }));
-        }
+        // Pre-fill fields from validation response
+        setFormData(prev => ({
+          ...prev,
+          email: data.email || prev.email,
+          firstName: data.firstName || prev.firstName,
+          lastName: data.lastName || prev.lastName
+        }));
 
         // Show status-specific toast messages
         if (data.status === 'active') {
@@ -95,6 +99,15 @@ const RegisterForm = ({ token, onSuccess, onBackToLogin }) => {
   const handleNewUserSubmit = async (e) => {
     e.preventDefault();
     
+    // Validate required fields
+    if (!formData.firstName.trim()) {
+      setError('First name is required');
+      return;
+    }
+    if (!formData.lastName.trim()) {
+      setError('Last name is required');
+      return;
+    }
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -111,7 +124,8 @@ const RegisterForm = ({ token, onSuccess, onBackToLogin }) => {
     try {
       const response = await api.post(`/auth/accept-invite/${token}`, {
         password: formData.password,
-        name: formData.name 
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim()
       });
       
       const data = response.data;
@@ -242,20 +256,49 @@ const RegisterForm = ({ token, onSuccess, onBackToLogin }) => {
             value={formData.email}
             disabled
             margin="normal"
-            sx={{ mb: 3 }}
+            sx={{ mb: 2 }}
+          />
+        )}
+        
+        {validation?.role && (
+          <TextField
+            fullWidth
+            label="Role"
+            value={
+              validation.role === 'operations_manager' 
+                ? 'Operations Manager' 
+                : validation.role === 'admin' 
+                ? 'Administrator' 
+                : 'Staff'
+            }
+            disabled
+            margin="normal"
+            sx={{ mb: 2 }}
+            helperText="Your assigned role (cannot be changed)"
           />
         )}
         
         {validation?.status === 'new' && (
-          <TextField
-            label="Full Name"
-            value={formData.name}
-            onChange={handleInputChange('name')}
-            fullWidth
-            required
-            margin="normal"
-            placeholder="Enter your full name"
-          />
+          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+            <TextField
+              label="First Name"
+              value={formData.firstName}
+              onChange={handleInputChange('firstName')}
+              fullWidth
+              required
+              margin="normal"
+              placeholder="Enter your first name"
+            />
+            <TextField
+              label="Last Name"
+              value={formData.lastName}
+              onChange={handleInputChange('lastName')}
+              fullWidth
+              required
+              margin="normal"
+              placeholder="Enter your last name"
+            />
+          </Box>
         )}
         
         <TextField
