@@ -43,6 +43,7 @@ const ProtectedRoute = ({ children, requiredCapability, requireAny = true }) => 
     'MANAGE_EVENTS': 'canManageEvents',
     'VIEW_EVENTS': 'canViewEvents',
     'MANAGE_INVENTORY': 'canManageInventory',
+    'VIEW_INVENTORY': 'canViewInventory',
     'CHECK_IN_GUESTS': 'canCheckInGuests',
     'ACCESS_ANALYTICS_FULL': 'canAccessAnalyticsFull',
     'ACCESS_ANALYTICS_BASIC': 'canAccessAnalyticsBasic',

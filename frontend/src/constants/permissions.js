@@ -26,6 +26,7 @@ export const PERMISSIONS = {
     VIEW_EVENTS: ['admin', 'operationsManager', 'staff'],
   
     MANAGE_INVENTORY: ['admin', 'operationsManager'],
+    VIEW_INVENTORY: ['admin', 'operationsManager', 'staff'],
     CHECK_IN_GUESTS: ['admin', 'operationsManager', 'staff'],
   
     ACCESS_ANALYTICS_FULL: ['admin'], // Complete analytics suite

@@ -37,6 +37,7 @@ export const usePermissions = () => {
 
     // INVENTORY
     canManageInventory: can('MANAGE_INVENTORY'),
+    canViewInventory: can('VIEW_INVENTORY'),
 
     // CHECK-IN
     canCheckInGuests: can('CHECK_IN_GUESTS'),
