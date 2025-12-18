@@ -59,7 +59,7 @@ import toast from 'react-hot-toast';
 const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckInSuccess, inventory = [], onGuestsChange }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const { isOperationsManager, isAdmin } = usePermissions();
+  const { canCheckInGuests, canManageEvents } = usePermissions();
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
   const { guestId } = useParams();
@@ -90,10 +90,6 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
   const [savingTag, setSavingTag] = useState(false);
   const [tagError, setTagError] = useState('');
   const [availableTags, setAvailableTags] = useState(event?.availableTags || []);
-  
-  // Determine permissions
-  const canModifyEvents = isOperationsManager || isAdmin;
-  const canPerformCheckins = isOperationsManager || isAdmin || currentUser?.role === 'staff';
   
   const presetColors = [
     '#1976d2', '#d32f2f', '#388e3c', '#f57c00', '#7b1fa2',
@@ -747,7 +743,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
               <Typography variant="h6">
                 Guest List ({filteredAndSortedGuests.length} of {guests.length})
               </Typography>
-              {canModifyEvents && selectedGuests.length > 0 && (
+              {canManageEvents && selectedGuests.length > 0 && (
                 <Chip
                   label={`${selectedGuests.length} selected`}
                   color="primary"
@@ -757,7 +753,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
               )}
             </Box>
             <Box display="flex" gap={2}>
-              {canModifyEvents && selectedGuests.length > 0 && (
+              {canManageEvents && selectedGuests.length > 0 && (
                 <Button
                   variant="contained"
                   color="error"
@@ -912,7 +908,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                   <Autocomplete
                     multiple
                     size="small"
-                    options={canModifyEvents ? [...allTags, '__CREATE_TAG__'] : allTags}
+                    options={canManageEvents ? [...allTags, '__CREATE_TAG__'] : allTags}
                     sx={{
                       '& .MuiAutocomplete-inputRoot': {
                         padding: '8px 12px',
@@ -1065,7 +1061,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                       });
                       
                       // Always show create tag option at the bottom if user can modify
-                      if (canModifyEvents && !filtered.includes('__CREATE_TAG__')) {
+                      if (canManageEvents && !filtered.includes('__CREATE_TAG__')) {
                         filtered.push('__CREATE_TAG__');
                       }
                       
@@ -1139,7 +1135,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                     </TableSortLabel>
                   </TableCell>
                   <TableCell>Tags</TableCell>
-                  {canModifyEvents && (
+                  {canManageEvents && (
                     <TableCell padding="checkbox">
                       <Checkbox
                         indeterminate={isIndeterminate()}
@@ -1198,7 +1194,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                           }}
                           startIcon={<CheckCircleIcon />}
                           onClick={(e) => buttonState.active ? handleOpenCheckIn(guest, e) : null}
-                          disabled={!buttonState.active || !canPerformCheckins}
+                          disabled={!buttonState.active || !canCheckInGuests}
                         >
                           {buttonState.label}
                         </Button>
@@ -1276,7 +1272,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                           })}
                         </Box>
                       </TableCell>
-                      {canModifyEvents && (
+                      {canManageEvents && (
                         <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={isGuestSelected(guest)}
