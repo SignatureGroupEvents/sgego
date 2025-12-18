@@ -31,7 +31,7 @@ const MainNavigation = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
-  const { isAdmin, isOperationsManager } = usePermissions();
+  const { canManageUsers } = usePermissions();
 
   const [eventsOpen, setEventsOpen] = React.useState(false);
 
@@ -118,7 +118,7 @@ const MainNavigation = () => {
         </Collapse>
 
         {/* Account (Ops/Admin only) */}
-        {(isAdmin || isOperationsManager) && (
+        {canManageUsers && (
           <ListItemButton selected={isActive('/account')} onClick={() => navigate('/account')}>
             <ListItemIcon>
               <PeopleIcon />

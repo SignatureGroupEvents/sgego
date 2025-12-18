@@ -54,6 +54,7 @@ const AccountPage = () => {
     canInviteUsers,
     canManageUsers,
     canViewEvents,
+    canEditOwnProfile,
     isAdmin,
     isOperationsManager,
     isStaff
@@ -249,9 +250,9 @@ const AccountPage = () => {
                   <TableCell>
                     {/* Edit button visibility:
                         - Admin/Ops: can edit users (Ops cannot edit Admin)
-                        - Staff: can only edit their own account */}
+                        - Users can edit their own profile if they have canEditOwnProfile capability */}
                     {(canManageUsers && !(isOperationsManager && u.role === 'admin')) || 
-                     (isStaff && u._id === currentUser?.id) ? (
+                     (u._id === currentUser?.id && canEditOwnProfile) ? (
                       <Button
                         variant="contained"
                         size="small"
