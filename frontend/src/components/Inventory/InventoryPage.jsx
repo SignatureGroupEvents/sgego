@@ -104,7 +104,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     });
     return Array.from(typeSet).sort();
   }, [inventory]);
-  const { isOperationsManager, isAdmin } = usePermissions();
+  const { canManageInventory } = usePermissions();
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -127,8 +127,8 @@ const InventoryPage = ({ eventId, eventName }) => {
     setPage(0);
     setSelectedItems([]); // Clear selections when changing page size
   };
-  // Determine if user can modify inventory
-  const canModifyInventory = isOperationsManager || isAdmin;
+  // Determine if user can modify inventory (Admin and Ops only)
+  const canModifyInventory = canManageInventory;
 
   // Add to state variables
   const [isInherited, setIsInherited] = useState(false);
