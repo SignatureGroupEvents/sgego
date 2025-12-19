@@ -51,6 +51,7 @@ const ProtectedRoute = ({ children, requiredCapability, requireAny = true }) => 
     'EDIT_STAFF_ONLY': 'canEditStaffOnly',
     'EDIT_OWN_PROFILE': 'canEditOwnProfile',
     'DELETE_USER': 'canDeleteUsers',
+    'DELETE_STAFF': 'canDeleteStaff',
     'INVITE_ADMIN': 'canInviteAdmin',
     'INVITE_OPS': 'canInviteOps',
     'INVITE_STAFF': 'canInviteStaff',

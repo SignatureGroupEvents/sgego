@@ -5,32 +5,33 @@
 export const PERMISSIONS = {
     INVITE_ADMIN: ['admin'], // Only Admin may create Admin users
   
-    INVITE_OPS: ['admin', 'operationsManager'], // Admin and Ops can invite Operations Managers
+    INVITE_OPS: ['admin', 'operations_manager'], // Admin and Ops can invite Operations Managers
   
-    INVITE_STAFF: ['admin', 'operationsManager', 'staff'],
+    INVITE_STAFF: ['admin', 'operations_manager', 'staff'],
     // Admin → Staff
     // Ops → Staff
     // Staff → Staff only (restricted in UI and backend)
   
-    RESEND_INVITE: ['admin', 'operationsManager'],
+    RESEND_INVITE: ['admin', 'operations_manager'],
   
-    DELETE_USER: ['admin'], // Only Admin can delete users
+    DELETE_USER: ['admin'], // Admin can delete any user
+    DELETE_STAFF: ['admin', 'operations_manager'], // Admin and Ops can delete staff users
   
     EDIT_ANY_USER: ['admin'],
-    EDIT_STAFF_ONLY: ['operationsManager'],
+    EDIT_STAFF_ONLY: ['operations_manager'],
   
-    EDIT_OWN_PROFILE: ['admin', 'operationsManager'],
+    EDIT_OWN_PROFILE: ['admin', 'operations_manager'],
     // Staff can edit name only during registration (backend rule)
   
-    MANAGE_EVENTS: ['admin', 'operationsManager'],
-    VIEW_EVENTS: ['admin', 'operationsManager', 'staff'],
+    MANAGE_EVENTS: ['admin', 'operations_manager'],
+    VIEW_EVENTS: ['admin', 'operations_manager', 'staff'],
   
-    MANAGE_INVENTORY: ['admin', 'operationsManager'],
-    VIEW_INVENTORY: ['admin', 'operationsManager', 'staff'],
-    CHECK_IN_GUESTS: ['admin', 'operationsManager', 'staff'],
+    MANAGE_INVENTORY: ['admin', 'operations_manager'],
+    VIEW_INVENTORY: ['admin', 'operations_manager', 'staff'],
+    CHECK_IN_GUESTS: ['admin', 'operations_manager', 'staff'],
   
     ACCESS_ANALYTICS_FULL: ['admin'], // Complete analytics suite
-    ACCESS_ANALYTICS_BASIC: ['admin', 'operationsManager'], // Staff excluded
+    ACCESS_ANALYTICS_BASIC: ['admin', 'operations_manager'], // Staff excluded
   
     ASSIGN_ROLES: ['admin'], // Ops cannot change roles
   };

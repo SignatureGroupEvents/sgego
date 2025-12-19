@@ -16,7 +16,7 @@ const AccountEditPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
-  const { isAdmin, isOperationsManager, isStaff, canDeleteUsers } = usePermissions();
+  const { isAdmin, isOperationsManager, isStaff, canDeleteUsers, canDeleteStaff } = usePermissions();
 
   // Staff can edit ONLY their own profile
   const canEditThisUser =
@@ -260,6 +260,11 @@ const AccountEditPage = () => {
     );
   }
 
+  // Check if current user can delete the target user
+  // Admin can delete anyone, Ops can only delete staff
+  const canDeleteThisUser = canDeleteUsers || // Admin can delete anyone
+    (canDeleteStaff && user.role === 'staff'); // Ops can delete staff
+
   // Role-based edit permissions
   const canEditNames = canEditThisUser;
   // Staff cannot edit email (even their own). Admin/Ops can edit emails (with restrictions)
@@ -492,7 +497,7 @@ const AccountEditPage = () => {
         </Paper>
 
         {/* Security Section */}
-        {(canResetPassword || canResendInvite || isOwnProfile || canDeleteUsers) && (
+        {(canResetPassword || canResendInvite || isOwnProfile || canDeleteThisUser) && (
           <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, overflow: 'hidden' }}>
             <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0', backgroundColor: '#fafafa' }}>
               <Typography variant="h6" fontWeight={600} color="#1a1a1a">
@@ -545,10 +550,10 @@ const AccountEditPage = () => {
                 {/* Request Account Removal - Only for own account */}
                 {isOwnProfile && (
                   <TableRow>
-                    <TableCell sx={{ width: '200px', fontWeight: 500, color: '#666', borderBottom: canDeleteUsers && !isOwnProfile ? '1px solid #f0f0f0' : 'none', pt: 3, pb: 3 }}>
+                    <TableCell sx={{ width: '200px', fontWeight: 500, color: '#666', borderBottom: 'none', pt: 3, pb: 3 }}>
                       Request Account Removal
                     </TableCell>
-                    <TableCell sx={{ borderBottom: canDeleteUsers && !isOwnProfile ? '1px solid #f0f0f0' : 'none', pt: 3, pb: 3 }}>
+                    <TableCell sx={{ borderBottom: 'none', pt: 3, pb: 3 }}>
                       <Box display="flex" alignItems="center" gap={2}>
                         <Typography variant="body2" color="text.secondary" flex={1}>
                           {user?.accountRemovalRequested 
@@ -601,8 +606,8 @@ const AccountEditPage = () => {
                   </TableRow>
                 )}
                 
-                {/* Delete User - Admin only, not for own account */}
-                {canDeleteUsers && !isOwnProfile && (
+                {/* Delete User - Admin can delete anyone, Ops can delete staff only - not for own account */}
+                {canDeleteThisUser && !isOwnProfile && (
                   <TableRow>
                     <TableCell sx={{ width: '200px', fontWeight: 500, color: '#666', borderBottom: 'none', pt: 3, pb: 3 }}>
                       Delete Account

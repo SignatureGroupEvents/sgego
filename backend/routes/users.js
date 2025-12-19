@@ -58,9 +58,9 @@ router.put('/:userId/assign-events', requireOperationsOrAdmin, assignUserToEvent
 router.get('/:userId/assigned-events', getUserAssignedEvents); // Allow all authenticated users to view assigned events
 router.get('/available-events', getAvailableEvents); // Allow all authenticated users to view available events
 
-// Deactivate / delete users - admin only
+// Deactivate / delete users - admin only for deactivate, admin/Ops for delete (Ops can only delete staff)
 router.put('/:userId/deactivate', requireRole('admin'), deactivateUser);
-router.delete('/:userId', requireRole('admin'), deleteUser);
+router.delete('/:userId', requireOperationsOrAdmin, deleteUser);
 
 // Admin actions - admin only
 router.put('/:userId/reset-password', requireRole('admin'), resetUserPassword);
