@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Formik, Form, Field } from 'formik';
 import * as Yup from 'yup';
 import {
-  Container,
   Paper,
   Typography,
   TextField,
@@ -28,8 +27,6 @@ import {
   ArrowBack as ArrowBackIcon,
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
-import { usePermissions } from '../../hooks/usePermissions';
 import api from '../../services/api';
 import MainLayout from '../layout/MainLayout';
 import HomeIcon from '@mui/icons-material/Home';
@@ -63,18 +60,7 @@ const CreateEvent = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { isOperationsManager, isAdmin } = usePermissions();
   const navigate = useNavigate();
-
-  if (!isOperationsManager && !isAdmin) {
-    return (
-      <Container>
-        <Alert severity="error">
-          Access denied. Only operations managers and administrators can create events.
-        </Alert>
-      </Container>
-    );
-  }
 
   const steps = ['Basic Info', 'Gift Settings', 'Confirmation'];
 

@@ -118,9 +118,9 @@ function App() {
               </ProtectedRoute>
             } />
             
-            {/* MANAGE_INVENTORY: Admin, Ops only */}
+            {/* VIEW_INVENTORY: Admin, Ops, Staff - Staff can view but not modify */}
             <Route path="/events/:eventId/inventory" element={
-              <ProtectedRoute requiredCapability="MANAGE_INVENTORY">
+              <ProtectedRoute requiredCapability={["VIEW_INVENTORY", "MANAGE_INVENTORY"]} requireAny>
                 <InventoryPageWrapper />
               </ProtectedRoute>
             } />

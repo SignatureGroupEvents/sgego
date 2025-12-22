@@ -101,7 +101,7 @@ const TableRowSkeleton = ({ columns = 7 }) => (
 );
 
 // Empty state component
-const EmptyState = ({ searchTerm, onCreateEvent, canModifyEvents }) => (
+const EmptyState = ({ searchTerm, onCreateEvent, canManageEvents }) => (
   <Card sx={{ textAlign: 'center', py: 6, px: 3 }}>
     <CardContent>
       <EventIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
@@ -111,12 +111,12 @@ const EmptyState = ({ searchTerm, onCreateEvent, canModifyEvents }) => (
       <Typography variant="body2" color="text.secondary" paragraph>
         {searchTerm
           ? `No events match "${searchTerm}". Try adjusting your search terms.`
-          : canModifyEvents
+          : canManageEvents
             ? 'Get started by creating your first event.'
             : 'No events are currently available for check-ins.'
         }
       </Typography>
-      {!searchTerm && canModifyEvents && (
+      {!searchTerm && canManageEvents && (
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -149,14 +149,9 @@ const EventsList = () => {
   const [selectedEventForMenu, setSelectedEventForMenu] = useState(null);
 
   const rowsPerPage = isMobile ? 5 : isTablet ? 8 : 10;
-  const { isOperationsManager, isAdmin } = usePermissions();
+  const { canViewEvents, canManageEvents } = usePermissions();
   const { user: currentUser } = useAuth(); // still valid for user info
   const navigate = useNavigate();
-
-  // Determine if user can create/modify events
-  const canModifyEvents = isOperationsManager || isAdmin;
-  // Staff can view all events but cannot modify them
-  const canViewEvents = isOperationsManager || isAdmin || currentUser?.role === 'staff';
 
   // Helper function to normalize status for comparison
   const normalizeStatus = (status) => {
@@ -216,7 +211,7 @@ const EventsList = () => {
       }
     };
     fetchAllEvents();
-  }, [isOperationsManager, isAdmin, activeTab]);
+  }, [activeTab]);
 
   // Filtering and search
   const filteredEvents = events.filter(ev => {
@@ -441,7 +436,7 @@ const EventsList = () => {
             }}
           />
         </Box>
-        {canModifyEvents && (
+        {canManageEvents && (
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -464,7 +459,7 @@ const EventsList = () => {
         <EmptyState
           searchTerm={search}
           onCreateEvent={handleCreateEvent}
-          canModifyEvents={canModifyEvents}
+          canManageEvents={canManageEvents}
         />
       ) : (
         <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
@@ -506,7 +501,7 @@ const EventsList = () => {
                   <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 600 }}>Created By</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 600 }}>Secondary Events</TableCell>
-                  {canModifyEvents && (
+                  {canManageEvents && (
                     <TableCell align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
                   )}
                 </TableRow>
@@ -619,7 +614,7 @@ const EventsList = () => {
                             </Typography>
                           )}
                         </TableCell>
-                        {canModifyEvents && (
+                        {canManageEvents && (
                           <TableCell align="center">
                             <IconButton
                               size="small"
@@ -635,7 +630,7 @@ const EventsList = () => {
                       {/* Secondary Events */}
                       {isExpanded && hasSecondaryEvents && (
                         <TableRow>
-                          <TableCell colSpan={canModifyEvents ? 8 : 7} sx={{ p: 0, border: 0 }}>
+                          <TableCell colSpan={canManageEvents ? 8 : 7} sx={{ p: 0, border: 0 }}>
                             <Box sx={{ pl: 4, pr: 2, py: 2, bgcolor: 'grey.50' }}>
                               <Typography variant="subtitle2" fontWeight={600} mb={2}>
                                 Secondary Events:

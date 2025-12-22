@@ -4,11 +4,8 @@ import { PERMISSIONS } from '../constants/permissions';
 export const usePermissions = () => {
   const { user } = useAuth();
   const role = user?.role || 'staff';
-  
-  // Normalize role name: backend uses 'operations_manager', permissions.js uses 'operationsManager'
-  const normalizedRole = role === 'operations_manager' ? 'operationsManager' : role;
 
-  const can = (capability) => PERMISSIONS[capability].includes(normalizedRole);
+  const can = (capability) => PERMISSIONS[capability].includes(role);
 
   return {
     role,
@@ -23,7 +20,8 @@ export const usePermissions = () => {
     canResendInvite: can('RESEND_INVITE'),
 
     // USER MANAGEMENT
-    canDeleteUsers: can('DELETE_USER'),
+    canDeleteUsers: can('DELETE_USER'), // Admin can delete anyone
+    canDeleteStaff: can('DELETE_STAFF'), // Admin and Ops can delete staff
     canEditAnyUser: can('EDIT_ANY_USER'),
     canEditStaffOnly: can('EDIT_STAFF_ONLY'),
     canEditOwnProfile: can('EDIT_OWN_PROFILE'),
@@ -37,6 +35,7 @@ export const usePermissions = () => {
 
     // INVENTORY
     canManageInventory: can('MANAGE_INVENTORY'),
+    canViewInventory: can('VIEW_INVENTORY'),
 
     // CHECK-IN
     canCheckInGuests: can('CHECK_IN_GUESTS'),

@@ -564,16 +564,20 @@ const deactivateUser = async (req, res) => {
 const deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Only administrators can delete users' });
+    
     if (userId === req.user.id) return res.status(400).json({ message: 'Cannot delete your own account' });
+    
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
     
-    // TODO: Re-enable this restriction after testing
-    // Prevent deletion of operations_manager users
-    // if (user.role === 'operations_manager') {
-    //   return res.status(403).json({ message: 'Cannot delete operations manager users' });
-    // }
+    // Check permissions: Admin can delete anyone, Ops can only delete staff
+    if (req.user.role === 'operations_manager' && user.role !== 'staff') {
+      return res.status(403).json({ message: 'Operations managers can only delete staff users' });
+    }
+    // Admin can delete anyone (no additional check needed)
+    
+    // Prevent deletion of admin users (only admin can delete admin, but we allow it)
+    // Prevent Ops from deleting other Ops (already handled above)
     
     const Checkin = require('../models/Checkin');
     const eventCount = await Event.countDocuments({ createdBy: userId });
