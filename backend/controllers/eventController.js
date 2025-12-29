@@ -378,9 +378,9 @@ exports.getEventAnalytics = async (req, res) => {
     };
 
     // 2. GIFT ANALYTICS - Distribution Data
+    // Note: eventIdObjects is already defined above for guest stats calculation
     const giftDistributionMatch = {
-      eventId: { $in: eventIds.map(id => id.toString()) },
-      isValid: true
+      eventId: { $in: eventIdObjects }
     };
     
     // Apply date filtering if provided
@@ -408,6 +408,7 @@ exports.getEventAnalytics = async (req, res) => {
             inventoryId: '$giftsDistributed.inventoryId',
             style: '$inventoryItem.style',
             type: '$inventoryItem.type',
+            product: '$inventoryItem.product',
             size: '$inventoryItem.size'
           },
           totalQuantity: { $sum: '$giftsDistributed.quantity' },
@@ -421,6 +422,7 @@ exports.getEventAnalytics = async (req, res) => {
           inventoryId: '$_id.inventoryId',
           style: '$_id.style',
           type: '$_id.type',
+          product: '$_id.product',
           size: '$_id.size',
           totalQuantity: 1,
           distributedCount: 1,

@@ -1,145 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import {
   Box,
   Paper,
-  Typography,
-  CircularProgress,
-  Alert,
-  IconButton,
-  Tooltip,
-  Chip
+  Typography
 } from '@mui/material';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
 import { useTheme } from '@mui/material/styles';
-import { Refresh as RefreshIcon } from '@mui/icons-material';
-import { getAllEventAnalytics } from '../../services/analytics';
-import { io } from 'socket.io-client';
+import GiftAnalyticsPreview from './GiftAnalyticsPreview';
 
+/**
+ * BasicAnalytics - Main dashboard analytics component
+ * 
+ * Displays:
+ * - Total Attendance card (left)
+ * - Gift Distribution preview (right)
+ * 
+ * Note: GiftAnalyticsPreview handles its own data fetching and state management
+ * for better separation of concerns and reusability.
+ */
 const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
   const theme = useTheme();
   const totalGuests = guests.length;
-  // Use eventCheckins as source of truth
+  
+  // Use eventCheckins as source of truth for attendance
   const checkedInGuests = guests.filter(g => 
     g.eventCheckins && g.eventCheckins.length > 0 && 
     g.eventCheckins.some(ec => ec.checkedIn === true)
   ).length;
   const pendingGuests = totalGuests - checkedInGuests;
   const checkInPercentage = totalGuests > 0 ? Math.round((checkedInGuests / totalGuests) * 100) : 0;
-  
-  const [giftAnalytics, setGiftAnalytics] = useState([]);
-  const [analyticsLoading, setAnalyticsLoading] = useState(false);
-  const [analyticsError, setAnalyticsError] = useState('');
-  const [lastUpdated, setLastUpdated] = useState(new Date());
-  const socketRef = useRef(null);
-
-  // Helper: Get all unique types from inventory
-  const allGiftTypes = React.useMemo(() => {
-    const types = new Set();
-    inventory.forEach(item => {
-      if (item.type) types.add(item.type);
-    });
-    return Array.from(types);
-  }, [inventory]);
-
-  // Helper: Count selected by guest for each type
-  const selectedByType = React.useMemo(() => {
-    const typeCount = {};
-    guests.forEach(guest => {
-      if (guest.giftSelection) {
-        const item = inventory.find(i => i._id === guest.giftSelection);
-        if (item && item.type) {
-          typeCount[item.type] = (typeCount[item.type] || 0) + 1;
-        }
-      }
-    });
-    return typeCount;
-  }, [guests, inventory]);
-
-  // Helper: Available by type
-  const availableByType = React.useMemo(() => {
-    const typeCount = {};
-    inventory.forEach(item => {
-      if (item.type) {
-        typeCount[item.type] = (typeCount[item.type] || 0) + (item.currentInventory || 0);
-      }
-    });
-    return typeCount;
-  }, [inventory]);
-
-  // Compose data for bar chart: only selected by type, include all types
-  const barChartData = React.useMemo(() => {
-    if (allGiftTypes.length === 0) return [];
-    return allGiftTypes.map(type => ({
-      type,
-      selected: selectedByType[type] || 0
-    }));
-  }, [allGiftTypes, selectedByType]);
-
-  // Calculate not selected guests
-  const notSelectedCount = guests.filter(g => !g.giftSelection).length;
-
-  // Fetch analytics data (kept for future, but fallback is inventory)
-  const fetchAnalytics = async () => {
-    if (!event?._id) return;
-    setAnalyticsLoading(true);
-    setAnalyticsError('');
-    try {
-      const response = await getAllEventAnalytics(event._id);
-      // ... (existing logic, but we now always fallback to inventory for pie chart)
-      setLastUpdated(new Date());
-    } catch (error) {
-      setAnalyticsError('Failed to load analytics data');
-    } finally {
-      setAnalyticsLoading(false);
-    }
-  };
-
-  // WebSocket setup for real-time updates
-  useEffect(() => {
-    if (!event?._id) return;
-    let socket;
-    try {
-      socket = io('http://localhost:3001', {
-        transports: ['websocket', 'polling'],
-        timeout: 5000
-      });
-      socketRef.current = socket;
-      socket.emit('join-event', event._id);
-      socket.on('analytics:update', (data) => {
-        if (data.eventId === event._id) {
-          fetchAnalytics();
-        }
-      });
-      socket.on('connect_error', (error) => {
-        // WebSocket is optional
-      });
-    } catch (error) {}
-    fetchAnalytics();
-    return () => {
-      if (socketRef.current) {
-        try {
-          socketRef.current.emit('leave-event', event._id);
-          socketRef.current.disconnect();
-          socketRef.current = null;
-        } catch (error) {}
-      }
-    };
-  }, [event?._id]);
-
-  // Fallback: update last updated time when inventory or guests change
-  useEffect(() => {
-    setLastUpdated(new Date());
-  }, [inventory, guests]);
 
   return (
     <Box sx={{ 
@@ -218,58 +106,8 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
         </Box>
       </Paper>
 
-      
-
-      {/* Gift Types Bar Chart */}
-      <Paper
-        elevation={3}
-        sx={{
-          p: 3,
-          borderRadius: 3,
-          minHeight: 260,
-          minWidth: 400,
-          flex: '1 1 500px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          position: 'relative',
-        }}
-      >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, width: '100%' }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-            Gift Types Selected
-          </Typography>
-          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-            Number selected by guests
-          </Typography>
-        </Box>
-        {analyticsLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 180 }}>
-            <CircularProgress size={40} />
-          </Box>
-        ) : (allGiftTypes.length === 0) ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 180 }}>
-            <Typography variant="body2" color="text.secondary">
-              No gift types available
-            </Typography>
-          </Box>
-        ) : (
-          <Box sx={{ width: '100%', height: 220, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={barChartData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
-                <XAxis dataKey="type" tick={{ fontSize: 13 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 13 }} />
-                <RechartsTooltip formatter={(value, name) => [`${value} selected`, name]} />
-                <Bar dataKey="selected" fill={theme.palette.primary.main} radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-            <Box sx={{ width: '100%', mt: 2, display: 'flex', flexDirection: 'row', justifyContent: 'flex-end' }}>
-              <Chip label={`Not Selected: ${notSelectedCount}`} color="secondary" />
-            </Box>
-          </Box>
-        )}
-      </Paper>
+      {/* Gift Analytics Preview */}
+      <GiftAnalyticsPreview event={event} inventory={inventory} />
     </Box>
   );
 };
