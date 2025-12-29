@@ -315,13 +315,62 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
     const displayData = groupBy === 'none' ? filteredGiftData : aggregatedData;
     const isGrouped = groupBy !== 'none';
     
+    const sections = [];
+    
+    // Section 0: Export Information
+    sections.push('=== EXPORT INFORMATION ===');
+    sections.push(`Exported On,"${new Date().toLocaleString()}"`);
+    sections.push(`Export Date,"${new Date().toLocaleDateString()}"`);
+    sections.push(`Export Time,"${new Date().toLocaleTimeString()}"`);
+    sections.push('');
+    
+    // Section 1: Program Info (Event Summary)
+    sections.push('=== PROGRAM INFORMATION ===');
+    sections.push(`Event Name,"${(event?.eventName || 'N/A').replace(/"/g, '""')}"`);
+    sections.push(`Contract Number,"${(event?.eventContractNumber || 'N/A').replace(/"/g, '""')}"`);
+    sections.push(`Event Type,"${(event?.isMainEvent ? 'Main Event' : 'Secondary Event').replace(/"/g, '""')}"`);
+    if (analytics?.eventStats) {
+      sections.push(`Total Guests,${analytics.eventStats.totalGuests || 0}`);
+      sections.push(`Checked In Guests,${analytics.eventStats.checkedInGuests || 0}`);
+      sections.push(`Check-in Rate,${analytics.eventStats.checkInPercentage || 0}%`);
+    }
+    sections.push('');
+    
+    // Section 2: Gift Summary
+    if (analytics?.giftSummary) {
+      sections.push('=== GIFT SUMMARY ===');
+      sections.push(`Total Gifts Distributed,${analytics.giftSummary.totalGiftsDistributed || 0}`);
+      sections.push(`Unique Items Distributed,${analytics.giftSummary.uniqueItemsDistributed || 0}`);
+      sections.push(`Average Gifts Per Guest,${analytics.giftSummary.averageGiftsPerGuest || 0}`);
+      sections.push('');
+    }
+    
+    // Section 3: Applied Filters
+    sections.push('=== APPLIED FILTERS ===');
+    sections.push(`Group By,"${groupBy === 'none' ? 'All Items' : groupBy === 'category' ? 'Category' : groupBy === 'brand' ? 'Brand' : 'Product'}"`);
+    if (selectedType) {
+      sections.push(`Type Filter,"${selectedType.replace(/"/g, '""')}"`);
+    }
+    if (selectedStyle) {
+      sections.push(`Style Filter,"${selectedStyle.replace(/"/g, '""')}"`);
+    }
+    if (selectedProduct) {
+      sections.push(`Product Filter,"${selectedProduct.replace(/"/g, '""')}"`);
+    }
+    if (!selectedType && !selectedStyle && !selectedProduct) {
+      sections.push('Filters,None (All items shown)');
+    }
+    sections.push('');
+    
+    // Section 4: Gift Data Table
+    sections.push('=== GIFT DISTRIBUTION DATA ===');
     let headers, rows;
     
     if (isGrouped) {
       if (groupBy === 'category') {
         headers = ['Category', 'Total Qty', 'Qty Remaining', 'Items'];
         rows = displayData.map(item => [
-          item.key || '',
+          (item.key || '').replace(/"/g, '""'),
           item.totalQuantity || 0,
           item.remainingQuantity || 0,
           item.itemCount || 0
@@ -329,7 +378,7 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
       } else if (groupBy === 'brand') {
         headers = ['Brand', 'Total Qty', 'Qty Remaining', 'Items'];
         rows = displayData.map(item => [
-          item.key || '',
+          (item.key || '').replace(/"/g, '""'),
           item.totalQuantity || 0,
           item.remainingQuantity || 0,
           item.itemCount || 0
@@ -337,7 +386,7 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
       } else if (groupBy === 'product') {
         headers = ['Product', 'Total Qty', 'Qty Remaining', 'Items'];
         rows = displayData.map(item => [
-          item.key || '',
+          (item.key || '').replace(/"/g, '""'),
           item.totalQuantity || 0,
           item.remainingQuantity || 0,
           item.itemCount || 0
@@ -346,19 +395,21 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
     } else {
       headers = ['Type', 'Style', 'Product', 'Qty', 'Qty Remaining'];
       rows = displayData.map(item => [
-        item.type || '',
-        item.style || '',
-        item.product || '',
+        (item.type || '').replace(/"/g, '""'),
+        (item.style || '').replace(/"/g, '""'),
+        (item.product || '').replace(/"/g, '""'),
         item.totalQuantity || 0,
         item.remainingQuantity || 0
       ]);
     }
     
+    sections.push(headers.join(','));
+    rows.forEach(row => {
+      sections.push(row.map(cell => `"${cell}"`).join(','));
+    });
+    
     // Create CSV content
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
+    const csvContent = sections.join('\n');
     
     // Create and download file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -385,8 +436,55 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
       const displayData = groupBy === 'none' ? filteredGiftData : aggregatedData;
       const isGrouped = groupBy !== 'none';
       
-      // For Excel, we'll create a CSV-like structure that Excel can open
-      // In a real implementation, you might want to use a library like xlsx
+      const sections = [];
+      
+      // Section 0: Export Information
+      sections.push('=== EXPORT INFORMATION ===');
+      sections.push(`Exported On\t${new Date().toLocaleString()}`);
+      sections.push(`Export Date\t${new Date().toLocaleDateString()}`);
+      sections.push(`Export Time\t${new Date().toLocaleTimeString()}`);
+      sections.push('');
+      
+      // Section 1: Program Info (Event Summary)
+      sections.push('=== PROGRAM INFORMATION ===');
+      sections.push(`Event Name\t${event?.eventName || 'N/A'}`);
+      sections.push(`Contract Number\t${event?.eventContractNumber || 'N/A'}`);
+      sections.push(`Event Type\t${event?.isMainEvent ? 'Main Event' : 'Secondary Event'}`);
+      if (analytics?.eventStats) {
+        sections.push(`Total Guests\t${analytics.eventStats.totalGuests || 0}`);
+        sections.push(`Checked In Guests\t${analytics.eventStats.checkedInGuests || 0}`);
+        sections.push(`Check-in Rate\t${analytics.eventStats.checkInPercentage || 0}%`);
+      }
+      sections.push('');
+      
+      // Section 2: Gift Summary
+      if (analytics?.giftSummary) {
+        sections.push('=== GIFT SUMMARY ===');
+        sections.push(`Total Gifts Distributed\t${analytics.giftSummary.totalGiftsDistributed || 0}`);
+        sections.push(`Unique Items Distributed\t${analytics.giftSummary.uniqueItemsDistributed || 0}`);
+        sections.push(`Average Gifts Per Guest\t${analytics.giftSummary.averageGiftsPerGuest || 0}`);
+        sections.push('');
+      }
+      
+      // Section 3: Applied Filters
+      sections.push('=== APPLIED FILTERS ===');
+      sections.push(`Group By\t${groupBy === 'none' ? 'All Items' : groupBy === 'category' ? 'Category' : groupBy === 'brand' ? 'Brand' : 'Product'}`);
+      if (selectedType) {
+        sections.push(`Type Filter\t${selectedType}`);
+      }
+      if (selectedStyle) {
+        sections.push(`Style Filter\t${selectedStyle}`);
+      }
+      if (selectedProduct) {
+        sections.push(`Product Filter\t${selectedProduct}`);
+      }
+      if (!selectedType && !selectedStyle && !selectedProduct) {
+        sections.push('Filters\tNone (All items shown)');
+      }
+      sections.push('');
+      
+      // Section 4: Gift Data Table
+      sections.push('=== GIFT DISTRIBUTION DATA ===');
       let headers, rows;
       
       if (isGrouped) {
@@ -426,11 +524,13 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
         ]);
       }
       
+      sections.push(headers.join('\t'));
+      rows.forEach(row => {
+        sections.push(row.join('\t'));
+      });
+      
       // Create tab-separated content (Excel-friendly)
-      const excelContent = [
-        headers.join('\t'),
-        ...rows.map(row => row.join('\t'))
-      ].join('\n');
+      const excelContent = sections.join('\n');
       
       // Create and download file
       const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel' });

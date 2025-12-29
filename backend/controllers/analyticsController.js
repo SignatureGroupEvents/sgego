@@ -572,6 +572,7 @@ exports.exportAnalytics = async (req, res) => {
     
     // Get analytics data by calling the overview function directly
     const { 
+      eventId,
       startDate, 
       endDate, 
       eventType, 
@@ -585,14 +586,31 @@ exports.exportAnalytics = async (req, res) => {
     if (startDate) dateFilter.$gte = new Date(startDate);
     if (endDate) dateFilter.$lte = new Date(endDate);
 
-    // Get all events with optional filtering
+    // Get events with optional filtering
     let eventFilter = {};
-    if (eventType) {
-      eventFilter.eventType = eventType;
-    }
+    let eventIds = [];
 
-    const events = await Event.find(eventFilter);
-    const eventIds = events.map(e => e._id);
+    // If eventId is provided, use it (and include secondary events if it's a main event)
+    if (eventId) {
+      const event = await Event.findById(eventId);
+      if (!event) {
+        return res.status(404).json({ message: 'Event not found' });
+      }
+      
+      eventIds = [eventId];
+      // If it's a main event, include all secondary events
+      if (event.isMainEvent) {
+        const secondaryEvents = await Event.find({ parentEventId: eventId });
+        eventIds.push(...secondaryEvents.map(e => e._id));
+      }
+    } else {
+      // Otherwise, use eventType filter if provided
+      if (eventType) {
+        eventFilter.eventType = eventType;
+      }
+      const events = await Event.find(eventFilter);
+      eventIds = events.map(e => e._id);
+    }
 
     // Get gift distribution data
     const giftDistributionPipeline = [

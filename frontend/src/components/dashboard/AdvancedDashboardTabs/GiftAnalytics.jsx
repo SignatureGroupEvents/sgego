@@ -226,21 +226,55 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
   const exportGiftDataToCSV = () => {
     if (!giftCounts || giftCounts.length === 0) return;
 
+    const sections = [];
+    
+    // Section 0: Export Information
+    sections.push('=== EXPORT INFORMATION ===');
+    sections.push(`Exported On,"${new Date().toLocaleString()}"`);
+    sections.push(`Export Date,"${new Date().toLocaleDateString()}"`);
+    sections.push(`Export Time,"${new Date().toLocaleTimeString()}"`);
+    sections.push('');
+    
+    // Section 1: Gift Summary
+    sections.push('=== GIFT SUMMARY ===');
+    sections.push(`Total Gift Items,${inventory.length}`);
+    sections.push(`Total Guests,${guests.length}`);
+    sections.push(`Gifts Selected,${guests.filter(g => g?.giftSelection?.inventoryId).length}`);
+    const selectionRate = guests.length > 0 
+      ? Math.round((guests.filter(g => g?.giftSelection?.inventoryId).length / guests.length) * 100)
+      : 0;
+    sections.push(`Selection Rate,${selectionRate}%`);
+    sections.push(`Grouped By,"${groupBy === 'style' ? 'Style' : 'Gift Type'}"`);
+    sections.push('');
+    
+    // Section 2: Gift Inventory Summary
+    sections.push('=== GIFT INVENTORY SUMMARY ===');
     const headers = ['Gift Type', 'Style', 'Size', 'Gender', 'Current Inventory', 'Selected Gifts', 'Post Event Count'];
+    sections.push(headers.join(','));
+    
     const rows = giftCounts.map(item => [
-      item.type || '',
-      item.style || '',
-      item.size || '',
-      item.gender || '',
+      (item.type || '').replace(/"/g, '""'),
+      (item.style || '').replace(/"/g, '""'),
+      (item.size || '').replace(/"/g, '""'),
+      (item.gender || '').replace(/"/g, '""'),
       item.currentInventory !== '—' ? item.currentInventory : '',
       item.count || 0,
       item.postEventCount !== '—' ? item.postEventCount : ''
     ]);
+    
+    rows.forEach(row => {
+      sections.push(row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','));
+    });
+    sections.push('');
+    
+    // Section 3: Gift Distribution
+    sections.push(`=== GIFT DISTRIBUTION BY ${groupBy.toUpperCase()} ===`);
+    sections.push('Category,Count');
+    chartData.forEach(item => {
+      sections.push(`"${(item.name || '').replace(/"/g, '""')}",${item.value || 0}`);
+    });
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
+    const csvContent = sections.join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -259,7 +293,32 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
     try {
       if (!giftCounts || giftCounts.length === 0) return;
 
+      const sections = [];
+      
+      // Section 0: Export Information
+      sections.push('=== EXPORT INFORMATION ===');
+      sections.push(`Exported On\t${new Date().toLocaleString()}`);
+      sections.push(`Export Date\t${new Date().toLocaleDateString()}`);
+      sections.push(`Export Time\t${new Date().toLocaleTimeString()}`);
+      sections.push('');
+      
+      // Section 1: Gift Summary
+      sections.push('=== GIFT SUMMARY ===');
+      sections.push(`Total Gift Items\t${inventory.length}`);
+      sections.push(`Total Guests\t${guests.length}`);
+      sections.push(`Gifts Selected\t${guests.filter(g => g?.giftSelection?.inventoryId).length}`);
+      const selectionRate = guests.length > 0 
+        ? Math.round((guests.filter(g => g?.giftSelection?.inventoryId).length / guests.length) * 100)
+        : 0;
+      sections.push(`Selection Rate\t${selectionRate}%`);
+      sections.push(`Grouped By\t${groupBy === 'style' ? 'Style' : 'Gift Type'}`);
+      sections.push('');
+      
+      // Section 2: Gift Inventory Summary
+      sections.push('=== GIFT INVENTORY SUMMARY ===');
       const headers = ['Gift Type', 'Style', 'Size', 'Gender', 'Current Inventory', 'Selected Gifts', 'Post Event Count'];
+      sections.push(headers.join('\t'));
+      
       const rows = giftCounts.map(item => [
         item.type || '',
         item.style || '',
@@ -269,19 +328,17 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
         item.count || 0,
         item.postEventCount !== '—' ? item.postEventCount : ''
       ]);
-
-      // Create tab-separated content for Excel
-      const sections = [];
-      sections.push('=== GIFT INVENTORY SUMMARY ===');
-      sections.push(headers.join('\t'));
+      
       rows.forEach(row => {
         sections.push(row.join('\t'));
       });
       sections.push('');
-      sections.push('=== GIFT DISTRIBUTION BY ' + groupBy.toUpperCase() + ' ===');
+      
+      // Section 3: Gift Distribution
+      sections.push(`=== GIFT DISTRIBUTION BY ${groupBy.toUpperCase()} ===`);
       sections.push('Category\tCount');
       chartData.forEach(item => {
-        sections.push(`${item.name}\t${item.value}`);
+        sections.push(`${item.name || ''}\t${item.value || 0}`);
       });
 
       const excelContent = sections.join('\n');

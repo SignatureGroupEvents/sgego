@@ -273,20 +273,57 @@ const EventAnalytics = ({ eventId }) => {
   const exportCheckInsToCSV = () => {
     if (!detailedCheckIns || detailedCheckIns.length === 0) return;
     
+    const sections = [];
+    
+    // Section 0: Export Information
+    sections.push('=== EXPORT INFORMATION ===');
+    sections.push(`Exported On,"${new Date().toLocaleString()}"`);
+    sections.push(`Export Date,"${new Date().toLocaleDateString()}"`);
+    sections.push(`Export Time,"${new Date().toLocaleTimeString()}"`);
+    sections.push('');
+    
+    // Section 1: Filtered Dates (if any)
+    if (filters.startDate || filters.endDate) {
+      sections.push('=== FILTERED DATE RANGE ===');
+      if (filters.startDate) {
+        sections.push(`Start Date,"${new Date(filters.startDate).toLocaleDateString()}"`);
+      }
+      if (filters.endDate) {
+        sections.push(`End Date,"${new Date(filters.endDate).toLocaleDateString()}"`);
+      }
+      sections.push('');
+    }
+    
+    // Section 2: Event Summary
+    sections.push('=== EVENT SUMMARY ===');
+    sections.push(`Event Name,"${(eventStats.eventName || 'N/A').replace(/"/g, '""')}"`);
+    sections.push(`Contract Number,"${(eventStats.eventContractNumber || 'N/A').replace(/"/g, '""')}"`);
+    sections.push(`Event Type,"${(eventStats.isMainEvent ? 'Main Event' : 'Secondary Event').replace(/"/g, '""')}"`);
+    sections.push(`Total Guests,${eventStats.totalGuests || 0}`);
+    sections.push(`Checked In,${eventStats.checkedInGuests || 0}`);
+    sections.push(`Pending,${eventStats.pendingGuests || 0}`);
+    sections.push(`Check-in Rate,${eventStats.checkInPercentage || 0}%`);
+    sections.push('');
+    
+    // Section 3: Check-in Details
+    sections.push('=== CHECK-IN DETAILS ===');
     const headers = ['Guest Name', 'Email', 'Checked In At', 'Checked In By', 'Gifts Count', 'Notes'];
+    sections.push(headers.join(','));
+    
     const rows = detailedCheckIns.map(checkin => [
-      checkin.guestName || '',
-      checkin.guestEmail || '',
-      checkin.checkedInAt ? new Date(checkin.checkedInAt).toLocaleString() : '',
-      checkin.checkedInBy || checkin.checkedInByUsername || 'Unknown',
+      (checkin.guestName || '').replace(/"/g, '""'),
+      (checkin.guestEmail || '').replace(/"/g, '""'),
+      checkin.checkedInAt ? new Date(checkin.checkedInAt).toLocaleString().replace(/"/g, '""') : '',
+      (checkin.checkedInBy || checkin.checkedInByUsername || 'Unknown').replace(/"/g, '""'),
       checkin.giftsCount || 0,
       (checkin.notes || '').replace(/"/g, '""') // Escape quotes in CSV
     ]);
     
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
+    rows.forEach(row => {
+      sections.push(row.map(cell => `"${cell}"`).join(','));
+    });
+    
+    const csvContent = sections.join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -308,7 +345,43 @@ const EventAnalytics = ({ eventId }) => {
     try {
       if (!detailedCheckIns || detailedCheckIns.length === 0) return;
       
+      const sections = [];
+      
+      // Section 0: Export Information
+      sections.push('=== EXPORT INFORMATION ===');
+      sections.push(`Exported On\t${new Date().toLocaleString()}`);
+      sections.push(`Export Date\t${new Date().toLocaleDateString()}`);
+      sections.push(`Export Time\t${new Date().toLocaleTimeString()}`);
+      sections.push('');
+      
+      // Section 1: Filtered Dates (if any)
+      if (filters.startDate || filters.endDate) {
+        sections.push('=== FILTERED DATE RANGE ===');
+        if (filters.startDate) {
+          sections.push(`Start Date\t${new Date(filters.startDate).toLocaleDateString()}`);
+        }
+        if (filters.endDate) {
+          sections.push(`End Date\t${new Date(filters.endDate).toLocaleDateString()}`);
+        }
+        sections.push('');
+      }
+      
+      // Section 2: Event Summary
+      sections.push('=== EVENT SUMMARY ===');
+      sections.push(`Event Name\t${eventStats.eventName || 'N/A'}`);
+      sections.push(`Contract Number\t${eventStats.eventContractNumber || 'N/A'}`);
+      sections.push(`Event Type\t${eventStats.isMainEvent ? 'Main Event' : 'Secondary Event'}`);
+      sections.push(`Total Guests\t${eventStats.totalGuests || 0}`);
+      sections.push(`Checked In\t${eventStats.checkedInGuests || 0}`);
+      sections.push(`Pending\t${eventStats.pendingGuests || 0}`);
+      sections.push(`Check-in Rate\t${eventStats.checkInPercentage || 0}%`);
+      sections.push('');
+      
+      // Section 3: Check-in Details
+      sections.push('=== CHECK-IN DETAILS ===');
       const headers = ['Guest Name', 'Email', 'Checked In At', 'Checked In By', 'Gifts Count', 'Notes'];
+      sections.push(headers.join('\t'));
+      
       const rows = detailedCheckIns.map(checkin => [
         checkin.guestName || '',
         checkin.guestEmail || '',
@@ -318,10 +391,11 @@ const EventAnalytics = ({ eventId }) => {
         checkin.notes || ''
       ]);
       
-      const excelContent = [
-        headers.join('\t'),
-        ...rows.map(row => row.join('\t'))
-      ].join('\n');
+      rows.forEach(row => {
+        sections.push(row.join('\t'));
+      });
+      
+      const excelContent = sections.join('\n');
       
       const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel' });
       const link = document.createElement('a');
@@ -392,11 +466,33 @@ const EventAnalytics = ({ eventId }) => {
           />
         </Box>
 
-        {/* Quick Summary Stats */}
+        {/* Event Summary - Combined with Event Details */}
         <Box mb={3} p={2} bgcolor="grey.50" borderRadius={2}>
-          <Typography variant="subtitle2" fontWeight={600} mb={1} color="primary.main">
+          <Typography variant="subtitle2" fontWeight={600} mb={2} color="primary.main">
             📈 Event Summary
           </Typography>
+          
+          {/* Event Information */}
+          <Box mb={2} pb={2} borderBottom="1px solid" borderColor="divider">
+            <Box display="flex" gap={4} flexWrap="wrap">
+              <Box>
+                <Typography variant="caption" color="text.secondary">Event Name</Typography>
+                <Typography variant="body1" fontWeight={600}>{eventStats.eventName || 'N/A'}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Contract Number</Typography>
+                <Typography variant="body1" fontWeight={600}>{eventStats.eventContractNumber || 'N/A'}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Event Type</Typography>
+                <Typography variant="body1" fontWeight={600}>
+                  {eventStats.isMainEvent ? 'Main Event' : 'Secondary Event'}
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+
+          {/* Statistics */}
           <Box display="flex" gap={3} flexWrap="wrap">
             <Box>
               <Typography variant="caption" color="text.secondary">Total Guests</Typography>
@@ -421,50 +517,6 @@ const EventAnalytics = ({ eventId }) => {
               </Typography>
             </Box>
           </Box>
-        </Box>
-
-        {/* SECTION 1: Event Details Table */}
-        <Box mb={4}>
-          <Typography variant="subtitle1" fontWeight={600} mb={2} color="primary.main">
-            📋 Event Details
-          </Typography>
-          <Typography variant="body2" color="text.secondary" mb={2}>
-            Comprehensive overview of event statistics and guest information
-          </Typography>
-          <TableContainer component={Paper} variant="outlined" sx={{ minWidth: 600, overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ backgroundColor: 'grey.50' }}>
-                  <TableCell sx={{ fontWeight: 600 }}>Event Name</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Contract Number</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Total Guests</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Checked In</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Pending</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Check-in Rate</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Event Type</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                <TableRow hover>
-                  <TableCell>{eventStats.eventName || 'N/A'}</TableCell>
-                  <TableCell>{eventStats.eventContractNumber || 'N/A'}</TableCell>
-                  <TableCell>{eventStats.totalGuests}</TableCell>
-                  <TableCell sx={{ color: 'success.main', fontWeight: 600 }}>
-                    {eventStats.checkedInGuests}
-                  </TableCell>
-                  <TableCell sx={{ color: 'warning.main', fontWeight: 600 }}>
-                    {eventStats.pendingGuests}
-                  </TableCell>
-                  <TableCell sx={{ color: 'primary.main', fontWeight: 600 }}>
-                    {eventStats.checkInPercentage}%
-                  </TableCell>
-                  <TableCell>
-                    {eventStats.isMainEvent ? 'Main Event' : 'Secondary Event'}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </TableContainer>
         </Box>
 
         {/* SECTION 1.5: Detailed Check-in List */}
