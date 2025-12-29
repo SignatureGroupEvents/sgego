@@ -10,6 +10,7 @@ import {
   TableCell,
   TableBody,
   TableContainer,
+  TablePagination,
   Paper,
   Box,
   FormControl,
@@ -26,7 +27,9 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as BarTooltip, ResponsiveContainer as BarResponsiveContainer, Cell as BarCell } from 'recharts';
 import ClearIcon from '@mui/icons-material/Clear';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import MuiTooltip from '@mui/material/Tooltip';
+import Menu from '@mui/material/Menu';
 
 // Centralized fallback label
 const UNKNOWN_LABEL = 'Unlabeled';
@@ -68,6 +71,10 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
   const [groupBy, setGroupBy] = useState('style');
   const [activeFilter, setActiveFilter] = useState(null);
   const [hiddenCategories, setHiddenCategories] = useState([]);
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   // Error handling for missing data
   if (!guests || !inventory) {
@@ -215,15 +222,123 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
     </Box>
   );
 
+  // Export functions
+  const exportGiftDataToCSV = () => {
+    if (!giftCounts || giftCounts.length === 0) return;
+
+    const headers = ['Gift Type', 'Style', 'Size', 'Gender', 'Current Inventory', 'Selected Gifts', 'Post Event Count'];
+    const rows = giftCounts.map(item => [
+      item.type || '',
+      item.style || '',
+      item.size || '',
+      item.gender || '',
+      item.currentInventory !== '—' ? item.currentInventory : '',
+      item.count || 0,
+      item.postEventCount !== '—' ? item.postEventCount : ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `gift_analytics_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setExportMenuAnchor(null);
+  };
+
+  const exportGiftDataToExcel = async () => {
+    setExporting(true);
+    try {
+      if (!giftCounts || giftCounts.length === 0) return;
+
+      const headers = ['Gift Type', 'Style', 'Size', 'Gender', 'Current Inventory', 'Selected Gifts', 'Post Event Count'];
+      const rows = giftCounts.map(item => [
+        item.type || '',
+        item.style || '',
+        item.size || '',
+        item.gender || '',
+        item.currentInventory !== '—' ? item.currentInventory : '',
+        item.count || 0,
+        item.postEventCount !== '—' ? item.postEventCount : ''
+      ]);
+
+      // Create tab-separated content for Excel
+      const sections = [];
+      sections.push('=== GIFT INVENTORY SUMMARY ===');
+      sections.push(headers.join('\t'));
+      rows.forEach(row => {
+        sections.push(row.join('\t'));
+      });
+      sections.push('');
+      sections.push('=== GIFT DISTRIBUTION BY ' + groupBy.toUpperCase() + ' ===');
+      sections.push('Category\tCount');
+      chartData.forEach(item => {
+        sections.push(`${item.name}\t${item.value}`);
+      });
+
+      const excelContent = sections.join('\n');
+
+      const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `gift_analytics_${new Date().toISOString().split('T')[0]}.xls`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+    } finally {
+      setExporting(false);
+      setExportMenuAnchor(null);
+    }
+  };
+
   return (
     <Card sx={{ mb: 4 }}>
       <CardContent>
-        <Typography variant="h6" fontWeight={700} mb={1} color="primary.main">
-          Gift Inventory Analytics Dashboard
-        </Typography>
-        <Typography variant="body2" color="text.secondary" mb={3}>
-          Track gift distribution, inventory levels, and guest preferences across all events
-        </Typography>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box>
+            <Typography variant="h6" fontWeight={700} mb={1} color="primary.main">
+              Gift Inventory Analytics Dashboard
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Track gift distribution, inventory levels, and guest preferences across all events
+            </Typography>
+          </Box>
+          <MuiTooltip title="Export Gift Analytics">
+            <IconButton
+              color="primary"
+              onClick={(e) => setExportMenuAnchor(e.currentTarget)}
+              disabled={exporting || !giftCounts || giftCounts.length === 0}
+            >
+              <FileDownloadIcon />
+            </IconButton>
+          </MuiTooltip>
+        </Box>
+
+        {/* Export Menu - placed outside Box for proper portal rendering */}
+        <Menu
+          anchorEl={exportMenuAnchor}
+          open={Boolean(exportMenuAnchor)}
+          onClose={() => setExportMenuAnchor(null)}
+        >
+          <MenuItem onClick={exportGiftDataToCSV} disabled={exporting || !giftCounts?.length}>
+            Export Gift Data as CSV
+          </MenuItem>
+          <MenuItem onClick={exportGiftDataToExcel} disabled={exporting || !giftCounts?.length}>
+            Export Gift Data as Excel
+          </MenuItem>
+        </Menu>
 
         {/* Quick Summary Stats */}
         <Box mb={3} p={2} bgcolor="grey.50" borderRadius={2}>
@@ -276,19 +391,34 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {giftCounts.map((row, idx) => (
-                  <TableRow key={row.inventoryId || idx} hover>
-                    <TableCell>{row.type}</TableCell>
-                    <TableCell>{row.style}</TableCell>
-                    <TableCell>{row.size}</TableCell>
-                    <TableCell>{row.gender}</TableCell>
-                    <TableCell>{row.currentInventory}</TableCell>
-                    <TableCell>{row.count}</TableCell>
-                    <TableCell>{row.postEventCount}</TableCell>
-                  </TableRow>
-                ))}
+                {giftCounts
+                  .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                  .map((row, idx) => (
+                    <TableRow key={row.inventoryId || idx} hover>
+                      <TableCell>{row.type}</TableCell>
+                      <TableCell>{row.style}</TableCell>
+                      <TableCell>{row.size}</TableCell>
+                      <TableCell>{row.gender}</TableCell>
+                      <TableCell>{row.currentInventory}</TableCell>
+                      <TableCell>{row.count}</TableCell>
+                      <TableCell>{row.postEventCount}</TableCell>
+                    </TableRow>
+                  ))}
               </TableBody>
             </Table>
+            <TablePagination
+              component="div"
+              count={giftCounts.length}
+              page={page}
+              onPageChange={(event, newPage) => setPage(newPage)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(event) => {
+                setRowsPerPage(parseInt(event.target.value, 10));
+                setPage(0);
+              }}
+              rowsPerPageOptions={[5, 10, 25, 50, 100]}
+              labelRowsPerPage="Rows per page:"
+            />
           </TableContainer>
         </Box>
         {/* SECTION 2: Chart Controls */}

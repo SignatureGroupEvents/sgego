@@ -29,7 +29,9 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip as BarTooltip, ResponsiveContainer
 import { LineChart, Line, CartesianGrid } from 'recharts';
 import ClearIcon from '@mui/icons-material/Clear';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import MuiTooltip from '@mui/material/Tooltip';
+import Menu from '@mui/material/Menu';
 import { getAllEventAnalytics } from '../../../services/analytics';
 import AnalyticsFilters from '../../analytics/AnalyticsFilters';
 
@@ -47,6 +49,8 @@ const EventAnalytics = ({ eventId }) => {
   const [hiddenCategories, setHiddenCategories] = useState([]);
   const [filters, setFilters] = useState({});
   const prevFiltersRef = useRef(null);
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
+  const [exporting, setExporting] = useState(false);
   
   // Memoize the filters change handler to prevent AnalyticsFilters from remounting
   const handleFiltersChange = useCallback((newFilters) => {
@@ -263,17 +267,118 @@ const EventAnalytics = ({ eventId }) => {
     );
   }
 
-  const { eventStats } = analytics;
+  const { eventStats, detailedCheckIns } = analytics;
+
+  // Export functions
+  const exportCheckInsToCSV = () => {
+    if (!detailedCheckIns || detailedCheckIns.length === 0) return;
+    
+    const headers = ['Guest Name', 'Email', 'Checked In At', 'Checked In By', 'Gifts Count', 'Notes'];
+    const rows = detailedCheckIns.map(checkin => [
+      checkin.guestName || '',
+      checkin.guestEmail || '',
+      checkin.checkedInAt ? new Date(checkin.checkedInAt).toLocaleString() : '',
+      checkin.checkedInBy || checkin.checkedInByUsername || 'Unknown',
+      checkin.giftsCount || 0,
+      (checkin.notes || '').replace(/"/g, '""') // Escape quotes in CSV
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    
+    const date = new Date().toISOString().split('T')[0];
+    link.setAttribute('download', `event_checkins_${eventId}_${date}.csv`);
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setExportMenuAnchor(null);
+  };
+
+  const exportCheckInsToExcel = async () => {
+    setExporting(true);
+    try {
+      if (!detailedCheckIns || detailedCheckIns.length === 0) return;
+      
+      const headers = ['Guest Name', 'Email', 'Checked In At', 'Checked In By', 'Gifts Count', 'Notes'];
+      const rows = detailedCheckIns.map(checkin => [
+        checkin.guestName || '',
+        checkin.guestEmail || '',
+        checkin.checkedInAt ? new Date(checkin.checkedInAt).toLocaleString() : '',
+        checkin.checkedInBy || checkin.checkedInByUsername || 'Unknown',
+        checkin.giftsCount || 0,
+        checkin.notes || ''
+      ]);
+      
+      const excelContent = [
+        headers.join('\t'),
+        ...rows.map(row => row.join('\t'))
+      ].join('\n');
+      
+      const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      
+      const date = new Date().toISOString().split('T')[0];
+      link.setAttribute('download', `event_checkins_${eventId}_${date}.xls`);
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+    } finally {
+      setExporting(false);
+      setExportMenuAnchor(null);
+    }
+  };
 
   return (
     <Card sx={{ mb: 4 }}>
       <CardContent>
-        <Typography variant="h6" fontWeight={700} mb={1} color="primary.main">
-          Event Analytics Dashboard
-        </Typography>
-        <Typography variant="body2" color="text.secondary" mb={3}>
-          Track guest check-ins, event performance, and attendance patterns
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Box>
+            <Typography variant="h6" fontWeight={700} color="primary.main">
+              Event Analytics Dashboard
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Track guest check-ins, event performance, and attendance patterns
+            </Typography>
+          </Box>
+          <MuiTooltip title="Export Data">
+            <IconButton
+              size="small"
+              onClick={(e) => setExportMenuAnchor(e.currentTarget)}
+              disabled={exporting || !analytics}
+            >
+              <FileDownloadIcon />
+            </IconButton>
+          </MuiTooltip>
+        </Box>
+        
+        {/* Export Menu - placed outside Box for proper portal rendering */}
+        <Menu
+          anchorEl={exportMenuAnchor}
+          open={Boolean(exportMenuAnchor)}
+          onClose={() => setExportMenuAnchor(null)}
+        >
+          <MenuItem onClick={exportCheckInsToCSV} disabled={exporting || !detailedCheckIns?.length}>
+            Export Check-ins as CSV
+          </MenuItem>
+          <MenuItem onClick={exportCheckInsToExcel} disabled={exporting || !detailedCheckIns?.length}>
+            Export Check-ins as Excel
+          </MenuItem>
+        </Menu>
 
         {/* Analytics Filters */}
         <Box sx={{ mb: 3 }}>

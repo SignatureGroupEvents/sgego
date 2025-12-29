@@ -16,8 +16,12 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Grid
+  Grid,
+  IconButton,
+  Tooltip,
+  Menu
 } from '@mui/material';
+import { FileDownload as FileDownloadIcon, MoreVert as MoreVertIcon } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 import { getAllEventAnalytics } from '../../services/analytics';
 
@@ -32,6 +36,8 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
   const [selectedType, setSelectedType] = useState('');
   const [selectedStyle, setSelectedStyle] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('');
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   // Fetch analytics data
   useEffect(() => {
@@ -304,6 +310,152 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
   const showStyleFilter = groupBy !== 'brand';
   const showProductFilter = groupBy !== 'product';
 
+  // Export functions
+  const exportToCSV = () => {
+    const displayData = groupBy === 'none' ? filteredGiftData : aggregatedData;
+    const isGrouped = groupBy !== 'none';
+    
+    let headers, rows;
+    
+    if (isGrouped) {
+      if (groupBy === 'category') {
+        headers = ['Category', 'Total Qty', 'Qty Remaining', 'Items'];
+        rows = displayData.map(item => [
+          item.key || '',
+          item.totalQuantity || 0,
+          item.remainingQuantity || 0,
+          item.itemCount || 0
+        ]);
+      } else if (groupBy === 'brand') {
+        headers = ['Brand', 'Total Qty', 'Qty Remaining', 'Items'];
+        rows = displayData.map(item => [
+          item.key || '',
+          item.totalQuantity || 0,
+          item.remainingQuantity || 0,
+          item.itemCount || 0
+        ]);
+      } else if (groupBy === 'product') {
+        headers = ['Product', 'Total Qty', 'Qty Remaining', 'Items'];
+        rows = displayData.map(item => [
+          item.key || '',
+          item.totalQuantity || 0,
+          item.remainingQuantity || 0,
+          item.itemCount || 0
+        ]);
+      }
+    } else {
+      headers = ['Type', 'Style', 'Product', 'Qty', 'Qty Remaining'];
+      rows = displayData.map(item => [
+        item.type || '',
+        item.style || '',
+        item.product || '',
+        item.totalQuantity || 0,
+        item.remainingQuantity || 0
+      ]);
+    }
+    
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    
+    const date = new Date().toISOString().split('T')[0];
+    const eventName = event?.eventName || 'event';
+    const groupByText = groupBy === 'none' ? 'all' : groupBy;
+    link.setAttribute('download', `gift_analytics_${eventName}_${groupByText}_${date}.csv`);
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    setExportMenuAnchor(null);
+  };
+
+  const exportToExcel = async () => {
+    setExporting(true);
+    try {
+      const displayData = groupBy === 'none' ? filteredGiftData : aggregatedData;
+      const isGrouped = groupBy !== 'none';
+      
+      // For Excel, we'll create a CSV-like structure that Excel can open
+      // In a real implementation, you might want to use a library like xlsx
+      let headers, rows;
+      
+      if (isGrouped) {
+        if (groupBy === 'category') {
+          headers = ['Category', 'Total Qty', 'Qty Remaining', 'Items'];
+          rows = displayData.map(item => [
+            item.key || '',
+            item.totalQuantity || 0,
+            item.remainingQuantity || 0,
+            item.itemCount || 0
+          ]);
+        } else if (groupBy === 'brand') {
+          headers = ['Brand', 'Total Qty', 'Qty Remaining', 'Items'];
+          rows = displayData.map(item => [
+            item.key || '',
+            item.totalQuantity || 0,
+            item.remainingQuantity || 0,
+            item.itemCount || 0
+          ]);
+        } else if (groupBy === 'product') {
+          headers = ['Product', 'Total Qty', 'Qty Remaining', 'Items'];
+          rows = displayData.map(item => [
+            item.key || '',
+            item.totalQuantity || 0,
+            item.remainingQuantity || 0,
+            item.itemCount || 0
+          ]);
+        }
+      } else {
+        headers = ['Type', 'Style', 'Product', 'Qty', 'Qty Remaining'];
+        rows = displayData.map(item => [
+          item.type || '',
+          item.style || '',
+          item.product || '',
+          item.totalQuantity || 0,
+          item.remainingQuantity || 0
+        ]);
+      }
+      
+      // Create tab-separated content (Excel-friendly)
+      const excelContent = [
+        headers.join('\t'),
+        ...rows.map(row => row.join('\t'))
+      ].join('\n');
+      
+      // Create and download file
+      const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      
+      const date = new Date().toISOString().split('T')[0];
+      const eventName = event?.eventName || 'event';
+      const groupByText = groupBy === 'none' ? 'all' : groupBy;
+      link.setAttribute('download', `gift_analytics_${eventName}_${groupByText}_${date}.xls`);
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      setError('Failed to export to Excel');
+    } finally {
+      setExporting(false);
+      setExportMenuAnchor(null);
+    }
+  };
+
   // Get available styles/products based on selected filters from distributed gifts
   const availableStyles = useMemo(() => {
     if (!selectedType) return filterOptions.styles;
@@ -430,15 +582,38 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
           Gift Distribution
         </Typography>
-        {(selectedType || selectedStyle || selectedProduct || groupBy !== 'none') && (
-          <Chip
-            label="Clear All"
-            onClick={handleClearFilters}
-            size="small"
-            color="secondary"
-            sx={{ cursor: 'pointer' }}
-          />
-        )}
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          {(selectedType || selectedStyle || selectedProduct || groupBy !== 'none') && (
+            <Chip
+              label="Clear All"
+              onClick={handleClearFilters}
+              size="small"
+              color="secondary"
+              sx={{ cursor: 'pointer' }}
+            />
+          )}
+          <Tooltip title="Export Data">
+            <IconButton
+              size="small"
+              onClick={(e) => setExportMenuAnchor(e.currentTarget)}
+              disabled={exporting || !analytics}
+            >
+              <FileDownloadIcon />
+            </IconButton>
+          </Tooltip>
+          <Menu
+            anchorEl={exportMenuAnchor}
+            open={Boolean(exportMenuAnchor)}
+            onClose={() => setExportMenuAnchor(null)}
+          >
+            <MenuItem onClick={exportToCSV} disabled={exporting}>
+              Export as CSV
+            </MenuItem>
+            <MenuItem onClick={exportToExcel} disabled={exporting}>
+              Export as Excel
+            </MenuItem>
+          </Menu>
+        </Box>
       </Box>
 
       {/* Controls Row - Compact */}
