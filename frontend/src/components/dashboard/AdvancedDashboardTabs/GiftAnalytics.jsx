@@ -34,15 +34,15 @@ const UNKNOWN_LABEL = 'Unlabeled';
 const GiftAnalytics = ({ guests = [], inventory = [] }) => {
   const theme = useTheme();
   
-  // Debug logging for data validation
-  console.log('🎁 GiftAnalytics Debug:', {
-    guestCount: guests.length,
-    inventoryCount: inventory.length,
-    hasGuestData: guests.length > 0,
-    hasInventoryData: inventory.length > 0,
-    sampleGuest: guests[0] || 'No guests',
-    sampleInventory: inventory[0] || 'No inventory'
-  });
+  // Debug logging for data validation (commented out to reduce console noise)
+  // console.log('🎁 GiftAnalytics Debug:', {
+  //   guestCount: guests.length,
+  //   inventoryCount: inventory.length,
+  //   hasGuestData: guests.length > 0,
+  //   hasInventoryData: inventory.length > 0,
+  //   sampleGuest: guests[0] || 'No guests',
+  //   sampleInventory: inventory[0] || 'No inventory'
+  // });
 
   // Use theme palette colors for the pie/bar chart
   const PIE_COLORS = useMemo(() => [
@@ -109,13 +109,13 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
       };
     });
 
-    // Debug logging for data processing
-    console.log('📊 Gift Counts Processing:', {
-      totalGifts: processedData.length,
-      giftsWithSelections: processedData.filter(item => item.count > 0).length,
-      totalSelections: processedData.reduce((sum, item) => sum + item.count, 0),
-      topGift: processedData.reduce((max, item) => item.count > max.count ? item : max, { count: 0 })
-    });
+    // Debug logging for data processing (commented out to reduce console noise)
+    // console.log('📊 Gift Counts Processing:', {
+    //   totalGifts: processedData.length,
+    //   giftsWithSelections: processedData.filter(item => item.count > 0).length,
+    //   totalSelections: processedData.reduce((sum, item) => sum + item.count, 0),
+    //   topGift: processedData.reduce((max, item) => item.count > max.count ? item : max, { count: 0 })
+    // });
 
     return processedData;
   }, [guests, inventory]);
@@ -140,13 +140,13 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
       value
     }));
 
-    // Debug logging for chart data
-    console.log('📈 Chart Data Processing:', {
-      groupBy,
-      totalCategories: chartDataResult.length,
-      totalValue: chartDataResult.reduce((sum, item) => sum + item.value, 0),
-      categories: chartDataResult.map(item => ({ name: item.name, value: item.value }))
-    });
+    // Debug logging for chart data (commented out to reduce console noise)
+    // console.log('📈 Chart Data Processing:', {
+    //   groupBy,
+    //   totalCategories: chartDataResult.length,
+    //   totalValue: chartDataResult.reduce((sum, item) => sum + item.value, 0),
+    //   categories: chartDataResult.map(item => ({ name: item.name, value: item.value }))
+    // });
 
     return chartDataResult;
   }, [giftCounts, groupBy]);
@@ -166,12 +166,12 @@ const GiftAnalytics = ({ guests = [], inventory = [] }) => {
     if (!clicked) return;
     setActiveFilter(prev => (prev === clicked ? null : clicked));
     
-    // Debug logging for user interactions
-    console.log('🖱️ Pie Chart Click:', {
-      clickedCategory: clicked,
-      previousFilter: activeFilter,
-      newFilter: activeFilter === clicked ? null : clicked
-    });
+    // Debug logging for user interactions (commented out to reduce console noise)
+    // console.log('🖱️ Pie Chart Click:', {
+    //   clickedCategory: clicked,
+    //   previousFilter: activeFilter,
+    //   newFilter: activeFilter === clicked ? null : clicked
+    // });
   };
 
   const renderLegend = () => (

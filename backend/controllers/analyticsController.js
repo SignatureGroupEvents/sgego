@@ -240,7 +240,35 @@ exports.getOverviewAnalytics = async (req, res) => {
           eventDate: 1,
           eventType: 1,
           totalGuests: { $size: '$guests' },
-          checkedInGuests: { $size: { $filter: { input: '$guests', cond: '$hasCheckedIn' } } },
+          // Use eventCheckins array instead of hasCheckedIn field for consistency
+          // Check if guest has any check-in record in eventCheckins for this event
+          checkedInGuests: {
+            $size: {
+              $filter: {
+                input: '$guests',
+                as: 'guest',
+                cond: {
+                  $gt: [
+                    {
+                      $size: {
+                        $filter: {
+                          input: { $ifNull: ['$$guest.eventCheckins', []] },
+                          as: 'checkin',
+                          cond: {
+                            $eq: [
+                              { $toString: '$$checkin.eventId' },
+                              { $toString: '$_id' }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    0
+                  ]
+                }
+              }
+            }
+          },
           totalGiftsDistributed: {
             $reduce: {
               input: '$checkins',

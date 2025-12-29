@@ -28,7 +28,11 @@ import { io } from 'socket.io-client';
 const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
   const theme = useTheme();
   const totalGuests = guests.length;
-  const checkedInGuests = guests.filter(g => g.hasCheckedIn).length;
+  // Use eventCheckins as source of truth
+  const checkedInGuests = guests.filter(g => 
+    g.eventCheckins && g.eventCheckins.length > 0 && 
+    g.eventCheckins.some(ec => ec.checkedIn === true)
+  ).length;
   const pendingGuests = totalGuests - checkedInGuests;
   const checkInPercentage = totalGuests > 0 ? Math.round((checkedInGuests / totalGuests) * 100) : 0;
   

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useTheme } from '@mui/material/styles';
 import {
   Card,
@@ -46,15 +46,24 @@ const EventAnalytics = ({ eventId }) => {
   const [activeFilter, setActiveFilter] = useState(null);
   const [hiddenCategories, setHiddenCategories] = useState([]);
   const [filters, setFilters] = useState({});
+  const prevFiltersRef = useRef(null);
+  
+  // Memoize the filters change handler to prevent AnalyticsFilters from remounting
+  const handleFiltersChange = useCallback((newFilters) => {
+    setFilters(newFilters);
+  }, []);
 
-  // Debug logging for data validation
-  console.log('📊 EventAnalytics Debug:', {
-    eventId,
-    hasAnalytics: !!analytics,
-    loading,
-    error
-  });
+  // Debug logging for data validation (commented out to reduce console noise)
+  // console.log('📊 EventAnalytics Debug:', {
+  //   eventId,
+  //   hasAnalytics: !!analytics,
+  //   loading,
+  //   error
+  // });
 
+  // Track if this is the initial mount
+  const isInitialMount = useRef(true);
+  
   // Fetch analytics data
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -64,19 +73,60 @@ const EventAnalytics = ({ eventId }) => {
         return;
       }
 
+      // Compare filters to previous to prevent unnecessary fetches
+      const filtersString = JSON.stringify(filters);
+      const prevFiltersString = prevFiltersRef.current ? JSON.stringify(prevFiltersRef.current) : null;
+      
+      // On initial mount, fetch once with empty filters, then mark as not initial
+      if (isInitialMount.current) {
+        console.log('🚀 EventAnalytics: Initial mount, fetching with empty filters');
+        isInitialMount.current = false;
+        prevFiltersRef.current = JSON.parse(JSON.stringify(filters));
+        // Continue to fetch...
+      } else if (filtersString === prevFiltersString) {
+        // Skip fetch if filters haven't actually changed (after initial mount)
+        console.log('⏭️ Skipping fetch - filters unchanged:', filtersString);
+        return;
+      }
+
+      console.log('🔄 Filters changed, will fetch:', {
+        previous: prevFiltersRef.current,
+        current: filters,
+        prevString: prevFiltersString,
+        currentString: filtersString
+      });
+      
+      prevFiltersRef.current = JSON.parse(JSON.stringify(filters));
+
       try {
         setLoading(true);
         setError('');
         console.log('🔄 Fetching event analytics for eventId:', eventId, 'with filters:', filters);
+        console.log('📅 Filter details:', {
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          hasStartDate: !!filters.startDate,
+          hasEndDate: !!filters.endDate,
+          filtersObject: JSON.stringify(filters)
+        });
         
         const data = await getAllEventAnalytics(eventId, filters);
+        console.log('📊 Received analytics data:', {
+          hasEventStats: !!data.eventStats,
+          timelineLength: data.checkInTimeline?.length || 0,
+          hasGiftData: !!data.giftSummary,
+          hasDetailedCheckIns: !!data.detailedCheckIns,
+          detailedCheckInsLength: data.detailedCheckIns?.length || 0,
+          allKeys: Object.keys(data)
+        });
+        console.log('📋 Detailed check-ins sample:', data.detailedCheckIns?.slice(0, 2));
         setAnalytics(data);
         
-        console.log('✅ Event analytics loaded successfully:', {
-          eventStats: data.eventStats,
-          timelineLength: data.checkInTimeline?.length || 0,
-          hasGiftData: !!data.giftSummary
-        });
+        // console.log('✅ Event analytics loaded successfully:', {
+        //   eventStats: data.eventStats,
+        //   timelineLength: data.checkInTimeline?.length || 0,
+        //   hasGiftData: !!data.giftSummary
+        // });
       } catch (err) {
         console.error('❌ Error fetching event analytics:', err);
         setError('Failed to load event analytics data');
@@ -124,12 +174,12 @@ const EventAnalytics = ({ eventId }) => {
       })
     }));
 
-    console.log('📈 Timeline Data Processing:', {
-      totalDays: processed.length,
-      totalCheckIns: processed.reduce((sum, item) => sum + item.checkIns, 0),
-      totalGifts: processed.reduce((sum, item) => sum + item.giftsDistributed, 0),
-      dateRange: processed.length > 0 ? `${processed[0].date} to ${processed[processed.length - 1].date}` : 'No data'
-    });
+    // console.log('📈 Timeline Data Processing:', {
+    //   totalDays: processed.length,
+    //   totalCheckIns: processed.reduce((sum, item) => sum + item.checkIns, 0),
+    //   totalGifts: processed.reduce((sum, item) => sum + item.giftsDistributed, 0),
+    //   dateRange: processed.length > 0 ? `${processed[0].date} to ${processed[processed.length - 1].date}` : 'No data'
+    // });
 
     return processed;
   }, [analytics?.checkInTimeline]);
@@ -145,12 +195,12 @@ const EventAnalytics = ({ eventId }) => {
       { name: 'Pending', value: pendingGuests, color: theme.palette.warning.main }
     ].filter(item => item.value > 0);
 
-    console.log('👥 Guest Status Processing:', {
-      totalGuests,
-      checkedInGuests,
-      pendingGuests,
-      checkInRate: analytics.eventStats.checkInPercentage
-    });
+    // console.log('👥 Guest Status Processing:', {
+    //   totalGuests,
+    //   checkedInGuests,
+    //   pendingGuests,
+    //   checkInRate: analytics.eventStats.checkInPercentage
+    // });
 
     return data;
   }, [analytics?.eventStats, theme.palette]);
@@ -228,9 +278,10 @@ const EventAnalytics = ({ eventId }) => {
         {/* Analytics Filters */}
         <Box sx={{ mb: 3 }}>
           <AnalyticsFilters
+            key={`analytics-filters-${eventId}`}
             initialEventId={eventId}
             showEventSelector={false}
-            onFiltersChange={setFilters}
+            onFiltersChange={handleFiltersChange}
             autoApply={true}
             variant="compact"
           />
@@ -309,6 +360,85 @@ const EventAnalytics = ({ eventId }) => {
               </TableBody>
             </Table>
           </TableContainer>
+        </Box>
+
+        {/* SECTION 1.5: Detailed Check-in List */}
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h6" fontWeight={600} mb={2} color="primary.main">
+            Check-in Details
+          </Typography>
+          {analytics.detailedCheckIns && Array.isArray(analytics.detailedCheckIns) && analytics.detailedCheckIns.length > 0 ? (
+            <>
+              <Typography variant="body2" color="text.secondary" mb={2}>
+                {filters.startDate || filters.endDate 
+                  ? `Showing check-ins filtered by date range${filters.startDate ? ` from ${new Date(filters.startDate).toLocaleDateString()}` : ''}${filters.endDate ? ` to ${new Date(filters.endDate).toLocaleDateString()}` : ''}`
+                  : 'All check-ins for this event'
+                } ({analytics.detailedCheckIns.length} total)
+              </Typography>
+              <TableContainer component={Paper} elevation={1}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'background.default' }}>
+                      <TableCell sx={{ fontWeight: 600 }}>Guest Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Checked In At</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Checked In By</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="center">Gifts</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Notes</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {analytics.detailedCheckIns.map((checkin) => (
+                      <TableRow key={checkin._id} hover>
+                        <TableCell>{checkin.guestName || 'N/A'}</TableCell>
+                        <TableCell>{checkin.guestEmail || 'N/A'}</TableCell>
+                        <TableCell>
+                          {checkin.checkedInAt 
+                            ? new Date(checkin.checkedInAt).toLocaleString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })
+                            : 'N/A'
+                          }
+                        </TableCell>
+                        <TableCell>{checkin.checkedInBy || checkin.checkedInByUsername || 'Unknown'}</TableCell>
+                        <TableCell align="center">
+                          {checkin.giftsCount > 0 ? (
+                            <Typography variant="body2" color="success.main" fontWeight={600}>
+                              {checkin.giftsCount}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              0
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary" sx={{ 
+                            maxWidth: 200, 
+                            overflow: 'hidden', 
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {checkin.notes || '-'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          ) : (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              {filters.startDate || filters.endDate
+                ? 'No check-ins found for the selected date range.'
+                : 'No check-ins have been recorded for this event yet.'}
+            </Alert>
+          )}
         </Box>
 
         {/* SECTION 2: Chart Controls */}

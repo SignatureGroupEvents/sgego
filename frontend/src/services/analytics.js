@@ -189,12 +189,20 @@ export const getInventoryAnalytics = async (eventId, filters = {}) => {
 export const getAllEventAnalytics = async (eventId, filters = {}) => {
   try {
     const params = new URLSearchParams();
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.startDate) {
+      params.append('startDate', filters.startDate);
+      console.log('📤 Adding startDate to query:', filters.startDate);
+    }
+    if (filters.endDate) {
+      params.append('endDate', filters.endDate);
+      console.log('📤 Adding endDate to query:', filters.endDate);
+    }
     
     const queryString = params.toString();
     const url = `/events/${eventId}/analytics${queryString ? `?${queryString}` : ''}`;
+    console.log('🌐 Making request to:', url);
     const response = await api.get(url);
+    console.log('✅ Response received, analytics keys:', Object.keys(response.data.analytics || {}));
     return response.data.analytics;
   } catch (error) {
     console.error('Error fetching all event analytics:', error);

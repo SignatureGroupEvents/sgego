@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box,
@@ -42,10 +42,22 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState({});
+  const prevFiltersRef = useRef(null);
 
   useEffect(() => {
     const fetchAnalytics = async () => {
       if (!eventId) return;
+      
+      // Compare filters to previous to prevent unnecessary fetches
+      const filtersString = JSON.stringify(filters);
+      const prevFiltersString = prevFiltersRef.current ? JSON.stringify(prevFiltersRef.current) : null;
+      
+      // Skip fetch if filters haven't actually changed (but always fetch on initial load)
+      if (prevFiltersRef.current !== null && filtersString === prevFiltersString) {
+        return;
+      }
+
+      prevFiltersRef.current = filters;
       
       setLoading(true);
       setError('');

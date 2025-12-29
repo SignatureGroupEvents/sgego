@@ -215,8 +215,7 @@ exports.multiEventCheckin = async (req, res) => {
       );
     }
 
-    // Update guest's overall checkin status
-    guest.hasCheckedIn = true;
+    // Save guest - hasCheckedIn will be automatically derived from eventCheckins via pre-save hook
     await guest.save();
 
     // Populate the updated guest with eventCheckins for frontend
@@ -375,11 +374,7 @@ exports.singleEventCheckin = async (req, res) => {
       });
     }
 
-    // Update overall checkin status if this is main event or if this is their first checkin
-    if (event.isMainEvent || guest.eventCheckins.length === 1) {
-      guest.hasCheckedIn = true;
-    }
-
+    // Save guest - hasCheckedIn will be automatically derived from eventCheckins via pre-save hook
     await guest.save();
 
     // Recalculate current inventory for each inventory item
@@ -512,11 +507,7 @@ exports.undoCheckin = async (req, res) => {
         Math.abs(new Date(ec.checkedInAt) - new Date(checkin.createdAt)) < 60000) // Within 1 minute
     );
 
-    // Check if guest is still checked into any events
-    if (guest.eventCheckins.length === 0) {
-      guest.hasCheckedIn = false;
-    }
-
+    // Save guest - hasCheckedIn will be automatically derived from eventCheckins via pre-save hook
     await guest.save();
 
     // Log activity before deleting
@@ -756,10 +747,7 @@ exports.deleteCheckin = async (req, res) => {
       ec.eventId.toString() !== checkin.eventId.toString()
     );
 
-    if (guest.eventCheckins.length === 0) {
-      guest.hasCheckedIn = false;
-    }
-
+    // Save guest - hasCheckedIn will be automatically derived from eventCheckins via pre-save hook
     await guest.save();
 
     // Delete the check-in record

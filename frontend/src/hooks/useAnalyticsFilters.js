@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 
 /**
  * Custom hook for managing analytics filter state
@@ -92,12 +92,15 @@ export const useAnalyticsFilters = (initialEventId = null) => {
   /**
    * Get standardized filter object for API calls
    * Converts Date objects to ISO strings, removes null/undefined values
+   * Memoized to prevent unnecessary re-renders
    */
-  const filters = {
-    ...(eventId && { eventId }),
-    ...(startDate && { startDate: startDate.toISOString() }),
-    ...(endDate && { endDate: endDate.toISOString() })
-  };
+  const filters = useMemo(() => {
+    const filterObj = {};
+    if (eventId) filterObj.eventId = eventId;
+    if (startDate) filterObj.startDate = startDate.toISOString();
+    if (endDate) filterObj.endDate = endDate.toISOString();
+    return filterObj;
+  }, [eventId, startDate, endDate]);
 
   return {
     // Standardized filter object (for API calls)

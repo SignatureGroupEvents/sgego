@@ -6,7 +6,11 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 const CheckedInGuestsChart = ({ guests = [] }) => {
     const theme = useTheme();
     const totalGuests = guests.length;
-    const checkedIn = guests.filter(g => g.hasCheckedIn).length;
+    // Use eventCheckins as source of truth
+    const checkedIn = guests.filter(g => 
+      g.eventCheckins && g.eventCheckins.length > 0 && 
+      g.eventCheckins.some(ec => ec.checkedIn === true)
+    ).length;
     const pending = totalGuests - checkedIn;
     const pieData = [
       { name: 'Checked In', value: checkedIn, color: theme.palette.success.main },

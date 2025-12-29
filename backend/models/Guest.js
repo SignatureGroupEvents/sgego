@@ -127,4 +127,19 @@ guestSchema.methods.isCheckedIntoEvent = function(eventId) {
   return checkin ? (checkin.checkedIn && checkin.giftsReceived && checkin.giftsReceived.length > 0) : false;
 };
 
+// Virtual getter: hasCheckedIn derived from eventCheckins (source of truth)
+// This ensures hasCheckedIn is always in sync with eventCheckins
+guestSchema.virtual('computedHasCheckedIn').get(function() {
+  return this.eventCheckins && this.eventCheckins.length > 0 && 
+         this.eventCheckins.some(ec => ec.checkedIn === true);
+});
+
+// Pre-save hook: Keep hasCheckedIn in sync with eventCheckins for backward compatibility
+guestSchema.pre('save', function(next) {
+  // Derive hasCheckedIn from eventCheckins array
+  this.hasCheckedIn = this.eventCheckins && this.eventCheckins.length > 0 && 
+                      this.eventCheckins.some(ec => ec.checkedIn === true);
+  next();
+});
+
 module.exports = mongoose.model('Guest', guestSchema);

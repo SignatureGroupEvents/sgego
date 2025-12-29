@@ -253,7 +253,8 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
       setGiftSelections({});
       
       // Use the updated guest data from the response
-      const updatedGuest = response.data.guest || { ...guest, hasCheckedIn: true };
+      // eventCheckins is the source of truth, hasCheckedIn is derived automatically
+      const updatedGuest = response.data.guest || guest;
       setGuest(updatedGuest);
       
       // Call callbacks to update parent components
