@@ -31,6 +31,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import MuiTooltip from '@mui/material/Tooltip';
 import { getAllEventAnalytics } from '../../../services/analytics';
+import AnalyticsFilters from '../../analytics/AnalyticsFilters';
 
 // Centralized fallback label
 const UNKNOWN_LABEL = 'Unlabeled';
@@ -44,6 +45,7 @@ const EventAnalytics = ({ eventId }) => {
   const [error, setError] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
   const [hiddenCategories, setHiddenCategories] = useState([]);
+  const [filters, setFilters] = useState({});
 
   // Debug logging for data validation
   console.log('📊 EventAnalytics Debug:', {
@@ -65,9 +67,9 @@ const EventAnalytics = ({ eventId }) => {
       try {
         setLoading(true);
         setError('');
-        console.log('🔄 Fetching event analytics for eventId:', eventId);
+        console.log('🔄 Fetching event analytics for eventId:', eventId, 'with filters:', filters);
         
-        const data = await getAllEventAnalytics(eventId);
+        const data = await getAllEventAnalytics(eventId, filters);
         setAnalytics(data);
         
         console.log('✅ Event analytics loaded successfully:', {
@@ -84,7 +86,7 @@ const EventAnalytics = ({ eventId }) => {
     };
 
     fetchAnalytics();
-  }, [eventId]);
+  }, [eventId, filters]);
 
   // Use theme palette colors for the charts
   const CHART_COLORS = useMemo(() => [
@@ -222,6 +224,17 @@ const EventAnalytics = ({ eventId }) => {
         <Typography variant="body2" color="text.secondary" mb={3}>
           Track guest check-ins, event performance, and attendance patterns
         </Typography>
+
+        {/* Analytics Filters */}
+        <Box sx={{ mb: 3 }}>
+          <AnalyticsFilters
+            initialEventId={eventId}
+            showEventSelector={false}
+            onFiltersChange={setFilters}
+            autoApply={true}
+            variant="compact"
+          />
+        </Box>
 
         {/* Quick Summary Stats */}
         <Box mb={3} p={2} bgcolor="grey.50" borderRadius={2}>

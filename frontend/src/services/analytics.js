@@ -1,10 +1,28 @@
 import api from './api';
 
-// Get comprehensive overview analytics across all events
+/**
+ * Get comprehensive overview analytics across all events
+ * @param {Object} filters - Filter object
+ * @param {string} [filters.eventId] - Optional event ID to filter by specific event
+ * @param {string} [filters.year] - Optional year filter (backward compatibility)
+ * @param {string} [filters.startDate] - Optional start date filter (ISO 8601 format)
+ * @param {string} [filters.endDate] - Optional end date filter (ISO 8601 format)
+ * @param {string} [filters.eventType] - Optional event type filter
+ * @param {string[]} [filters.giftTypes] - Optional gift types filter
+ * @param {string[]} [filters.giftStyles] - Optional gift styles filter
+ * @param {string} [filters.groupBy] - Grouping for trend analysis ('month', 'week', 'day', 'event')
+ * @returns {Promise<Object>} Analytics data
+ */
 export const getOverviewAnalytics = async (filters = {}) => {
   try {
     const params = new URLSearchParams();
     
+    // Standard filter parameters
+    if (filters.eventId) params.append('eventId', filters.eventId);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    
+    // Legacy/backward compatibility parameters
     if (filters.year) params.append('year', filters.year);
     if (filters.eventType) params.append('eventType', filters.eventType);
     if (filters.giftTypes && filters.giftTypes.length > 0) {
@@ -23,18 +41,26 @@ export const getOverviewAnalytics = async (filters = {}) => {
   }
 };
 
-// Get analytics for specific gift type or style
+/**
+ * Get analytics for specific gift type or style
+ * @param {Object} filters - Filter object
+ * @param {string} [filters.eventId] - Optional event ID to filter by specific event
+ * @param {string} [filters.giftType] - Optional gift type filter (single value)
+ * @param {string} [filters.giftStyle] - Optional gift style filter (single value)
+ * @param {string} [filters.startDate] - Optional start date filter (ISO 8601 format)
+ * @param {string} [filters.endDate] - Optional end date filter (ISO 8601 format)
+ * @returns {Promise<Object>} Analytics data grouped by event, gift type, style, size, and gender
+ */
 export const getGiftTypeAnalytics = async (filters = {}) => {
   try {
     const params = new URLSearchParams();
     
-    if (filters.year) params.append('year', filters.year);
-    if (filters.giftTypes && filters.giftTypes.length > 0) {
-      filters.giftTypes.forEach(type => params.append('giftTypes', type));
-    }
-    if (filters.giftStyles && filters.giftStyles.length > 0) {
-      filters.giftStyles.forEach(style => params.append('giftStyles', style));
-    }
+    // Standard filter parameters
+    if (filters.eventId) params.append('eventId', filters.eventId);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.giftType) params.append('giftType', filters.giftType);
+    if (filters.giftStyle) params.append('giftStyle', filters.giftStyle);
 
     const response = await api.get(`/analytics/gift-type?${params.toString()}`);
     return response.data;
@@ -44,10 +70,23 @@ export const getGiftTypeAnalytics = async (filters = {}) => {
   }
 };
 
-// Get comprehensive event-specific analytics (both event and gift analytics)
-export const getEventGiftAnalytics = async (eventId) => {
+/**
+ * Get comprehensive event-specific analytics (both event and gift analytics)
+ * @param {string} eventId - Event ID
+ * @param {Object} [filters={}] - Optional filter object
+ * @param {string} [filters.startDate] - Optional start date filter (ISO 8601 format)
+ * @param {string} [filters.endDate] - Optional end date filter (ISO 8601 format)
+ * @returns {Promise<Object>} Comprehensive analytics data
+ */
+export const getEventGiftAnalytics = async (eventId, filters = {}) => {
   try {
-    const response = await api.get(`/events/${eventId}/analytics`);
+    const params = new URLSearchParams();
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    
+    const queryString = params.toString();
+    const url = `/events/${eventId}/analytics${queryString ? `?${queryString}` : ''}`;
+    const response = await api.get(url);
     return response.data;
   } catch (error) {
     console.error('Error fetching event gift analytics:', error);
@@ -55,10 +94,23 @@ export const getEventGiftAnalytics = async (eventId) => {
   }
 };
 
-// Get event-specific analytics only
-export const getEventAnalytics = async (eventId) => {
+/**
+ * Get event-specific analytics only
+ * @param {string} eventId - Event ID
+ * @param {Object} [filters={}] - Optional filter object
+ * @param {string} [filters.startDate] - Optional start date filter (ISO 8601 format)
+ * @param {string} [filters.endDate] - Optional end date filter (ISO 8601 format)
+ * @returns {Promise<Object>} Event analytics data
+ */
+export const getEventAnalytics = async (eventId, filters = {}) => {
   try {
-    const response = await api.get(`/events/${eventId}/analytics`);
+    const params = new URLSearchParams();
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    
+    const queryString = params.toString();
+    const url = `/events/${eventId}/analytics${queryString ? `?${queryString}` : ''}`;
+    const response = await api.get(url);
     return {
       eventStats: response.data.analytics.eventStats,
       checkInTimeline: response.data.analytics.checkInTimeline,
@@ -70,10 +122,23 @@ export const getEventAnalytics = async (eventId) => {
   }
 };
 
-// Get gift-specific analytics only
-export const getGiftAnalytics = async (eventId) => {
+/**
+ * Get gift-specific analytics only
+ * @param {string} eventId - Event ID
+ * @param {Object} [filters={}] - Optional filter object
+ * @param {string} [filters.startDate] - Optional start date filter (ISO 8601 format)
+ * @param {string} [filters.endDate] - Optional end date filter (ISO 8601 format)
+ * @returns {Promise<Object>} Gift analytics data
+ */
+export const getGiftAnalytics = async (eventId, filters = {}) => {
   try {
-    const response = await api.get(`/events/${eventId}/analytics`);
+    const params = new URLSearchParams();
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    
+    const queryString = params.toString();
+    const url = `/events/${eventId}/analytics${queryString ? `?${queryString}` : ''}`;
+    const response = await api.get(url);
     return {
       giftDistribution: response.data.analytics.giftDistribution,
       categoryTotals: response.data.analytics.categoryTotals,
@@ -86,10 +151,23 @@ export const getGiftAnalytics = async (eventId) => {
   }
 };
 
-// Get inventory-specific analytics only
-export const getInventoryAnalytics = async (eventId) => {
+/**
+ * Get inventory-specific analytics only
+ * @param {string} eventId - Event ID
+ * @param {Object} [filters={}] - Optional filter object
+ * @param {string} [filters.startDate] - Optional start date filter (ISO 8601 format)
+ * @param {string} [filters.endDate] - Optional end date filter (ISO 8601 format)
+ * @returns {Promise<Object>} Inventory analytics data
+ */
+export const getInventoryAnalytics = async (eventId, filters = {}) => {
   try {
-    const response = await api.get(`/events/${eventId}/analytics`);
+    const params = new URLSearchParams();
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    
+    const queryString = params.toString();
+    const url = `/events/${eventId}/analytics${queryString ? `?${queryString}` : ''}`;
+    const response = await api.get(url);
     return {
       inventoryAnalytics: response.data.analytics.inventoryAnalytics,
       inventorySummary: response.data.analytics.inventorySummary
@@ -100,10 +178,23 @@ export const getInventoryAnalytics = async (eventId) => {
   }
 };
 
-// Get all analytics data for advanced dashboard
-export const getAllEventAnalytics = async (eventId) => {
+/**
+ * Get all analytics data for advanced dashboard
+ * @param {string} eventId - Event ID
+ * @param {Object} [filters={}] - Optional filter object
+ * @param {string} [filters.startDate] - Optional start date filter (ISO 8601 format)
+ * @param {string} [filters.endDate] - Optional end date filter (ISO 8601 format)
+ * @returns {Promise<Object>} All analytics data
+ */
+export const getAllEventAnalytics = async (eventId, filters = {}) => {
   try {
-    const response = await api.get(`/events/${eventId}/analytics`);
+    const params = new URLSearchParams();
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    
+    const queryString = params.toString();
+    const url = `/events/${eventId}/analytics${queryString ? `?${queryString}` : ''}`;
+    const response = await api.get(url);
     return response.data.analytics;
   } catch (error) {
     console.error('Error fetching all event analytics:', error);
@@ -111,11 +202,30 @@ export const getAllEventAnalytics = async (eventId) => {
   }
 };
 
-// Export analytics data
+/**
+ * Export analytics data
+ * @param {Object} filters - Filter object
+ * @param {string} [filters.eventId] - Optional event ID to filter by specific event
+ * @param {string} [filters.year] - Optional year filter (backward compatibility)
+ * @param {string} [filters.startDate] - Optional start date filter (ISO 8601 format)
+ * @param {string} [filters.endDate] - Optional end date filter (ISO 8601 format)
+ * @param {string} [filters.eventType] - Optional event type filter
+ * @param {string[]} [filters.giftTypes] - Optional gift types filter
+ * @param {string[]} [filters.giftStyles] - Optional gift styles filter
+ * @param {string} [filters.groupBy] - Grouping for trend analysis
+ * @param {string} [format='csv'] - Export format ('csv' or 'excel')
+ * @returns {Promise<Object>} Export result
+ */
 export const exportAnalytics = async (filters = {}, format = 'csv') => {
   try {
     const params = new URLSearchParams();
     
+    // Standard filter parameters
+    if (filters.eventId) params.append('eventId', filters.eventId);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    
+    // Legacy/backward compatibility parameters
     if (filters.year) params.append('year', filters.year);
     if (filters.eventType) params.append('eventType', filters.eventType);
     if (filters.giftTypes && filters.giftTypes.length > 0) {

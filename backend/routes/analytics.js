@@ -15,6 +15,10 @@ router.get('/test', (req, res) => {
 // Get comprehensive overview analytics across all events
 router.get('/overview', analyticsController.getOverviewAnalytics);
 
+// Get analytics for specific gift type or style
+// Query params: eventId, giftType, giftStyle, startDate, endDate
+router.get('/gift-type', analyticsController.getGiftTypeAnalytics);
+
 // Test route for activity logs
 router.post('/activity/test', activityController.createTestLog);
 

@@ -32,6 +32,7 @@ import {
 } from 'recharts';
 import { useTheme } from '@mui/material/styles';
 import { getAllEventAnalytics } from '../../services/analytics';
+import AnalyticsFilters from './AnalyticsFilters';
 
 const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
   const { eventId: paramEventId } = useParams();
@@ -40,6 +41,7 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [filters, setFilters] = useState({});
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -49,7 +51,7 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
       setError('');
       
       try {
-        const data = await getAllEventAnalytics(eventId);
+        const data = await getAllEventAnalytics(eventId, filters);
         setAnalytics(data);
       } catch (err) {
         console.error('Error fetching comprehensive analytics:', err);
@@ -60,7 +62,7 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
     };
 
     fetchAnalytics();
-  }, [eventId]);
+  }, [eventId, filters]);
 
   if (loading) {
     return (
@@ -102,6 +104,15 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
         Comprehensive Analytics Dashboard
       </Typography>
+
+      {/* Analytics Filters */}
+      <AnalyticsFilters
+        initialEventId={eventId}
+        showEventSelector={false}
+        onFiltersChange={setFilters}
+        autoApply={true}
+        variant="full"
+      />
       
       {/* Event Statistics */}
       <Grid container spacing={2} sx={{ mb: 4 }}>

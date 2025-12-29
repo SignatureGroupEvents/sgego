@@ -254,10 +254,25 @@ exports.deleteSecondaryEvent = async (req, res) => {
   }
 };
 
-// Analytics endpoint for comprehensive event and gift analytics
+/**
+ * Analytics endpoint for comprehensive event and gift analytics
+ * 
+ * @route GET /api/events/:id/analytics
+ * @param {string} id - Event ID (from URL params)
+ * @param {string} [startDate] - Optional start date filter (ISO 8601 format, e.g., "2025-02-27T00:00:00.000Z" or "2025-02-27")
+ * @param {string} [endDate] - Optional end date filter (ISO 8601 format)
+ * @returns {Object} Comprehensive analytics including event stats, gift distribution, inventory, and timeline
+ * 
+ * Date filtering applies to:
+ * - Gift distribution data (filtered by check-in createdAt)
+ * - Check-in timeline data (filtered by check-in createdAt)
+ * 
+ * If no date filters provided, returns all data for the event.
+ */
 exports.getEventAnalytics = async (req, res) => {
   try {
     const { id: eventId } = req.params;
+    const { startDate, endDate } = req.query;
     
     const event = await Event.findById(eventId);
     if (!event) {
@@ -273,6 +288,25 @@ exports.getEventAnalytics = async (req, res) => {
     if (event.isMainEvent) {
       const secondaryEvents = await Event.find({ parentEventId: eventId });
       eventIds.push(...secondaryEvents.map(e => e._id));
+    }
+
+    // Build date filter from query parameters
+    // If dates provided, filter by createdAt on check-ins
+    // Format: ISO 8601 strings (e.g., "2025-02-27T00:00:00.000Z" or "2025-02-27")
+    const dateFilter = {};
+    if (startDate || endDate) {
+      dateFilter.createdAt = {};
+      if (startDate) {
+        dateFilter.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        // If endDate is just a date string without time, set to end of day
+        const endDateObj = new Date(endDate);
+        if (endDate.split('T').length === 1) {
+          endDateObj.setHours(23, 59, 59, 999);
+        }
+        dateFilter.createdAt.$lte = endDateObj;
+      }
     }
 
     // 1. EVENT ANALYTICS - Guest Check-in Statistics
@@ -298,12 +332,19 @@ exports.getEventAnalytics = async (req, res) => {
       : 0;
 
     // 2. GIFT ANALYTICS - Distribution Data
+    const giftDistributionMatch = {
+      eventId: { $in: eventIds.map(id => id.toString()) },
+      isValid: true
+    };
+    
+    // Apply date filtering if provided
+    if (Object.keys(dateFilter).length > 0) {
+      Object.assign(giftDistributionMatch, dateFilter);
+    }
+    
     const giftDistribution = await Checkin.aggregate([
       { 
-        $match: { 
-          eventId: { $in: eventIds.map(id => id.toString()) },
-          isValid: true 
-        } 
+        $match: giftDistributionMatch
       },
       { $unwind: '$giftsDistributed' },
       {
@@ -429,17 +470,21 @@ exports.getEventAnalytics = async (req, res) => {
       { $sort: { currentInventory: -1 } }
     ]);
 
-    // 6. EVENT ANALYTICS - Check-in Timeline (last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // 6. EVENT ANALYTICS - Check-in Timeline
+    // If date filters provided, use them; otherwise return all timeline data
+    const checkInTimelineMatch = {
+      eventId: { $in: eventIds.map(id => id.toString()) },
+      isValid: true
+    };
+    
+    // Apply date filtering if provided
+    if (Object.keys(dateFilter).length > 0) {
+      Object.assign(checkInTimelineMatch, dateFilter);
+    }
     
     const checkInTimeline = await Checkin.aggregate([
       { 
-        $match: { 
-          eventId: { $in: eventIds.map(id => id.toString()) },
-          isValid: true,
-          createdAt: { $gte: sevenDaysAgo }
-        } 
+        $match: checkInTimelineMatch
       },
       {
         $group: {
