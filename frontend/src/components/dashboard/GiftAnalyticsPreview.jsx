@@ -125,7 +125,19 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
     };
   }, [inventory, analytics]);
 
-  // Get filtered gift distribution data
+  // Calculate remaining quantities from inventory
+  const inventoryRemainingMap = useMemo(() => {
+    const map = new Map();
+    inventory.forEach(item => {
+      if (item._id) {
+        const remaining = item.currentInventory || 0;
+        map.set(item._id.toString(), remaining);
+      }
+    });
+    return map;
+  }, [inventory]);
+
+  // Get filtered gift distribution data with remaining quantities
   // Show items that match category/brand even if product doesn't match exactly
   const filteredGiftData = useMemo(() => {
     // Try rawGiftDistribution first, then fallback to giftDistribution
@@ -194,13 +206,23 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
       console.log(`📊 After product filter (${selectedProduct}):`, filtered.length);
     }
     
+    // Add remaining quantity from inventory
+    filtered = filtered.map(item => {
+      const inventoryId = item.inventoryId?.toString();
+      const remaining = inventoryId ? (inventoryRemainingMap.get(inventoryId) || 0) : 0;
+      return {
+        ...item,
+        remainingQuantity: remaining
+      };
+    });
+    
     // Sort by quantity descending
     const sorted = filtered.sort((a, b) => (b.totalQuantity || 0) - (a.totalQuantity || 0));
     console.log('📊 Final filtered data:', sorted.length, 'items');
     return sorted;
-  }, [analytics, selectedType, selectedStyle, selectedProduct]);
+  }, [analytics, selectedType, selectedStyle, selectedProduct, inventoryRemainingMap]);
 
-  // Get aggregated data based on groupBy
+  // Get aggregated data based on groupBy with remaining quantities
   const aggregatedData = useMemo(() => {
     if (!filteredGiftData || filteredGiftData.length === 0) return [];
 
@@ -208,7 +230,7 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
       return filteredGiftData;
     }
 
-    // Aggregate based on groupBy
+    // Aggregate based on groupBy and sum remaining quantities
     const aggregated = {};
 
     filteredGiftData.forEach(item => {
@@ -227,13 +249,14 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
           type: groupBy === 'category' ? key : item.type || '-',
           style: groupBy === 'brand' ? key : item.style || '-',
           product: groupBy === 'product' ? key : item.product || '-',
-          size: '-',
           totalQuantity: 0,
+          remainingQuantity: 0,
           itemCount: 0
         };
       }
 
       aggregated[key].totalQuantity += item.totalQuantity || 0;
+      aggregated[key].remainingQuantity += item.remainingQuantity || 0;
       aggregated[key].itemCount += 1;
     });
 
@@ -551,18 +574,21 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
                   <>
                     <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="right">Total Qty</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">Qty Remaining</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="right">Items</TableCell>
                   </>
                 ) : isGrouped && groupBy === 'brand' ? (
                   <>
                     <TableCell sx={{ fontWeight: 600 }}>Brand</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="right">Total Qty</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">Qty Remaining</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="right">Items</TableCell>
                   </>
                 ) : isGrouped && groupBy === 'product' ? (
                   <>
                     <TableCell sx={{ fontWeight: 600 }}>Product</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="right">Total Qty</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">Qty Remaining</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="right">Items</TableCell>
                   </>
                 ) : (
@@ -570,8 +596,8 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
                     <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Style</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Product</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="right">Size</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="right">Qty</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">Qty Remaining</TableCell>
                   </>
                 )}
               </TableRow>
@@ -590,6 +616,12 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
                       <TableCell align="right" sx={{ fontWeight: 600, color: 'primary.main' }}>
                         {item.totalQuantity || 0}
                       </TableCell>
+                      <TableCell align="right" sx={{ 
+                        fontWeight: 600, 
+                        color: (item.remainingQuantity || 0) <= 10 ? 'error.main' : 'success.main' 
+                      }}>
+                        {item.remainingQuantity || 0}
+                      </TableCell>
                       <TableCell align="right" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
                         {item.itemCount || 0}
                       </TableCell>
@@ -602,9 +634,14 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
                     <TableCell>{item.type || '-'}</TableCell>
                     <TableCell>{item.style || '-'}</TableCell>
                     <TableCell>{item.product || '-'}</TableCell>
-                    <TableCell align="right">{item.size || '-'}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 600, color: 'primary.main' }}>
                       {item.totalQuantity || 0}
+                    </TableCell>
+                    <TableCell align="right" sx={{ 
+                      fontWeight: 600, 
+                      color: (item.remainingQuantity || 0) < 10 ? 'warning.main' : 'success.main' 
+                    }}>
+                      {item.remainingQuantity || 0}
                     </TableCell>
                   </TableRow>
                 );
