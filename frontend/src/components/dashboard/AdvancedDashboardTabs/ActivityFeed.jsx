@@ -115,8 +115,8 @@ const ActivityFeed = () => {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box>
             <Typography variant="h6" fontWeight={700} color="primary.main">
-              Activity Feed
-            </Typography>
+          Activity Feed
+        </Typography>
             <Typography variant="body2" color="text.secondary">
               Real-time activity log and event updates
             </Typography>
@@ -159,7 +159,7 @@ const ActivityFeed = () => {
           <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
         ) : logs.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
-            <Typography variant="body1" color="text.secondary">
+        <Typography variant="body1" color="text.secondary">
               No activity logs found for this event.
             </Typography>
           </Box>
@@ -195,7 +195,7 @@ const ActivityFeed = () => {
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             {formatTimestamp(log.timestamp)}
-                          </Typography>
+        </Typography>
                         </Box>
                       }
                     />
@@ -204,7 +204,7 @@ const ActivityFeed = () => {
                 </React.Fragment>
               ))}
             </List>
-          </Paper>
+      </Paper>
         )}
       </CardContent>
     </Card>

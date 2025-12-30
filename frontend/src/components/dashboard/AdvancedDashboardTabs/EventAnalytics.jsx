@@ -27,6 +27,9 @@ import {
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as BarTooltip, ResponsiveContainer as BarResponsiveContainer, Cell as BarCell } from 'recharts';
 import { LineChart, Line, CartesianGrid } from 'recharts';
+import AnalyticsBarChart from '../../analytics/charts/AnalyticsBarChart';
+import AnalyticsPieChart from '../../analytics/charts/AnalyticsPieChart';
+import AnalyticsLineChart from '../../analytics/charts/AnalyticsLineChart';
 import ClearIcon from '@mui/icons-material/Clear';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
@@ -83,47 +86,20 @@ const EventAnalytics = ({ eventId }) => {
       
       // On initial mount, fetch once with empty filters, then mark as not initial
       if (isInitialMount.current) {
-        console.log('🚀 EventAnalytics: Initial mount, fetching with empty filters');
         isInitialMount.current = false;
         prevFiltersRef.current = JSON.parse(JSON.stringify(filters));
         // Continue to fetch...
       } else if (filtersString === prevFiltersString) {
         // Skip fetch if filters haven't actually changed (after initial mount)
-        console.log('⏭️ Skipping fetch - filters unchanged:', filtersString);
         return;
       }
-
-      console.log('🔄 Filters changed, will fetch:', {
-        previous: prevFiltersRef.current,
-        current: filters,
-        prevString: prevFiltersString,
-        currentString: filtersString
-      });
       
       prevFiltersRef.current = JSON.parse(JSON.stringify(filters));
 
       try {
         setLoading(true);
         setError('');
-        console.log('🔄 Fetching event analytics for eventId:', eventId, 'with filters:', filters);
-        console.log('📅 Filter details:', {
-          startDate: filters.startDate,
-          endDate: filters.endDate,
-          hasStartDate: !!filters.startDate,
-          hasEndDate: !!filters.endDate,
-          filtersObject: JSON.stringify(filters)
-        });
-        
         const data = await getAllEventAnalytics(eventId, filters);
-        console.log('📊 Received analytics data:', {
-          hasEventStats: !!data.eventStats,
-          timelineLength: data.checkInTimeline?.length || 0,
-          hasGiftData: !!data.giftSummary,
-          hasDetailedCheckIns: !!data.detailedCheckIns,
-          detailedCheckInsLength: data.detailedCheckIns?.length || 0,
-          allKeys: Object.keys(data)
-        });
-        console.log('📋 Detailed check-ins sample:', data.detailedCheckIns?.slice(0, 2));
         setAnalytics(data);
         
         // console.log('✅ Event analytics loaded successfully:', {
@@ -187,41 +163,6 @@ const EventAnalytics = ({ eventId }) => {
 
     return processed;
   }, [analytics?.checkInTimeline]);
-
-  // Process guest status data for pie chart
-  const guestStatusData = useMemo(() => {
-    if (!analytics?.eventStats) return [];
-    
-    const { totalGuests, checkedInGuests, pendingGuests } = analytics.eventStats;
-    
-    const data = [
-      { name: 'Checked In', value: checkedInGuests, color: theme.palette.success.main },
-      { name: 'Pending', value: pendingGuests, color: theme.palette.warning.main }
-    ].filter(item => item.value > 0);
-
-    // console.log('👥 Guest Status Processing:', {
-    //   totalGuests,
-    //   checkedInGuests,
-    //   pendingGuests,
-    //   checkInRate: analytics.eventStats.checkInPercentage
-    // });
-
-    return data;
-  }, [analytics?.eventStats, theme.palette]);
-
-  // Process daily check-in performance for bar chart
-  const dailyPerformanceData = useMemo(() => {
-    if (!timelineData.length) return [];
-    
-    return timelineData
-      .map(item => ({
-        name: item.formattedDate,
-        checkIns: item.checkIns,
-        giftsDistributed: item.giftsDistributed
-      }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  }, [timelineData]);
 
   // Error handling for missing data
   if (error) {
@@ -614,98 +555,7 @@ const EventAnalytics = ({ eventId }) => {
           </MuiTooltip>
         </Box>
 
-        {/* SECTION 3: Data Visualization Charts */}
-        <Box mb={4}>
-          
-          <Box display="flex" flexDirection={{ xs: 'column', lg: 'row' }} gap={{ xs: 2, lg: 4 }} sx={{ minHeight: 400 }}>
-            {/* CHART 1: Daily Check-in Performance Bar Chart */}
-            <Box flex={1} minWidth={0}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }} color="primary.main">
-                📅 Daily Check-in Performance
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" mb={2}>
-                Bar chart showing daily check-in counts over the last 7 days
-              </Typography>
-              <BarResponsiveContainer width="100%" height={220}>
-                <BarChart
-                  data={dailyPerformanceData}
-                  margin={{ left: 0, right: 10, top: 10, bottom: 10 }}
-                >
-                  <XAxis 
-                    dataKey="name" 
-                    interval={0}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis domain={[0, 'dataMax']} />
-                  <Bar dataKey="checkIns" fill={CHART_COLORS[0]} isAnimationActive={false}>
-                    {dailyPerformanceData.map((entry, idx) => (
-                      <BarCell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
-                    ))}
-                  </Bar>
-                  <BarTooltip formatter={(value) => [`${value} check-ins`, 'Daily Check-ins']} />
-                </BarChart>
-              </BarResponsiveContainer>
-            </Box>
-
-            {/* Vertical Divider */}
-            <Divider
-              orientation={{ xs: 'horizontal', lg: 'vertical' }}
-              flexItem
-              sx={{ 
-                mx: { xs: 0, lg: 2 }, 
-                my: { xs: 2, lg: 0 }, 
-                display: 'block',
-                borderColor: 'grey.300',
-                borderWidth: '1px'
-              }}
-            />
-
-            {/* CHART 2: Guest Status Distribution Pie Chart */}
-            <Box flex={1} minWidth={0}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }} color="primary.main">
-                👥 Guest Status Distribution
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" mb={2}>
-                Pie chart showing the breakdown of checked-in vs pending guests
-              </Typography>
-              
-              {guestStatusData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={guestStatusData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      label={({ name, value }) => `${name}: ${value}`}
-                      isAnimationActive={false}
-                    >
-                      {guestStatusData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => [value, 'Guests']} />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  height: 300,
-                  color: 'text.secondary'
-                }}>
-                  <Typography variant="body2">No guest data available</Typography>
-                </Box>
-              )}
-            </Box>
-          </Box>
-        </Box>
-
-        {/* SECTION 4: Check-in Timeline */}
+        {/* SECTION 3: Check-in Timeline */}
         {timelineData.length > 0 && (
           <Box mb={4}>
             <Typography variant="subtitle1" fontWeight={600} mb={2} color="primary.main">
@@ -714,43 +564,30 @@ const EventAnalytics = ({ eventId }) => {
             <Typography variant="body2" color="text.secondary" mb={2}>
               Line chart showing check-in patterns and gift distribution over time
             </Typography>
-            <Box sx={{ height: 300 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={timelineData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="formattedDate" 
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis />
-                  <Tooltip 
-                    formatter={(value, name) => [
-                      value, 
-                      name === 'checkIns' ? 'Check-ins' : 'Gifts Distributed'
-                    ]}
-                    labelFormatter={(label) => `Date: ${label}`}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="checkIns" 
-                    stroke={CHART_COLORS[0]} 
-                    strokeWidth={3}
-                    dot={{ fill: CHART_COLORS[0], strokeWidth: 2, r: 4 }}
-                    name="Check-ins"
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="giftsDistributed" 
-                    stroke={CHART_COLORS[1]} 
-                    strokeWidth={3}
-                    dot={{ fill: CHART_COLORS[1], strokeWidth: 2, r: 4 }}
-                    name="Gifts Distributed"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </Box>
+            <AnalyticsLineChart
+              data={timelineData}
+              lines={[
+                { 
+                  dataKey: 'checkIns', 
+                  name: 'Check-ins', 
+                  color: CHART_COLORS[0],
+                  strokeWidth: 3
+                },
+                { 
+                  dataKey: 'giftsDistributed', 
+                  name: 'Gifts Distributed', 
+                  color: CHART_COLORS[1],
+                  strokeWidth: 3
+                }
+              ]}
+              xAxisKey="formattedDate"
+              height={300}
+              loading={loading}
+              showGrid={true}
+            />
           </Box>
         )}
+
       </CardContent>
     </Card>
   );

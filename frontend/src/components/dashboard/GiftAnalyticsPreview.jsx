@@ -16,6 +16,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
   Grid,
   IconButton,
   Tooltip,
@@ -38,6 +39,10 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
   const [selectedProduct, setSelectedProduct] = useState('');
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [chartExpanded, setChartExpanded] = useState(true);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [selectedSegments, setSelectedSegments] = useState([]); // Track selected pie chart segments (array for multi-select)
 
   // Fetch analytics data
   useEffect(() => {
@@ -841,7 +846,8 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
         const isGrouped = groupBy !== 'none';
         
         return (
-        <TableContainer sx={{ maxHeight: 200, flex: 1 }}>
+          <>
+            <TableContainer sx={{ maxHeight: 200, flex: 1 }}>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
@@ -878,7 +884,7 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {displayData.slice(0, 15).map((item, index) => {
+              {displayData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((item, index) => {
                 // Create a unique key from the item properties
                 const uniqueKey = isGrouped
                   ? `${groupBy}-${item.key}-${index}`
@@ -923,21 +929,27 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
               })}
             </TableBody>
           </Table>
-        </TableContainer>
+            </TableContainer>
+            {(() => {
+              const displayData = groupBy === 'none' ? filteredGiftData : aggregatedData;
+              return (
+                <TablePagination
+                  component="div"
+                  count={displayData.length}
+                  page={page}
+                  onPageChange={(event, newPage) => setPage(newPage)}
+                  rowsPerPage={rowsPerPage}
+                  onRowsPerPageChange={(event) => {
+                    setRowsPerPage(parseInt(event.target.value, 10));
+                    setPage(0);
+                  }}
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  labelRowsPerPage="Rows per page:"
+                />
+              );
+            })()}
+          </>
         );
-      })()}
-      
-      {(() => {
-        const displayData = groupBy === 'none' ? filteredGiftData : aggregatedData;
-        const label = groupBy === 'none' ? 'items' : groupBy === 'category' ? 'categories' : groupBy === 'brand' ? 'brands' : 'products';
-        if (displayData.length > 15) {
-          return (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, textAlign: 'right' }}>
-              Showing top 15 of {displayData.length} {label}
-            </Typography>
-          );
-        }
-        return null;
       })()}
     </Paper>
   );

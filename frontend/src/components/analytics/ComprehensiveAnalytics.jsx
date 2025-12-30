@@ -40,6 +40,9 @@ import {
   Pie,
   Cell
 } from 'recharts';
+import AnalyticsBarChart from './charts/AnalyticsBarChart';
+import AnalyticsPieChart from './charts/AnalyticsPieChart';
+import AnalyticsLineChart from './charts/AnalyticsLineChart';
 import { useTheme } from '@mui/material/styles';
 import { getAllEventAnalytics } from '../../services/analytics';
 import AnalyticsFilters from './AnalyticsFilters';
@@ -666,30 +669,15 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
                 Top Distributed Gifts
               </Typography>
-              {safeTopGifts.length > 0 && safeTopGifts.every(g => g.name && typeof g.totalQuantity === 'number') ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={safeTopGifts} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
-                    <XAxis 
-                      dataKey="name" 
-                      angle={-45}
-                      textAnchor="end"
-                      height={80}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis />
-                    <RechartsTooltip formatter={(value) => [`Quantity: ${value}`, 'Total Quantity']} />
-                    <Bar 
-                      dataKey="totalQuantity" 
-                      fill={theme.palette.primary.main}
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                  No gift data available
-                </Typography>
-              )}
+              <AnalyticsBarChart
+                data={safeTopGifts}
+                dataKey="totalQuantity"
+                nameKey="name"
+                yAxisLabel="Quantity"
+                height={300}
+                colors={pieColors}
+                loading={loading}
+              />
             </CardContent>
           </Card>
         </Grid>
@@ -701,29 +689,15 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
                 Gift Distribution by Category
               </Typography>
-              {categoryData.length > 0 && categoryData.every(d => d.name && typeof d.value === 'number') ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={categoryData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                    >
-                      {categoryData.map((entry, idx) => (
-                        <Cell key={`cell-${idx}`} fill={pieColors[idx % pieColors.length]} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                  No category data available
-                </Typography>
-              )}
+              <AnalyticsPieChart
+                data={categoryData}
+                dataKey="value"
+                nameKey="name"
+                height={300}
+                colors={pieColors}
+                outerRadius={100}
+                loading={loading}
+              />
             </CardContent>
           </Card>
         </Grid>
@@ -735,35 +709,27 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
                 Check-in Timeline (Last 7 Days)
               </Typography>
-              {timelineData.length > 0 && timelineData.every(d => d.date && typeof d.checkIns === 'number' && typeof d.giftsDistributed === 'number') ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={timelineData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <RechartsTooltip />
-                    <Line 
-                      type="monotone" 
-                      dataKey="checkIns" 
-                      stroke={theme.palette.primary.main} 
-                      strokeWidth={3}
-                      name="Check-ins"
-                      dot={{ r: 4 }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="giftsDistributed" 
-                      stroke={theme.palette.success.main} 
-                      strokeWidth={3}
-                      name="Gifts Distributed"
-                      dot={{ r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                  No timeline data available
-                </Typography>
-              )}
+              <AnalyticsLineChart
+                data={timelineData}
+                lines={[
+                  { 
+                    dataKey: 'checkIns', 
+                    name: 'Check-ins', 
+                    color: theme.palette.primary.main,
+                    strokeWidth: 3
+                  },
+                  { 
+                    dataKey: 'giftsDistributed', 
+                    name: 'Gifts Distributed', 
+                    color: theme.palette.success.main,
+                    strokeWidth: 3
+                  }
+                ]}
+                xAxisKey="date"
+                height={300}
+                loading={loading}
+                showGrid={true}
+              />
             </CardContent>
           </Card>
         </Grid>

@@ -113,12 +113,12 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
               </Box>
             </Box>
             <Tooltip title="Edit Event Details">
-              <IconButton 
-                onClick={handleEditClick}
-                sx={{ 
-                  bgcolor: 'rgba(255,255,255,0.8)', 
-                  '&:hover': { bgcolor: 'rgba(255,255,255,1)' }
-                }}
+            <IconButton 
+              onClick={handleEditClick}
+              sx={{ 
+                bgcolor: 'rgba(255,255,255,0.8)', 
+                '&:hover': { bgcolor: 'rgba(255,255,255,1)' }
+              }}
               >
                 <EditIcon />
               </IconButton>

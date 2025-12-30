@@ -605,10 +605,10 @@ exports.exportAnalytics = async (req, res) => {
       }
     } else {
       // Otherwise, use eventType filter if provided
-      if (eventType) {
-        eventFilter.eventType = eventType;
-      }
-      const events = await Event.find(eventFilter);
+    if (eventType) {
+      eventFilter.eventType = eventType;
+    }
+    const events = await Event.find(eventFilter);
       eventIds = events.map(e => e._id);
     }
 

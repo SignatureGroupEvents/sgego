@@ -232,7 +232,7 @@ const AdvancedDashboard = () => {
   const renderModuleContent = () => {
     switch (selectedModule) {
       case 'gift':
-        return <GiftAnalytics guests={guests} inventory={inventory} />;
+        return <GiftAnalytics event={event} guests={guests} inventory={inventory} />;
       case 'event':
         return <EventAnalytics eventId={eventId} />;
       case 'activity':
@@ -254,11 +254,11 @@ const AdvancedDashboard = () => {
           variant="outlined"
           color="primary"
           size="large"
-          sx={{ 
+          sx={{
             mb: 3,
             px: 3,
             py: 1.5,
-            fontSize: '1rem',
+              fontSize: '1rem',
             fontWeight: 600,
             borderWidth: 2,
             '&:hover': {
@@ -274,9 +274,9 @@ const AdvancedDashboard = () => {
         </Button>
 
         {/* Module Content */}
-        <Box sx={{ minHeight: '500px' }}>
+      <Box sx={{ minHeight: '500px' }}>
           {renderModuleContent()}
-        </Box>
+      </Box>
       </Container>
     </MainLayout>
   );

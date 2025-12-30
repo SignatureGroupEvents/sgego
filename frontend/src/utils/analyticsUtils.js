@@ -127,4 +127,140 @@ export function transformTimelineForChart(analyticsData, filters = {}) {
     name: item._id?.date || item.date || 'Unknown'
   }));
 }
+
+/**
+ * Export chart as image (PNG)
+ * @param {string} chartId - ID of the chart container element
+ * @param {string} filename - Filename for the download (without extension)
+ * @returns {Promise<boolean>} Success status
+ */
+export async function exportChartAsImage(chartId, filename = 'chart') {
+  try {
+    const chartElement = document.getElementById(chartId);
+    if (!chartElement) {
+      console.error('Chart element not found:', chartId);
+      return false;
+    }
+
+    // Use html2canvas if available, otherwise fallback to SVG export
+    const svgElement = chartElement.querySelector('svg');
+    if (svgElement) {
+      const svgData = new XMLSerializer().serializeToString(svgElement);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const svgUrl = URL.createObjectURL(svgBlob);
+      
+      // Convert SVG to PNG using canvas
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      return new Promise((resolve) => {
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `${filename}_${new Date().toISOString().split('T')[0]}.png`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+              URL.revokeObjectURL(svgUrl);
+              resolve(true);
+            } else {
+              resolve(false);
+            }
+          }, 'image/png');
+        };
+        
+        img.onerror = () => {
+          URL.revokeObjectURL(svgUrl);
+          resolve(false);
+        };
+        
+        img.src = svgUrl;
+      });
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error exporting chart:', error);
+    return false;
+  }
+}
+
+/**
+ * Calculate gift selection rate
+ * @param {Array} guests - Array of guest objects
+ * @returns {Object} Selection rate statistics
+ */
+export function calculateGiftSelectionRate(guests = []) {
+  if (!guests || guests.length === 0) {
+    return {
+      totalGuests: 0,
+      guestsWithGifts: 0,
+      selectionRate: 0,
+      percentage: '0%'
+    };
+  }
+
+  const guestsWithGifts = guests.filter(g => 
+    g?.giftSelection?.inventoryId || 
+    (g?.selectedGifts && Array.isArray(g.selectedGifts) && g.selectedGifts.length > 0)
+  ).length;
+
+  const selectionRate = guests.length > 0 
+    ? (guestsWithGifts / guests.length) * 100 
+    : 0;
+
+  return {
+    totalGuests: guests.length,
+    guestsWithGifts,
+    selectionRate: Math.round(selectionRate * 100) / 100,
+    percentage: `${Math.round(selectionRate)}%`
+  };
+}
+
+/**
+ * Calculate inventory utilization
+ * @param {Array} inventory - Array of inventory items
+ * @param {Array} distributedGifts - Array of distributed gift data
+ * @returns {Array} Inventory utilization data for charts
+ */
+export function calculateInventoryUtilization(inventory = [], distributedGifts = []) {
+  if (!inventory || inventory.length === 0) {
+    return [];
+  }
+
+  // Create a map of distributed quantities by inventoryId
+  const distributedMap = new Map();
+  distributedGifts.forEach(gift => {
+    const invId = gift.inventoryId?.toString();
+    if (invId) {
+      const current = distributedMap.get(invId) || 0;
+      distributedMap.set(invId, current + (gift.totalQuantity || gift.quantity || 1));
+    }
+  });
+
+  return inventory.map(item => {
+    const invId = item._id?.toString();
+    const distributed = distributedMap.get(invId) || 0;
+    const currentInventory = item.currentInventory || 0;
+    const total = distributed + currentInventory;
+    const utilizationRate = total > 0 ? (distributed / total) * 100 : 0;
+
+    return {
+      name: `${item.style || 'N/A'} ${item.product ? `- ${item.product}` : ''}`.trim(),
+      distributed,
+      remaining: currentInventory,
+      total,
+      utilizationRate: Math.round(utilizationRate * 100) / 100
+    };
+  }).filter(item => item.total > 0); // Only show items with inventory
+}
   

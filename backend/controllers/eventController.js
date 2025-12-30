@@ -355,7 +355,7 @@ exports.getEventAnalytics = async (req, res) => {
               }
             }
           }
-        }
+        } 
       },
       {
         $group: {
