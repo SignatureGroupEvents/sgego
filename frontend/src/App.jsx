@@ -97,7 +97,7 @@ function App() {
               </ProtectedRoute>
             } />
 
-            {/* ACCESS_ANALYTICS_FULL: Admin only */}
+            {/* ACCESS_ANALYTICS_FULL: Admin and Ops only */}
             <Route path="/events/:eventId/dashboard/advanced" element={
               <ProtectedRoute requiredCapability="ACCESS_ANALYTICS_FULL">
                 <AdvancedDashboard />
@@ -184,7 +184,7 @@ function App() {
             {/* Remove duplicate routes - these are handled by the event-specific routes above */}
 
             {/* 🧪 TEST ROUTES for Analytics Components */}
-            {/* ACCESS_ANALYTICS_FULL: Admin only */}
+            {/* ACCESS_ANALYTICS_FULL: Admin and Ops only */}
             <Route path="/test-analytics/:eventId" element={
               <ProtectedRoute requiredCapability="ACCESS_ANALYTICS_FULL">
                 <SpecificAnalyticsExamples />
