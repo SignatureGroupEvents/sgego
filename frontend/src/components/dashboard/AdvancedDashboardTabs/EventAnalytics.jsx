@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useTheme } from '@mui/material/styles';
 import {
   Card,
@@ -27,10 +27,16 @@ import {
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as BarTooltip, ResponsiveContainer as BarResponsiveContainer, Cell as BarCell } from 'recharts';
 import { LineChart, Line, CartesianGrid } from 'recharts';
+import AnalyticsBarChart from '../../analytics/charts/AnalyticsBarChart';
+import AnalyticsPieChart from '../../analytics/charts/AnalyticsPieChart';
+import AnalyticsLineChart from '../../analytics/charts/AnalyticsLineChart';
 import ClearIcon from '@mui/icons-material/Clear';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import MuiTooltip from '@mui/material/Tooltip';
+import Menu from '@mui/material/Menu';
 import { getAllEventAnalytics } from '../../../services/analytics';
+import AnalyticsFilters from '../../analytics/AnalyticsFilters';
 
 // Centralized fallback label
 const UNKNOWN_LABEL = 'Unlabeled';
@@ -44,15 +50,27 @@ const EventAnalytics = ({ eventId }) => {
   const [error, setError] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
   const [hiddenCategories, setHiddenCategories] = useState([]);
+  const [filters, setFilters] = useState({});
+  const prevFiltersRef = useRef(null);
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  
+  // Memoize the filters change handler to prevent AnalyticsFilters from remounting
+  const handleFiltersChange = useCallback((newFilters) => {
+    setFilters(newFilters);
+  }, []);
 
-  // Debug logging for data validation
-  console.log('📊 EventAnalytics Debug:', {
-    eventId,
-    hasAnalytics: !!analytics,
-    loading,
-    error
-  });
+  // Debug logging for data validation (commented out to reduce console noise)
+  // console.log('📊 EventAnalytics Debug:', {
+  //   eventId,
+  //   hasAnalytics: !!analytics,
+  //   loading,
+  //   error
+  // });
 
+  // Track if this is the initial mount
+  const isInitialMount = useRef(true);
+  
   // Fetch analytics data
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -62,19 +80,33 @@ const EventAnalytics = ({ eventId }) => {
         return;
       }
 
+      // Compare filters to previous to prevent unnecessary fetches
+      const filtersString = JSON.stringify(filters);
+      const prevFiltersString = prevFiltersRef.current ? JSON.stringify(prevFiltersRef.current) : null;
+      
+      // On initial mount, fetch once with empty filters, then mark as not initial
+      if (isInitialMount.current) {
+        isInitialMount.current = false;
+        prevFiltersRef.current = JSON.parse(JSON.stringify(filters));
+        // Continue to fetch...
+      } else if (filtersString === prevFiltersString) {
+        // Skip fetch if filters haven't actually changed (after initial mount)
+        return;
+      }
+      
+      prevFiltersRef.current = JSON.parse(JSON.stringify(filters));
+
       try {
         setLoading(true);
         setError('');
-        console.log('🔄 Fetching event analytics for eventId:', eventId);
-        
-        const data = await getAllEventAnalytics(eventId);
+        const data = await getAllEventAnalytics(eventId, filters);
         setAnalytics(data);
         
-        console.log('✅ Event analytics loaded successfully:', {
-          eventStats: data.eventStats,
-          timelineLength: data.checkInTimeline?.length || 0,
-          hasGiftData: !!data.giftSummary
-        });
+        // console.log('✅ Event analytics loaded successfully:', {
+        //   eventStats: data.eventStats,
+        //   timelineLength: data.checkInTimeline?.length || 0,
+        //   hasGiftData: !!data.giftSummary
+        // });
       } catch (err) {
         console.error('❌ Error fetching event analytics:', err);
         setError('Failed to load event analytics data');
@@ -84,7 +116,7 @@ const EventAnalytics = ({ eventId }) => {
     };
 
     fetchAnalytics();
-  }, [eventId]);
+  }, [eventId, filters]);
 
   // Use theme palette colors for the charts
   const CHART_COLORS = useMemo(() => [
@@ -122,50 +154,15 @@ const EventAnalytics = ({ eventId }) => {
       })
     }));
 
-    console.log('📈 Timeline Data Processing:', {
-      totalDays: processed.length,
-      totalCheckIns: processed.reduce((sum, item) => sum + item.checkIns, 0),
-      totalGifts: processed.reduce((sum, item) => sum + item.giftsDistributed, 0),
-      dateRange: processed.length > 0 ? `${processed[0].date} to ${processed[processed.length - 1].date}` : 'No data'
-    });
+    // console.log('📈 Timeline Data Processing:', {
+    //   totalDays: processed.length,
+    //   totalCheckIns: processed.reduce((sum, item) => sum + item.checkIns, 0),
+    //   totalGifts: processed.reduce((sum, item) => sum + item.giftsDistributed, 0),
+    //   dateRange: processed.length > 0 ? `${processed[0].date} to ${processed[processed.length - 1].date}` : 'No data'
+    // });
 
     return processed;
   }, [analytics?.checkInTimeline]);
-
-  // Process guest status data for pie chart
-  const guestStatusData = useMemo(() => {
-    if (!analytics?.eventStats) return [];
-    
-    const { totalGuests, checkedInGuests, pendingGuests } = analytics.eventStats;
-    
-    const data = [
-      { name: 'Checked In', value: checkedInGuests, color: theme.palette.success.main },
-      { name: 'Pending', value: pendingGuests, color: theme.palette.warning.main }
-    ].filter(item => item.value > 0);
-
-    console.log('👥 Guest Status Processing:', {
-      totalGuests,
-      checkedInGuests,
-      pendingGuests,
-      checkInRate: analytics.eventStats.checkInPercentage
-    });
-
-    return data;
-  }, [analytics?.eventStats, theme.palette]);
-
-  // Process daily check-in performance for bar chart
-  const dailyPerformanceData = useMemo(() => {
-    if (!timelineData.length) return [];
-    
-    return timelineData
-      .map(item => ({
-        name: item.formattedDate,
-        checkIns: item.checkIns,
-        giftsDistributed: item.giftsDistributed
-      }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  }, [timelineData]);
 
   // Error handling for missing data
   if (error) {
@@ -211,23 +208,232 @@ const EventAnalytics = ({ eventId }) => {
     );
   }
 
-  const { eventStats } = analytics;
+  const { eventStats, detailedCheckIns } = analytics;
+
+  // Export functions
+  const exportCheckInsToCSV = () => {
+    if (!detailedCheckIns || detailedCheckIns.length === 0) return;
+    
+    const sections = [];
+    
+    // Section 0: Export Information
+    sections.push('=== EXPORT INFORMATION ===');
+    sections.push(`Exported On,"${new Date().toLocaleString()}"`);
+    sections.push(`Export Date,"${new Date().toLocaleDateString()}"`);
+    sections.push(`Export Time,"${new Date().toLocaleTimeString()}"`);
+    sections.push('');
+    
+    // Section 1: Filtered Dates (if any)
+    if (filters.startDate || filters.endDate) {
+      sections.push('=== FILTERED DATE RANGE ===');
+      if (filters.startDate) {
+        sections.push(`Start Date,"${new Date(filters.startDate).toLocaleDateString()}"`);
+      }
+      if (filters.endDate) {
+        sections.push(`End Date,"${new Date(filters.endDate).toLocaleDateString()}"`);
+      }
+      sections.push('');
+    }
+    
+    // Section 2: Event Summary
+    sections.push('=== EVENT SUMMARY ===');
+    sections.push(`Event Name,"${(eventStats.eventName || 'N/A').replace(/"/g, '""')}"`);
+    sections.push(`Contract Number,"${(eventStats.eventContractNumber || 'N/A').replace(/"/g, '""')}"`);
+    sections.push(`Event Type,"${(eventStats.isMainEvent ? 'Main Event' : 'Secondary Event').replace(/"/g, '""')}"`);
+    sections.push(`Total Guests,${eventStats.totalGuests || 0}`);
+    sections.push(`Checked In,${eventStats.checkedInGuests || 0}`);
+    sections.push(`Pending,${eventStats.pendingGuests || 0}`);
+    sections.push(`Check-in Rate,${eventStats.checkInPercentage || 0}%`);
+    sections.push('');
+    
+    // Section 3: Check-in Details
+    sections.push('=== CHECK-IN DETAILS ===');
+    const headers = ['Guest Name', 'Email', 'Checked In At', 'Checked In By', 'Gifts Count', 'Notes'];
+    sections.push(headers.join(','));
+    
+    const rows = detailedCheckIns.map(checkin => [
+      (checkin.guestName || '').replace(/"/g, '""'),
+      (checkin.guestEmail || '').replace(/"/g, '""'),
+      checkin.checkedInAt ? new Date(checkin.checkedInAt).toLocaleString().replace(/"/g, '""') : '',
+      (checkin.checkedInBy || checkin.checkedInByUsername || 'Unknown').replace(/"/g, '""'),
+      checkin.giftsCount || 0,
+      (checkin.notes || '').replace(/"/g, '""') // Escape quotes in CSV
+    ]);
+    
+    rows.forEach(row => {
+      sections.push(row.map(cell => `"${cell}"`).join(','));
+    });
+    
+    const csvContent = sections.join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    
+    const date = new Date().toISOString().split('T')[0];
+    link.setAttribute('download', `event_checkins_${eventId}_${date}.csv`);
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setExportMenuAnchor(null);
+  };
+
+  const exportCheckInsToExcel = async () => {
+    setExporting(true);
+    try {
+      if (!detailedCheckIns || detailedCheckIns.length === 0) return;
+      
+      const sections = [];
+      
+      // Section 0: Export Information
+      sections.push('=== EXPORT INFORMATION ===');
+      sections.push(`Exported On\t${new Date().toLocaleString()}`);
+      sections.push(`Export Date\t${new Date().toLocaleDateString()}`);
+      sections.push(`Export Time\t${new Date().toLocaleTimeString()}`);
+      sections.push('');
+      
+      // Section 1: Filtered Dates (if any)
+      if (filters.startDate || filters.endDate) {
+        sections.push('=== FILTERED DATE RANGE ===');
+        if (filters.startDate) {
+          sections.push(`Start Date\t${new Date(filters.startDate).toLocaleDateString()}`);
+        }
+        if (filters.endDate) {
+          sections.push(`End Date\t${new Date(filters.endDate).toLocaleDateString()}`);
+        }
+        sections.push('');
+      }
+      
+      // Section 2: Event Summary
+      sections.push('=== EVENT SUMMARY ===');
+      sections.push(`Event Name\t${eventStats.eventName || 'N/A'}`);
+      sections.push(`Contract Number\t${eventStats.eventContractNumber || 'N/A'}`);
+      sections.push(`Event Type\t${eventStats.isMainEvent ? 'Main Event' : 'Secondary Event'}`);
+      sections.push(`Total Guests\t${eventStats.totalGuests || 0}`);
+      sections.push(`Checked In\t${eventStats.checkedInGuests || 0}`);
+      sections.push(`Pending\t${eventStats.pendingGuests || 0}`);
+      sections.push(`Check-in Rate\t${eventStats.checkInPercentage || 0}%`);
+      sections.push('');
+      
+      // Section 3: Check-in Details
+      sections.push('=== CHECK-IN DETAILS ===');
+      const headers = ['Guest Name', 'Email', 'Checked In At', 'Checked In By', 'Gifts Count', 'Notes'];
+      sections.push(headers.join('\t'));
+      
+      const rows = detailedCheckIns.map(checkin => [
+        checkin.guestName || '',
+        checkin.guestEmail || '',
+        checkin.checkedInAt ? new Date(checkin.checkedInAt).toLocaleString() : '',
+        checkin.checkedInBy || checkin.checkedInByUsername || 'Unknown',
+        checkin.giftsCount || 0,
+        checkin.notes || ''
+      ]);
+      
+      rows.forEach(row => {
+        sections.push(row.join('\t'));
+      });
+      
+      const excelContent = sections.join('\n');
+      
+      const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      
+      const date = new Date().toISOString().split('T')[0];
+      link.setAttribute('download', `event_checkins_${eventId}_${date}.xls`);
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+    } finally {
+      setExporting(false);
+      setExportMenuAnchor(null);
+    }
+  };
 
   return (
     <Card sx={{ mb: 4 }}>
       <CardContent>
-        <Typography variant="h6" fontWeight={700} mb={1} color="primary.main">
-          Event Analytics Dashboard
-        </Typography>
-        <Typography variant="body2" color="text.secondary" mb={3}>
-          Track guest check-ins, event performance, and attendance patterns
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Box>
+            <Typography variant="h6" fontWeight={700} color="primary.main">
+              Event Analytics Dashboard
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Track guest check-ins, event performance, and attendance patterns
+            </Typography>
+          </Box>
+          <MuiTooltip title="Export Data">
+            <IconButton
+              size="small"
+              onClick={(e) => setExportMenuAnchor(e.currentTarget)}
+              disabled={exporting || !analytics}
+            >
+              <FileDownloadIcon />
+            </IconButton>
+          </MuiTooltip>
+        </Box>
+        
+        {/* Export Menu - placed outside Box for proper portal rendering */}
+        <Menu
+          anchorEl={exportMenuAnchor}
+          open={Boolean(exportMenuAnchor)}
+          onClose={() => setExportMenuAnchor(null)}
+        >
+          <MenuItem onClick={exportCheckInsToCSV} disabled={exporting || !detailedCheckIns?.length}>
+            Export Check-ins as CSV
+          </MenuItem>
+          <MenuItem onClick={exportCheckInsToExcel} disabled={exporting || !detailedCheckIns?.length}>
+            Export Check-ins as Excel
+          </MenuItem>
+        </Menu>
 
-        {/* Quick Summary Stats */}
+        {/* Analytics Filters */}
+        <Box sx={{ mb: 3 }}>
+          <AnalyticsFilters
+            key={`analytics-filters-${eventId}`}
+            initialEventId={eventId}
+            showEventSelector={false}
+            onFiltersChange={handleFiltersChange}
+            autoApply={true}
+            variant="compact"
+          />
+        </Box>
+
+        {/* Event Summary - Combined with Event Details */}
         <Box mb={3} p={2} bgcolor="grey.50" borderRadius={2}>
-          <Typography variant="subtitle2" fontWeight={600} mb={1} color="primary.main">
+          <Typography variant="subtitle2" fontWeight={600} mb={2} color="primary.main">
             📈 Event Summary
           </Typography>
+          
+          {/* Event Information */}
+          <Box mb={2} pb={2} borderBottom="1px solid" borderColor="divider">
+            <Box display="flex" gap={4} flexWrap="wrap">
+              <Box>
+                <Typography variant="caption" color="text.secondary">Event Name</Typography>
+                <Typography variant="body1" fontWeight={600}>{eventStats.eventName || 'N/A'}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Contract Number</Typography>
+                <Typography variant="body1" fontWeight={600}>{eventStats.eventContractNumber || 'N/A'}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Event Type</Typography>
+                <Typography variant="body1" fontWeight={600}>
+                  {eventStats.isMainEvent ? 'Main Event' : 'Secondary Event'}
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+
+          {/* Statistics */}
           <Box display="flex" gap={3} flexWrap="wrap">
             <Box>
               <Typography variant="caption" color="text.secondary">Total Guests</Typography>
@@ -254,48 +460,83 @@ const EventAnalytics = ({ eventId }) => {
           </Box>
         </Box>
 
-        {/* SECTION 1: Event Details Table */}
-        <Box mb={4}>
-          <Typography variant="subtitle1" fontWeight={600} mb={2} color="primary.main">
-            📋 Event Details
+        {/* SECTION 1.5: Detailed Check-in List */}
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h6" fontWeight={600} mb={2} color="primary.main">
+            Check-in Details
           </Typography>
-          <Typography variant="body2" color="text.secondary" mb={2}>
-            Comprehensive overview of event statistics and guest information
-          </Typography>
-          <TableContainer component={Paper} variant="outlined" sx={{ minWidth: 600, overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ backgroundColor: 'grey.50' }}>
-                  <TableCell sx={{ fontWeight: 600 }}>Event Name</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Contract Number</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Total Guests</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Checked In</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Pending</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Check-in Rate</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Event Type</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                <TableRow hover>
-                  <TableCell>{eventStats.eventName || 'N/A'}</TableCell>
-                  <TableCell>{eventStats.eventContractNumber || 'N/A'}</TableCell>
-                  <TableCell>{eventStats.totalGuests}</TableCell>
-                  <TableCell sx={{ color: 'success.main', fontWeight: 600 }}>
-                    {eventStats.checkedInGuests}
-                  </TableCell>
-                  <TableCell sx={{ color: 'warning.main', fontWeight: 600 }}>
-                    {eventStats.pendingGuests}
-                  </TableCell>
-                  <TableCell sx={{ color: 'primary.main', fontWeight: 600 }}>
-                    {eventStats.checkInPercentage}%
-                  </TableCell>
-                  <TableCell>
-                    {eventStats.isMainEvent ? 'Main Event' : 'Secondary Event'}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </TableContainer>
+          {analytics.detailedCheckIns && Array.isArray(analytics.detailedCheckIns) && analytics.detailedCheckIns.length > 0 ? (
+            <>
+              <Typography variant="body2" color="text.secondary" mb={2}>
+                {filters.startDate || filters.endDate 
+                  ? `Showing check-ins filtered by date range${filters.startDate ? ` from ${new Date(filters.startDate).toLocaleDateString()}` : ''}${filters.endDate ? ` to ${new Date(filters.endDate).toLocaleDateString()}` : ''}`
+                  : 'All check-ins for this event'
+                } ({analytics.detailedCheckIns.length} total)
+              </Typography>
+              <TableContainer component={Paper} elevation={1}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'background.default' }}>
+                      <TableCell sx={{ fontWeight: 600 }}>Guest Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Checked In At</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Checked In By</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="center">Gifts</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Notes</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {analytics.detailedCheckIns.map((checkin) => (
+                      <TableRow key={checkin._id} hover>
+                        <TableCell>{checkin.guestName || 'N/A'}</TableCell>
+                        <TableCell>{checkin.guestEmail || 'N/A'}</TableCell>
+                        <TableCell>
+                          {checkin.checkedInAt 
+                            ? new Date(checkin.checkedInAt).toLocaleString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })
+                            : 'N/A'
+                          }
+                        </TableCell>
+                        <TableCell>{checkin.checkedInBy || checkin.checkedInByUsername || 'Unknown'}</TableCell>
+                        <TableCell align="center">
+                          {checkin.giftsCount > 0 ? (
+                            <Typography variant="body2" color="success.main" fontWeight={600}>
+                              {checkin.giftsCount}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              0
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary" sx={{ 
+                            maxWidth: 200, 
+                            overflow: 'hidden', 
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {checkin.notes || '-'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          ) : (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              {filters.startDate || filters.endDate
+                ? 'No check-ins found for the selected date range.'
+                : 'No check-ins have been recorded for this event yet.'}
+            </Alert>
+          )}
         </Box>
 
         {/* SECTION 2: Chart Controls */}
@@ -314,98 +555,7 @@ const EventAnalytics = ({ eventId }) => {
           </MuiTooltip>
         </Box>
 
-        {/* SECTION 3: Data Visualization Charts */}
-        <Box mb={4}>
-          
-          <Box display="flex" flexDirection={{ xs: 'column', lg: 'row' }} gap={{ xs: 2, lg: 4 }} sx={{ minHeight: 400 }}>
-            {/* CHART 1: Daily Check-in Performance Bar Chart */}
-            <Box flex={1} minWidth={0}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }} color="primary.main">
-                📅 Daily Check-in Performance
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" mb={2}>
-                Bar chart showing daily check-in counts over the last 7 days
-              </Typography>
-              <BarResponsiveContainer width="100%" height={220}>
-                <BarChart
-                  data={dailyPerformanceData}
-                  margin={{ left: 0, right: 10, top: 10, bottom: 10 }}
-                >
-                  <XAxis 
-                    dataKey="name" 
-                    interval={0}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis domain={[0, 'dataMax']} />
-                  <Bar dataKey="checkIns" fill={CHART_COLORS[0]} isAnimationActive={false}>
-                    {dailyPerformanceData.map((entry, idx) => (
-                      <BarCell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
-                    ))}
-                  </Bar>
-                  <BarTooltip formatter={(value) => [`${value} check-ins`, 'Daily Check-ins']} />
-                </BarChart>
-              </BarResponsiveContainer>
-            </Box>
-
-            {/* Vertical Divider */}
-            <Divider
-              orientation={{ xs: 'horizontal', lg: 'vertical' }}
-              flexItem
-              sx={{ 
-                mx: { xs: 0, lg: 2 }, 
-                my: { xs: 2, lg: 0 }, 
-                display: 'block',
-                borderColor: 'grey.300',
-                borderWidth: '1px'
-              }}
-            />
-
-            {/* CHART 2: Guest Status Distribution Pie Chart */}
-            <Box flex={1} minWidth={0}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }} color="primary.main">
-                👥 Guest Status Distribution
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" mb={2}>
-                Pie chart showing the breakdown of checked-in vs pending guests
-              </Typography>
-              
-              {guestStatusData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={guestStatusData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      label={({ name, value }) => `${name}: ${value}`}
-                      isAnimationActive={false}
-                    >
-                      {guestStatusData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => [value, 'Guests']} />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  height: 300,
-                  color: 'text.secondary'
-                }}>
-                  <Typography variant="body2">No guest data available</Typography>
-                </Box>
-              )}
-            </Box>
-          </Box>
-        </Box>
-
-        {/* SECTION 4: Check-in Timeline */}
+        {/* SECTION 3: Check-in Timeline */}
         {timelineData.length > 0 && (
           <Box mb={4}>
             <Typography variant="subtitle1" fontWeight={600} mb={2} color="primary.main">
@@ -414,43 +564,30 @@ const EventAnalytics = ({ eventId }) => {
             <Typography variant="body2" color="text.secondary" mb={2}>
               Line chart showing check-in patterns and gift distribution over time
             </Typography>
-            <Box sx={{ height: 300 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={timelineData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="formattedDate" 
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis />
-                  <Tooltip 
-                    formatter={(value, name) => [
-                      value, 
-                      name === 'checkIns' ? 'Check-ins' : 'Gifts Distributed'
-                    ]}
-                    labelFormatter={(label) => `Date: ${label}`}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="checkIns" 
-                    stroke={CHART_COLORS[0]} 
-                    strokeWidth={3}
-                    dot={{ fill: CHART_COLORS[0], strokeWidth: 2, r: 4 }}
-                    name="Check-ins"
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="giftsDistributed" 
-                    stroke={CHART_COLORS[1]} 
-                    strokeWidth={3}
-                    dot={{ fill: CHART_COLORS[1], strokeWidth: 2, r: 4 }}
-                    name="Gifts Distributed"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </Box>
+            <AnalyticsLineChart
+              data={timelineData}
+              lines={[
+                { 
+                  dataKey: 'checkIns', 
+                  name: 'Check-ins', 
+                  color: CHART_COLORS[0],
+                  strokeWidth: 3
+                },
+                { 
+                  dataKey: 'giftsDistributed', 
+                  name: 'Gifts Distributed', 
+                  color: CHART_COLORS[1],
+                  strokeWidth: 3
+                }
+              ]}
+              xAxisKey="formattedDate"
+              height={300}
+              loading={loading}
+              showGrid={true}
+            />
           </Box>
         )}
+
       </CardContent>
     </Card>
   );

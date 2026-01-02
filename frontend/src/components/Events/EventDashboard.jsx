@@ -214,9 +214,12 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     );
   }
 
-  // Calculate stats
+  // Calculate stats using eventCheckins as source of truth
   const totalGuests = guests.length;
-  const checkedInGuests = guests.filter(g => g.hasCheckedIn).length;
+  const checkedInGuests = guests.filter(g => 
+    g.eventCheckins && g.eventCheckins.length > 0 && 
+    g.eventCheckins.some(ec => ec.checkedIn === true)
+  ).length;
   const pendingGuests = totalGuests - checkedInGuests;
   const checkInPercentage = totalGuests > 0 ? Math.round((checkedInGuests / totalGuests) * 100) : 0;
 

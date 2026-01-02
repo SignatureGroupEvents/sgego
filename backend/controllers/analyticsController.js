@@ -3,33 +3,88 @@ const Inventory = require('../models/Inventory');
 const Checkin = require('../models/Checkin');
 const Guest = require('../models/Guest');
 
-// Get comprehensive analytics across all events
+/**
+ * Get comprehensive analytics across all events
+ * 
+ * @route GET /api/analytics/overview
+ * @param {string} [eventId] - Optional event ID to filter by specific event (includes secondary events if main event)
+ * @param {string} [year] - Optional year filter (backward compatibility - e.g., "2025")
+ * @param {string} [startDate] - Optional start date filter (ISO 8601 format, e.g., "2025-02-27T00:00:00.000Z" or "2025-02-27")
+ * @param {string} [endDate] - Optional end date filter (ISO 8601 format)
+ * @param {string} [eventType] - Optional event type filter
+ * @param {string|string[]} [giftTypes] - Optional gift types filter (comma-separated or array)
+ * @param {string|string[]} [giftStyles] - Optional gift styles filter (comma-separated or array)
+ * @param {string} [groupBy] - Grouping for trend analysis ('month', 'week', 'day', 'event')
+ * @returns {Object} Comprehensive analytics across events
+ * 
+ * Date filtering priority:
+ * - If startDate/endDate provided, use those
+ * - Else if year provided, use year range
+ * - Else no date filtering
+ */
 exports.getOverviewAnalytics = async (req, res) => {
   try {
     const { 
+      eventId,
       year, 
+      startDate,
+      endDate,
       eventType, 
       giftTypes, 
       giftStyles,
       groupBy = 'month' // month, week, day, event
     } = req.query;
 
-    // Build date filter based on year
+    // Build date filter - prioritize startDate/endDate over year for backward compatibility
     const dateFilter = {};
-    if (year) {
+    if (startDate || endDate) {
+      // Use startDate/endDate if provided
+      dateFilter.createdAt = {};
+      if (startDate) {
+        dateFilter.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        // If endDate is just a date string without time, set to end of day
+        const endDateObj = new Date(endDate);
+        if (endDate.split('T').length === 1) {
+          endDateObj.setHours(23, 59, 59, 999);
+        }
+        dateFilter.createdAt.$lte = endDateObj;
+      }
+    } else if (year) {
+      // Fall back to year if no startDate/endDate (backward compatibility)
       const startOfYear = new Date(`${year}-01-01`);
       const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
-      dateFilter.$gte = startOfYear;
-      dateFilter.$lte = endOfYear;
+      dateFilter.createdAt = {
+        $gte: startOfYear,
+        $lte: endOfYear
+      };
     }
 
     // Parse giftTypes and giftStyles arrays
     const giftTypesArray = giftTypes ? (Array.isArray(giftTypes) ? giftTypes : giftTypes.split(',')) : [];
     const giftStylesArray = giftStyles ? (Array.isArray(giftStyles) ? giftStyles : giftStyles.split(',')) : [];
 
-    // Get all events with optional filtering
+    // Get events with optional filtering
     let eventFilter = {};
-    if (eventType) {
+    
+    // If eventId provided, filter to that specific event (and its secondary events if main event)
+    if (eventId) {
+      const event = await Event.findById(eventId);
+      if (!event) {
+        return res.status(404).json({ message: 'Event not found' });
+      }
+      
+      const eventIds = [eventId];
+      // If it's a main event, include all secondary events
+      if (event.isMainEvent) {
+        const secondaryEvents = await Event.find({ parentEventId: eventId });
+        eventIds.push(...secondaryEvents.map(e => e._id));
+      }
+      
+      eventFilter._id = { $in: eventIds };
+    } else if (eventType) {
+      // Only apply eventType filter if eventId not provided
       eventFilter.eventType = eventType;
     }
 
@@ -52,9 +107,9 @@ exports.getOverviewAnalytics = async (req, res) => {
     ];
 
     // Add date filtering if provided
-    if (Object.keys(dateFilter).length > 0) {
+    if (dateFilter.createdAt) {
       giftDistributionPipeline.unshift({
-        $match: { createdAt: dateFilter }
+        $match: { createdAt: dateFilter.createdAt }
       });
     }
 
@@ -106,6 +161,12 @@ exports.getOverviewAnalytics = async (req, res) => {
     const giftDistribution = await Checkin.aggregate(giftDistributionPipeline);
 
     // 2. Inventory Performance Analytics
+    // Build the lookup pipeline match stage with date filtering
+    const inventoryLookupMatch = { isValid: true };
+    if (dateFilter.createdAt) {
+      Object.assign(inventoryLookupMatch, { createdAt: dateFilter.createdAt });
+    }
+    
     const inventoryPerformance = await Inventory.aggregate([
       { $match: { eventId: { $in: eventIds } } },
       {
@@ -113,7 +174,7 @@ exports.getOverviewAnalytics = async (req, res) => {
           from: 'checkins',
           let: { inventoryId: '$_id' },
           pipeline: [
-            { $match: { isValid: true } },
+            { $match: inventoryLookupMatch },
             { $unwind: '$giftsDistributed' },
             { $match: { $expr: { $eq: ['$giftsDistributed.inventoryId', '$$inventoryId'] } } },
             { $group: { _id: null, totalDistributed: { $sum: '$giftsDistributed.quantity' } } }
@@ -179,7 +240,35 @@ exports.getOverviewAnalytics = async (req, res) => {
           eventDate: 1,
           eventType: 1,
           totalGuests: { $size: '$guests' },
-          checkedInGuests: { $size: { $filter: { input: '$guests', cond: '$hasCheckedIn' } } },
+          // Use eventCheckins array instead of hasCheckedIn field for consistency
+          // Check if guest has any check-in record in eventCheckins for this event
+          checkedInGuests: {
+            $size: {
+              $filter: {
+                input: '$guests',
+                as: 'guest',
+                cond: {
+                  $gt: [
+                    {
+                      $size: {
+                        $filter: {
+                          input: { $ifNull: ['$$guest.eventCheckins', []] },
+                          as: 'checkin',
+                          cond: {
+                            $eq: [
+                              { $toString: '$$checkin.eventId' },
+                              { $toString: '$_id' }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    0
+                  ]
+                }
+              }
+            }
+          },
           totalGiftsDistributed: {
             $reduce: {
               input: '$checkins',
@@ -219,9 +308,9 @@ exports.getOverviewAnalytics = async (req, res) => {
     ];
 
     // Add date filtering if provided
-    if (Object.keys(dateFilter).length > 0) {
+    if (dateFilter.createdAt) {
       trendAnalysisPipeline.unshift({
-        $match: { createdAt: dateFilter }
+        $match: { createdAt: dateFilter.createdAt }
       });
     }
 
@@ -341,16 +430,58 @@ exports.getOverviewAnalytics = async (req, res) => {
   }
 };
 
-// Get analytics for specific gift type or style
+/**
+ * Get analytics for specific gift type or style
+ * 
+ * @route GET /api/analytics/gift-type
+ * @param {string} [eventId] - Optional event ID to filter by specific event (includes secondary events if main event)
+ * @param {string} [giftType] - Optional gift type filter
+ * @param {string} [giftStyle] - Optional gift style filter
+ * @param {string} [startDate] - Optional start date filter (ISO 8601 format, e.g., "2025-02-27T00:00:00.000Z" or "2025-02-27")
+ * @param {string} [endDate] - Optional end date filter (ISO 8601 format)
+ * @returns {Object} Analytics data grouped by event, gift type, style, size, and gender
+ */
 exports.getGiftTypeAnalytics = async (req, res) => {
   try {
-    const { giftType, giftStyle, startDate, endDate } = req.query;
+    const { eventId, giftType, giftStyle, startDate, endDate } = req.query;
+
+    // Build event filter if eventId provided
+    let eventIds = null;
+    if (eventId) {
+      const event = await Event.findById(eventId);
+      if (!event) {
+        return res.status(404).json({ message: 'Event not found' });
+      }
+      
+      eventIds = [eventId];
+      // If it's a main event, include all secondary events
+      if (event.isMainEvent) {
+        const secondaryEvents = await Event.find({ parentEventId: eventId });
+        eventIds.push(...secondaryEvents.map(e => e._id));
+      }
+    }
 
     const matchStage = { isValid: true };
+    
+    // Add eventId filtering if provided
+    if (eventIds) {
+      matchStage.eventId = { $in: eventIds.map(id => id.toString()) };
+    }
+    
+    // Add date filtering if provided
     if (startDate || endDate) {
       matchStage.createdAt = {};
-      if (startDate) matchStage.createdAt.$gte = new Date(startDate);
-      if (endDate) matchStage.createdAt.$lte = new Date(endDate);
+      if (startDate) {
+        matchStage.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        // If endDate is just a date string without time, set to end of day
+        const endDateObj = new Date(endDate);
+        if (endDate.split('T').length === 1) {
+          endDateObj.setHours(23, 59, 59, 999);
+        }
+        matchStage.createdAt.$lte = endDateObj;
+      }
     }
 
     const pipeline = [
@@ -441,6 +572,7 @@ exports.exportAnalytics = async (req, res) => {
     
     // Get analytics data by calling the overview function directly
     const { 
+      eventId,
       startDate, 
       endDate, 
       eventType, 
@@ -454,14 +586,31 @@ exports.exportAnalytics = async (req, res) => {
     if (startDate) dateFilter.$gte = new Date(startDate);
     if (endDate) dateFilter.$lte = new Date(endDate);
 
-    // Get all events with optional filtering
+    // Get events with optional filtering
     let eventFilter = {};
+    let eventIds = [];
+
+    // If eventId is provided, use it (and include secondary events if it's a main event)
+    if (eventId) {
+      const event = await Event.findById(eventId);
+      if (!event) {
+        return res.status(404).json({ message: 'Event not found' });
+      }
+      
+      eventIds = [eventId];
+      // If it's a main event, include all secondary events
+      if (event.isMainEvent) {
+        const secondaryEvents = await Event.find({ parentEventId: eventId });
+        eventIds.push(...secondaryEvents.map(e => e._id));
+      }
+    } else {
+      // Otherwise, use eventType filter if provided
     if (eventType) {
       eventFilter.eventType = eventType;
     }
-
     const events = await Event.find(eventFilter);
-    const eventIds = events.map(e => e._id);
+      eventIds = events.map(e => e._id);
+    }
 
     // Get gift distribution data
     const giftDistributionPipeline = [

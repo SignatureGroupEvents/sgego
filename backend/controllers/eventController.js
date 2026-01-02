@@ -254,10 +254,32 @@ exports.deleteSecondaryEvent = async (req, res) => {
   }
 };
 
-// Analytics endpoint for comprehensive event and gift analytics
+/**
+ * Analytics endpoint for comprehensive event and gift analytics
+ * 
+ * @route GET /api/events/:id/analytics
+ * @param {string} id - Event ID (from URL params)
+ * @param {string} [startDate] - Optional start date filter (ISO 8601 format, e.g., "2025-02-27T00:00:00.000Z" or "2025-02-27")
+ * @param {string} [endDate] - Optional end date filter (ISO 8601 format)
+ * @returns {Object} Comprehensive analytics including event stats, gift distribution, inventory, and timeline
+ * 
+ * Date filtering applies to:
+ * - Gift distribution data (filtered by check-in createdAt)
+ * - Check-in timeline data (filtered by check-in createdAt)
+ * 
+ * If no date filters provided, returns all data for the event.
+ */
 exports.getEventAnalytics = async (req, res) => {
   try {
     const { id: eventId } = req.params;
+    const { startDate, endDate } = req.query;
+    
+    console.log('📥 Backend received request:', {
+      eventId,
+      startDate,
+      endDate,
+      queryParams: req.query
+    });
     
     const event = await Event.findById(eventId);
     if (!event) {
@@ -275,11 +297,64 @@ exports.getEventAnalytics = async (req, res) => {
       eventIds.push(...secondaryEvents.map(e => e._id));
     }
 
+    // Build date filter from query parameters
+    // If dates provided, filter by createdAt on check-ins
+    // Format: ISO 8601 strings (e.g., "2025-02-27T00:00:00.000Z" or "2025-02-27")
+    const dateFilter = {};
+    if (startDate || endDate) {
+      dateFilter.createdAt = {};
+      if (startDate) {
+        dateFilter.createdAt.$gte = new Date(startDate);
+        console.log('📅 Applied startDate filter:', dateFilter.createdAt.$gte);
+      }
+      if (endDate) {
+        // If endDate is just a date string without time, set to end of day
+        const endDateObj = new Date(endDate);
+        if (endDate.split('T').length === 1) {
+          endDateObj.setHours(23, 59, 59, 999);
+        }
+        dateFilter.createdAt.$lte = endDateObj;
+        console.log('📅 Applied endDate filter:', dateFilter.createdAt.$lte);
+      }
+      console.log('📊 Final dateFilter:', JSON.stringify(dateFilter, null, 2));
+    } else {
+      console.log('📊 No date filters provided - returning all data');
+    }
+
     // 1. EVENT ANALYTICS - Guest Check-in Statistics
+    // Calculate based on Guest model's eventCheckins array to match Guest Table behavior
+    // This ensures consistency between analytics and the guest list view
+    // Note: Guest stats are NOT filtered by date - they represent current state of all guests
+    
+    // Convert eventIds to ObjectIds for matching
+    const mongoose = require('mongoose');
+    const eventIdObjects = eventIds.map(id => mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id);
+    
+    // Build $or conditions for each eventId to check in eventCheckins
+    const eventIdConditions = eventIdObjects.map(eventId => ({
+      $eq: ['$$checkin.eventId', eventId]
+    }));
+    
     const guestStats = await Guest.aggregate([
       { 
         $match: { 
-          eventId: { $in: eventIds.map(id => id.toString()) }
+          eventId: { $in: eventIdObjects }
+        } 
+      },
+      {
+        $addFields: {
+          hasCheckedIn: {
+            // Check if guest has any check-in record in eventCheckins for any of the events
+            $anyElementTrue: {
+              $map: {
+                input: { $ifNull: ['$eventCheckins', []] },
+                as: 'checkin',
+                in: {
+                  $or: eventIdConditions
+                }
+              }
+            }
+          }
         } 
       },
       {
@@ -292,18 +367,30 @@ exports.getEventAnalytics = async (req, res) => {
       }
     ]);
 
-    const eventStats = guestStats[0] || { totalGuests: 0, checkedInGuests: 0, pendingGuests: 0 };
-    const checkInPercentage = eventStats.totalGuests > 0 
-      ? Math.round((eventStats.checkedInGuests / eventStats.totalGuests) * 100) 
+    const stats = guestStats[0] || { totalGuests: 0, checkedInGuests: 0, pendingGuests: 0 };
+    const checkInPercentage = stats.totalGuests > 0 
+      ? Math.round((stats.checkedInGuests / stats.totalGuests) * 100) 
       : 0;
+    
+    const eventStats = {
+      ...stats,
+      checkInPercentage
+    };
 
     // 2. GIFT ANALYTICS - Distribution Data
+    // Note: eventIdObjects is already defined above for guest stats calculation
+    const giftDistributionMatch = {
+      eventId: { $in: eventIdObjects }
+    };
+    
+    // Apply date filtering if provided
+    if (Object.keys(dateFilter).length > 0) {
+      Object.assign(giftDistributionMatch, dateFilter);
+    }
+    
     const giftDistribution = await Checkin.aggregate([
       { 
-        $match: { 
-          eventId: { $in: eventIds.map(id => id.toString()) },
-          isValid: true 
-        } 
+        $match: giftDistributionMatch
       },
       { $unwind: '$giftsDistributed' },
       {
@@ -321,6 +408,7 @@ exports.getEventAnalytics = async (req, res) => {
             inventoryId: '$giftsDistributed.inventoryId',
             style: '$inventoryItem.style',
             type: '$inventoryItem.type',
+            product: '$inventoryItem.product',
             size: '$inventoryItem.size'
           },
           totalQuantity: { $sum: '$giftsDistributed.quantity' },
@@ -334,6 +422,7 @@ exports.getEventAnalytics = async (req, res) => {
           inventoryId: '$_id.inventoryId',
           style: '$_id.style',
           type: '$_id.type',
+          product: '$_id.product',
           size: '$_id.size',
           totalQuantity: 1,
           distributedCount: 1,
@@ -429,17 +518,21 @@ exports.getEventAnalytics = async (req, res) => {
       { $sort: { currentInventory: -1 } }
     ]);
 
-    // 6. EVENT ANALYTICS - Check-in Timeline (last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // 6. EVENT ANALYTICS - Check-in Timeline
+    // If date filters provided, use them; otherwise return all timeline data
+    // Note: eventIdObjects is already defined above for guest stats calculation
+    const checkInTimelineMatch = {
+      eventId: { $in: eventIdObjects }
+    };
+    
+    // Apply date filtering if provided
+    if (Object.keys(dateFilter).length > 0) {
+      Object.assign(checkInTimelineMatch, dateFilter);
+    }
     
     const checkInTimeline = await Checkin.aggregate([
       { 
-        $match: { 
-          eventId: { $in: eventIds.map(id => id.toString()) },
-          isValid: true,
-          createdAt: { $gte: sevenDaysAgo }
-        } 
+        $match: checkInTimelineMatch
       },
       {
         $group: {
@@ -453,7 +546,67 @@ exports.getEventAnalytics = async (req, res) => {
       { $sort: { '_id.date': 1 } }
     ]);
 
-    // 7. COMPREHENSIVE SUMMARY
+    // 7. DETAILED CHECK-IN LIST (for display in table)
+    // Get all check-ins with guest and user details, filtered by date if provided
+    const detailedCheckInsMatch = {
+      eventId: { $in: eventIdObjects }
+    };
+    
+    // Apply date filtering if provided
+    if (Object.keys(dateFilter).length > 0) {
+      Object.assign(detailedCheckInsMatch, dateFilter);
+    }
+    
+    const detailedCheckIns = await Checkin.aggregate([
+      { $match: detailedCheckInsMatch },
+      {
+        $lookup: {
+          from: 'guests',
+          localField: 'guestId',
+          foreignField: '_id',
+          as: 'guest'
+        }
+      },
+      { $unwind: '$guest' },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'checkedInBy',
+          foreignField: '_id',
+          as: 'checkedInByUser'
+        }
+      },
+      { $unwind: { path: '$checkedInByUser', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          guestId: 1,
+          eventId: 1,
+          guestName: {
+            $concat: [
+              { $ifNull: ['$guest.firstName', ''] },
+              ' ',
+              { $ifNull: ['$guest.lastName', ''] }
+            ]
+          },
+          guestEmail: { $ifNull: ['$guest.email', ''] },
+          checkedInAt: '$createdAt',
+          checkedInBy: {
+            $concat: [
+              { $ifNull: ['$checkedInByUser.firstName', ''] },
+              ' ',
+              { $ifNull: ['$checkedInByUser.lastName', '$checkedInByUser.username', 'Unknown'] }
+            ]
+          },
+          checkedInByUsername: { $ifNull: ['$checkedInByUser.username', 'Unknown'] },
+          giftsCount: { $size: { $ifNull: ['$giftsDistributed', []] } },
+          notes: { $ifNull: ['$notes', ''] }
+        }
+      },
+      { $sort: { checkedInAt: -1 } }
+    ]);
+
+    // 8. COMPREHENSIVE SUMMARY
     const totalGiftsDistributed = giftDistribution.reduce((sum, item) => sum + item.totalQuantity, 0);
     const uniqueItemsDistributed = giftDistribution.length;
     const totalInventoryItems = inventoryAnalytics.length;
@@ -497,6 +650,9 @@ exports.getEventAnalytics = async (req, res) => {
         
         // Timeline Analytics
         checkInTimeline,
+        
+        // Detailed Check-in List (for table display)
+        detailedCheckIns,
         
         // Raw Data for Advanced Processing
         rawGiftDistribution: giftDistribution,

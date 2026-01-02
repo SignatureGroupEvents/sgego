@@ -1,32 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Tabs,
-  Tab,
   Typography,
   Button,
-  TextField,
   Grid,
-  Paper,
-  Container
+  Container,
+  Card,
+  CardActionArea
 } from '@mui/material';
-import { Add as AddIcon, Search as SearchIcon } from '@mui/icons-material';
+import { 
+  Add as AddIcon, 
+  Search as SearchIcon,
+  Analytics as AnalyticsIcon,
+  Event as EventIcon,
+  Feed as FeedIcon,
+  Assessment as AssessmentIcon,
+  ArrowBack as ArrowBackIcon
+} from '@mui/icons-material';
 import MainLayout from '../../components/layout/MainLayout';
 import GiftAnalytics from '../../components/dashboard/AdvancedDashboardTabs/GiftAnalytics';
 import EventAnalytics from '../../components/dashboard/AdvancedDashboardTabs/EventAnalytics';
 import ActivityFeed from '../../components/dashboard/AdvancedDashboardTabs/ActivityFeed';
+import ComprehensiveAnalytics from '../../components/analytics/ComprehensiveAnalytics';
 import EventHeader from '../../components/Events/EventHeader';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { getEvent } from '../../services/events';
 import { getGuests, fetchInventory } from '../../services/api';
 import api from '../../services/api';
+import { useTheme } from '@mui/material/styles';
 
 const AdvancedDashboard = () => {
   const { eventId } = useParams();
+  const navigate = useNavigate();
+  const theme = useTheme();
   const [event, setEvent] = useState(null);
   const [parentEvent, setParentEvent] = useState(null);
   const [secondaryEvents, setSecondaryEvents] = useState([]);
-  const [tabValue, setTabValue] = useState(0);
+  const [selectedModule, setSelectedModule] = useState(null); // null = selection page, 'gift' | 'event' | 'activity' | 'comprehensive'
   const [guests, setGuests] = useState([]);
   const [inventory, setInventory] = useState([]);
 
@@ -69,20 +79,168 @@ const AdvancedDashboard = () => {
     }
   }, [eventId]);
 
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue);
+  const handleModuleSelect = (module) => {
+    // All modules show directly within the same route (no separate navigation)
+    setSelectedModule(module);
   };
 
-  const renderTabContent = () => {
-    switch (tabValue) {
-      case 0:
-        return <GiftAnalytics guests={guests} inventory={inventory} />;
-      case 1:
+  const handleBackToSelection = () => {
+    setSelectedModule(null);
+  };
+
+  // Module Selection Page
+  if (!selectedModule) {
+    return (
+      <MainLayout 
+        eventName={event?.eventName || 'Loading Event...'} 
+        parentEventName={parentEvent && parentEvent._id !== event?._id ? parentEvent.eventName : null} 
+        parentEventId={parentEvent && parentEvent._id !== event?._id ? parentEvent._id : null}
+      >
+        <EventHeader event={event} mainEvent={parentEvent} secondaryEvents={secondaryEvents} />
+        <Container maxWidth="lg" sx={{ py: 4 }}>
+          <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, color: 'primary.main' }}>
+            Advanced Analytics
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+            Select an analytics module to view detailed insights
+          </Typography>
+
+          <Grid container spacing={3}>
+            {/* Gift Analytics Module */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Card 
+                elevation={3}
+                sx={{
+                  height: '100%',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 6
+                  }
+                }}
+                onClick={() => handleModuleSelect('gift')}
+              >
+                <CardActionArea sx={{ height: '100%', p: 3 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                    <AnalyticsIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                      Gift Analytics
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      View gift distribution, categories, and performance metrics
+                    </Typography>
+                  </Box>
+                </CardActionArea>
+              </Card>
+            </Grid>
+
+            {/* Event Analytics Module */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Card 
+                elevation={3}
+                sx={{
+                  height: '100%',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 6
+                  }
+                }}
+                onClick={() => handleModuleSelect('event')}
+              >
+                <CardActionArea sx={{ height: '100%', p: 3 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                    <EventIcon sx={{ fontSize: 48, color: 'success.main', mb: 2 }} />
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                      Event Analytics
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Track check-ins, attendance patterns, and guest activity
+                    </Typography>
+                  </Box>
+                </CardActionArea>
+              </Card>
+            </Grid>
+
+            {/* Activity Feed Module */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Card 
+                elevation={3}
+                sx={{
+                  height: '100%',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 6
+                  }
+                }}
+                onClick={() => handleModuleSelect('activity')}
+              >
+                <CardActionArea sx={{ height: '100%', p: 3 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                    <FeedIcon sx={{ fontSize: 48, color: 'info.main', mb: 2 }} />
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                      Activity Feed
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Real-time activity log and event updates
+                    </Typography>
+                  </Box>
+                </CardActionArea>
+              </Card>
+            </Grid>
+
+            {/* Comprehensive Analytics Module - Hidden until fully set up */}
+            {/* <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <Card 
+                elevation={3}
+                sx={{
+                  height: '100%',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  border: `2px solid ${theme.palette.primary.main}`,
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 6
+                  }
+                }}
+                onClick={() => handleModuleSelect('comprehensive')}
+              >
+                <CardActionArea sx={{ height: '100%', p: 3 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                    <AssessmentIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                      Comprehensive Analytics
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Complete overview with charts, stats, and combined event data
+                    </Typography>
+                  </Box>
+                </CardActionArea>
+              </Card>
+            </Grid> */}
+          </Grid>
+        </Container>
+      </MainLayout>
+    );
+  }
+
+  // Show selected module directly (no tabs)
+  const renderModuleContent = () => {
+    switch (selectedModule) {
+      case 'gift':
+        return <GiftAnalytics event={event} guests={guests} inventory={inventory} />;
+      case 'event':
         return <EventAnalytics eventId={eventId} />;
-      case 2:
+      case 'activity':
         return <ActivityFeed />;
+      // case 'comprehensive':
+      //   return <ComprehensiveAnalytics eventId={eventId} />;
       default:
-        return <GiftAnalytics guests={guests} inventory={inventory} />;
+        return null;
     }
   };
 
@@ -90,33 +248,34 @@ const AdvancedDashboard = () => {
     <MainLayout eventName={event?.eventName || 'Loading Event...'} parentEventName={parentEvent && parentEvent._id !== event?._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event?._id ? parentEvent._id : null}>
       <EventHeader event={event} mainEvent={parentEvent} secondaryEvents={secondaryEvents} />
       <Container maxWidth="xl" sx={{ py: 3 }}>
-
-      {/* Tabs Section */}
-      <Paper elevation={1} sx={{ mb: 3 }}>
-        <Tabs
-          value={tabValue}
-          onChange={handleTabChange}
-          indicatorColor="primary"
-          textColor="primary"
+        {/* Back Button */}
+        <Button 
+          onClick={handleBackToSelection}
+          variant="outlined"
+          color="primary"
+          size="large"
           sx={{
-            borderBottom: 1,
-            borderColor: 'divider',
-            '& .MuiTab-root': {
-              minHeight: 64,
+            mb: 3,
+            px: 3,
+            py: 1.5,
               fontSize: '1rem',
-              fontWeight: 500,
+            fontWeight: 600,
+            borderWidth: 2,
+            '&:hover': {
+              borderWidth: 2,
+              transform: 'translateY(-2px)',
+              boxShadow: 3
             },
+            transition: 'all 0.2s ease'
           }}
+          startIcon={<ArrowBackIcon />}
         >
-          <Tab label="Gift Analytics" />
-          <Tab label="Event Analytics" />
-          <Tab label="Activity" />
-        </Tabs>
-      </Paper>
+          Back to Analytics Modules
+        </Button>
 
-      {/* Tab Content */}
+        {/* Module Content */}
       <Box sx={{ minHeight: '500px' }}>
-        {renderTabContent()}
+          {renderModuleContent()}
       </Box>
       </Container>
     </MainLayout>
