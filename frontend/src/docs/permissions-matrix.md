@@ -33,7 +33,7 @@ MANAGE_EVENTS	✔	✔	✖	Staff cannot modify event settings
 VIEW_EVENTS	✔	✔	✔	All roles can view events assigned to them
 MANAGE_INVENTORY	✔	✔	✖	Inventory is an Ops+Admin responsibility
 CHECK_IN_GUESTS	✔	✔	✔	All operational roles can check attendees in
-ACCESS_ANALYTICS_FULL	✔	✖	✖	Complete suite: exports, insights, etc.
+ACCESS_ANALYTICS_FULL	✔	✔	✖	Complete suite: exports, insights, etc. (Admin and Ops)
 ACCESS_ANALYTICS_BASIC	✔	✔	✖	Ops has dashboard viewing only
 ASSIGN_ROLES	✔	✖	✖	Role changes restricted to Admin
 🧩 Backend Controller Mapping

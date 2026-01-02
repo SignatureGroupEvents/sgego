@@ -30,7 +30,7 @@ export const PERMISSIONS = {
     VIEW_INVENTORY: ['admin', 'operations_manager', 'staff'],
     CHECK_IN_GUESTS: ['admin', 'operations_manager', 'staff'],
   
-    ACCESS_ANALYTICS_FULL: ['admin'], // Complete analytics suite
+    ACCESS_ANALYTICS_FULL: ['admin', 'operations_manager'], // Complete analytics suite - Admin and Ops
     ACCESS_ANALYTICS_BASIC: ['admin', 'operations_manager'], // Staff excluded
   
     ASSIGN_ROLES: ['admin'], // Ops cannot change roles
