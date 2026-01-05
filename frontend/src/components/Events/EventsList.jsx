@@ -33,7 +33,9 @@ import {
   Menu,
   MenuItem,
   ListItemIcon,
-  ListItemText
+  ListItemText,
+  Divider,
+  Grid
 } from '@mui/material';
 import MainLayout from '../layout/MainLayout';
 import { getEvents, updateEventStatus, archiveEvent } from '../../services/events';
@@ -366,29 +368,232 @@ const EventsList = () => {
     );
   }
 
+  // Card rendering function for mobile
+  const renderEventCard = (event) => {
+    const hasSecondaryEvents = secondaryEvents(event._id).length > 0;
+    const isExpanded = expanded[event._id];
+    const secondaryEventsList = secondaryEvents(event._id);
+
+    return (
+      <Card
+        key={event._id}
+        elevation={2}
+        sx={{
+          mb: 2,
+          borderRadius: 2,
+          transition: 'all 0.2s ease-in-out',
+          '&:hover': {
+            boxShadow: 4,
+            transform: 'translateY(-2px)'
+          }
+        }}
+      >
+        <CardContent>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+            <Typography
+              variant="h6"
+              fontWeight={600}
+              onClick={() => handleRowClick(event._id)}
+              sx={{
+                color: 'primary.main',
+                cursor: 'pointer',
+                flex: 1,
+                pr: 1,
+                '&:hover': { textDecoration: 'underline' }
+              }}
+            >
+              {event.eventName}
+            </Typography>
+            {canManageEvents && (
+              <IconButton
+                size="small"
+                onClick={(e) => handleMenuOpen(e, event)}
+                sx={{ ml: 1 }}
+              >
+                <MoreVertIcon />
+              </IconButton>
+            )}
+          </Box>
+
+          <Stack spacing={1.5}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+              <Box>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  Contract #
+                </Typography>
+                <Typography variant="body2" fontWeight={500}>
+                  {event.eventContractNumber || 'N/A'}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  label={formatStatusForDisplay(event)}
+                  size="small"
+                  color={
+                    event.isArchived
+                      ? 'default'
+                      : normalizeStatus(event.status) === 'closed'
+                        ? 'success'
+                        : 'default'
+                  }
+                  sx={{ borderRadius: 1 }}
+                />
+                {isEventActive(event) && (
+                  <Tooltip title="Live Event - Currently Open">
+                    <Box
+                      sx={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        backgroundColor: '#393ce0',
+                        boxShadow: '0 0 6px #393ce0, 0 0 10px #393ce0',
+                        animation: 'pulse-glow 2s ease-in-out infinite',
+                        flexShrink: 0,
+                      }}
+                    />
+                  </Tooltip>
+                )}
+              </Box>
+            </Box>
+
+            <Divider />
+
+            <Grid container spacing={2}>
+              <Grid item xs={6}>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  Start Date
+                </Typography>
+                <Typography variant="body2" fontWeight={500}>
+                  {new Date(event.eventStart).toLocaleDateString()}
+                </Typography>
+              </Grid>
+              {event.eventEnd && event.eventEnd !== event.eventStart && (
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    End Date
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {new Date(event.eventEnd).toLocaleDateString()}
+                  </Typography>
+                </Grid>
+              )}
+            </Grid>
+
+            <Divider />
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Created By:
+                </Typography>
+                <AvatarIcon
+                  user={event.createdBy || { username: 'Unknown' }}
+                  userId={event.createdBy?._id}
+                  showTooltip={true}
+                />
+              </Box>
+              {hasSecondaryEvents && (
+                <Chip
+                  label={`${secondaryEventsList.length} secondary event${secondaryEventsList.length !== 1 ? 's' : ''}`}
+                  size="small"
+                  color="secondary"
+                  sx={{ borderRadius: 1 }}
+                />
+              )}
+            </Box>
+
+            {/* Secondary Events */}
+            {hasSecondaryEvents && (
+              <>
+                <Divider />
+                <Box>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      mb: 1,
+                      cursor: 'pointer'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExpand(event._id, e);
+                    }}
+                  >
+                    <Typography variant="subtitle2" fontWeight={600}>
+                      Secondary Events
+                    </Typography>
+                    <IconButton size="small">
+                      {isExpanded ? <ExpandLess /> : <ExpandMore />}
+                    </IconButton>
+                  </Box>
+                  {isExpanded && (
+                    <Stack direction="row" spacing={1} flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
+                      {secondaryEventsList.map((secondaryEvent) => (
+                        <Button
+                          key={secondaryEvent._id}
+                          variant="outlined"
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/events/${secondaryEvent._id}/dashboard`);
+                          }}
+                          sx={{
+                            borderRadius: 2,
+                            textTransform: 'none',
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          {secondaryEvent.eventName}
+                        </Button>
+                      ))}
+                    </Stack>
+                  )}
+                </Box>
+              </>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <MainLayout>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
+      <Box sx={{ mb: { xs: 2, sm: 3, md: 4 } }}>
+        <Typography 
+          variant={isMobile ? 'h5' : 'h4'} 
+          fontWeight={700} 
+          color="primary.main" 
+          gutterBottom
+          sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem', md: '2rem' } }}
+        >
           Events
         </Typography>
-        <Typography variant="subtitle1" color="text.secondary">
+        <Typography 
+          variant={isMobile ? 'body2' : 'subtitle1'} 
+          color="text.secondary"
+          sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+        >
           Manage and view all events.
         </Typography>
-
       </Box>
 
       {/* Tabs */}
-      <Box sx={{ mb: 3 }}>
+      <Box sx={{ mb: { xs: 2, sm: 3 } }}>
         <Tabs
           value={activeTab}
           onChange={handleTabChange}
+          variant={isMobile ? 'scrollable' : 'standard'}
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{
             '& .MuiTab-root': {
               textTransform: 'none',
               fontWeight: 600,
-              minHeight: 48
+              minHeight: { xs: 40, sm: 48 },
+              fontSize: { xs: '0.875rem', sm: '1rem' }
             }
           }}
         >
@@ -454,13 +659,50 @@ const EventsList = () => {
         )}
       </Box>
 
-      {/* Events Table */}
+      {/* Events Table or Cards */}
       {mainEvents.length === 0 ? (
         <EmptyState
           searchTerm={search}
           onCreateEvent={handleCreateEvent}
           canManageEvents={canManageEvents}
         />
+      ) : isMobile ? (
+        <Box>
+          {paginatedMainEvents.map(event => renderEventCard(event))}
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
+              <Pagination
+                count={totalPages}
+                page={page}
+                onChange={handlePageChange}
+                color="primary"
+                size="small"
+              />
+            </Box>
+          )}
+          
+          {/* Archive Button */}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+            <Button
+              variant="outlined"
+              color="inherit"
+              size="small"
+              fullWidth
+              sx={{
+                borderRadius: 2,
+                fontWeight: 600
+              }}
+              startIcon={<ArchiveIcon fontSize="small" />}
+              onClick={() => navigate('/events/archived')}
+            >
+              <Tooltip title="Events that are archived">
+                <span>View Archived Events</span>
+              </Tooltip>
+            </Button>
+          </Box>
+        </Box>
       ) : (
         <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
           <TableContainer>
