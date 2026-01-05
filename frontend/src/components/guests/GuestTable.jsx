@@ -1008,34 +1008,46 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
             mb={3} 
             sx={{ 
               width: '100%',
-              px: 3, // Match CardContent default padding (theme.spacing(3) = 24px)
+              px: { xs: 2, sm: 3 },
               boxSizing: 'border-box'
             }}
           >
             <Box 
               sx={{ 
                 display: 'flex',
-                gap: 1.5,
+                gap: { xs: 1.5, sm: 1.5 },
                 width: '100%',
-                flexWrap: { xs: 'wrap', md: 'nowrap' },
-                alignItems: 'flex-start'
+                flexDirection: { xs: 'column', md: 'row' },
+                alignItems: { xs: 'stretch', md: 'flex-start' }
               }}
             >
               {/* Search Bar */}
-              <Box sx={{ flex: '0 0 20%', minWidth: 0 }}>
+              <Box sx={{ 
+                width: { xs: '100%', md: '20%' },
+                flex: { xs: '1 1 auto', md: '0 0 20%' },
+                minWidth: 0 
+              }}>
                 <Box>
-                  <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary', fontSize: '0.75rem' }}>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      mb: 0.5, 
+                      color: 'text.secondary', 
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' } 
+                    }}
+                  >
                     Search
                   </Typography>
                   <TextField
                     fullWidth
-                    size="small"
+                    size={isMobile ? 'small' : 'small'}
                     placeholder="Search guests..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     sx={{
                       '& .MuiInputBase-root': {
-                        minWidth: 0
+                        minWidth: 0,
+                        fontSize: { xs: '0.875rem', sm: '1rem' }
                       },
                       '& .MuiInputLabel-root': {
                         display: 'none'
@@ -1044,18 +1056,18 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
-                          <SearchIcon color="action" />
+                          <SearchIcon color="action" fontSize={isMobile ? 'small' : 'medium'} />
                         </InputAdornment>
                       ),
                       endAdornment: searchQuery && (
                         <InputAdornment position="end">
-                          <Button
+                          <IconButton
                             size="small"
                             onClick={() => setSearchQuery('')}
                             sx={{ minWidth: 'auto', p: 0.5 }}
                           >
-                            <ClearIcon fontSize="small" />
-                          </Button>
+                            <ClearIcon fontSize={isMobile ? 'small' : 'small'} />
+                          </IconButton>
                         </InputAdornment>
                       )
                     }}
@@ -1064,9 +1076,20 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
               </Box>
 
               {/* Status Filter */}
-              <Box sx={{ flex: '0 0 18%', minWidth: 0 }}>
+              <Box sx={{ 
+                width: { xs: '100%', md: '18%' },
+                flex: { xs: '1 1 auto', md: '0 0 18%' },
+                minWidth: 0 
+              }}>
                 <Box>
-                  <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary', fontSize: '0.75rem' }}>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      mb: 0.5, 
+                      color: 'text.secondary', 
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' } 
+                    }}
+                  >
                     Status
                   </Typography>
                   <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
@@ -1081,6 +1104,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                         }
                       }}
                       sx={{
+                        fontSize: { xs: '0.875rem', sm: '1rem' },
                         '& .MuiInputLabel-root': {
                           display: 'none'
                         }
@@ -1096,9 +1120,20 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
               </Box>
 
               {/* Type Filter */}
-              <Box sx={{ flex: '0 0 18%', minWidth: 0 }}>
+              <Box sx={{ 
+                width: { xs: '100%', md: '18%' },
+                flex: { xs: '1 1 auto', md: '0 0 18%' },
+                minWidth: 0 
+              }}>
                 <Box>
-                  <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary', fontSize: '0.75rem' }}>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      mb: 0.5, 
+                      color: 'text.secondary', 
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' } 
+                    }}
+                  >
                     Type
                   </Typography>
                   <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
@@ -1113,6 +1148,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                         }
                       }}
                       sx={{
+                        fontSize: { xs: '0.875rem', sm: '1rem' },
                         '& .MuiInputLabel-root': {
                           display: 'none'
                         }
@@ -1129,9 +1165,20 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
               </Box>
 
               {/* Tag Filter */}
-              <Box sx={{ flex: '1 1 auto', minWidth: 0 }}>
+              <Box sx={{ 
+                width: { xs: '100%', md: 'auto' },
+                flex: { xs: '1 1 auto', md: '1 1 auto' },
+                minWidth: 0 
+              }}>
                 <Box>
-                  <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary', fontSize: '0.75rem' }}>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      mb: 0.5, 
+                      color: 'text.secondary', 
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' } 
+                    }}
+                  >
                     Tags
                   </Typography>
                   <Autocomplete
@@ -1140,14 +1187,19 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                     options={canManageEvents ? [...allTags, '__CREATE_TAG__'] : allTags}
                     sx={{
                       '& .MuiAutocomplete-inputRoot': {
-                        padding: '8px 12px',
-                        minWidth: 0
+                        padding: { xs: '6px 10px', sm: '8px 12px' },
+                        minWidth: 0,
+                        fontSize: { xs: '0.875rem', sm: '1rem' }
                       },
                       '& .MuiAutocomplete-tag': {
-                        maxWidth: 'calc(100% - 8px)',
+                        maxWidth: { xs: 'calc(100% - 4px)', sm: 'calc(100% - 8px)' },
+                        fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                        height: { xs: 24, sm: 28 },
                         '& .MuiChip-label': {
                           overflow: 'hidden',
-                          textOverflow: 'ellipsis'
+                          textOverflow: 'ellipsis',
+                          paddingLeft: { xs: '6px', sm: '8px' },
+                          paddingRight: { xs: '6px', sm: '8px' }
                         }
                       }
                     }}
@@ -1230,10 +1282,13 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                     renderInput={(params) => (
                       <TextField 
                         {...params} 
-                        placeholder=""
+                        placeholder={isMobile ? "Tags..." : ""}
                         InputProps={{
                           ...params.InputProps,
-                          style: { paddingTop: '8px', paddingBottom: '8px' }
+                          style: { 
+                            paddingTop: isMobile ? '6px' : '8px',
+                            paddingBottom: isMobile ? '6px' : '8px'
+                          }
                         }}
                         inputProps={{
                           ...params.inputProps,
@@ -1262,14 +1317,18 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                             size="small"
                             sx={{ 
                               borderRadius: 1, 
-                              fontSize: '0.75rem',
+                              fontSize: { xs: '0.7rem', sm: '0.75rem' },
                               backgroundColor: `${tagColor} !important`,
                               color: 'white !important',
+                              height: { xs: 24, sm: 28 },
                               '& .MuiChip-label': {
-                                color: 'white !important'
+                                color: 'white !important',
+                                paddingLeft: { xs: '6px', sm: '8px' },
+                                paddingRight: { xs: '6px', sm: '8px' }
                               },
                               '& .MuiChip-deleteIcon': {
-                                color: 'white !important'
+                                color: 'white !important',
+                                fontSize: { xs: '16px', sm: '18px' }
                               }
                             }}
                           />
@@ -1301,16 +1360,21 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
               </Box>
 
               {/* Clear Filters */}
-              <Box sx={{ flex: '0 0 10%', minWidth: 0 }}>
+              <Box sx={{ 
+                width: { xs: '100%', md: 'auto' },
+                flex: { xs: '1 1 auto', md: '0 0 auto' },
+                minWidth: 0 
+              }}>
                 <Button
                   variant="outlined"
                   size="small"
                   onClick={clearAllFilters}
                   startIcon={<ClearIcon />}
-                  fullWidth
+                  fullWidth={isMobile}
                   sx={{ 
-                    height: '40px',
-                    mt: 0.5
+                    height: { xs: '40px', sm: '40px' },
+                    mt: { xs: 0, md: 0.5 },
+                    fontSize: { xs: '0.875rem', sm: '1rem' }
                   }}
                 >
                   Clear
