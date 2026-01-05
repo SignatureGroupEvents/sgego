@@ -16,7 +16,9 @@ import {
   CircularProgress,
   Chip,
   Typography,
-  Autocomplete
+  Autocomplete,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import { LocalOffer as LocalOfferIcon } from '@mui/icons-material';
 import { createGuest } from '../../services/api';
@@ -24,6 +26,8 @@ import api from '../../services/api';
 import { getEvent as getEventService } from '../../services/events';
 
 const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm')); // Stack on screens smaller than sm (600px)
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -186,6 +190,7 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
       onClose={handleClose}
       maxWidth="sm"
       fullWidth
+      fullScreen={isMobile}
     >
       <DialogTitle>
         Add New Guest
@@ -207,8 +212,13 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {/* First Name */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ minWidth: 150, flexShrink: 0 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'flex-start', sm: 'center' }, 
+              gap: { xs: 1, sm: 2 } 
+            }}>
+              <Box sx={{ minWidth: { xs: 'auto', sm: 150 }, flexShrink: 0 }}>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   First Name <span style={{ color: 'red' }}>*</span>
                 </Typography>
@@ -224,8 +234,13 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
             </Box>
 
             {/* Last Name */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ minWidth: 150, flexShrink: 0 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'flex-start', sm: 'center' }, 
+              gap: { xs: 1, sm: 2 } 
+            }}>
+              <Box sx={{ minWidth: { xs: 'auto', sm: 150 }, flexShrink: 0 }}>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   Last Name <span style={{ color: 'red' }}>*</span>
                 </Typography>
@@ -241,8 +256,13 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
             </Box>
 
             {/* Email */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ minWidth: 150, flexShrink: 0 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'flex-start', sm: 'center' }, 
+              gap: { xs: 1, sm: 2 } 
+            }}>
+              <Box sx={{ minWidth: { xs: 'auto', sm: 150 }, flexShrink: 0 }}>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   Email
                 </Typography>
@@ -258,8 +278,13 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
             </Box>
 
             {/* Job Title */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ minWidth: 150, flexShrink: 0 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'flex-start', sm: 'center' }, 
+              gap: { xs: 1, sm: 2 } 
+            }}>
+              <Box sx={{ minWidth: { xs: 'auto', sm: 150 }, flexShrink: 0 }}>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   Job Title
                 </Typography>
@@ -274,8 +299,13 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
             </Box>
 
             {/* Company */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ minWidth: 150, flexShrink: 0 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'flex-start', sm: 'center' }, 
+              gap: { xs: 1, sm: 2 } 
+            }}>
+              <Box sx={{ minWidth: { xs: 'auto', sm: 150 }, flexShrink: 0 }}>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   Company
                 </Typography>
@@ -290,8 +320,13 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
             </Box>
 
             {/* Attendee Type */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ minWidth: 150, flexShrink: 0 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'flex-start', sm: 'center' }, 
+              gap: { xs: 1, sm: 2 } 
+            }}>
+              <Box sx={{ minWidth: { xs: 'auto', sm: 150 }, flexShrink: 0 }}>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   Attendee Type
                 </Typography>
@@ -324,13 +359,18 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
             </Box>
 
             {/* Tags */}
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-              <Box sx={{ minWidth: 150, flexShrink: 0, pt: 1 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'flex-start', sm: 'flex-start' }, 
+              gap: { xs: 1, sm: 2 } 
+            }}>
+              <Box sx={{ minWidth: { xs: 'auto', sm: 150 }, flexShrink: 0, pt: { xs: 0, sm: 1 } }}>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   Tags
                 </Typography>
               </Box>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ flex: 1, minWidth: 0, width: { xs: '100%', sm: 'auto' } }}>
                 {availableTags.length > 0 ? (
                   <Autocomplete
                     multiple
@@ -391,8 +431,13 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
             </Box>
 
             {/* Notes */}
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-              <Box sx={{ minWidth: 150, flexShrink: 0, pt: 1 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'flex-start', sm: 'flex-start' }, 
+              gap: { xs: 1, sm: 2 } 
+            }}>
+              <Box sx={{ minWidth: { xs: 'auto', sm: 150 }, flexShrink: 0, pt: { xs: 0, sm: 1 } }}>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   Notes
                 </Typography>
@@ -410,10 +455,16 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
           </Box>
         </DialogContent>
         
-        <DialogActions>
+        <DialogActions sx={{ 
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 1, sm: 0 },
+          px: { xs: 2, sm: 2 },
+          pb: { xs: 2, sm: 1 }
+        }}>
           <Button 
             onClick={handleClose} 
             disabled={loading}
+            fullWidth={isMobile}
           >
             Cancel
           </Button>
@@ -422,6 +473,7 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
             variant="contained" 
             disabled={loading || !formData.firstName.trim() || !formData.lastName.trim()}
             startIcon={loading ? <CircularProgress size={20} /> : null}
+            fullWidth={isMobile}
           >
             {loading ? 'Adding...' : 'Add Guest'}
           </Button>

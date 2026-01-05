@@ -9,7 +9,8 @@ import {
 import {
   Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
   Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon,
-  Search as SearchIcon, FilterList as FilterIcon, Clear as ClearIcon, AccountTree as InheritIcon
+  Search as SearchIcon, FilterList as FilterIcon, Clear as ClearIcon, AccountTree as InheritIcon,
+  KeyboardArrowLeft, KeyboardArrowRight
 } from '@mui/icons-material';
 import { fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, bulkDeleteInventory, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -1547,17 +1548,64 @@ const InventoryPage = ({ eventId, eventName }) => {
               </TableContainer>
             )}
 
-            <TablePagination
-              component="div"
-              count={filteredAndSortedInventory.length}
-              page={page}
-              onPageChange={handleChangePage}
-              rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={handleChangeRowsPerPage}
-              rowsPerPageOptions={[10, 25, 50]}
-              labelRowsPerPage="Inventory per page"
-              sx={{ mt: 2 }}
-            />
+            {/* Mobile-friendly Pagination */}
+            {isMobile ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, mt: 2, px: 2, width: '100%' }}>
+                {/* Navigation Arrows */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', justifyContent: 'center' }}>
+                  <IconButton
+                    onClick={(e) => handleChangePage(e, page - 1)}
+                    disabled={page === 0}
+                    aria-label="previous page"
+                    size="small"
+                  >
+                    <KeyboardArrowLeft />
+                  </IconButton>
+                  <Typography variant="body2" sx={{ minWidth: '120px', textAlign: 'center' }}>
+                    Page {page + 1} of {Math.ceil(filteredAndSortedInventory.length / rowsPerPage) || 1}
+                  </Typography>
+                  <IconButton
+                    onClick={(e) => handleChangePage(e, page + 1)}
+                    disabled={page >= Math.ceil(filteredAndSortedInventory.length / rowsPerPage) - 1}
+                    aria-label="next page"
+                    size="small"
+                  >
+                    <KeyboardArrowRight />
+                  </IconButton>
+                </Box>
+                {/* Rows per page selector */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <Typography variant="body2">Show:</Typography>
+                  <Select
+                    value={rowsPerPage}
+                    onChange={(e) => handleChangeRowsPerPage(e)}
+                    size="small"
+                    sx={{ minWidth: 80 }}
+                  >
+                    <MenuItem value={10}>10</MenuItem>
+                    <MenuItem value={25}>25</MenuItem>
+                    <MenuItem value={50}>50</MenuItem>
+                  </Select>
+                  <Typography variant="body2">per page</Typography>
+                </Box>
+                <Typography variant="caption" color="text.secondary">
+                  {filteredAndSortedInventory.length} total items
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <TablePagination
+                  component="div"
+                  count={filteredAndSortedInventory.length}
+                  page={page}
+                  onPageChange={handleChangePage}
+                  rowsPerPage={rowsPerPage}
+                  onRowsPerPageChange={handleChangeRowsPerPage}
+                  rowsPerPageOptions={[10, 25, 50]}
+                  labelRowsPerPage="Inventory per page"
+                />
+              </Box>
+            )}
             {/* Delete Confirmation Dialog */}
             <Dialog
               open={!!deletingId}
