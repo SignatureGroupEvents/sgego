@@ -32,7 +32,11 @@ import {
   Alert,
   CircularProgress,
   Box as MuiBox,
-  Checkbox
+  Checkbox,
+  useTheme,
+  useMediaQuery,
+  Divider,
+  Stack
 } from '@mui/material';
 import {
   CheckCircleOutline as CheckCircleIcon,
@@ -63,6 +67,8 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
   const { guestId } = useParams();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   // Mass delete state
   const [selectedGuests, setSelectedGuests] = useState([]);
@@ -733,14 +739,225 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
 
   const eventsToDisplay = getEventsToDisplay();
 
+  // Card rendering function for mobile
+  const renderGuestCard = (guest) => {
+    const isInherited = guest.isInherited;
+    const checkInStatus = getGuestCheckInStatus(guest);
+    const buttonState = getCheckInButtonState(guest);
+    const StatusIcon = checkInStatus.icon;
+    const isSelected = isGuestSelected(guest);
+
+    return (
+      <Card
+        key={guest._id}
+        elevation={2}
+        onClick={(e) => {
+          // Don't navigate if clicking checkbox or button
+          if (e.target.type !== 'checkbox' && !e.target.closest('button') && !e.target.closest('[role="checkbox"]')) {
+            navigate(`/events/${event._id}/guests/${guest._id}`);
+          }
+        }}
+        sx={{
+          mb: 2,
+          borderRadius: 2,
+          transition: 'all 0.2s ease-in-out',
+          border: isSelected ? '2px solid' : 'none',
+          borderColor: isSelected ? 'primary.main' : 'transparent',
+          cursor: 'pointer',
+          '&:hover': {
+            boxShadow: 4,
+            transform: 'translateY(-2px)'
+          },
+          ...(isInherited && {
+            backgroundColor: 'rgba(25, 118, 210, 0.02)',
+            borderLeft: '4px solid',
+            borderLeftColor: 'primary.main'
+          })
+        }}
+      >
+        <CardContent>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+            <Box sx={{ flex: 1, pr: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                <Typography variant="h6" fontWeight={600}>
+                  {guest.firstName} {guest.lastName}
+                </Typography>
+                {isInherited && (
+                  <Tooltip title={`Inherited from ${guest.originalEventName || 'Main Event'}`}>
+                    <InheritedIcon fontSize="small" color="primary" />
+                  </Tooltip>
+                )}
+              </Box>
+              {guest.jobTitle && (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  {guest.jobTitle}
+                </Typography>
+              )}
+              {guest.email && (
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                  {guest.email}
+                </Typography>
+              )}
+            </Box>
+            {canManageEvents && (
+              <Checkbox
+                checked={isSelected}
+                onChange={(e) => handleSelectGuest(guest, e.target.checked)}
+                color="primary"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+          </Box>
+
+          <Stack spacing={1.5}>
+            {/* Check-in Button */}
+            <Button
+              variant={buttonState.variant}
+              color={buttonState.color}
+              size="small"
+              fullWidth
+              sx={{
+                borderRadius: 2,
+                fontWeight: 600,
+                ...(buttonState.variant === 'outlined' && buttonState.color === 'success' && {
+                  color: 'success.main'
+                }),
+                ...(buttonState.variant === 'outlined' && buttonState.color === 'info' && {
+                  color: 'info.main'
+                })
+              }}
+              startIcon={<CheckCircleIcon />}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (buttonState.active) {
+                  handleOpenCheckIn(guest, e);
+                }
+              }}
+              disabled={!buttonState.active || !canCheckInGuests}
+            >
+              {buttonState.label}
+            </Button>
+
+            <Divider />
+
+            {/* Status and Type */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+              <Box>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  Status
+                </Typography>
+                <Chip
+                  label={checkInStatus.label}
+                  color={checkInStatus.color}
+                  size="small"
+                  icon={<StatusIcon />}
+                  sx={{ borderRadius: 1, mt: 0.5 }}
+                />
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  Type
+                </Typography>
+                <Typography variant="body2" fontWeight={500} sx={{ mt: 0.5 }}>
+                  {guest.attendeeType || 'General'}
+                </Typography>
+              </Box>
+            </Box>
+
+            <Divider />
+
+            {/* Gift Selections */}
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                Gift Selections
+              </Typography>
+              {eventsToDisplay.length > 0 ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  {eventsToDisplay.map((ev) => {
+                    const giftSelection = formatGiftSelections(guest, ev._id, ev.eventName);
+                    const showEventName = eventsToDisplay.length > 1;
+                    
+                    return (
+                      <Typography
+                        key={ev._id}
+                        variant="body2"
+                        sx={{
+                          fontSize: '0.875rem',
+                          color: 'text.primary',
+                          pl: 1
+                        }}
+                      >
+                        {showEventName ? `${ev.eventName}: ` : ''}{giftSelection}
+                      </Typography>
+                    );
+                  })}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                  No event information available
+                </Typography>
+              )}
+            </Box>
+
+            {/* Tags */}
+            {guest.tags && guest.tags.length > 0 && (
+              <>
+                <Divider />
+                <Box>
+                  <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                    Tags
+                  </Typography>
+                  <Box display="flex" gap={0.5} flexWrap="wrap">
+                    {guest.tags.map((tag, index) => {
+                      const tagColor = tag.color || '#1976d2';
+                      return (
+                        <Chip
+                          key={index}
+                          label={tag.name}
+                          size="small"
+                          sx={{
+                            backgroundColor: `${tagColor} !important`,
+                            color: 'white !important',
+                            fontSize: '0.7rem',
+                            borderRadius: 1,
+                            '& .MuiChip-label': {
+                              color: 'white !important'
+                            }
+                          }}
+                        />
+                      );
+                    })}
+                  </Box>
+                </Box>
+              </>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <>
       <Card>
         <CardContent>
           {/* Header with title and actions */}
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-            <Box display="flex" alignItems="center" gap={2}>
-              <Typography variant="h6">
+          <Box 
+            display="flex" 
+            justifyContent="space-between" 
+            alignItems="center" 
+            mb={3}
+            sx={{ 
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: { xs: 2, sm: 0 },
+              alignItems: { xs: 'flex-start', sm: 'center' }
+            }}
+          >
+            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+              <Typography 
+                variant={isMobile ? 'subtitle1' : 'h6'}
+                sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+              >
                 Guest List ({filteredAndSortedGuests.length} of {guests.length})
               </Typography>
               {canManageEvents && selectedGuests.length > 0 && (
@@ -749,16 +966,26 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                   color="primary"
                   onDelete={() => setSelectedGuests([])}
                   deleteIcon={<ClearIcon />}
+                  size={isMobile ? 'small' : 'medium'}
                 />
               )}
             </Box>
-            <Box display="flex" gap={2}>
+            <Box 
+              display="flex" 
+              gap={2}
+              sx={{ 
+                flexDirection: { xs: 'column', sm: 'row' },
+                width: { xs: '100%', sm: 'auto' }
+              }}
+            >
               {canManageEvents && selectedGuests.length > 0 && (
                 <Button
                   variant="contained"
                   color="error"
                   startIcon={<DeleteIcon />}
                   onClick={() => setDeleteDialogOpen(true)}
+                  fullWidth={isMobile}
+                  size={isMobile ? 'medium' : 'large'}
                 >
                   Delete Selected ({selectedGuests.length})
                 </Button>
@@ -767,6 +994,8 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                 variant="contained"
                 startIcon={<DownloadIcon />}
                 onClick={exportToCSV}
+                fullWidth={isMobile}
+                size={isMobile ? 'medium' : 'large'}
               >
                 Export CSV File
               </Button>
@@ -1091,218 +1320,256 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
           </Box>
 
         <CardContent sx={{ pt: 0 }}>
-          {/* Table */}
-          <TableContainer component={Paper} variant="outlined">
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell />
-                  <TableCell>
-                    <TableSortLabel
-                      active={sortBy === 'name'}
-                      direction={sortBy === 'name' ? sortOrder : 'asc'}
-                      onClick={() => handleSort('name')}
-                    >
-                      Name
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell>
-                    <TableSortLabel
-                      active={sortBy === 'email'}
-                      direction={sortBy === 'email' ? sortOrder : 'asc'}
-                      onClick={() => handleSort('email')}
-                    >
-                      Email
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell>Gift Selections</TableCell>
-                  <TableCell>
-                    <TableSortLabel
-                      active={sortBy === 'type'}
-                      direction={sortBy === 'type' ? sortOrder : 'asc'}
-                      onClick={() => handleSort('type')}
-                    >
-                      Type
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell>
-                    <TableSortLabel
-                      active={sortBy === 'status'}
-                      direction={sortBy === 'status' ? sortOrder : 'asc'}
-                      onClick={() => handleSort('status')}
-                    >
-                      Status
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell>Tags</TableCell>
+          {/* Table or Cards */}
+          {isMobile ? (
+            <Box>
+              {filteredAndSortedGuests.length === 0 ? (
+                <Box sx={{ textAlign: 'center', py: 6 }}>
+                  <FilterIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary">
+                    No guests match your filters
+                  </Typography>
+                  <Typography color="text.secondary" paragraph>
+                    Try adjusting your search or filter criteria
+                  </Typography>
+                  <Button variant="outlined" onClick={clearAllFilters}>
+                    Clear all filters
+                  </Button>
+                </Box>
+              ) : (
+                <>
                   {canManageEvents && (
-                    <TableCell padding="checkbox">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
                       <Checkbox
                         indeterminate={isIndeterminate()}
                         checked={isAllPageSelected()}
                         onChange={handleSelectAll}
                         color="primary"
                       />
-                    </TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        Select all on this page
+                      </Typography>
+                    </Box>
                   )}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredAndSortedGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
-                  const isInherited = guest.isInherited;
-                  const checkInStatus = getGuestCheckInStatus(guest);
-                  const buttonState = getCheckInButtonState(guest);
-                  const StatusIcon = checkInStatus.icon;
-                  
-                  return (
-                    <TableRow 
-                      key={guest._id} 
-                      hover 
-                      onClick={(e) => {
-                        // Don't navigate if clicking checkbox
-                        if (e.target.type !== 'checkbox' && !e.target.closest('button')) {
-                          navigate(`/events/${event._id}/guests/${guest._id}`);
-                        }
-                      }}
-                      sx={{
-                        '&:hover': {
-                          cursor: 'pointer',
-                          backgroundColor: 'action.hover',
-                          ...(isInherited && {
-                            backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                            '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.08)' }
-                          })
-                        }
-                      }}
-                    >
+                  {filteredAndSortedGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map(guest => renderGuestCard(guest))}
+                </>
+              )}
+            </Box>
+          ) : (
+            <>
+              <TableContainer component={Paper} variant="outlined">
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell />
                       <TableCell>
-                        <Button
-                          variant={buttonState.variant}
-                          color={buttonState.color}
-                          size="small"
-                          sx={{ 
-                            justifyContent: 'center', 
-                            width: '100%', 
-                            borderRadius: 2, 
-                            fontWeight: 600,
-                            ...(buttonState.variant === 'outlined' && buttonState.color === 'success' && {
-                              color: 'success.main'
-                            }),
-                            ...(buttonState.variant === 'outlined' && buttonState.color === 'info' && {
-                              color: 'info.main'
-                            })
-                          }}
-                          startIcon={<CheckCircleIcon />}
-                          onClick={(e) => buttonState.active ? handleOpenCheckIn(guest, e) : null}
-                          disabled={!buttonState.active || !canCheckInGuests}
+                        <TableSortLabel
+                          active={sortBy === 'name'}
+                          direction={sortBy === 'name' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('name')}
                         >
-                          {buttonState.label}
-                        </Button>
+                          Name
+                        </TableSortLabel>
                       </TableCell>
                       <TableCell>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
-                        </Box>
-                        {guest.jobTitle && (
-                          <Typography variant="caption" color="textSecondary">
-                            {guest.jobTitle}
-                          </Typography>
-                        )}
+                        <TableSortLabel
+                          active={sortBy === 'email'}
+                          direction={sortBy === 'email' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('email')}
+                        >
+                          Email
+                        </TableSortLabel>
                       </TableCell>
-                      <TableCell>{guest.email || 'No email'}</TableCell>
+                      <TableCell>Gift Selections</TableCell>
                       <TableCell>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                          {eventsToDisplay.length > 0 ? (
-                            eventsToDisplay.map((ev, index) => {
-                              const giftSelection = formatGiftSelections(guest, ev._id, ev.eventName);
-                              
-                              // Only show event name if there are multiple events, otherwise just show the gift
-                              const showEventName = eventsToDisplay.length > 1;
-                              
-                              return (
-                                <Typography 
-                                  key={ev._id} 
-                                  variant="body2" 
-                                  sx={{ 
-                                    fontSize: '0.9rem',
-                                    color: 'text.primary'
-                                  }}
-                                >
-                                  {showEventName ? `${ev.eventName} - ${giftSelection}` : giftSelection}
-                                </Typography>
-                              );
-                            })
-                          ) : (
-                            <Typography variant="body2" color="textSecondary">
-                              No event information available
-                            </Typography>
-                          )}
-                        </Box>
-                      </TableCell>
-                      <TableCell>{guest.attendeeType || 'General'}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={checkInStatus.label}
-                          color={checkInStatus.color}
-                          size="small"
-                          icon={<StatusIcon />}
-                          sx={{ borderRadius: 1 }}
-                        />
+                        <TableSortLabel
+                          active={sortBy === 'type'}
+                          direction={sortBy === 'type' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('type')}
+                        >
+                          Type
+                        </TableSortLabel>
                       </TableCell>
                       <TableCell>
-                        <Box display="flex" gap={0.5} flexWrap="wrap">
-                          {guest.tags?.map((tag, index) => {
-                            const tagColor = tag.color || '#1976d2';
-                            return (
-                              <Chip
-                                key={index}
-                                label={tag.name}
-                                size="small"
-                                sx={{
-                                  backgroundColor: `${tagColor} !important`,
-                                  color: 'white !important',
-                                  fontSize: '0.7rem',
-                                  borderRadius: 1,
-                                  '& .MuiChip-label': {
-                                    color: 'white !important'
-                                  }
-                                }}
-                              />
-                            );
-                          })}
-                        </Box>
+                        <TableSortLabel
+                          active={sortBy === 'status'}
+                          direction={sortBy === 'status' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('status')}
+                        >
+                          Status
+                        </TableSortLabel>
                       </TableCell>
+                      <TableCell>Tags</TableCell>
                       {canManageEvents && (
-                        <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                        <TableCell padding="checkbox">
                           <Checkbox
-                            checked={isGuestSelected(guest)}
-                            onChange={(e) => handleSelectGuest(guest, e.target.checked)}
+                            indeterminate={isIndeterminate()}
+                            checked={isAllPageSelected()}
+                            onChange={handleSelectAll}
                             color="primary"
-                            onClick={(e) => e.stopPropagation()}
                           />
                         </TableCell>
                       )}
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {filteredAndSortedGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
+                      const isInherited = guest.isInherited;
+                      const checkInStatus = getGuestCheckInStatus(guest);
+                      const buttonState = getCheckInButtonState(guest);
+                      const StatusIcon = checkInStatus.icon;
+                      
+                      return (
+                        <TableRow 
+                          key={guest._id} 
+                          hover 
+                          onClick={(e) => {
+                            // Don't navigate if clicking checkbox
+                            if (e.target.type !== 'checkbox' && !e.target.closest('button')) {
+                              navigate(`/events/${event._id}/guests/${guest._id}`);
+                            }
+                          }}
+                          sx={{
+                            '&:hover': {
+                              cursor: 'pointer',
+                              backgroundColor: 'action.hover',
+                              ...(isInherited && {
+                                backgroundColor: 'rgba(25, 118, 210, 0.04)',
+                                '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.08)' }
+                              })
+                            }
+                          }}
+                        >
+                          <TableCell>
+                            <Button
+                              variant={buttonState.variant}
+                              color={buttonState.color}
+                              size="small"
+                              sx={{ 
+                                justifyContent: 'center', 
+                                width: '100%', 
+                                borderRadius: 2, 
+                                fontWeight: 600,
+                                ...(buttonState.variant === 'outlined' && buttonState.color === 'success' && {
+                                  color: 'success.main'
+                                }),
+                                ...(buttonState.variant === 'outlined' && buttonState.color === 'info' && {
+                                  color: 'info.main'
+                                })
+                              }}
+                              startIcon={<CheckCircleIcon />}
+                              onClick={(e) => buttonState.active ? handleOpenCheckIn(guest, e) : null}
+                              disabled={!buttonState.active || !canCheckInGuests}
+                            >
+                              {buttonState.label}
+                            </Button>
+                          </TableCell>
+                          <TableCell>
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
+                            </Box>
+                            {guest.jobTitle && (
+                              <Typography variant="caption" color="textSecondary">
+                                {guest.jobTitle}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell>{guest.email || 'No email'}</TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              {eventsToDisplay.length > 0 ? (
+                                eventsToDisplay.map((ev, index) => {
+                                  const giftSelection = formatGiftSelections(guest, ev._id, ev.eventName);
+                                  
+                                  // Only show event name if there are multiple events, otherwise just show the gift
+                                  const showEventName = eventsToDisplay.length > 1;
+                                  
+                                  return (
+                                    <Typography 
+                                      key={ev._id} 
+                                      variant="body2" 
+                                      sx={{ 
+                                        fontSize: '0.9rem',
+                                        color: 'text.primary'
+                                      }}
+                                    >
+                                      {showEventName ? `${ev.eventName} - ${giftSelection}` : giftSelection}
+                                    </Typography>
+                                  );
+                                })
+                              ) : (
+                                <Typography variant="body2" color="textSecondary">
+                                  No event information available
+                                </Typography>
+                              )}
+                            </Box>
+                          </TableCell>
+                          <TableCell>{guest.attendeeType || 'General'}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={checkInStatus.label}
+                              color={checkInStatus.color}
+                              size="small"
+                              icon={<StatusIcon />}
+                              sx={{ borderRadius: 1 }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Box display="flex" gap={0.5} flexWrap="wrap">
+                              {guest.tags?.map((tag, index) => {
+                                const tagColor = tag.color || '#1976d2';
+                                return (
+                                  <Chip
+                                    key={index}
+                                    label={tag.name}
+                                    size="small"
+                                    sx={{
+                                      backgroundColor: `${tagColor} !important`,
+                                      color: 'white !important',
+                                      fontSize: '0.7rem',
+                                      borderRadius: 1,
+                                      '& .MuiChip-label': {
+                                        color: 'white !important'
+                                      }
+                                    }}
+                                  />
+                                );
+                              })}
+                            </Box>
+                          </TableCell>
+                          {canManageEvents && (
+                            <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={isGuestSelected(guest)}
+                                onChange={(e) => handleSelectGuest(guest, e.target.checked)}
+                                color="primary"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
 
-          {/* No results message */}
-          {filteredAndSortedGuests.length === 0 && (
-            <Box sx={{ textAlign: 'center', py: 6 }}>
-              <FilterIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-              <Typography variant="h6" color="text.secondary">
-                No guests match your filters
-              </Typography>
-              <Typography color="text.secondary" paragraph>
-                Try adjusting your search or filter criteria
-              </Typography>
-              <Button variant="outlined" onClick={clearAllFilters}>
-                Clear all filters
-              </Button>
-            </Box>
+              {/* No results message */}
+              {filteredAndSortedGuests.length === 0 && (
+                <Box sx={{ textAlign: 'center', py: 6 }}>
+                  <FilterIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary">
+                    No guests match your filters
+                  </Typography>
+                  <Typography color="text.secondary" paragraph>
+                    Try adjusting your search or filter criteria
+                  </Typography>
+                  <Button variant="outlined" onClick={clearAllFilters}>
+                    Clear all filters
+                  </Button>
+                </Box>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -1317,7 +1584,19 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
         onRowsPerPageChange={handleChangeRowsPerPage}
         rowsPerPageOptions={[10, 25, 50, 100]}
         labelRowsPerPage="Guests per page"
-        sx={{ mt: 2 }}
+        sx={{ 
+          mt: 2,
+          '& .MuiTablePagination-toolbar': {
+            flexWrap: 'wrap',
+            gap: { xs: 1, sm: 0 }
+          },
+          '& .MuiTablePagination-selectLabel': {
+            fontSize: { xs: '0.75rem', sm: '0.875rem' }
+          },
+          '& .MuiTablePagination-displayedRows': {
+            fontSize: { xs: '0.75rem', sm: '0.875rem' }
+          }
+        }}
       />
       
       {/* Check-in Modal */}
