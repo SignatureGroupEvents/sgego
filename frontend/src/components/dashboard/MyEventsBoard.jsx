@@ -27,7 +27,9 @@ import {
   MenuItem,
   Tabs,
   Tab,
-  Alert
+  Alert,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -44,11 +46,14 @@ import { getEvents } from '../../services/events';
 import { usePermissions } from '../../hooks/usePermissions';
 import toast from 'react-hot-toast';
 import AvatarIcon from './AvatarIcon';
+import DashboardEventCard from './DashboardEventCard';
 
 
 const MyEventsBoard = () => {
   const navigate = useNavigate();
   const { isOperationsManager, isAdmin, isStaff } = usePermissions();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   // State management
   // All tabs are always rendered: tab 0 = My Events, tab 1 = Assigned Events, tab 2 = Added Events
@@ -584,6 +589,58 @@ const MyEventsBoard = () => {
     </Paper>
   );
 
+  // Card layout for mobile devices - using reusable DashboardEventCard component
+  const renderEventsCards = (events, showRemoveButton = false) => (
+    <Box>
+      {events.map(event => (
+        <DashboardEventCard
+          key={event._id}
+          event={event}
+          variant="standard"
+          onRemove={showRemoveButton ? handleRemoveEvent : undefined}
+          formatDate={formatDate}
+          formatStatusForDisplay={formatStatusForDisplay}
+          normalizeStatus={normalizeStatus}
+          isEventActive={isEventActive}
+        />
+      ))}
+    </Box>
+  );
+
+  const renderAssignedEventsCards = (events) => (
+    <Box>
+      {events.map(event => (
+        <DashboardEventCard
+          key={event._id}
+          event={event}
+          variant="assigned"
+          formatDate={formatDate}
+          formatStatusForDisplay={formatStatusForDisplay}
+          normalizeStatus={normalizeStatus}
+          isEventActive={isEventActive}
+        />
+      ))}
+    </Box>
+  );
+
+  const renderDialogEventsCards = (events) => (
+    <Box>
+      {events.map(event => (
+        <DashboardEventCard
+          key={event._id}
+          event={event}
+          variant="dialog"
+          onAdd={handleAddEvent}
+          addingEvent={addingEvent}
+          formatDate={formatDate}
+          formatStatusForDisplay={formatStatusForDisplay}
+          normalizeStatus={normalizeStatus}
+          isEventActive={isEventActive}
+        />
+      ))}
+    </Box>
+  );
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" p={4}>
@@ -742,8 +799,10 @@ const MyEventsBoard = () => {
                 );
               }
               
-              // Render table with assigned events, showing allocation info
-              return (
+              // Render cards on mobile, table on desktop
+              return isMobile ? (
+                renderAssignedEventsCards(filteredAndSortedEvents)
+              ) : (
                 <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
                   <TableContainer>
                     <Table>
@@ -926,7 +985,7 @@ const MyEventsBoard = () => {
               </Box>
             ) : (
               <>
-                {renderEventsTable(myCreatedEvents)}
+                {isMobile ? renderEventsCards(myCreatedEvents) : renderEventsTable(myCreatedEvents)}
                 <TablePagination
                   component="div"
                   count={totalCreatedEvents}
@@ -1026,7 +1085,9 @@ const MyEventsBoard = () => {
                   </Box>
                 );
               }
-              return renderEventsTable(filteredAndSortedEvents, true);
+              return isMobile 
+                ? renderEventsCards(filteredAndSortedEvents, true)
+                : renderEventsTable(filteredAndSortedEvents, true);
             })()}
           </>
         )}
@@ -1080,124 +1141,128 @@ const MyEventsBoard = () => {
               />
             </Box>
 
-            {/* Events Table */}
-            <Paper elevation={1} sx={{ borderRadius: 2, overflow: 'hidden' }}>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: 'grey.50' }}>
-                      <TableCell sx={{ fontWeight: 600 }}>Event Name</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Contract #</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Start Date</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>End Date</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                      {/* <TableCell sx={{ fontWeight: 600 }}>Features</TableCell> */}
-                      <TableCell align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredAvailableEvents.map((event) => {
-                      const isActive = isEventActive(event);
-                      return (
-                      <TableRow 
-                        key={event._id}
-                        hover
-                        sx={{ 
-                          cursor: 'pointer',
-                          '&:hover': { backgroundColor: 'action.hover' }
-                        }}
-                      >
-                        <TableCell>
-                          <Typography 
-                            variant="subtitle2" 
-                            fontWeight={600}
-                            onClick={() => navigate(`/events/${event._id}`)}
-                            sx={{ 
-                              color: 'primary.main',
-                              '&:hover': { textDecoration: 'underline' }
-                            }}
-                          >
-                            {event.eventName}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="text.secondary">
-                            {event.eventContractNumber}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={500}>
-                            {formatDate(event.eventStart)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={500}>
-                            {formatDate(event.eventEnd)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Chip 
-                              label={formatStatusForDisplay(event)} 
-                              size="small" 
-                              color={
-                                event.isArchived 
-                                  ? 'default' 
-                                  : normalizeStatus(event.status) === 'closed' 
-                                    ? 'success' 
-                                    : 'default'
-                              }
-                              sx={{ borderRadius: 1 }}
-                            />
-                            {isActive && (
-                              <Tooltip title="Active Event">
-                                <Box
-                                  sx={{
-                                    width: 10,
-                                    height: 10,
-                                    borderRadius: '50%',
-                                    backgroundColor: '#393ce0',
-                                    boxShadow: '0 0 6px #393ce0, 0 0 10px #393ce0',
-                                    animation: 'pulse-glow 2s ease-in-out infinite',
-                                    flexShrink: 0,
-                                  }}
-                                />
-                              </Tooltip>
-                            )}
-                          </Box>
-                        </TableCell>
-                        {/* <TableCell>
-                          <Box sx={{ display: 'flex', gap: 0.5 }}>
-                            {event.includeStyles && (
-                              <Tooltip title="Style Selection Enabled">
-                                <StyleIcon color="primary" fontSize="small" />
-                              </Tooltip>
-                            )}
-                            {event.allowMultipleGifts && (
-                              <Tooltip title="Multiple Gifts Allowed">
-                                <GiftIcon color="primary" fontSize="small" />
-                              </Tooltip>
-                            )}
-                          </Box>
-                        </TableCell> */}
-                        <TableCell align="center">
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => handleAddEvent(event._id)}
-                            disabled={addingEvent}
-                            startIcon={<AddIcon />}
-                          >
-                            Add
-                          </Button>
-                        </TableCell>
+            {/* Events Table or Cards */}
+            {isMobile ? (
+              renderDialogEventsCards(filteredAvailableEvents)
+            ) : (
+              <Paper elevation={1} sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: 'grey.50' }}>
+                        <TableCell sx={{ fontWeight: 600 }}>Event Name</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Contract #</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Start Date</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>End Date</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                        {/* <TableCell sx={{ fontWeight: 600 }}>Features</TableCell> */}
+                        <TableCell align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
                       </TableRow>
-                    );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
+                    </TableHead>
+                    <TableBody>
+                      {filteredAvailableEvents.map((event) => {
+                        const isActive = isEventActive(event);
+                        return (
+                        <TableRow 
+                          key={event._id}
+                          hover
+                          sx={{ 
+                            cursor: 'pointer',
+                            '&:hover': { backgroundColor: 'action.hover' }
+                          }}
+                        >
+                          <TableCell>
+                            <Typography 
+                              variant="subtitle2" 
+                              fontWeight={600}
+                              onClick={() => navigate(`/events/${event._id}`)}
+                              sx={{ 
+                                color: 'primary.main',
+                                '&:hover': { textDecoration: 'underline' }
+                              }}
+                            >
+                              {event.eventName}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" color="text.secondary">
+                              {event.eventContractNumber}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight={500}>
+                              {formatDate(event.eventStart)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight={500}>
+                              {formatDate(event.eventEnd)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Chip 
+                                label={formatStatusForDisplay(event)} 
+                                size="small" 
+                                color={
+                                  event.isArchived 
+                                    ? 'default' 
+                                    : normalizeStatus(event.status) === 'closed' 
+                                      ? 'success' 
+                                      : 'default'
+                                }
+                                sx={{ borderRadius: 1 }}
+                              />
+                              {isActive && (
+                                <Tooltip title="Active Event">
+                                  <Box
+                                    sx={{
+                                      width: 10,
+                                      height: 10,
+                                      borderRadius: '50%',
+                                      backgroundColor: '#393ce0',
+                                      boxShadow: '0 0 6px #393ce0, 0 0 10px #393ce0',
+                                      animation: 'pulse-glow 2s ease-in-out infinite',
+                                      flexShrink: 0,
+                                    }}
+                                  />
+                                </Tooltip>
+                              )}
+                            </Box>
+                          </TableCell>
+                          {/* <TableCell>
+                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                              {event.includeStyles && (
+                                <Tooltip title="Style Selection Enabled">
+                                  <StyleIcon color="primary" fontSize="small" />
+                                </Tooltip>
+                              )}
+                              {event.allowMultipleGifts && (
+                                <Tooltip title="Multiple Gifts Allowed">
+                                  <GiftIcon color="primary" fontSize="small" />
+                                </Tooltip>
+                              )}
+                            </Box>
+                          </TableCell> */}
+                          <TableCell align="center">
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              onClick={() => handleAddEvent(event._id)}
+                              disabled={addingEvent}
+                              startIcon={<AddIcon />}
+                            >
+                              Add
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
+            )}
             
             {filteredAvailableEvents.length === 0 && (
               <Box textAlign="center" py={4}>
