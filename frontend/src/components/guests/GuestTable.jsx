@@ -1639,29 +1639,36 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
       </Card>
       
       {/* Pagination */}
-      <TablePagination
-        component="div"
-        count={filteredAndSortedGuests.length}
-        page={page}
-        onPageChange={handleChangePage}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-        rowsPerPageOptions={[10, 25, 50, 100]}
-        labelRowsPerPage="Guests per page"
-        sx={{ 
-          mt: 2,
-          '& .MuiTablePagination-toolbar': {
-            flexWrap: 'wrap',
-            gap: { xs: 1, sm: 0 }
-          },
-          '& .MuiTablePagination-selectLabel': {
-            fontSize: { xs: '0.75rem', sm: '0.875rem' }
-          },
-          '& .MuiTablePagination-displayedRows': {
-            fontSize: { xs: '0.75rem', sm: '0.875rem' }
-          }
-        }}
-      />
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+        <TablePagination
+          component="div"
+          count={filteredAndSortedGuests.length}
+          page={page}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          rowsPerPageOptions={[10, 25, 50, 100]}
+          labelRowsPerPage="Guests per page"
+          sx={{ 
+            '& .MuiTablePagination-toolbar': {
+              flexWrap: 'wrap',
+              gap: { xs: 1, sm: 0 },
+              justifyContent: 'center',
+              paddingLeft: { xs: '8px', sm: '16px' },
+              paddingRight: { xs: '8px', sm: '16px' }
+            },
+            '& .MuiTablePagination-selectLabel': {
+              fontSize: { xs: '0.75rem', sm: '0.875rem' }
+            },
+            '& .MuiTablePagination-displayedRows': {
+              fontSize: { xs: '0.75rem', sm: '0.875rem' }
+            },
+            '& .MuiTablePagination-spacer': {
+              display: 'none'
+            }
+          }}
+        />
+      </Box>
       
       {/* Check-in Modal */}
       <Dialog

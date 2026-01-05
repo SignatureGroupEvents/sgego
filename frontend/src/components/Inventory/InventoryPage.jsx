@@ -3,7 +3,8 @@ import {
   Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete,
   TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
-  DialogContent, DialogActions, TablePagination, Grid, InputAdornment, TableSortLabel, Tooltip, Checkbox
+  DialogContent, DialogActions, TablePagination, Grid, InputAdornment, TableSortLabel, Tooltip, Checkbox,
+  useMediaQuery, useTheme
 } from '@mui/material';
 import {
   Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
@@ -27,6 +28,8 @@ import { usePermissions } from '../../hooks/usePermissions';
 
 const InventoryPage = ({ eventId, eventName }) => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md')); // Show cards on screens smaller than md (960px)
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -995,8 +998,43 @@ const InventoryPage = ({ eventId, eventName }) => {
                   </FormControl>
                 </Grid>
 
+                {/* Sort By */}
+                <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Sort By</InputLabel>
+                    <Select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      label="Sort By"
+                    >
+                      <MenuItem value="type">Category</MenuItem>
+                      <MenuItem value="style">Brand</MenuItem>
+                      <MenuItem value="product">Product</MenuItem>
+                      <MenuItem value="size">Size</MenuItem>
+                      <MenuItem value="gender">Gender</MenuItem>
+                      <MenuItem value="color">Color</MenuItem>
+                      <MenuItem value="qtyWarehouse">Qty Warehouse</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Sort Order */}
+                <Grid size={{ xs: 12, sm: 6, md: 1 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Order</InputLabel>
+                    <Select
+                      value={sortOrder}
+                      onChange={(e) => setSortOrder(e.target.value)}
+                      label="Order"
+                    >
+                      <MenuItem value="asc">Asc</MenuItem>
+                      <MenuItem value="desc">Desc</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+
                 {/* Clear Filters */}
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Grid size={{ xs: 12, sm: 6, md: 1 }}>
                   <Button
                     variant="outlined"
                     size="small"
@@ -1048,227 +1086,465 @@ const InventoryPage = ({ eventId, eventName }) => {
                 )
               )}
             </Box>
-            <TableContainer component={Paper}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    {canModifyInventory && (
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          indeterminate={
-                            filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
-                            selectedItems.length > 0 &&
-                            selectedItems.length < filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length
-                          }
-                          checked={
-                            filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
-                            selectedItems.length === filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length
-                          }
-                          onChange={handleSelectAll}
-                          inputProps={{ 'aria-label': 'select all items' }}
-                        />
-                      </TableCell>
+
+            {/* Mobile Card Layout */}
+            {isMobile ? (
+              <>
+                {canModifyInventory && filteredAndSortedInventory.length > 0 && (
+                  <Box display="flex" alignItems="center" gap={1} mb={2}>
+                    <Checkbox
+                      indeterminate={
+                        filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
+                        selectedItems.length > 0 &&
+                        selectedItems.length < filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length
+                      }
+                      checked={
+                        filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
+                        selectedItems.length === filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length
+                      }
+                      onChange={handleSelectAll}
+                      inputProps={{ 'aria-label': 'select all items' }}
+                    />
+                    <Typography variant="body2" color="text.secondary">
+                      Select All
+                    </Typography>
+                  </Box>
+                )}
+
+                {filteredAndSortedInventory.length === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 6 }}>
+                    <FilterIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                    <Typography variant="h6" color="text.secondary">
+                      {inventory.length === 0 ? 'No inventory found.' : 'No inventory matches your filters.'}
+                    </Typography>
+                    {inventory.length > 0 && (
+                      <>
+                        <Typography color="text.secondary" paragraph>
+                          Try adjusting your search or filter criteria
+                        </Typography>
+                        <Button variant="outlined" onClick={clearAllFilters}>
+                          Clear all filters
+                        </Button>
+                      </>
                     )}
-                    <TableCell>
-                      <TableSortLabel
-                        active={sortBy === 'type'}
-                        direction={sortBy === 'type' ? sortOrder : 'asc'}
-                        onClick={() => handleSort('type')}
-                      >
-                        Category
-                      </TableSortLabel>
-                    </TableCell>
-                    <TableCell>
-                      <TableSortLabel
-                        active={sortBy === 'style'}
-                        direction={sortBy === 'style' ? sortOrder : 'asc'}
-                        onClick={() => handleSort('style')}
-                      >
-                        Brand
-                      </TableSortLabel>
-                    </TableCell>
-                    <TableCell>
-                      <TableSortLabel
-                        active={sortBy === 'product'}
-                        direction={sortBy === 'product' ? sortOrder : 'asc'}
-                        onClick={() => handleSort('product')}
-                      >
-                        Product
-                      </TableSortLabel>
-                    </TableCell>
-                    <TableCell>
-                      <TableSortLabel
-                        active={sortBy === 'size'}
-                        direction={sortBy === 'size' ? sortOrder : 'asc'}
-                        onClick={() => handleSort('size')}
-                      >
-                        Size
-                      </TableSortLabel>
-                    </TableCell>
-                    <TableCell>
-                      <TableSortLabel
-                        active={sortBy === 'gender'}
-                        direction={sortBy === 'gender' ? sortOrder : 'asc'}
-                        onClick={() => handleSort('gender')}
-                      >
-                        Gender
-                      </TableSortLabel>
-                    </TableCell>
-                    <TableCell>
-                      <TableSortLabel
-                        active={sortBy === 'color'}
-                        direction={sortBy === 'color' ? sortOrder : 'asc'}
-                        onClick={() => handleSort('color')}
-                      >
-                        Color
-                      </TableSortLabel>
-                    </TableCell>
-                    <TableCell>
-                      <TableSortLabel
-                        active={sortBy === 'qtyWarehouse'}
-                        direction={sortBy === 'qtyWarehouse' ? sortOrder : 'asc'}
-                        onClick={() => handleSort('qtyWarehouse')}
-                      >
-                        Qty Warehouse
-                      </TableSortLabel>
-                    </TableCell>
-                    <TableCell>Qty Before Event</TableCell>
-                    <TableCell>Current Inventory</TableCell>
-                    <TableCell>Post Event Count</TableCell>
-                    <TableCell>Allocated Events</TableCell>
-                    <TableCell align="center">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredAndSortedInventory.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={canModifyInventory ? 13 : 12} align="center">
-                        {inventory.length === 0 ? 'No inventory found.' : 'No inventory matches your filters.'}
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredAndSortedInventory
+                  </Box>
+                ) : (
+                  <Grid container spacing={2}>
+                    {filteredAndSortedInventory
                       .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                       .map(item => (
-                        <TableRow 
-                          key={item._id}
-                          sx={{
-                            '&:hover': {
-                              backgroundColor: 'action.hover',
+                        <Grid item xs={12} key={item._id}>
+                          <Card
+                            elevation={2}
+                            sx={{
+                              height: '100%',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              position: 'relative',
                               ...(item.isInherited && {
-                                backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                                '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.08)' }
+                                border: '1px solid',
+                                borderColor: 'primary.main',
+                                backgroundColor: 'rgba(25, 118, 210, 0.02)'
                               })
+                            }}
+                          >
+                            <CardContent sx={{ flexGrow: 1, p: 2 }}>
+                              {/* Checkbox and Actions Header */}
+                              <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1.5}>
+                                {canModifyInventory && (
+                                  <Checkbox
+                                    checked={selectedItems.includes(item._id)}
+                                    onChange={() => handleSelectItem(item._id)}
+                                    inputProps={{ 'aria-label': `select ${item.type} ${item.style}` }}
+                                    size="small"
+                                  />
+                                )}
+                                {canModifyInventory && !isEditMode && (
+                                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                    <IconButton 
+                                      color="primary" 
+                                      onClick={() => handleEditItemClick(item)} 
+                                      size="small" 
+                                      title="Edit item"
+                                      sx={{ p: 0.5 }}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                    <IconButton 
+                                      color="error" 
+                                      onClick={() => handleDeleteClick(item._id)} 
+                                      size="small" 
+                                      title="Delete item"
+                                      sx={{ p: 0.5 }}
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Box>
+                                )}
+                              </Box>
+
+                              {/* Product Information */}
+                              <Box mb={2}>
+                                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, fontSize: '1rem' }}>
+                                  {item.style || 'No Brand'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                                  <strong>Category:</strong> {item.type || 'N/A'}
+                                </Typography>
+                                {item.product && (
+                                  <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                                    <strong>Product:</strong> {item.product}
+                                  </Typography>
+                                )}
+                                <Box display="flex" flexWrap="wrap" gap={0.5} mt={1}>
+                                  {item.size && (
+                                    <Chip label={`Size: ${item.size}`} size="small" variant="outlined" />
+                                  )}
+                                  {item.gender && item.gender !== 'N/A' && (
+                                    <Chip label={item.gender} size="small" variant="outlined" />
+                                  )}
+                                  {item.color && (
+                                    <Chip label={item.color} size="small" variant="outlined" />
+                                  )}
+                                </Box>
+                              </Box>
+
+                              {/* Quantity Information */}
+                              <Box sx={{ 
+                                borderTop: '1px solid',
+                                borderColor: 'divider',
+                                pt: 1.5,
+                                mt: 'auto'
+                              }}>
+                                <Grid container spacing={1}>
+                                  <Grid item xs={6}>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                      Qty Warehouse
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                      {item.qtyWarehouse || 0}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={6}>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                      Current Inventory
+                                    </Typography>
+                                    <Typography 
+                                      variant="body2" 
+                                      sx={{ 
+                                        fontWeight: 600,
+                                        color: (item.currentInventory || 0) <= 10 ? 'error.main' : 'success.main'
+                                      }}
+                                    >
+                                      {item.currentInventory || 0}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={6}>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                      Qty Before Event
+                                    </Typography>
+                                    {isEditMode ? (
+                                      <TextField
+                                        type="number"
+                                        size="small"
+                                        fullWidth
+                                        inputProps={{ min: 0, style: { padding: '4px 8px' } }}
+                                        value={editValuesMap[item._id]?.qtyBeforeEvent ?? (item.qtyBeforeEvent || item.qtyOnSite || 0)}
+                                        onChange={e => handleEditValueChange(item._id, 'qtyBeforeEvent', e.target.value)}
+                                        sx={{ mt: 0.5 }}
+                                      />
+                                    ) : (
+                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                        {item.qtyBeforeEvent || item.qtyOnSite || 0}
+                                      </Typography>
+                                    )}
+                                  </Grid>
+                                  <Grid item xs={6}>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                      Post Event Count
+                                    </Typography>
+                                    {isEditMode ? (
+                                      <TextField
+                                        type="number"
+                                        size="small"
+                                        fullWidth
+                                        inputProps={{ min: 0, style: { padding: '4px 8px' } }}
+                                        value={editValuesMap[item._id]?.postEventCount ?? (item.postEventCount || 0)}
+                                        onChange={e => handleEditValueChange(item._id, 'postEventCount', e.target.value)}
+                                        sx={{ mt: 0.5 }}
+                                      />
+                                    ) : (
+                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                        {item.postEventCount || 0}
+                                      </Typography>
+                                    )}
+                                  </Grid>
+                                </Grid>
+                              </Box>
+
+                              {/* Allocated Events */}
+                              {item.allocatedEvents && item.allocatedEvents.length > 0 && (
+                                <Box sx={{ 
+                                  borderTop: '1px solid',
+                                  borderColor: 'divider',
+                                  pt: 1.5,
+                                  mt: 1.5
+                                }}>
+                                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                                    Allocated Events
+                                  </Typography>
+                                  {eventsLoading ? (
+                                    <CircularProgress size={16} />
+                                  ) : canModifyInventory ? (
+                                    <Autocomplete
+                                      multiple
+                                      size="small"
+                                      options={filteredEvents}
+                                      getOptionLabel={option => option.eventName}
+                                      value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
+                                      onChange={(_, newValue) => handleAllocationChange(item, newValue)}
+                                      renderInput={params => (
+                                        <TextField 
+                                          {...params} 
+                                          variant="outlined" 
+                                          size="small"
+                                          placeholder="Select events..."
+                                        />
+                                      )}
+                                      renderTags={(value, getTagProps) =>
+                                        value.map((option, index) => (
+                                          <Chip 
+                                            label={option.eventName} 
+                                            {...getTagProps({ index })} 
+                                            key={option._id}
+                                            size="small"
+                                          />
+                                        ))
+                                      }
+                                      disableCloseOnSelect
+                                    />
+                                  ) : (
+                                    <Box display="flex" flexWrap="wrap" gap={0.5}>
+                                      {filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id)).map(ev => (
+                                        <Chip key={ev._id} label={ev.eventName} size="small" />
+                                      ))}
+                                    </Box>
+                                  )}
+                                </Box>
+                              )}
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ))}
+                  </Grid>
+                )}
+              </>
+            ) : (
+              /* Desktop Table Layout */
+              <TableContainer component={Paper}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      {canModifyInventory && (
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            indeterminate={
+                              filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
+                              selectedItems.length > 0 &&
+                              selectedItems.length < filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length
                             }
-                          }}
+                            checked={
+                              filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
+                              selectedItems.length === filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length
+                            }
+                            onChange={handleSelectAll}
+                            inputProps={{ 'aria-label': 'select all items' }}
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <TableSortLabel
+                          active={sortBy === 'type'}
+                          direction={sortBy === 'type' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('type')}
                         >
-                          {canModifyInventory && (
-                            <TableCell padding="checkbox">
-                              <Checkbox
-                                checked={selectedItems.includes(item._id)}
-                                onChange={() => handleSelectItem(item._id)}
-                                inputProps={{ 'aria-label': `select ${item.type} ${item.style}` }}
-                              />
+                          Category
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell>
+                        <TableSortLabel
+                          active={sortBy === 'style'}
+                          direction={sortBy === 'style' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('style')}
+                        >
+                          Brand
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell>
+                        <TableSortLabel
+                          active={sortBy === 'product'}
+                          direction={sortBy === 'product' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('product')}
+                        >
+                          Product
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell>
+                        <TableSortLabel
+                          active={sortBy === 'size'}
+                          direction={sortBy === 'size' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('size')}
+                        >
+                          Size
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell>
+                        <TableSortLabel
+                          active={sortBy === 'gender'}
+                          direction={sortBy === 'gender' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('gender')}
+                        >
+                          Gender
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell>
+                        <TableSortLabel
+                          active={sortBy === 'color'}
+                          direction={sortBy === 'color' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('color')}
+                        >
+                          Color
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell>
+                        <TableSortLabel
+                          active={sortBy === 'qtyWarehouse'}
+                          direction={sortBy === 'qtyWarehouse' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('qtyWarehouse')}
+                        >
+                          Qty Warehouse
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell>Qty Before Event</TableCell>
+                      <TableCell>Current Inventory</TableCell>
+                      <TableCell>Post Event Count</TableCell>
+                      <TableCell>Allocated Events</TableCell>
+                      <TableCell align="center">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredAndSortedInventory.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={canModifyInventory ? 13 : 12} align="center">
+                          {inventory.length === 0 ? 'No inventory found.' : 'No inventory matches your filters.'}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredAndSortedInventory
+                        .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                        .map(item => (
+                          <TableRow 
+                            key={item._id}
+                            sx={{
+                              '&:hover': {
+                                backgroundColor: 'action.hover',
+                                ...(item.isInherited && {
+                                  backgroundColor: 'rgba(25, 118, 210, 0.04)',
+                                  '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.08)' }
+                                })
+                              }
+                            }}
+                          >
+                            {canModifyInventory && (
+                              <TableCell padding="checkbox">
+                                <Checkbox
+                                  checked={selectedItems.includes(item._id)}
+                                  onChange={() => handleSelectItem(item._id)}
+                                  inputProps={{ 'aria-label': `select ${item.type} ${item.style}` }}
+                                />
+                              </TableCell>
+                            )}
+                            <TableCell>{item.type}</TableCell>
+                            <TableCell>{item.style}</TableCell>
+                            <TableCell>{item.product || ''}</TableCell>
+                            <TableCell>{item.size}</TableCell>
+                            <TableCell>{item.gender}</TableCell>
+                            <TableCell>{item.color}</TableCell>
+                            <TableCell>{item.qtyWarehouse}</TableCell>
+                            <TableCell>
+                              {isEditMode ? (
+                                <TextField
+                                  type="number"
+                                  size="small"
+                                  inputProps={{ min: 0, style: { width: 70, padding: '4px 8px' } }}
+                                  value={editValuesMap[item._id]?.qtyBeforeEvent ?? (item.qtyBeforeEvent || item.qtyOnSite || 0)}
+                                  onChange={e => handleEditValueChange(item._id, 'qtyBeforeEvent', e.target.value)}
+                                />
+                              ) : (
+                                item.qtyBeforeEvent || item.qtyOnSite || 0
+                              )}
                             </TableCell>
-                          )}
-                          <TableCell>{item.type}</TableCell>
-                          <TableCell>{item.style}</TableCell>
-                          <TableCell>{item.product || ''}</TableCell>
-                          <TableCell>{item.size}</TableCell>
-                          <TableCell>{item.gender}</TableCell>
-                          <TableCell>{item.color}</TableCell>
-                          <TableCell>{item.qtyWarehouse}</TableCell>
-                          <TableCell>
-                            {isEditMode ? (
-                              <input
-                                type="number"
-                                min="0"
-                                required
-                                value={editValuesMap[item._id]?.qtyBeforeEvent || item.qtyBeforeEvent || item.qtyOnSite || 0}
-                                onChange={e => handleEditValueChange(item._id, 'qtyBeforeEvent', e.target.value)}
-                                style={{ width: 70 }}
-                              />
-                            ) : (
-                              item.qtyBeforeEvent || item.qtyOnSite || 0
-                            )}
-                          </TableCell>
-                          <TableCell>{item.currentInventory}</TableCell>
-                          <TableCell>
-                            {isEditMode ? (
-                              <input
-                                type="number"
-                                min="0"
-                                required
-                                value={editValuesMap[item._id]?.postEventCount || item.postEventCount || 0}
-                                onChange={e => handleEditValueChange(item._id, 'postEventCount', e.target.value)}
-                                style={{ width: 70 }}
-                              />
-                            ) : (
-                              item.postEventCount || 0
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {eventsLoading ? (
-                              <CircularProgress size={20} />
-                            ) : (canModifyInventory) ? (
-                              <Autocomplete
-                                multiple
-                                size="small"
-                                options={filteredEvents}
-                                getOptionLabel={option => option.eventName}
-                                value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
-                                onChange={(_, newValue) => handleAllocationChange(item, newValue)}
-                                renderInput={params => <TextField {...params} variant="outlined" label="Allocated Events" />}
-                                renderTags={(value, getTagProps) =>
-                                  value.map((option, index) => (
-                                    <Chip label={option.eventName} {...getTagProps({ index })} key={option._id} />
-                                  ))
-                                }
-                                disableCloseOnSelect
-                                sx={{ minWidth: 200 }}
-                              />
-                            ) : (
-                              <Box display="flex" flexWrap="wrap" gap={0.5}>
-                                {filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id)).map(ev => (
-                                  <Chip key={ev._id} label={ev.eventName} size="small" />
-                                ))}
-                              </Box>
-                            )}
-                          </TableCell>
+                            <TableCell>{item.currentInventory}</TableCell>
+                            <TableCell>
+                              {isEditMode ? (
+                                <TextField
+                                  type="number"
+                                  size="small"
+                                  inputProps={{ min: 0, style: { width: 70, padding: '4px 8px' } }}
+                                  value={editValuesMap[item._id]?.postEventCount ?? (item.postEventCount || 0)}
+                                  onChange={e => handleEditValueChange(item._id, 'postEventCount', e.target.value)}
+                                />
+                              ) : (
+                                item.postEventCount || 0
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {eventsLoading ? (
+                                <CircularProgress size={20} />
+                              ) : (canModifyInventory) ? (
+                                <Autocomplete
+                                  multiple
+                                  size="small"
+                                  options={filteredEvents}
+                                  getOptionLabel={option => option.eventName}
+                                  value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
+                                  onChange={(_, newValue) => handleAllocationChange(item, newValue)}
+                                  renderInput={params => <TextField {...params} variant="outlined" label="Allocated Events" />}
+                                  renderTags={(value, getTagProps) =>
+                                    value.map((option, index) => (
+                                      <Chip label={option.eventName} {...getTagProps({ index })} key={option._id} />
+                                    ))
+                                  }
+                                  disableCloseOnSelect
+                                  sx={{ minWidth: 200 }}
+                                />
+                              ) : (
+                                <Box display="flex" flexWrap="wrap" gap={0.5}>
+                                  {filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id)).map(ev => (
+                                    <Chip key={ev._id} label={ev.eventName} size="small" />
+                                  ))}
+                                </Box>
+                              )}
+                            </TableCell>
 
-                          <TableCell align="center">
-                            {canModifyInventory && !isEditMode && (
-                              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-                                <IconButton color="primary" onClick={() => handleEditItemClick(item)} size="small" title="Edit item">
-                                  <EditIcon />
-                                </IconButton>
-                                <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small" title="Delete item">
-                                  <DeleteIcon />
-                                </IconButton>
-                              </Box>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-
-            {/* No results message */}
-            {filteredAndSortedInventory.length === 0 && inventory.length > 0 && (
-              <Box sx={{ textAlign: 'center', py: 6 }}>
-                <FilterIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                <Typography variant="h6" color="text.secondary">
-                  No inventory matches your filters
-                </Typography>
-                <Typography color="text.secondary" paragraph>
-                  Try adjusting your search or filter criteria
-                </Typography>
-                <Button variant="outlined" onClick={clearAllFilters}>
-                  Clear all filters
-                </Button>
-              </Box>
+                            <TableCell align="center">
+                              {canModifyInventory && !isEditMode && (
+                                <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                                  <IconButton color="primary" onClick={() => handleEditItemClick(item)} size="small" title="Edit item">
+                                    <EditIcon />
+                                  </IconButton>
+                                  <IconButton color="error" onClick={() => handleDeleteClick(item._id)} size="small" title="Delete item">
+                                    <DeleteIcon />
+                                  </IconButton>
+                                </Box>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )}
 
             <TablePagination

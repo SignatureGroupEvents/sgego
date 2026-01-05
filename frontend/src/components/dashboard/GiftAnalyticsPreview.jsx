@@ -637,11 +637,12 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
       <Paper
         elevation={3}
         sx={{
-          p: 3,
+          p: { xs: 2, sm: 3 },
           borderRadius: 3,
-          minHeight: 260,
-          minWidth: 400,
-          flex: '1 1 500px',
+          minHeight: { xs: 'auto', sm: 260 },
+          width: { xs: '100%', sm: 'auto' },
+          minWidth: { xs: 'unset', sm: 400 },
+          flex: { xs: '1 1 100%', sm: '1 1 500px' },
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center'
@@ -657,11 +658,12 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
       <Paper
         elevation={3}
         sx={{
-          p: 3,
+          p: { xs: 2, sm: 3 },
           borderRadius: 3,
-          minHeight: 260,
-          minWidth: 400,
-          flex: '1 1 500px'
+          minHeight: { xs: 'auto', sm: 260 },
+          width: { xs: '100%', sm: 'auto' },
+          minWidth: { xs: 'unset', sm: 400 },
+          flex: { xs: '1 1 100%', sm: '1 1 500px' }
         }}
       >
         <Alert severity="error">{error}</Alert>
@@ -673,21 +675,29 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
     <Paper
       elevation={3}
       sx={{
-        p: 3,
+        p: { xs: 2, sm: 3 },
         borderRadius: 3,
-        minHeight: 200,
-        minWidth: 400,
-        flex: '1 1 500px',
+        minHeight: { xs: 'auto', sm: 200 },
+        width: { xs: '100%', sm: 'auto' },
+        minWidth: { xs: 'unset', sm: 400 },
+        flex: { xs: '1 1 100%', sm: '1 1 500px' },
         display: 'flex',
         flexDirection: 'column'
       }}
     >
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'flex-start', sm: 'center' }, 
+        mb: 2,
+        gap: { xs: 1, sm: 0 }
+      }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
           Gift Distribution
         </Typography>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
           {(selectedType || selectedStyle || selectedProduct || groupBy !== 'none') && (
             <Chip
               label="Clear All"
@@ -847,7 +857,16 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
         
         return (
           <>
-            <TableContainer sx={{ maxHeight: 200, flex: 1 }}>
+            <TableContainer 
+              sx={{ 
+                maxHeight: { xs: 300, sm: 200 }, 
+                flex: 1,
+                overflowX: 'auto',
+                '& .MuiTable-root': {
+                  minWidth: { xs: 500, sm: 'auto' }
+                }
+              }}
+            >
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
