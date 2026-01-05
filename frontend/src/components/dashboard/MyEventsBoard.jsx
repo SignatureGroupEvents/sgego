@@ -707,17 +707,29 @@ const MyEventsBoard = () => {
             }
             setActiveTab(newValue);
           }}
+          variant={isMobile ? 'scrollable' : 'standard'}
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{ mb: 3 }}
         >
           <Tab 
             label={`My Events (${totalCreatedEvents})`}
-            sx={{ display: isStaff ? 'none' : 'flex' }}
+            sx={{ 
+              display: isStaff ? 'none' : 'inline-flex',
+              minWidth: { xs: 'auto', sm: 160 }
+            }}
             disabled={isStaff}
           />
-          <Tab label={`Assigned Events (${myAssignedEvents.length})`} />
+          <Tab 
+            label={`Assigned Events (${myAssignedEvents.length})`}
+            sx={{ minWidth: { xs: 'auto', sm: 160 } }}
+          />
           <Tab 
             label={`Added Events (${myAddedEvents.length})`}
-            sx={{ display: isStaff ? 'none' : 'flex' }}
+            sx={{ 
+              display: isStaff ? 'none' : 'inline-flex',
+              minWidth: { xs: 'auto', sm: 160 }
+            }}
             disabled={isStaff}
           />
         </Tabs>
