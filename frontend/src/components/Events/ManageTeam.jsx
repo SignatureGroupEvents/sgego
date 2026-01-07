@@ -29,7 +29,13 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
-  ListItemIcon
+  ListItemIcon,
+  Card,
+  CardContent,
+  Divider,
+  useMediaQuery,
+  useTheme,
+  Stack
 } from '@mui/material';
 import {
   People as PeopleIcon,
@@ -50,6 +56,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 
 const ManageTeam = ({ eventId, eventName }) => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAssignForm, setShowAssignForm] = useState(false);
@@ -319,18 +327,26 @@ const ManageTeam = ({ eventId, eventName }) => {
           showDropdown={true}
         />
       )}
-      <Box sx={{ px: 3, py: 2 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box display="flex" alignItems="center" gap={2}>
+      <Box sx={{ px: { xs: 1.5, sm: 3 }, py: 2 }}>
+      <Box 
+        display="flex" 
+        flexDirection={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between" 
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        gap={{ xs: 2, sm: 0 }}
+        mb={3}
+      >
+        <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
           <Button
             startIcon={<ArrowBackIcon />}
             onClick={() => navigate(`/events/${eventId}`)}
             sx={{ minWidth: 'auto' }}
+            size={isMobile ? 'small' : 'medium'}
           >
             Back
           </Button>
-          <Typography variant="h6" fontWeight={600}>
-            <PeopleIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+          <Typography variant={isMobile ? 'subtitle1' : 'h6'} fontWeight={600}>
+            <PeopleIcon sx={{ mr: 1, verticalAlign: 'middle', fontSize: isMobile ? '1.2rem' : 'inherit' }} />
             Team Members
           </Typography>
         </Box>
@@ -338,7 +354,8 @@ const ManageTeam = ({ eventId, eventName }) => {
           variant="contained"
           startIcon={<PersonAddIcon />}
           onClick={handleOpenAssignForm}
-          size="small"
+          size={isMobile ? 'small' : 'small'}
+          fullWidth={isMobile}
         >
           Assign Team Members
         </Button>
@@ -348,7 +365,93 @@ const ManageTeam = ({ eventId, eventName }) => {
         <Alert severity="info" sx={{ mb: 2 }}>
           No team members assigned to this event yet. Click "Assign Team Members" to get started.
         </Alert>
+      ) : isMobile ? (
+        // Mobile Card View
+        <Stack spacing={2}>
+          {assignments.map((assignment) => (
+            <Card key={assignment._id} elevation={2}>
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+                    <AvatarIcon 
+                      user={assignment.user} 
+                      userId={assignment.user._id}
+                      showTooltip={false}
+                    />
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body1" fontWeight={600} noWrap>
+                        {getUserDisplayName(assignment.user)}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" noWrap>
+                        {assignment.user.email}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                    <Tooltip title="Edit Allocation">
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => handleOpenEditDialog(assignment)}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Remove from Event">
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleRemoveUser(assignment._id)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Box>
+                <Divider sx={{ my: 1.5 }} />
+                <Stack spacing={1.5}>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Role
+                    </Typography>
+                    <Chip
+                      label={
+                        assignment.user.role === 'operations_manager' ? 'Operations' :
+                        assignment.user.role === 'admin' ? 'Admin' :
+                        'Staff'
+                      }
+                      size="small"
+                      color={
+                        assignment.user.role === 'operations_manager' ? 'primary' :
+                        assignment.user.role === 'admin' ? 'error' :
+                        'default'
+                      }
+                      sx={{ textTransform: 'capitalize', mt: 0.5 }}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Allocated To
+                    </Typography>
+                    <Typography variant="body2" color={assignment.allocatedToSecondaryEvent ? 'primary.main' : 'text.secondary'} sx={{ mt: 0.5 }}>
+                      {assignment.allocatedToSecondaryEvent ? assignment.allocatedToSecondaryEvent.eventName : 'Main Event'}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Assigned By
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {assignment.assignedBy?.username || assignment.assignedBy?.email || 'Unknown'}
+                    </Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          ))}
+        </Stack>
       ) : (
+        // Desktop Table View
         <TableContainer component={Paper} elevation={2}>
           <Table>
             <TableHead>
@@ -444,14 +547,22 @@ const ManageTeam = ({ eventId, eventName }) => {
 
       {/* Assign Users Form - Inline instead of nested dialog */}
       {showAssignForm && (
-        <Paper elevation={2} sx={{ p: 3, mt: 3, mb: 3, borderRadius: 2 }}>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-            <Typography variant="h6" fontWeight={600}>
+        <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mt: 3, mb: 3, borderRadius: 2 }}>
+          <Box 
+            display="flex" 
+            flexDirection={{ xs: 'column', sm: 'row' }}
+            justifyContent="space-between" 
+            alignItems={{ xs: 'flex-start', sm: 'center' }}
+            gap={{ xs: 2, sm: 0 }}
+            mb={3}
+          >
+            <Typography variant={isMobile ? 'subtitle1' : 'h6'} fontWeight={600}>
               Assign Team Members
             </Typography>
             <Button
               onClick={handleCloseAssignForm}
               size="small"
+              fullWidth={isMobile}
             >
               Cancel
             </Button>
@@ -519,7 +630,7 @@ const ManageTeam = ({ eventId, eventName }) => {
                   right: 0,
                   mt: 0.5,
                   mb: 2, // Add margin bottom to prevent covering buttons
-                  maxHeight: '300px',
+                  maxHeight: { xs: '250px', sm: '300px' },
                   overflow: 'auto',
                   zIndex: 1500,
                   border: '1px solid',
@@ -616,8 +727,20 @@ const ManageTeam = ({ eventId, eventName }) => {
               </Alert>
             )}
 
-            <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-              <Button onClick={handleCloseAssignForm} disabled={assigning}>
+            <Box 
+              sx={{ 
+                mt: 4, 
+                display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
+                justifyContent: 'flex-end', 
+                gap: 2 
+              }}
+            >
+              <Button 
+                onClick={handleCloseAssignForm} 
+                disabled={assigning}
+                fullWidth={isMobile}
+              >
                 Cancel
               </Button>
               <Button
@@ -625,6 +748,7 @@ const ManageTeam = ({ eventId, eventName }) => {
                 variant="contained"
                 disabled={assigning || selectedUsers.length === 0}
                 startIcon={assigning ? <CircularProgress size={16} /> : <PersonAddIcon />}
+                fullWidth={isMobile}
               >
                 {assigning ? 'Assigning...' : 'Assign Users'}
               </Button>
@@ -639,6 +763,7 @@ const ManageTeam = ({ eventId, eventName }) => {
         onClose={handleCloseEditDialog}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
       >
         <DialogTitle>Edit Event Allocation</DialogTitle>
         <DialogContent>
@@ -674,8 +799,12 @@ const ManageTeam = ({ eventId, eventName }) => {
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseEditDialog} disabled={updating}>
+        <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1, sm: 0 }, px: { xs: 2, sm: 3 }, pb: { xs: 2, sm: 1 } }}>
+          <Button 
+            onClick={handleCloseEditDialog} 
+            disabled={updating}
+            fullWidth={isMobile}
+          >
             Cancel
           </Button>
           <Button
@@ -683,6 +812,7 @@ const ManageTeam = ({ eventId, eventName }) => {
             variant="contained"
             disabled={updating}
             startIcon={updating ? <CircularProgress size={16} /> : <EditIcon />}
+            fullWidth={isMobile}
           >
             {updating ? 'Updating...' : 'Update Allocation'}
           </Button>
