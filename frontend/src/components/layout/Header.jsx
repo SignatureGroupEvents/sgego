@@ -45,6 +45,11 @@ const Header = () => {
       path: '/account'
     },
     {
+      label: 'Profile',
+      icon: <PersonIcon />,
+      path: '/profile'
+    },
+    {
       label: 'Help',
       icon: <HelpIcon />,
       path: '/help'
