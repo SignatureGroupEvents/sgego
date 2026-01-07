@@ -17,16 +17,44 @@ console.log('  JWT_SECRET:', process.env.JWT_SECRET ? 'SET' : 'NOT SET');
 const app = express();
 const server = createServer(app);
 
+// Helper function to check if origin is allowed (including deploy previews)
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  
+  const allowedOrigins = [
+    'https://sgego.netlify.app',
+    'https://sgego.com',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:5176'
+  ];
+  
+  // Check exact matches
+  if (allowedOrigins.indexOf(origin) !== -1) {
+    return true;
+  }
+  
+  // Check for Netlify deploy preview URLs: https://deploy-preview-*-sgego.netlify.app
+  const deployPreviewPattern = /^https:\/\/deploy-preview-\d+--sgego\.netlify\.app$/;
+  if (deployPreviewPattern.test(origin)) {
+    return true;
+  }
+  
+  return false;
+};
+
 // Socket.IO setup
 const io = new Server(server, {
   cors: {
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:5174',
-      'http://localhost:5175',
-      'http://localhost:5176'
-    ],
+    origin: function (origin, callback) {
+      if (isOriginAllowed(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -56,19 +84,6 @@ io.on('connection', (socket) => {
 // Make io available globally for emitting events
 global.io = io;
 
-// Define allowed origins for CORS
-const allowedOrigins = [
-  'https://sgego.netlify.app', // New Netlify URL
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:5174',
-  'http://localhost:5175',
-  'http://localhost:5176'
-];
-
-// Debug CORS origins
-console.log('🔧 Allowed CORS Origins:', allowedOrigins);
-
 // Security middleware
 app.use(helmet());
 
@@ -78,7 +93,7 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
       console.log('🚫 CORS blocked origin:', origin);
