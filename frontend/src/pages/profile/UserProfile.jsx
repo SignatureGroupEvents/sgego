@@ -17,7 +17,9 @@ import {
   ListItemButton,
   ListItemAvatar,
   ListItemText,
-  IconButton
+  IconButton,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -82,6 +84,8 @@ const UserProfile = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -214,23 +218,44 @@ const UserProfile = () => {
         ? `${user.firstName} ${user.lastName}`
         : user.firstName || user.lastName || user.email || 'User'
     }>
-      <Box display="flex" gap={3} sx={{ height: 'calc(100vh - 120px)' }}>
+      <Box 
+        display="flex" 
+        flexDirection={{ xs: 'column', md: 'row' }}
+        gap={{ xs: 2, md: 3 }} 
+        sx={{ 
+          height: { xs: 'auto', md: 'calc(100vh - 120px)' },
+          minHeight: { xs: 'auto', md: 'calc(100vh - 120px)' }
+        }}
+      >
         {/* Left Panel - Profile Details */}
-        <Box flex={1} sx={{ overflowY: 'auto', pr: 2 }}>
+        <Box 
+          flex={1} 
+          sx={{ 
+            overflowY: { xs: 'visible', md: 'auto' }, 
+            pr: { xs: 0, md: 2 },
+            width: { xs: '100%', md: 'auto' }
+          }}
+        >
           {/* Profile Header - Horizontal Layout */}
-          <Box display="flex" alignItems="flex-start" gap={3} mb={4}>
+          <Box 
+            display="flex" 
+            flexDirection={{ xs: 'column', sm: 'row' }}
+            alignItems={{ xs: 'center', sm: 'flex-start' }}
+            gap={{ xs: 2, sm: 3 }} 
+            mb={4}
+          >
             {/* Large Avatar with Big Initials */}
             <Box position="relative">
               <Avatar
                 sx={{
-                  width: 120,
-                  height: 120,
+                  width: { xs: 80, sm: 120 },
+                  height: { xs: 80, sm: 120 },
                   bgcolor: profileColor || stringToColor(
                     user.firstName && user.lastName 
                       ? `${user.firstName} ${user.lastName}`
                       : user.firstName || user.lastName || user.email
                   ),
-                  fontSize: '3rem',
+                  fontSize: { xs: '2rem', sm: '3rem' },
                   fontWeight: 700,
                   border: '3px solid #e0e0e0'
                 }}
@@ -252,22 +277,27 @@ const UserProfile = () => {
                     right: 0,
                     bgcolor: '#fff',
                     border: '2px solid #e0e0e0',
-                    width: 36,
-                    height: 36,
+                    width: { xs: 28, sm: 36 },
+                    height: { xs: 28, sm: 36 },
                     '&:hover': {
                       bgcolor: '#f5f5f5'
                     }
                   }}
                   onClick={() => setShowColorPicker(!showColorPicker)}
                 >
-                  <EditIcon sx={{ fontSize: 18, color: '#666' }} />
+                  <EditIcon sx={{ fontSize: { xs: 14, sm: 18 }, color: '#666' }} />
                 </IconButton>
               )}
             </Box>
             
             {/* Name and Info */}
-            <Box flex={1}>
-              <Typography variant="h4" fontWeight={700} color="#1a1a1a" mb={1}>
+            <Box flex={1} sx={{ width: { xs: '100%', sm: 'auto' }, textAlign: { xs: 'center', sm: 'left' } }}>
+              <Typography 
+                variant={isMobile ? 'h5' : 'h4'} 
+                fontWeight={700} 
+                color="#1a1a1a" 
+                mb={1}
+              >
                 {user.firstName && user.lastName 
                   ? `${user.firstName} ${user.lastName}`
                   : user.firstName 
@@ -276,7 +306,7 @@ const UserProfile = () => {
                   ? user.lastName 
                   : user.email}
               </Typography>
-              <Box display="flex" alignItems="center" gap={1}>
+              <Box display="flex" alignItems="center" justifyContent={{ xs: 'center', sm: 'flex-start' }} gap={1}>
                 <Typography variant="body2" color="text.secondary">
                   {user.email}
                 </Typography>
@@ -323,7 +353,7 @@ const UserProfile = () => {
               elevation={3}
               sx={{
                 mb: 4,
-                p: 3,
+                p: { xs: 2, sm: 3 },
                 borderRadius: 2,
                 backgroundColor: '#fafafa',
                 border: '1px solid #e0e0e0'
@@ -332,7 +362,7 @@ const UserProfile = () => {
               <Typography variant="body2" fontWeight={600} mb={2} color="#222">
                 Choose Profile Color
               </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 1.5 }, justifyContent: { xs: 'center', sm: 'flex-start' } }}>
                 {[
                   '#1bcddc', '#31365E', '#CB1033', '#FAA951',
                   '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
@@ -345,8 +375,8 @@ const UserProfile = () => {
                     <Box
                       onClick={() => handleColorChange(color)}
                       sx={{
-                        width: 48,
-                        height: 48,
+                        width: { xs: 40, sm: 48 },
+                        height: { xs: 40, sm: 48 },
                         borderRadius: '50%',
                         bgcolor: color,
                         cursor: 'pointer',
@@ -359,7 +389,7 @@ const UserProfile = () => {
                 ))}
               </Box>
               {profileColor && (
-                <Box mt={2}>
+                <Box mt={2} display="flex" justifyContent={{ xs: 'center', sm: 'flex-start' }}>
                   <Button
                     variant="outlined"
                     size="small"
@@ -382,14 +412,18 @@ const UserProfile = () => {
               border: '1px solid #e0e0e0',
               width: '100%'
             }}>
-              <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0', backgroundColor: '#fafafa' }}>
+              <Box sx={{ p: { xs: 1.5, sm: 2 }, borderBottom: '1px solid #e0e0e0', backgroundColor: '#fafafa' }}>
                 <Typography variant="subtitle1" fontWeight={600} color="#1a1a1a">
                   Account Information
                 </Typography>
               </Box>
               
-              <Box sx={{ p: 2 }}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
+              <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
+                <Box sx={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, 
+                  gap: { xs: 1.5, sm: 2 } 
+                }}>
                   {/* Email */}
                   <Box>
                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', mb: 0.5, display: 'block' }}>
@@ -493,10 +527,16 @@ const UserProfile = () => {
         </Box>
 
         {/* Right Panel - Contact List */}
-        <Box sx={{ width: 320, borderLeft: '1px solid #e0e0e0', pl: 3 }}>
+        <Box sx={{ 
+          width: { xs: '100%', md: 320 }, 
+          borderLeft: { xs: 'none', md: '1px solid #e0e0e0' },
+          borderTop: { xs: '1px solid #e0e0e0', md: 'none' },
+          pl: { xs: 0, md: 3 },
+          pt: { xs: 3, md: 0 }
+        }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Box display="flex" alignItems="center" gap={1}>
-              <Typography variant="h6" fontWeight={600} color="#1a1a1a">
+              <Typography variant={isMobile ? 'subtitle1' : 'h6'} fontWeight={600} color="#1a1a1a">
                 Contact list
               </Typography>
               <LockIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
@@ -508,7 +548,11 @@ const UserProfile = () => {
               <CircularProgress size={24} />
             </Box>
           ) : (
-            <List sx={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', pr: 1 }}>
+            <List sx={{ 
+              maxHeight: { xs: '400px', md: 'calc(100vh - 200px)' }, 
+              overflowY: 'auto', 
+              pr: { xs: 0, md: 1 } 
+            }}>
               {allUsers.filter(u => u.isActive).map((contactUser) => (
                 <ListItem
                   key={contactUser._id}
