@@ -14,7 +14,10 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  useTheme,
+  useMediaQuery,
+  Divider
 } from '@mui/material';
 import {
   CalendarToday as CalendarIcon,
@@ -27,6 +30,8 @@ import { getEvents } from '../../services/events';
 
 const UpcomingEventsCalendar = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [events, setEvents] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
@@ -121,7 +126,7 @@ const UpcomingEventsCalendar = () => {
           key={`empty-${i}`} 
           sx={{ 
             aspectRatio: '1',
-            minHeight: 60,
+            minHeight: { xs: 40, sm: 50, md: 60 },
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -145,7 +150,7 @@ const UpcomingEventsCalendar = () => {
           key={day}
           sx={{
             aspectRatio: '1',
-            minHeight: 60,
+            minHeight: { xs: 40, sm: 50, md: 60 },
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -161,7 +166,8 @@ const UpcomingEventsCalendar = () => {
             } : {},
             opacity: isPastDate(date) ? 0.4 : 1,
             position: 'relative',
-            transition: 'all 0.2s ease'
+            transition: 'all 0.2s ease',
+            p: { xs: 0.25, sm: 0.5 }
           }}
           onClick={() => hasEvents && handleDateClick(date)}
         >
@@ -170,7 +176,7 @@ const UpcomingEventsCalendar = () => {
             sx={{
               fontWeight: isToday(date) ? 600 : 400,
               color: isToday(date) ? 'primary.main' : 'text.primary',
-              fontSize: '0.875rem'
+              fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.875rem' }
             }}
           >
             {day}
@@ -178,17 +184,17 @@ const UpcomingEventsCalendar = () => {
           {hasEvents && (
             <Box sx={{ 
               display: 'flex', 
-              gap: 0.5, 
-              mt: 0.5,
+              gap: 0.25, 
+              mt: { xs: 0.25, sm: 0.5 },
               position: 'absolute',
-              bottom: 2
+              bottom: { xs: 1, sm: 2 }
             }}>
               {eventsForDate.slice(0, 2).map((event, idx) => (
                 <Box
                   key={event._id}
                   sx={{
-                    width: 4,
-                    height: 4,
+                    width: { xs: 3, sm: 4 },
+                    height: { xs: 3, sm: 4 },
                     borderRadius: '50%',
                     backgroundColor: 'primary.main'
                   }}
@@ -198,7 +204,7 @@ const UpcomingEventsCalendar = () => {
                 <Typography 
                   variant="caption" 
                   color="primary.main"
-                  sx={{ fontSize: '0.6rem' }}
+                  sx={{ fontSize: { xs: '0.5rem', sm: '0.6rem' } }}
                 >
                   +{eventsForDate.length - 2}
                 </Typography>
@@ -216,29 +222,80 @@ const UpcomingEventsCalendar = () => {
     .slice(0, 5) // Show only next 5 events
     .sort((a, b) => new Date(a.eventStart) - new Date(b.eventStart));
 
+  const renderEventCard = (event) => (
+    <Card
+      key={event._id}
+      elevation={1}
+      sx={{
+        mb: 1.5,
+        cursor: 'pointer',
+        transition: 'all 0.2s ease-in-out',
+        '&:hover': {
+          boxShadow: 3,
+          transform: 'translateY(-2px)'
+        }
+      }}
+      onClick={() => navigate(`/events/${event._id}`)}
+    >
+      <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+        <Typography variant="subtitle2" fontWeight={600} mb={0.5}>
+          {event.eventName}
+        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+          <Typography variant="caption" color="text.secondary">
+            Contract: {event.eventContractNumber}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" fontWeight={500}>
+            {new Date(event.eventStart).toLocaleDateString()}
+          </Typography>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <Card sx={{ mb: 4 }}>
       <CardContent>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h6" fontWeight={700} color="primary.main">
+          <Typography 
+            variant={isMobile ? 'subtitle1' : 'h6'} 
+            fontWeight={700} 
+            color="primary.main"
+            sx={{ fontSize: { xs: '1rem', sm: '1.125rem', md: '1.25rem' } }}
+          >
             📅 Upcoming Events
           </Typography>
         </Box>
 
-        <Grid container spacing={3}>
+        <Grid container spacing={{ xs: 2, sm: 3 }}>
           {/* Calendar */}
           <Grid xs={12} md={6}>
-            <Paper elevation={1} sx={{ p: 3, borderRadius: 2, backgroundColor: 'background.paper' }}>
+            <Paper elevation={1} sx={{ p: { xs: 1.5, sm: 2, md: 3 }, borderRadius: 2, backgroundColor: 'background.paper' }}>
               {/* Calendar Header */}
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <IconButton size="small" onClick={handlePrevMonth}>
-                  <ChevronLeftIcon />
+                <IconButton 
+                  size={isMobile ? 'small' : 'medium'} 
+                  onClick={handlePrevMonth}
+                  sx={{ p: { xs: 0.5, sm: 1 } }}
+                >
+                  <ChevronLeftIcon fontSize={isMobile ? 'small' : 'medium'} />
                 </IconButton>
-                <Typography variant="h6" fontWeight={600}>
-                  {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+                <Typography 
+                  variant={isMobile ? 'subtitle1' : 'h6'} 
+                  fontWeight={600}
+                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem', md: '1.25rem' } }}
+                >
+                  {isMobile 
+                    ? `${monthNames[currentDate.getMonth()].substring(0, 3)} ${currentDate.getFullYear()}`
+                    : `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`
+                  }
                 </Typography>
-                <IconButton size="small" onClick={handleNextMonth}>
-                  <ChevronRightIcon />
+                <IconButton 
+                  size={isMobile ? 'small' : 'medium'} 
+                  onClick={handleNextMonth}
+                  sx={{ p: { xs: 0.5, sm: 1 } }}
+                >
+                  <ChevronRightIcon fontSize={isMobile ? 'small' : 'medium'} />
                 </IconButton>
               </Box>
 
@@ -246,19 +303,20 @@ const UpcomingEventsCalendar = () => {
               <Box sx={{ 
                 display: 'grid', 
                 gridTemplateColumns: 'repeat(7, 1fr)',
-                mb: 1
+                mb: 1,
+                gap: { xs: 0.25, sm: 0.5 }
               }}>
                 {dayNames.map(day => (
-                  <Box key={day} sx={{ textAlign: 'center', py: 1 }}>
+                  <Box key={day} sx={{ textAlign: 'center', py: { xs: 0.5, sm: 1 } }}>
                     <Typography
                       variant="caption"
                       sx={{
                         fontWeight: 600,
                         color: 'text.secondary',
-                        fontSize: '0.75rem'
+                        fontSize: { xs: '0.65rem', sm: '0.7rem', md: '0.75rem' }
                       }}
                     >
-                      {day}
+                      {isMobile ? day.substring(0, 1) : day}
                     </Typography>
                   </Box>
                 ))}
@@ -268,23 +326,33 @@ const UpcomingEventsCalendar = () => {
               <Box sx={{ 
                 display: 'grid', 
                 gridTemplateColumns: 'repeat(7, 1fr)',
-                gap: 0.5
+                gap: { xs: 0.25, sm: 0.5 }
               }}>
                 {renderCalendarDays()}
               </Box>
             </Paper>
           </Grid>
 
-          {/* My Upcoming Events Table */}
+          {/* My Upcoming Events Table/Cards */}
           <Grid xs={12} md={6}>
-            <Paper elevation={1} sx={{ p: 3, borderRadius: 2, backgroundColor: 'background.paper' }}>
-              <Typography variant="h6" fontWeight={600} mb={2} color="primary.main">
+            <Paper elevation={1} sx={{ p: { xs: 1.5, sm: 2, md: 3 }, borderRadius: 2, backgroundColor: 'background.paper' }}>
+              <Typography 
+                variant={isMobile ? 'subtitle1' : 'h6'} 
+                fontWeight={600} 
+                mb={2} 
+                color="primary.main"
+                sx={{ fontSize: { xs: '0.875rem', sm: '1rem', md: '1.25rem' } }}
+              >
                 My Upcoming Events
               </Typography>
               {upcomingEvents.length === 0 ? (
                 <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
                   No upcoming events
                 </Typography>
+              ) : isMobile ? (
+                <Box>
+                  {upcomingEvents.map(event => renderEventCard(event))}
+                </Box>
               ) : (
                 <TableContainer component={Paper} elevation={0} sx={{ backgroundColor: 'transparent' }}>
                   <Table size="small">

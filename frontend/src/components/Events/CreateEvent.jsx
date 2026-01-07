@@ -19,7 +19,9 @@ import {
   CardContent,
   Grid,
   IconButton,
-  Divider
+  Divider,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -61,6 +63,8 @@ const CreateEvent = () => {
   const [error, setError] = useState('');
 
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const steps = ['Basic Info', 'Gift Settings', 'Confirmation'];
 
@@ -98,10 +102,14 @@ const CreateEvent = () => {
       case 0:
         return (
           <Box>
-            <Typography variant="h6" gutterBottom>
+            <Typography 
+              variant={isMobile ? 'subtitle1' : 'h6'} 
+              gutterBottom
+              sx={{ fontSize: { xs: '1rem', sm: '1.125rem', md: '1.25rem' } }}
+            >
               Event Information
             </Typography>
-            <Grid container spacing={2}>
+            <Grid container spacing={{ xs: 1.5, sm: 2 }}>
               <Grid xs={12}>
                 <Field name="eventName">
                   {({ field }) => (
@@ -179,26 +187,46 @@ const CreateEvent = () => {
       case 1:
         return (
           <Box>
-            <Typography variant="h6" gutterBottom>
+            <Typography 
+              variant={isMobile ? 'subtitle1' : 'h6'} 
+              gutterBottom
+              sx={{ fontSize: { xs: '1rem', sm: '1.125rem', md: '1.25rem' } }}
+            >
               Gift Selection Settings
             </Typography>
-            <Grid container spacing={2}>
+            <Grid container spacing={{ xs: 1.5, sm: 2 }}>
               <Grid xs={12}>
                 <FormControlLabel
                   control={
                     <Field name="includeStyles">
                       {({ field }) => (
                         <Switch
-                        checked={field.value}
-                        onChange={field.onChange}
-                        name={field.name}
+                          checked={field.value}
+                          onChange={field.onChange}
+                          name={field.name}
+                          size={isMobile ? 'small' : 'medium'}
                         />
                       )}
                     </Field>
                   }
-                  label="Include style selection for gifts"
+                  label={
+                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                      Include style selection for gifts
+                    </Typography>
+                  }
+                  sx={{ mb: 1 }}
                 />
-                <Typography variant="body2" color="text.secondary">This allows your to staff to select all information for the gift, if not selected, the staff will only be able to select the gift type.</Typography>
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary"
+                  sx={{ 
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                    ml: { xs: 0, sm: 4 },
+                    pl: { xs: 0, sm: 0 }
+                  }}
+                >
+                  This allows your to staff to select all information for the gift, if not selected, the staff will only be able to select the gift type.
+                </Typography>
               </Grid>
               <Grid xs={12}>
                 <FormControlLabel
@@ -209,13 +237,29 @@ const CreateEvent = () => {
                           checked={field.value}
                           onChange={field.onChange}
                           name={field.name}
+                          size={isMobile ? 'small' : 'medium'}
                         />
                       )}
                     </Field>
                   }
-                  label="Allow multiple gift selection"
+                  label={
+                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                      Allow multiple gift selection
+                    </Typography>
+                  }
+                  sx={{ mb: 1 }}
                 />
-                <Typography variant="body2" color="text.secondary">This allows your to staff to select multiple gifts for the same guest.</Typography>
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary"
+                  sx={{ 
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                    ml: { xs: 0, sm: 4 },
+                    pl: { xs: 0, sm: 0 }
+                  }}
+                >
+                  This allows your to staff to select multiple gifts for the same guest.
+                </Typography>
               </Grid>
             </Grid>
           </Box>
@@ -224,39 +268,105 @@ const CreateEvent = () => {
       case 2:
         return (
           <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-              <CheckCircleIcon color="success" sx={{ fontSize: 32 }} />
-              <Typography variant="h6">
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, mb: { xs: 2, sm: 3 } }}>
+              <CheckCircleIcon 
+                color="success" 
+                sx={{ fontSize: { xs: 24, sm: 28, md: 32 } }} 
+              />
+              <Typography 
+                variant={isMobile ? 'subtitle1' : 'h6'}
+                sx={{ fontSize: { xs: '1rem', sm: '1.125rem', md: '1.25rem' } }}
+              >
                 Confirm Event Details
               </Typography>
             </Box>
 
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            <Typography 
+              variant="body2" 
+              color="text.secondary" 
+              sx={{ 
+                mb: { xs: 2, sm: 3 },
+                fontSize: { xs: '0.75rem', sm: '0.875rem' }
+              }}
+            >
               Please review the information below and click "Create Event" to proceed.
             </Typography>
 
             {/* Basic Information */}
-            <Card sx={{ mb: 2 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom color="primary">
+            <Card sx={{ mb: { xs: 1.5, sm: 2 } }}>
+              <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+                <Typography 
+                  variant={isMobile ? 'subtitle2' : 'h6'} 
+                  gutterBottom 
+                  color="primary"
+                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem', md: '1.25rem' } }}
+                >
                   Basic Information
                 </Typography>
-                <Grid container spacing={2}>
+                <Grid container spacing={{ xs: 1.5, sm: 2 }}>
                   <Grid xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary">Event Name</Typography>
-                    <Typography variant="body1" fontWeight={500}>{values.eventName || 'Not specified'}</Typography>
+                    <Typography 
+                      variant="body2" 
+                      color="text.secondary"
+                      sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                    >
+                      Event Name
+                    </Typography>
+                    <Typography 
+                      variant="body1" 
+                      fontWeight={500}
+                      sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                    >
+                      {values.eventName || 'Not specified'}
+                    </Typography>
                   </Grid>
                   <Grid xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary">Contract Number</Typography>
-                    <Typography variant="body1" fontWeight={500}>{values.eventContractNumber || 'Not specified'}</Typography>
+                    <Typography 
+                      variant="body2" 
+                      color="text.secondary"
+                      sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                    >
+                      Contract Number
+                    </Typography>
+                    <Typography 
+                      variant="body1" 
+                      fontWeight={500}
+                      sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                    >
+                      {values.eventContractNumber || 'Not specified'}
+                    </Typography>
                   </Grid>
                   <Grid xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary">Start Date</Typography>
-                    <Typography variant="body1" fontWeight={500}>{formatDate(values.eventStart)}</Typography>
+                    <Typography 
+                      variant="body2" 
+                      color="text.secondary"
+                      sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                    >
+                      Start Date
+                    </Typography>
+                    <Typography 
+                      variant="body1" 
+                      fontWeight={500}
+                      sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                    >
+                      {formatDate(values.eventStart)}
+                    </Typography>
                   </Grid>
                   <Grid xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary">End Date</Typography>
-                    <Typography variant="body1" fontWeight={500}>{formatDate(values.eventEnd)}</Typography>
+                    <Typography 
+                      variant="body2" 
+                      color="text.secondary"
+                      sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                    >
+                      End Date
+                    </Typography>
+                    <Typography 
+                      variant="body1" 
+                      fontWeight={500}
+                      sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                    >
+                      {formatDate(values.eventEnd)}
+                    </Typography>
                   </Grid>
                 </Grid>
               </CardContent>
@@ -264,23 +374,58 @@ const CreateEvent = () => {
 
             {/* Gift Settings */}
             <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom color="primary">
+              <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+                <Typography 
+                  variant={isMobile ? 'subtitle2' : 'h6'} 
+                  gutterBottom 
+                  color="primary"
+                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem', md: '1.25rem' } }}
+                >
                   Gift Settings
                 </Typography>
-                <Grid container spacing={2}>
+                <Grid container spacing={{ xs: 1.5, sm: 2 }}>
                   <Grid xs={12}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" color="text.secondary">Include Style Selection:</Typography>
-                      <Typography variant="body1" fontWeight={500}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 1,
+                      flexWrap: { xs: 'wrap', sm: 'nowrap' }
+                    }}>
+                      <Typography 
+                        variant="body2" 
+                        color="text.secondary"
+                        sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                      >
+                        Include Style Selection:
+                      </Typography>
+                      <Typography 
+                        variant="body1" 
+                        fontWeight={500}
+                        sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                      >
                         {values.includeStyles ? 'Yes' : 'No'}
                       </Typography>
                     </Box>
                   </Grid>
                   <Grid xs={12}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" color="text.secondary">Allow Multiple Gifts:</Typography>
-                      <Typography variant="body1" fontWeight={500}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 1,
+                      flexWrap: { xs: 'wrap', sm: 'nowrap' }
+                    }}>
+                      <Typography 
+                        variant="body2" 
+                        color="text.secondary"
+                        sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                      >
+                        Allow Multiple Gifts:
+                      </Typography>
+                      <Typography 
+                        variant="body1" 
+                        fontWeight={500}
+                        sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                      >
                         {values.allowMultipleGifts ? 'Yes' : 'No'}
                       </Typography>
                     </Box>
@@ -300,31 +445,61 @@ const CreateEvent = () => {
     <MainLayout>
       <Box sx={{ flex: 1, overflow: 'auto' }}>
         {/* Header */}
-        <Box sx={{ mb: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-            <IconButton onClick={() => navigate('/events')}>
-              <ArrowBackIcon />
+        <Box sx={{ mb: { xs: 2, sm: 3, md: 4 } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, mb: { xs: 1, sm: 2 } }}>
+            <IconButton 
+              onClick={() => navigate('/events')}
+              size={isMobile ? 'small' : 'medium'}
+            >
+              <ArrowBackIcon fontSize={isMobile ? 'small' : 'medium'} />
             </IconButton>
-            <Typography variant="h4" fontWeight={700} color="primary.main">
+            <Typography 
+              variant={isMobile ? 'h5' : 'h4'} 
+              fontWeight={700} 
+              color="primary.main"
+              sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem', md: '2rem' } }}
+            >
               Create New Event
             </Typography>
           </Box>
-          <Typography variant="subtitle1" color="text.secondary">
+          <Typography 
+            variant={isMobile ? 'body2' : 'subtitle1'} 
+            color="text.secondary"
+            sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+          >
             Set up a new event
           </Typography>
         </Box>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mb: { xs: 2, sm: 3 },
+              fontSize: { xs: '0.875rem', sm: '1rem' }
+            }}
+          >
             {error}
           </Alert>
         )}
 
-        <Paper elevation={2} sx={{ borderRadius: 3, p: 3 }}>
-          <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+        <Paper elevation={2} sx={{ borderRadius: { xs: 2, sm: 3 }, p: { xs: 2, sm: 2.5, md: 3 } }}>
+          <Stepper 
+            activeStep={activeStep} 
+            orientation={isMobile ? 'vertical' : 'horizontal'}
+            sx={{ mb: { xs: 3, sm: 4 } }}
+          >
             {steps.map((label) => (
               <Step key={label}>
-                <StepLabel>{label}</StepLabel>
+                <StepLabel 
+                  sx={{
+                    '& .MuiStepLabel-label': {
+                      fontSize: { xs: '0.75rem', sm: '0.875rem', md: '1rem' }
+                    }
+                  }}
+                >
+                  {label}
+                </StepLabel>
               </Step>
             ))}
           </Stepper>
@@ -340,6 +515,7 @@ const CreateEvent = () => {
             {({ values, setFieldValue, errors, touched, isValid, validateForm, submitForm }) => {
               // Check if current step is valid
               const isCurrentStepValid = () => {
+                // Check for errors in current step fields
                 const currentStepErrors = Object.keys(errors).filter(key => {
                   // Only check errors for fields that belong to the current step
                   switch (activeStep) {
@@ -353,6 +529,21 @@ const CreateEvent = () => {
                       return false;
                   }
                 });
+                
+                // For step 0, check both errors and that required fields have values
+                if (activeStep === 0) {
+                  const hasRequiredFields = 
+                    values.eventName?.trim() && 
+                    values.eventContractNumber?.trim() && 
+                    values.eventStart;
+                  
+                  // If fields are touched but have errors, or if required fields are missing, invalid
+                  const hasErrors = currentStepErrors.length > 0;
+                  const missingRequiredFields = !hasRequiredFields;
+                  
+                  return !hasErrors && !missingRequiredFields;
+                }
+                
                 return currentStepErrors.length === 0;
               };
 
@@ -369,23 +560,53 @@ const CreateEvent = () => {
                     touched={touched}
                   />
 
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    flexDirection: { xs: 'column-reverse', sm: 'row' },
+                    gap: { xs: 1.5, sm: 2 },
+                    mt: { xs: 3, sm: 4 }
+                  }}>
                     <Button
                       disabled={activeStep === 0}
                       onClick={() => setActiveStep((prev) => prev - 1)}
                       variant="outlined"
+                      fullWidth={isMobile}
+                      size={isMobile ? 'medium' : 'large'}
+                      sx={{ 
+                        borderRadius: 2,
+                        minHeight: { xs: 44, sm: 'auto' }
+                      }}
                     >
                       Back
                     </Button>
 
-                    <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      gap: { xs: 1.5, sm: 2 },
+                      width: { xs: '100%', sm: 'auto' }
+                    }}>
                       {/* Show Next button for all steps except the last one */}
                       {activeStep < steps.length - 1 && (
                         <Button
                           variant="contained"
-                          onClick={() => setActiveStep((prev) => prev + 1)}
+                          onClick={async () => {
+                            // Validate form before proceeding
+                            await validateForm();
+                            
+                            // Check if current step is valid after validation
+                            if (isCurrentStepValid()) {
+                              setActiveStep((prev) => prev + 1);
+                            }
+                          }}
                           disabled={!isCurrentStepValid()}
-                          sx={{ borderRadius: 2, fontWeight: 600 }}
+                          fullWidth={isMobile}
+                          size={isMobile ? 'medium' : 'large'}
+                          sx={{ 
+                            borderRadius: 2, 
+                            fontWeight: 600,
+                            minHeight: { xs: 44, sm: 'auto' }
+                          }}
                         >
                           Next
                         </Button>
@@ -397,10 +618,13 @@ const CreateEvent = () => {
                           variant="contained"
                           onClick={handleCreateEvent}
                           disabled={loading}
+                          fullWidth={isMobile}
+                          size={isMobile ? 'medium' : 'large'}
                           sx={{
                             borderRadius: 2,
                             fontWeight: 600,
                             bgcolor: 'success.main',
+                            minHeight: { xs: 44, sm: 'auto' },
                             '&:hover': {
                               bgcolor: 'success.dark'
                             }

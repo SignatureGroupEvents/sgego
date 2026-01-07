@@ -32,24 +32,26 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
   return (
     <Box sx={{ 
       width: '100%', 
-      py: 1, 
-      px: 0,
+      py: { xs: 1, sm: 1 },
+      px: { xs: 0, sm: 0 },
       backgroundColor: theme.palette.background.default,
       display: 'flex',
+      flexDirection: { xs: 'column', sm: 'row' },
       flexWrap: 'wrap',
-      gap: 3,
+      gap: { xs: 2, sm: 3 },
       alignItems: 'stretch',
-      minHeight: 350
+      minHeight: { xs: 'auto', sm: 350 }
     }}>
       {/* Attendance Card */}
       <Paper
         elevation={3}
         sx={{
-          p: 4,
+          p: { xs: 3, sm: 4 },
           borderRadius: 3,
-          minHeight: 260,
-          minWidth: 300,
-          flex: '0 1 320px',
+          minHeight: { xs: 'auto', sm: 260 },
+          width: { xs: '100%', sm: 'auto' },
+          minWidth: { xs: 'unset', sm: 300 },
+          flex: { xs: '1 1 100%', sm: '0 1 320px' },
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
@@ -57,16 +59,43 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
           textAlign: 'center',
         }}
       >
-        <Typography variant="h6" sx={{ color: theme.palette.text.secondary, fontWeight: 700, mb: 2 }}>
+        <Typography 
+          variant="h6" 
+          sx={{ 
+            color: theme.palette.text.secondary, 
+            fontWeight: 700, 
+            mb: 2,
+            fontSize: { xs: '1rem', sm: '1.25rem' }
+          }}
+        >
           TOTAL ATTENDANCE:
         </Typography>
-        <Typography variant="h2" sx={{ fontWeight: 700, mb: 1 }}>
+        <Typography 
+          variant="h2" 
+          sx={{ 
+            fontWeight: 700, 
+            mb: 1,
+            fontSize: { xs: '2rem', sm: '3rem' }
+          }}
+        >
           {checkedInGuests} / {totalGuests}
         </Typography>
-        <Typography variant="h6" sx={{ color: 'success.main', fontWeight: 600, mb: 1 }}>
+        <Typography 
+          variant="h6" 
+          sx={{ 
+            color: 'success.main', 
+            fontWeight: 600, 
+            mb: 1,
+            fontSize: { xs: '1rem', sm: '1.25rem' }
+          }}
+        >
           {checkInPercentage}% Checked In
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography 
+          variant="body2" 
+          color="text.secondary"
+          sx={{ fontSize: { xs: '0.875rem', sm: '0.875rem' } }}
+        >
           {pendingGuests} guests pending
         </Typography>
         {/* Advanced Analytics Button - now grouped below stats */}
@@ -76,17 +105,19 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
               display: 'inline-flex',
               alignItems: 'center',
               gap: 1,
-              px: 4,
-              py: 2,
+              px: { xs: 3, sm: 4 },
+              py: { xs: 1.5, sm: 2 },
               borderRadius: 3,
               cursor: 'pointer',
               background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
               color: 'white',
               fontWeight: 700,
-              fontSize: '1rem',
+              fontSize: { xs: '0.875rem', sm: '1rem' },
               letterSpacing: 0.5,
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
               transition: 'all 0.3s ease',
+              width: { xs: '100%', sm: 'auto' },
+              justifyContent: 'center',
               '&:hover': {
                 transform: 'translateY(-2px)',
                 boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
