@@ -45,7 +45,7 @@ const isOriginAllowed = (origin) => {
   return false;
 };
 
-// Socket.IO setup
+// Socket.IO setupgit stat
 const io = new Server(server, {
   cors: {
     origin: function (origin, callback) {
