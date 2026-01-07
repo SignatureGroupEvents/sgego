@@ -4,6 +4,7 @@ import {
   Box,
   Typography,
   Card,
+  CardContent,
   Button,
   CircularProgress,
   Table,
@@ -18,7 +19,10 @@ import {
   DialogTitle,
   DialogContent,
   TablePagination,
-  useTheme
+  useTheme,
+  useMediaQuery,
+  Stack,
+  Divider
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -48,6 +52,7 @@ const AccountPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const { user: currentUser } = useAuth();
   const {
@@ -151,8 +156,19 @@ const AccountPage = () => {
 
   return (
     <MainLayout userName={user?.username}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-        <Typography variant="h4" fontWeight={700} color="primary.main">
+      <Box 
+        display="flex" 
+        flexDirection={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between" 
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        gap={{ xs: 2, sm: 0 }}
+        mb={4}
+      >
+        <Typography 
+          variant={isMobile ? 'h5' : 'h4'} 
+          fontWeight={700} 
+          color="primary.main"
+        >
           User Management Settings
         </Typography>
 
@@ -168,13 +184,14 @@ const AccountPage = () => {
               '&:hover': { backgroundColor: '#17b3c0' }
             }}
             onClick={() => setShowInviteModal(true)}
+            fullWidth={isMobile}
           >
             INVITE USERS
           </Button>
         )}
       </Box>
 
-      <Card sx={{ borderRadius: 3, p: 3, boxShadow: '0 2px 8px #eee' }}>
+      <Card sx={{ borderRadius: 3, p: { xs: 2, sm: 3 }, boxShadow: '0 2px 8px #eee' }}>
         <AccountFilters
           filterStatus={filterStatus}
           setFilterStatus={setFilterStatus}
@@ -185,119 +202,246 @@ const AccountPage = () => {
           canModifyUsers={canManageUsers}
         />
 
-        <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: '0 2px 8px #eee' }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Role</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
+        {isMobile ? (
+          // Mobile Card View
+          <Box>
+            {pagedUsers.length === 0 ? (
+              <Box sx={{ py: 6, textAlign: 'center', color: '#aaa' }}>
+                <Typography>No users found.</Typography>
+              </Box>
+            ) : (
+              <Stack spacing={2} sx={{ mt: 2 }}>
+                {pagedUsers.map(u => (
+                  <Card key={u._id} elevation={2} sx={{ borderRadius: 2 }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
+                          <AvatarIcon 
+                            user={u}
+                            userId={u._id}
+                            showTooltip={true}
+                          />
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="body1" fontWeight={600} noWrap>
+                              {u.username || '-'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" noWrap>
+                              {u.email}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        {/* Edit button visibility:
+                            - Admin/Ops: can edit users (Ops cannot edit Admin)
+                            - Users can edit their own profile if they have canEditOwnProfile capability */}
+                        {(canManageUsers && !(isOperationsManager && u.role === 'admin')) || 
+                         (u._id === currentUser?.id && canEditOwnProfile) ? (
+                          <Button
+                            variant="contained"
+                            size="small"
+                            sx={{
+                              backgroundColor: '#1bcddc',
+                              color: '#fff',
+                              fontWeight: 700,
+                              borderRadius: 2,
+                              '&:hover': { backgroundColor: '#17b3c0' },
+                              ml: 1
+                            }}
+                            onClick={() => navigate(`/account/edit/${u._id}`)}
+                          >
+                            Edit
+                          </Button>
+                        ) : null}
+                      </Box>
+                      <Divider sx={{ my: 1.5 }} />
+                      <Stack spacing={1.5}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Role
+                          </Typography>
+                          <Chip
+                            label={ROLE_LABELS[u.role]}
+                            size="small"
+                            sx={{
+                              fontWeight: 700,
+                              color: '#fff',
+                              bgcolor: ROLE_COLORS[u.role],
+                              px: 2,
+                              borderRadius: 2,
+                              mt: 0.5
+                            }}
+                          />
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Status
+                          </Typography>
+                          {u.accountRemovalRequested ? (
+                            <Chip
+                              label="Request for Removal"
+                              size="small"
+                              sx={{
+                                fontWeight: 600,
+                                color: '#fff',
+                                bgcolor: '#CB1033',
+                                borderRadius: 2,
+                                mt: 0.5
+                              }}
+                            />
+                          ) : (
+                            <Typography variant="body2" sx={{ mt: 0.5 }}>
+                              {u.isActive ? 'Active' : 'Pending'}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+            )}
+            <Box sx={{ mt: 2 }}>
+              <TablePagination
+                component="div"
+                count={filteredUsers.length}
+                page={page}
+                rowsPerPage={rowsPerPage}
+                onPageChange={(_, newPage) => setPage(newPage)}
+                onRowsPerPageChange={e => {
+                  setRowsPerPage(parseInt(e.target.value, 10));
+                  setPage(0);
+                }}
+                rowsPerPageOptions={[5, 10, 25]}
+                sx={{
+                  '& .MuiTablePagination-toolbar': {
+                    flexWrap: 'wrap',
+                    px: { xs: 1, sm: 2 }
+                  }
+                }}
+              />
+            </Box>
+          </Box>
+        ) : (
+          // Desktop Table View
+          <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: '0 2px 8px #eee' }}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>Role</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
 
-            <TableBody>
-              {pagedUsers.map(u => (
-                <TableRow key={u._id}>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                      <AvatarIcon 
-                        user={u}
-                        userId={u._id}
-                        showTooltip={true}
-                      />
-                      <Typography variant="body2" fontWeight={500}>
-                        {u.username || '-'}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell>{u.email}</TableCell>
+              <TableBody>
+                {pagedUsers.map(u => (
+                  <TableRow key={u._id}>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <AvatarIcon 
+                          user={u}
+                          userId={u._id}
+                          showTooltip={true}
+                        />
+                        <Typography variant="body2" fontWeight={500}>
+                          {u.username || '-'}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>{u.email}</TableCell>
 
-                  <TableCell>
-                    <Chip
-                      label={ROLE_LABELS[u.role]}
-                      size="small"
-                      sx={{
-                        fontWeight: 700,
-                        color: '#fff',
-                        bgcolor: ROLE_COLORS[u.role],
-                        px: 2,
-                        borderRadius: 2
-                      }}
-                    />
-                  </TableCell>
-
-                  <TableCell>
-                    {u.accountRemovalRequested ? (
+                    <TableCell>
                       <Chip
-                        label="Request for Removal"
+                        label={ROLE_LABELS[u.role]}
                         size="small"
                         sx={{
-                          fontWeight: 600,
+                          fontWeight: 700,
                           color: '#fff',
-                          bgcolor: '#CB1033',
+                          bgcolor: ROLE_COLORS[u.role],
+                          px: 2,
                           borderRadius: 2
                         }}
                       />
-                    ) : u.isActive ? (
-                      'Active'
-                    ) : (
-                      'Pending'
-                    )}
-                  </TableCell>
+                    </TableCell>
 
-                  <TableCell>
-                    {/* Edit button visibility:
-                        - Admin/Ops: can edit users (Ops cannot edit Admin)
-                        - Users can edit their own profile if they have canEditOwnProfile capability */}
-                    {(canManageUsers && !(isOperationsManager && u.role === 'admin')) || 
-                     (u._id === currentUser?.id && canEditOwnProfile) ? (
-                      <Button
-                        variant="contained"
-                        size="small"
-                        sx={{
-                          backgroundColor: '#1bcddc',
-                          color: '#fff',
-                          fontWeight: 700,
-                          borderRadius: 2,
-                          '&:hover': { backgroundColor: '#17b3c0' }
-                        }}
-                        onClick={() => navigate(`/account/edit/${u._id}`)}
-                      >
-                        Edit
-                      </Button>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))}
+                    <TableCell>
+                      {u.accountRemovalRequested ? (
+                        <Chip
+                          label="Request for Removal"
+                          size="small"
+                          sx={{
+                            fontWeight: 600,
+                            color: '#fff',
+                            bgcolor: '#CB1033',
+                            borderRadius: 2
+                          }}
+                        />
+                      ) : u.isActive ? (
+                        'Active'
+                      ) : (
+                        'Pending'
+                      )}
+                    </TableCell>
 
-              {!pagedUsers.length && (
-                <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 6, color: '#aaa' }}>
-                    No users found.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                    <TableCell>
+                      {/* Edit button visibility:
+                          - Admin/Ops: can edit users (Ops cannot edit Admin)
+                          - Users can edit their own profile if they have canEditOwnProfile capability */}
+                      {(canManageUsers && !(isOperationsManager && u.role === 'admin')) || 
+                       (u._id === currentUser?.id && canEditOwnProfile) ? (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          sx={{
+                            backgroundColor: '#1bcddc',
+                            color: '#fff',
+                            fontWeight: 700,
+                            borderRadius: 2,
+                            '&:hover': { backgroundColor: '#17b3c0' }
+                          }}
+                          onClick={() => navigate(`/account/edit/${u._id}`)}
+                        >
+                          Edit
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
 
-          <TablePagination
-            component="div"
-            count={filteredUsers.length}
-            page={page}
-            rowsPerPage={rowsPerPage}
-            onPageChange={(_, newPage) => setPage(newPage)}
-            onRowsPerPageChange={e => {
-              setRowsPerPage(parseInt(e.target.value, 10));
-              setPage(0);
-            }}
-            rowsPerPageOptions={[5, 10, 25]}
-          />
-        </TableContainer>
+                {!pagedUsers.length && (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center" sx={{ py: 6, color: '#aaa' }}>
+                      No users found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+
+            <TablePagination
+              component="div"
+              count={filteredUsers.length}
+              page={page}
+              rowsPerPage={rowsPerPage}
+              onPageChange={(_, newPage) => setPage(newPage)}
+              onRowsPerPageChange={e => {
+                setRowsPerPage(parseInt(e.target.value, 10));
+                setPage(0);
+              }}
+              rowsPerPageOptions={[5, 10, 25]}
+            />
+          </TableContainer>
+        )}
       </Card>
 
-      <Dialog open={showInviteModal} onClose={() => setShowInviteModal(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={showInviteModal} 
+        onClose={() => setShowInviteModal(false)} 
+        maxWidth="sm" 
+        fullWidth
+        fullScreen={isMobile}
+      >
         <DialogTitle>Invite a New User</DialogTitle>
         <DialogContent>
           <InviteUserForm onSubmit={handleInviteUser} onCancel={() => setShowInviteModal(false)} />
