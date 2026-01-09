@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { Edit as EditIcon, Dashboard as DashboardIcon, Event as EventIcon } from '@mui/icons-material';
 import { updateEvent } from '../../services/events';
 import toast from 'react-hot-toast';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = false, onEventUpdate }) => {
   const navigate = useNavigate();
+  const { canManageEvents } = usePermissions();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     eventName: '',
@@ -129,22 +131,24 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
                 </Box>
               </Box>
             </Box>
-            <Tooltip title="Edit Event Details">
-              <IconButton 
-                onClick={handleEditClick}
-                size="small"
-                sx={{ 
-                  bgcolor: 'rgba(255,255,255,0.8)', 
-                  '&:hover': { bgcolor: 'rgba(255,255,255,1)' },
-                  ml: { xs: 0.5, sm: 1 },
-                  flexShrink: 0,
-                  width: { xs: 32, sm: 40 },
-                  height: { xs: 32, sm: 40 }
-                }}
-              >
-                <EditIcon sx={{ fontSize: { xs: 18, sm: 24 } }} />
-              </IconButton>
-            </Tooltip>
+            {canManageEvents && (
+              <Tooltip title="Edit Event Details">
+                <IconButton 
+                  onClick={handleEditClick}
+                  size="small"
+                  sx={{ 
+                    bgcolor: 'rgba(255,255,255,0.8)', 
+                    '&:hover': { bgcolor: 'rgba(255,255,255,1)' },
+                    ml: { xs: 0.5, sm: 1 },
+                    flexShrink: 0,
+                    width: { xs: 32, sm: 40 },
+                    height: { xs: 32, sm: 40 }
+                  }}
+                >
+                  <EditIcon sx={{ fontSize: { xs: 18, sm: 24 } }} />
+                </IconButton>
+              </Tooltip>
+            )}
           </Box>  
           
           <Typography 
