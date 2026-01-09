@@ -37,6 +37,11 @@ const Header = () => {
 
   const menuItems = [
     {
+      label: 'My Events',
+      icon: <HomeIcon />,
+      path: '/dashboard'  
+    },
+    {
       label: 'Events',
       icon: <EventIcon />,
       path: '/events'
@@ -55,12 +60,8 @@ const Header = () => {
       label: 'Help',
       icon: <HelpIcon />,
       path: '/help'
-    },
-    {
-      label: 'My Events',
-      icon: <HomeIcon />,
-      path: '/dashboard'  
     }
+ 
   ];
 
   const isActive = (path) => {
