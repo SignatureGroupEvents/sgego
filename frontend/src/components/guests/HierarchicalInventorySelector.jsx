@@ -14,12 +14,21 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, eventName }
     const saved = localStorage.getItem('inventoryPickupFieldPreferences');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Ensure all fields are present with defaults
+        return {
+          type: parsed.type ?? false,
+          brand: parsed.brand ?? true,
+          product: parsed.product ?? false,
+          size: parsed.size ?? false,
+          gender: parsed.gender ?? false,
+          color: parsed.color ?? false
+        };
       } catch (e) {
-        return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+        return { type: false, brand: true, product: false, size: false, gender: false, color: false };
       }
     }
-    return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+    return { type: false, brand: true, product: false, size: false, gender: false, color: false };
   };
 
   const prefs = getPickupFieldPreferences();

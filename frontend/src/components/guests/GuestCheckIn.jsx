@@ -31,13 +31,22 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
     const saved = localStorage.getItem('inventoryPickupFieldPreferences');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Ensure all fields are present with defaults
+        return {
+          type: parsed.type ?? false,
+          brand: parsed.brand ?? true,
+          product: parsed.product ?? false,
+          size: parsed.size ?? false,
+          gender: parsed.gender ?? false,
+          color: parsed.color ?? false
+        };
       } catch (e) {
-        return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+        return { type: false, brand: true, product: false, size: false, gender: false, color: false };
       }
     }
-    // Default: show Brand and Size
-    return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+    // Default: show Brand only
+    return { type: false, brand: true, product: false, size: false, gender: false, color: false };
   };
 
   // Check if any fields are selected for gift selection
