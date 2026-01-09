@@ -69,37 +69,50 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
   };
 
   return (
-    <Box mb={4}>
+    <Box mb={{ xs: 2, sm: 3, md: 4 }}>
       {/* Event Information Container */}
       <Card 
         sx={{ 
-          mb: 3,
+          mb: { xs: 1.5, sm: 2, md: 3 },
           background: isMainEvent 
             ? 'linear-gradient(135deg,rgb(227, 252, 253) 0%,rgb(240, 249, 249) 100%)' 
             : 'linear-gradient(135deg,rgb(245, 236, 227) 0%,rgb(248, 238, 220) 100%)',  
           border: isMainEvent ? '2px solid #00B2C0' : '2px solid #FAA951',
-          borderRadius: 3,
+          borderRadius: { xs: 2, sm: 2.5, md: 3 },
           boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
         }}
       >
-        <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1, sm: 1.5, md: 2 }, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5, md: 2 }, flex: 1, minWidth: 0 }}>
               {isMainEvent ? (
-                <DashboardIcon sx={{ color: '#00B2C0', fontSize: 32 }} />
+                <DashboardIcon sx={{ color: '#00B2C0', fontSize: { xs: 24, sm: 28, md: 32 }, flexShrink: 0 }} />
               ) : (
-                <EventIcon sx={{ color: '#FAA951', fontSize: 32 }} />
+                <EventIcon sx={{ color: '#FAA951', fontSize: { xs: 24, sm: 28, md: 32 }, flexShrink: 0 }} />
               )}
-              <Box>
-                <Typography variant="h4" fontWeight={700} color="primary.main">
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Typography 
+                  variant="h4" 
+                  fontWeight={700} 
+                  color="primary.main"
+                  sx={{ 
+                    fontSize: { xs: '1.25rem', sm: '1.5rem', md: '2.125rem' },
+                    lineHeight: { xs: 1.3, sm: 1.4, md: 1.5 },
+                    wordBreak: 'break-word'
+                  }}
+                >
                   {event.eventName || 'Event'}
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 0.75, md: 1 }, mt: { xs: 0.25, sm: 0.5 }, flexWrap: 'wrap' }}>
                   <Chip 
                     label={isMainEvent ? 'Program Dashboard' : 'Check-in Event'} 
                     size="small" 
                     color={isMainEvent ? 'primary' : 'success'}
-                    sx={{ fontWeight: 600 }}
+                    sx={{ 
+                      fontWeight: 600,
+                      fontSize: { xs: '0.65rem', sm: '0.75rem' },
+                      height: { xs: 20, sm: 24 }
+                    }}
                   />
                   {isMainEvent && hasSecondaryEvents && (
                     <Chip 
@@ -107,43 +120,89 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
                       size="small" 
                       variant="outlined"
                       color="primary"
+                      sx={{ 
+                        fontSize: { xs: '0.65rem', sm: '0.75rem' },
+                        height: { xs: 20, sm: 24 }
+                      }}
                     />
                   )}
                 </Box>
               </Box>
             </Box>
             <Tooltip title="Edit Event Details">
-            <IconButton 
-              onClick={handleEditClick}
-              sx={{ 
-                bgcolor: 'rgba(255,255,255,0.8)', 
-                '&:hover': { bgcolor: 'rgba(255,255,255,1)' }
-              }}
+              <IconButton 
+                onClick={handleEditClick}
+                size="small"
+                sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.8)', 
+                  '&:hover': { bgcolor: 'rgba(255,255,255,1)' },
+                  ml: { xs: 0.5, sm: 1 },
+                  flexShrink: 0,
+                  width: { xs: 32, sm: 40 },
+                  height: { xs: 32, sm: 40 }
+                }}
               >
-                <EditIcon />
+                <EditIcon sx={{ fontSize: { xs: 18, sm: 24 } }} />
               </IconButton>
             </Tooltip>
           </Box>  
           
-          <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 500 }}>
+          <Typography 
+            variant="h6" 
+            color="text.secondary" 
+            sx={{ 
+              fontWeight: 500,
+              fontSize: { xs: '0.875rem', sm: '1rem', md: '1.25rem' },
+              mb: { xs: 0.5, sm: 0.75, md: 1 }
+            }}
+          >
             Contract: {event.eventContractNumber || '—'}
           </Typography>
-          <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+          <Box sx={{ mb: { xs: 0.5, sm: 0.75, md: 1 } }}>
+            <Typography 
+              variant="body2" 
+              color="text.secondary" 
+              sx={{ 
+                fontWeight: 500,
+                fontSize: { xs: '0.75rem', sm: '0.875rem' }
+              }}
+            >
               Start Date: {event.eventStart ? new Date(event.eventStart).toLocaleDateString() : '—'}
             </Typography> 
-            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+            <Typography 
+              variant="body2" 
+              color="text.secondary" 
+              sx={{ 
+                fontWeight: 500,
+                fontSize: { xs: '0.75rem', sm: '0.875rem' }
+              }}
+            >
               End Date: {event.eventEnd ? new Date(event.eventEnd).toLocaleDateString() : '—'}
             </Typography>
           </Box>
           <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+            <Typography 
+              variant="body2" 
+              color="text.secondary" 
+              sx={{ 
+                fontWeight: 500,
+                fontSize: { xs: '0.75rem', sm: '0.875rem' }
+              }}
+            >
               Operations Manager: {event.createdBy ? event.createdBy.username : '—'}
             </Typography> 
           </Box>
 
           {isMainEvent && hasSecondaryEvents && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+            <Typography 
+              variant="body2" 
+              color="text.secondary" 
+              sx={{ 
+                mt: { xs: 0.75, sm: 1 },
+                fontStyle: 'italic',
+                fontSize: { xs: '0.7rem', sm: '0.875rem' }
+              }}
+            >
               This is the main program dashboard. Guests check in to the individual events below.
             </Typography>
           )}
@@ -153,15 +212,23 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
       {/* Event Navigation Dropdown - Only show if there are multiple events */}
       {showDropdown && (hasSecondaryEvents || (event && mainEvent && event._id !== mainEvent._id)) && (
         <Box sx={{ 
-          p: 2, 
+          p: { xs: 1, sm: 1.5, md: 2 }, 
           bgcolor: 'grey.50', 
-          borderRadius: 2, 
+          borderRadius: { xs: 1.5, sm: 2 }, 
           border: '1px solid #e0e0e0'
         }}>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, fontWeight: 600 }}>
+          <Typography 
+            variant="subtitle2" 
+            color="text.secondary" 
+            sx={{ 
+              mb: { xs: 0.75, sm: 1 }, 
+              fontWeight: 600,
+              fontSize: { xs: '0.75rem', sm: '0.875rem' }
+            }}
+          >
             Switch Between Events:
           </Typography>
-          <FormControl size="small" sx={{ minWidth: 200 }}>
+          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 200 }, width: { xs: '100%', sm: 'auto' } }}>
             <InputLabel id="secondary-event-label">Select Event</InputLabel>
             <Select
               labelId="secondary-event-label"
@@ -176,29 +243,65 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
             >
               {mainEvent && (
                 <MenuItem key={mainEvent?._id} value={mainEvent?._id}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <DashboardIcon sx={{ fontSize: 16, color: '#00B2C0' }} />
-                    <Typography>{mainEvent?.eventName}</Typography>
-                    <Chip label="Dashboard" size="small" color="primary" sx={{ ml: 'auto' }} />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, width: '100%' }}>
+                    <DashboardIcon sx={{ fontSize: { xs: 14, sm: 16 }, color: '#00B2C0', flexShrink: 0 }} />
+                    <Typography sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+                      {mainEvent?.eventName}
+                    </Typography>
+                    <Chip 
+                      label="Dashboard" 
+                      size="small" 
+                      color="primary" 
+                      sx={{ 
+                        ml: 'auto', 
+                        fontSize: { xs: '0.65rem', sm: '0.75rem' },
+                        height: { xs: 18, sm: 24 },
+                        flexShrink: 0
+                      }} 
+                    />
                   </Box>
                 </MenuItem>
               )}
               {secondaryEvents.map(ev => (
                 <MenuItem key={ev?._id} value={ev?._id}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <EventIcon sx={{ fontSize: 16, color: '#FAA951' }} />
-                    <Typography>{ev?.eventName}</Typography>
-                    <Chip label="Check-in" size="small" color="success" sx={{ ml: 'auto' }} />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, width: '100%' }}>
+                    <EventIcon sx={{ fontSize: { xs: 14, sm: 16 }, color: '#FAA951', flexShrink: 0 }} />
+                    <Typography sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+                      {ev?.eventName}
+                    </Typography>
+                    <Chip 
+                      label="Check-in" 
+                      size="small" 
+                      color="success" 
+                      sx={{ 
+                        ml: 'auto',
+                        fontSize: { xs: '0.65rem', sm: '0.75rem' },
+                        height: { xs: 18, sm: 24 },
+                        flexShrink: 0
+                      }} 
+                    />
                   </Box>
                 </MenuItem>
               ))}
               {/* If current event is not in the above, add it */}
               {event && mainEvent && event._id !== mainEvent._id && !secondaryEvents.some(ev => ev._id === event._id) && (
                 <MenuItem key={event._id} value={event._id}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <EventIcon sx={{ fontSize: 16, color: '#FAA951' }} />
-                    <Typography>{event.eventName}</Typography>
-                    <Chip label="Check-in" size="small" color="success" sx={{ ml: 'auto' }} />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, width: '100%' }}>
+                    <EventIcon sx={{ fontSize: { xs: 14, sm: 16 }, color: '#FAA951', flexShrink: 0 }} />
+                    <Typography sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+                      {event.eventName}
+                    </Typography>
+                    <Chip 
+                      label="Check-in" 
+                      size="small" 
+                      color="success" 
+                      sx={{ 
+                        ml: 'auto',
+                        fontSize: { xs: '0.65rem', sm: '0.75rem' },
+                        height: { xs: 18, sm: 24 },
+                        flexShrink: 0
+                      }} 
+                    />
                   </Box>
                 </MenuItem>
               )}

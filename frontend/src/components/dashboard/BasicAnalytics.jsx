@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Paper,
-  Typography
+  Typography,
+  Collapse,
+  IconButton,
+  useMediaQuery
 } from '@mui/material';
+import { ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 import GiftAnalyticsPreview from './GiftAnalyticsPreview';
 
@@ -19,6 +23,8 @@ import GiftAnalyticsPreview from './GiftAnalyticsPreview';
  */
 const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [mobileExpanded, setMobileExpanded] = useState(false);
   const totalGuests = guests.length;
   
   // Use eventCheckins as source of truth for attendance
@@ -32,13 +38,13 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
   return (
     <Box sx={{ 
       width: '100%', 
-      py: { xs: 1, sm: 1 },
+      py: { xs: 0.5, sm: 1 },
       px: { xs: 0, sm: 0 },
       backgroundColor: theme.palette.background.default,
       display: 'flex',
       flexDirection: { xs: 'column', sm: 'row' },
       flexWrap: 'wrap',
-      gap: { xs: 2, sm: 3 },
+      gap: { xs: 1, sm: 3 },
       alignItems: 'stretch',
       minHeight: { xs: 'auto', sm: 350 }
     }}>
@@ -46,7 +52,7 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
       <Paper
         elevation={3}
         sx={{
-          p: { xs: 3, sm: 4 },
+          p: { xs: 2, sm: 4 },
           borderRadius: 3,
           minHeight: { xs: 'auto', sm: 260 },
           width: { xs: '100%', sm: 'auto' },
@@ -64,7 +70,7 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
           sx={{ 
             color: theme.palette.text.secondary, 
             fontWeight: 700, 
-            mb: 2,
+            mb: { xs: 1, sm: 2 },
             fontSize: { xs: '1rem', sm: '1.25rem' }
           }}
         >
@@ -74,7 +80,7 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
           variant="h2" 
           sx={{ 
             fontWeight: 700, 
-            mb: 1,
+            mb: { xs: 0.5, sm: 1 },
             fontSize: { xs: '2rem', sm: '3rem' }
           }}
         >
@@ -85,7 +91,7 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
           sx={{ 
             color: 'success.main', 
             fontWeight: 600, 
-            mb: 1,
+            mb: { xs: 0.5, sm: 1 },
             fontSize: { xs: '1rem', sm: '1.25rem' }
           }}
         >
@@ -99,14 +105,14 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
           {pendingGuests} guests pending
         </Typography>
         {/* Advanced Analytics Button - now grouped below stats */}
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', width: '100%' }}>
+        <Box sx={{ mt: { xs: 1, sm: 2 }, display: 'flex', justifyContent: 'center', width: '100%' }}>
           <Box
             sx={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: 1,
-              px: { xs: 3, sm: 4 },
-              py: { xs: 1.5, sm: 2 },
+              px: { xs: 2, sm: 4 },
+              py: { xs: 1, sm: 2 },
               borderRadius: 3,
               cursor: 'pointer',
               background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
@@ -137,8 +143,41 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
         </Box>
       </Paper>
 
-      {/* Gift Analytics Preview */}
-      <GiftAnalyticsPreview event={event} inventory={inventory} />
+      {/* Gift Analytics Preview - Collapsible on mobile */}
+      <Box sx={{ width: '100%', flex: { xs: '1 1 100%', sm: '1 1 500px' } }}>
+        {/* Collapsible Header - Only visible on mobile */}
+        {isMobile && (
+          <Paper
+            elevation={2}
+            sx={{
+              p: { xs: 1.5, sm: 2 },
+              borderRadius: 2,
+              mb: { xs: 0.5, sm: 1 },
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              cursor: 'pointer',
+              backgroundColor: theme.palette.background.paper,
+              '&:hover': {
+                backgroundColor: theme.palette.action.hover,
+              }
+            }}
+            onClick={() => setMobileExpanded(!mobileExpanded)}
+          >
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              Gift Distribution
+            </Typography>
+            <IconButton size="small">
+              {mobileExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          </Paper>
+        )}
+        
+        {/* Gift Analytics Preview - Always visible on desktop, collapsible on mobile */}
+        <Collapse in={!isMobile || mobileExpanded} timeout="auto" unmountOnExit={false}>
+          <GiftAnalyticsPreview event={event} inventory={inventory} />
+        </Collapse>
+      </Box>
     </Box>
   );
 };
