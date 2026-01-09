@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField, Autocomplete, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, DialogContentText } from '@mui/material';
+import { Box, Typography, Card, CardContent, Grid, CircularProgress, Chip, Button, Alert, Table, TableBody, TableCell, TableContainer, TablePagination, TableHead, TableRow, Paper, IconButton, LinearProgress, Drawer, CardHeader, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Tabs, Tab, InputAdornment, FormControl, InputLabel, Select, MenuItem, TextField, Autocomplete, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, DialogContentText, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import api, { fetchInventory } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -17,6 +17,7 @@ import ManageSection from './ManageSection';
 import EventHeader from '../Events/EventHeader';
 import GuestTable from '../guests/GuestTable';
 import AdvancedView from './AdvancedView/AdvancedView';
+import MobileBottomTabs from './MobileBottomTabs';
 import toast from 'react-hot-toast';
 
 
@@ -24,6 +25,8 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { isOperationsManager, isAdmin } = usePermissions();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState(null);
   const [guests, setGuests] = useState([]);
@@ -43,6 +46,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const [addGuestModalOpen, setAddGuestModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [mobileTab, setMobileTab] = useState(0); // 0: List, 1: Manage, 2: Stats
 
   // Update local guests when props change
   React.useEffect(() => {
@@ -228,53 +232,122 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
 
   return (
     <MainLayout eventName={event.eventName || 'Loading Event...'} parentEventName={parentEvent && parentEvent._id !== event._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event._id ? parentEvent._id : null}>
-      <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={true} onEventUpdate={handleEventUpdate} />
+      <Box sx={{ pb: { xs: 8, sm: 0 } }}>
+        {/* Mobile: Show content based on active tab, Desktop: Show all */}
+        {isMobile ? (
+          <>
+            {/* List Tab (0) - Guest Table */}
+            {mobileTab === 0 && (
+              <GuestTable
+                guests={localGuests}
+                onAddGuest={handleAddGuest}
+                onUploadGuests={handleUploadGuests}
+                event={{
+                  ...event,
+                  parentEvent: parentEvent,
+                  secondaryEvents: secondaryEvents
+                }}
+                onInventoryChange={onInventoryChange}
+                onCheckInSuccess={handleCheckInSuccess}
+                inventory={inventory}
+                onGuestsChange={() => fetchGuests(eventId)}
+              />
+            )}
 
-      {/* Event Overview Section */}
-      <Box sx={{ width: '100%', px: 2, py: 2, backgroundColor: '#fdf9f6' }}>
-        {viewMode === 'basic' ? (
-          <BasicAnalytics
-            event={event}
-            guests={guests}
-            inventory={inventory}
-          />
+            {/* Manage Tab (1) - Event Header and Manage Section */}
+            {mobileTab === 1 && (
+              <>
+                <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={true} onEventUpdate={handleEventUpdate} />
+                <ManageSection
+                  onInventory={() => navigate(`/events/${eventId}/inventory`)}
+                  onUpload={handleUploadGuests}
+                  onAddGuest={handleAddGuest}
+                  onAddEvent={() => setSecondaryModalOpen(true)}
+                  onDeleteEvent={handleDeleteEvent}
+                  onManageTeam={() => navigate(`/events/${eventId}/team`)}
+                  canModify={canModifyEvents}
+                  canManageTeam={canModifyEvents}
+                />
+              </>
+            )}
+
+            {/* Stats Tab (2) - Analytics */}
+            {mobileTab === 2 && (
+              <Box sx={{ width: '100%', px: { xs: 1, sm: 2 }, py: { xs: 1, sm: 2 }, backgroundColor: '#fdf9f6' }}>
+                {viewMode === 'basic' ? (
+                  <BasicAnalytics
+                    event={event}
+                    guests={guests}
+                    inventory={inventory}
+                  />
+                ) : (
+                  <AdvancedView
+                    event={event}
+                    guests={guests}
+                    secondaryEvents={secondaryEvents}
+                    inventory={inventory}
+                    onInventoryChange={onInventoryChange}
+                  />
+                )}
+              </Box>
+            )}
+          </>
         ) : (
-          <AdvancedView
-            event={event}
-            guests={guests}
-            secondaryEvents={secondaryEvents}
-            inventory={inventory}
-            onInventoryChange={onInventoryChange}
-          />
+          <>
+            {/* Desktop: Show all content */}
+            <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={true} onEventUpdate={handleEventUpdate} />
+
+            {/* Event Overview Section */}
+            <Box sx={{ width: '100%', px: 2, py: 2, backgroundColor: '#fdf9f6' }}>
+              {viewMode === 'basic' ? (
+                <BasicAnalytics
+                  event={event}
+                  guests={guests}
+                  inventory={inventory}
+                />
+              ) : (
+                <AdvancedView
+                  event={event}
+                  guests={guests}
+                  secondaryEvents={secondaryEvents}
+                  inventory={inventory}
+                  onInventoryChange={onInventoryChange}
+                />
+              )}
+            </Box>
+
+            <ManageSection
+              onInventory={() => navigate(`/events/${eventId}/inventory`)}
+              onUpload={handleUploadGuests}
+              onAddGuest={handleAddGuest}
+              onAddEvent={() => setSecondaryModalOpen(true)}
+              onDeleteEvent={handleDeleteEvent}
+              onManageTeam={() => navigate(`/events/${eventId}/team`)}
+              canModify={canModifyEvents}
+              canManageTeam={canModifyEvents}
+            />
+
+            {/* Guest Table */}
+            <GuestTable
+              guests={localGuests}
+              onAddGuest={handleAddGuest}
+              onUploadGuests={handleUploadGuests}
+              event={{
+                ...event,
+                parentEvent: parentEvent,
+                secondaryEvents: secondaryEvents
+              }}
+              onInventoryChange={onInventoryChange}
+              onCheckInSuccess={handleCheckInSuccess}
+              inventory={inventory}
+              onGuestsChange={() => fetchGuests(eventId)}
+            />
+          </>
         )}
       </Box>
 
-      <ManageSection
-        onInventory={() => navigate(`/events/${eventId}/inventory`)}
-        onUpload={handleUploadGuests}
-        onAddGuest={handleAddGuest}
-        onAddEvent={() => setSecondaryModalOpen(true)}
-        onDeleteEvent={handleDeleteEvent}
-        onManageTeam={() => navigate(`/events/${eventId}/team`)}
-        canModify={canModifyEvents}
-        canManageTeam={canModifyEvents}
-      />
-
-      {/* Guest Table */}
-      <GuestTable
-        guests={localGuests}
-        onAddGuest={handleAddGuest}
-        onUploadGuests={handleUploadGuests}
-        event={{
-          ...event,
-          parentEvent: parentEvent,
-          secondaryEvents: secondaryEvents
-        }}
-        onInventoryChange={onInventoryChange}
-        onCheckInSuccess={handleCheckInSuccess}
-        inventory={inventory}
-        onGuestsChange={() => fetchGuests(eventId)}
-      />
+      {/* Mobile Bottom Tabs */}
+      <MobileBottomTabs value={mobileTab} onChange={setMobileTab} />
 
       {/* Check-in Modal */}
       <Dialog
