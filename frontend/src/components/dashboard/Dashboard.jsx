@@ -5,12 +5,14 @@ import {
   Box
 } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import MainLayout from '../layout/MainLayout';
 import MyEventsBoard from './MyEventsBoard';
 import UpcomingEventsCalendar from './UpcomingEventsCalendar';
 
 const Dashboard = ({ selectedEvent }) => {
   const { user } = useAuth();
+  const { isStaff } = usePermissions();
 
   return (
     <MainLayout>
@@ -22,7 +24,7 @@ const Dashboard = ({ selectedEvent }) => {
         )}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <Typography variant="h4">
-            Welcome, {user?.username}! 👋
+            Welcome, {user?.firstName}! 👋
           </Typography>
         </Box>
 
@@ -31,8 +33,8 @@ const Dashboard = ({ selectedEvent }) => {
         {/* My Events Board */}
         <MyEventsBoard />
 
-        {/* Upcoming Events Calendar */}
-        <UpcomingEventsCalendar />
+        {/* Upcoming Events Calendar - Hidden for staff */}
+        {!isStaff && <UpcomingEventsCalendar />}
       </Box>
     </MainLayout>
   );

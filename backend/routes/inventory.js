@@ -132,8 +132,10 @@ router.post('/upload', requireOperationsOrAdmin, upload.single('file'), (req, re
   }
   next();
 }, uploadInventory);
-router.post('/:eventId', requireOperationsOrAdmin, addInventoryItem);
-router.put('/:inventoryId', requireOperationsOrAdmin, updateInventoryCount);
+// Add inventory item - allow all authenticated users (staff, ops, admin)
+router.post('/:eventId', addInventoryItem);
+// Update inventory count - allow all authenticated users (staff, ops, admin)
+router.put('/:inventoryId', updateInventoryCount);
 router.put('/:inventoryId/deactivate', requireOperationsOrAdmin, deactivateInventoryItem);
 router.delete('/:inventoryId', requireOperationsOrAdmin, deleteInventoryItem);
 router.delete('/bulk/:eventId', requireOperationsOrAdmin, bulkDeleteInventory);

@@ -31,7 +31,7 @@ const MainNavigation = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
-  const { canManageUsers } = usePermissions();
+  const { canManageUsers, canAccessAnalyticsFull, isStaff } = usePermissions();
 
   const [eventsOpen, setEventsOpen] = React.useState(false);
 
@@ -86,36 +86,42 @@ const MainNavigation = () => {
           <ListItemText primary="Dashboard" />
         </ListItemButton>
 
-        {/* Events Dropdown */}
-        <ListItemButton onClick={handleEventsClick} selected={isActive('/events') || isEventSubpage('/events/:id')}>
-          <ListItemIcon>
-            <EventIcon />
-          </ListItemIcon>
-          <ListItemText primary="Events" />
-          {eventsOpen ? <ExpandLess /> : <ExpandMore />}
-        </ListItemButton>
-        <Collapse in={eventsOpen} timeout="auto" unmountOnExit>
-          <List component="div" disablePadding>
-            <ListItemButton sx={{ pl: 4 }} selected={location.pathname === '/events'} onClick={() => navigate('/events')}>
-              <ListItemText primary="Events List" />
-            </ListItemButton>
-            <ListItemButton sx={{ pl: 4 }} selected={location.pathname === '/events/archived'} onClick={() => navigate('/events/archived')}>
+        {/* Events Dropdown - Hidden for staff */}
+        {!isStaff && (
+          <>
+            <ListItemButton onClick={handleEventsClick} selected={isActive('/events') || isEventSubpage('/events/:id')}>
               <ListItemIcon>
-                <ArchiveIcon fontSize="small" />
+                <EventIcon />
               </ListItemIcon>
-              <ListItemText primary="Archived Events" />
+              <ListItemText primary="Events" />
+              {eventsOpen ? <ExpandLess /> : <ExpandMore />}
             </ListItemButton>
-            <ListItemButton sx={{ pl: 4 }} selected={location.pathname.includes('/inventory')} onClick={() => navigate('/events/:id/inventory')}>
-              <ListItemText primary="Inventory" />
-            </ListItemButton>
-            <ListItemButton sx={{ pl: 4 }} selected={location.pathname.includes('/upload')} onClick={() => navigate('/events/:id/upload')}>
-              <ListItemText primary="Upload Guests" />
-            </ListItemButton>
-            <ListItemButton sx={{ pl: 4 }} selected={location.pathname.includes('/dashboard/advanced')} onClick={() => navigate('/events/:id/dashboard/advanced')}>
-              <ListItemText primary="Advanced Analytics" />
-            </ListItemButton>
-          </List>
-        </Collapse>
+            <Collapse in={eventsOpen} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                <ListItemButton sx={{ pl: 4 }} selected={location.pathname === '/events'} onClick={() => navigate('/events')}>
+                  <ListItemText primary="Events List" />
+                </ListItemButton>
+                <ListItemButton sx={{ pl: 4 }} selected={location.pathname === '/events/archived'} onClick={() => navigate('/events/archived')}>
+                  <ListItemIcon>
+                    <ArchiveIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="Archived Events" />
+                </ListItemButton>
+                <ListItemButton sx={{ pl: 4 }} selected={location.pathname.includes('/inventory')} onClick={() => navigate('/events/:id/inventory')}>
+                  <ListItemText primary="Inventory" />
+                </ListItemButton>
+                <ListItemButton sx={{ pl: 4 }} selected={location.pathname.includes('/upload')} onClick={() => navigate('/events/:id/upload')}>
+                  <ListItemText primary="Upload Guests" />
+                </ListItemButton>
+                {canAccessAnalyticsFull && (
+                  <ListItemButton sx={{ pl: 4 }} selected={location.pathname.includes('/dashboard/advanced')} onClick={() => navigate('/events/:id/dashboard/advanced')}>
+                    <ListItemText primary="Advanced Analytics" />
+                  </ListItemButton>
+                )}
+              </List>
+            </Collapse>
+          </>
+        )}
 
         {/* Account (Ops/Admin only) */}
         {canManageUsers && (

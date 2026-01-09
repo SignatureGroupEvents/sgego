@@ -637,7 +637,7 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
       <Paper
         elevation={3}
         sx={{
-          p: { xs: 2, sm: 3 },
+          p: { xs: 1.5, sm: 3 },
           borderRadius: 3,
           minHeight: { xs: 'auto', sm: 260 },
           width: { xs: '100%', sm: 'auto' },
@@ -658,7 +658,7 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
       <Paper
         elevation={3}
         sx={{
-          p: { xs: 2, sm: 3 },
+          p: { xs: 1.5, sm: 3 },
           borderRadius: 3,
           minHeight: { xs: 'auto', sm: 260 },
           width: { xs: '100%', sm: 'auto' },
@@ -675,7 +675,7 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
     <Paper
       elevation={3}
       sx={{
-        p: { xs: 2, sm: 3 },
+        p: { xs: 1.5, sm: 3 },
         borderRadius: 3,
         minHeight: { xs: 'auto', sm: 200 },
         width: { xs: '100%', sm: 'auto' },
@@ -691,7 +691,7 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
         flexDirection: { xs: 'column', sm: 'row' },
         justifyContent: 'space-between', 
         alignItems: { xs: 'flex-start', sm: 'center' }, 
-        mb: 2,
+        mb: { xs: 1, sm: 2 },
         gap: { xs: 1, sm: 0 }
       }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
@@ -732,7 +732,7 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
       </Box>
 
       {/* Controls Row - Compact */}
-      <Grid container spacing={1.5} sx={{ mb: 2 }}>
+      <Grid container spacing={1.5} sx={{ mb: { xs: 1, sm: 2 } }}>
         {/* Group By Dropdown */}
         <Grid size={{ xs: 12, sm: 3 }}>
           <FormControl fullWidth size="small">
@@ -811,7 +811,7 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
       </Grid>
 
       {/* Summary Stats */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, mb: { xs: 1, sm: 2 }, flexWrap: 'wrap' }}>
         <Chip
           label={`Total: ${totalDistributed}`}
           color="primary"

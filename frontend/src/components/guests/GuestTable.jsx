@@ -36,7 +36,11 @@ import {
   useTheme,
   useMediaQuery,
   Divider,
-  Stack
+  Stack,
+  Tabs,
+  Tab,
+  BottomNavigation,
+  BottomNavigationAction
 } from '@mui/material';
 import {
   CheckCircleOutline as CheckCircleIcon,
@@ -80,12 +84,28 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [tagFilter, setTagFilter] = useState([]);
-  const [sortBy, setSortBy] = useState('name');
+  const [sortBy, setSortBy] = useState('lastName');
   const [sortOrder, setSortOrder] = useState('asc');
   
-  // Pagination state
+  // Pagination state - default to 100 for mobile, 10 for desktop
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(isMobile ? 100 : 10);
+  
+  // Update rowsPerPage when mobile state changes
+  React.useEffect(() => {
+    if (isMobile) {
+      setRowsPerPage(100);
+    } else {
+      // Only reset to 10 if it was 100 (to avoid resetting user's desktop preference)
+      if (rowsPerPage === 100) {
+        setRowsPerPage(10);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
+  
+  // Mobile view state
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   
   // Tag management state
   const [newTagName, setNewTagName] = useState('');
@@ -384,7 +404,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
     setStatusFilter('all');
     setTypeFilter('all');
     setTagFilter([]);
-    setSortBy('name');
+    setSortBy('lastName');
     setSortOrder('asc');
     setPage(0);
   };
@@ -637,6 +657,9 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
       const statusMatch = statusFilter === 'all' || (() => {
         const guestStatus = getGuestCheckInStatus(guest);
         switch (statusFilter) {
+          case 'outstanding':
+            // Outstanding = not picked up OR partially picked up
+            return guestStatus.status === 'not-checked-in' || guestStatus.status === 'partially-checked-in';
           case 'not-picked-up':
             return guestStatus.status === 'not-checked-in';
           case 'partially-picked-up':
@@ -677,9 +700,23 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
       let aValue, bValue;
       
       switch (sortBy) {
-        case 'name':
-          aValue = `${a.firstName} ${a.lastName}`.toLowerCase();
-          bValue = `${b.firstName} ${b.lastName}`.toLowerCase();
+        case 'lastName':
+          aValue = (a.lastName || '').toLowerCase();
+          bValue = (b.lastName || '').toLowerCase();
+          // If last names are equal, sort by first name
+          if (aValue === bValue) {
+            aValue = (a.firstName || '').toLowerCase();
+            bValue = (b.firstName || '').toLowerCase();
+          }
+          break;
+        case 'firstName':
+          aValue = (a.firstName || '').toLowerCase();
+          bValue = (b.firstName || '').toLowerCase();
+          // If first names are equal, sort by last name
+          if (aValue === bValue) {
+            aValue = (a.lastName || '').toLowerCase();
+            bValue = (b.lastName || '').toLowerCase();
+          }
           break;
         case 'email':
           aValue = (a.email || '').toLowerCase();
@@ -739,656 +776,656 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
 
   const eventsToDisplay = getEventsToDisplay();
 
-  // Card rendering function for mobile
+  // Card rendering function for mobile - simplified table-like format
   const renderGuestCard = (guest) => {
     const isInherited = guest.isInherited;
     const checkInStatus = getGuestCheckInStatus(guest);
     const buttonState = getCheckInButtonState(guest);
-    const StatusIcon = checkInStatus.icon;
-    const isSelected = isGuestSelected(guest);
+
+    // Get background color based on status
+    const getStatusBackgroundColor = () => {
+      switch (checkInStatus.status) {
+        case 'not-checked-in':
+          return 'rgba(0, 0, 0, 0.02)'; // Very light grey
+        case 'partially-checked-in':
+          return 'rgba(255, 152, 0, 0.08)'; // Light orange
+        case 'fully-checked-in':
+          return 'rgba(25, 118, 210, 0.08)'; // Light blue
+        default:
+          return 'transparent';
+      }
+    };
 
     return (
-      <Card
+      <Box
         key={guest._id}
-        elevation={2}
         onClick={(e) => {
-          // Don't navigate if clicking checkbox or button
-          if (e.target.type !== 'checkbox' && !e.target.closest('button') && !e.target.closest('[role="checkbox"]')) {
+          // Don't navigate if clicking button
+          if (!e.target.closest('button')) {
             navigate(`/events/${event._id}/guests/${guest._id}`);
           }
         }}
         sx={{
-          mb: 2,
-          borderRadius: 2,
-          transition: 'all 0.2s ease-in-out',
-          border: isSelected ? '2px solid' : 'none',
-          borderColor: isSelected ? 'primary.main' : 'transparent',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          p: 1.5,
+          mb: 0.5,
+          backgroundColor: getStatusBackgroundColor(),
+          borderBottom: '1px solid',
+          borderColor: 'divider',
           cursor: 'pointer',
+          transition: 'background-color 0.2s',
           '&:hover': {
-            boxShadow: 4,
-            transform: 'translateY(-2px)'
+            backgroundColor: checkInStatus.status === 'fully-checked-in' 
+              ? 'rgba(25, 118, 210, 0.12)' 
+              : checkInStatus.status === 'partially-checked-in'
+              ? 'rgba(255, 152, 0, 0.12)'
+              : 'rgba(0, 0, 0, 0.04)',
           },
           ...(isInherited && {
-            backgroundColor: 'rgba(25, 118, 210, 0.02)',
-            borderLeft: '4px solid',
-            borderLeftColor: 'primary.main'
+            borderLeft: '3px solid',
+            borderLeftColor: 'primary.main',
+            pl: 1.5
           })
         }}
       >
-        <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-            <Box sx={{ flex: 1, pr: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                <Typography variant="h6" fontWeight={600}>
-                  {guest.firstName} {guest.lastName}
-                </Typography>
-                {isInherited && (
-                  <Tooltip title={`Inherited from ${guest.originalEventName || 'Main Event'}`}>
-                    <InheritedIcon fontSize="small" color="primary" />
-                  </Tooltip>
-                )}
-              </Box>
-              {guest.jobTitle && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                  {guest.jobTitle}
-                </Typography>
-              )}
-              {guest.email && (
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-                  {guest.email}
-                </Typography>
-              )}
-            </Box>
-            {canManageEvents && (
-              <Checkbox
-                checked={isSelected}
-                onChange={(e) => handleSelectGuest(guest, e.target.checked)}
-                color="primary"
-                onClick={(e) => e.stopPropagation()}
-              />
+        {/* Left side: Name and gift info */}
+        <Box sx={{ flex: 1, minWidth: 0, pr: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
+            <Typography 
+              variant="body1" 
+              fontWeight={500}
+              sx={{ 
+                fontSize: '0.9375rem',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {guest.lastName}, {guest.firstName}
+            </Typography>
+            {isInherited && (
+              <Tooltip title={`Inherited from ${guest.originalEventName || 'Main Event'}`}>
+                <InheritedIcon fontSize="small" color="primary" sx={{ fontSize: '1rem' }} />
+              </Tooltip>
             )}
           </Box>
-
-          <Stack spacing={1.5}>
-            {/* Check-in Button */}
-            <Button
-              variant={buttonState.variant}
-              color={buttonState.color}
-              size="small"
-              fullWidth
-              sx={{
-                borderRadius: 2,
-                fontWeight: 600,
-                ...(buttonState.variant === 'outlined' && buttonState.color === 'success' && {
-                  color: 'success.main'
-                }),
-                ...(buttonState.variant === 'outlined' && buttonState.color === 'info' && {
-                  color: 'info.main'
-                })
+          {eventsToDisplay.length > 0 && (
+            <Typography 
+              variant="caption" 
+              color="text.secondary"
+              sx={{ 
+                fontSize: '0.75rem',
+                display: 'block',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
               }}
-              startIcon={<CheckCircleIcon />}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (buttonState.active) {
-                  handleOpenCheckIn(guest, e);
-                }
-              }}
-              disabled={!buttonState.active || !canCheckInGuests}
             >
-              {buttonState.label}
-            </Button>
+              {eventsToDisplay.map((ev) => {
+                const giftSelection = formatGiftSelections(guest, ev._id, ev.eventName);
+                return giftSelection;
+              }).join(', ')}
+            </Typography>
+          )}
+        </Box>
 
-            <Divider />
-
-            {/* Status and Type */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-              <Box>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Status
-                </Typography>
-                <Chip
-                  label={checkInStatus.label}
-                  color={checkInStatus.color}
-                  size="small"
-                  icon={<StatusIcon />}
-                  sx={{ borderRadius: 1, mt: 0.5 }}
-                />
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Type
-                </Typography>
-                <Typography variant="body2" fontWeight={500} sx={{ mt: 0.5 }}>
-                  {guest.attendeeType || 'General'}
-                </Typography>
-              </Box>
-            </Box>
-
-            <Divider />
-
-            {/* Gift Selections */}
-            <Box>
-              <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-                Gift Selections
-              </Typography>
-              {eventsToDisplay.length > 0 ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  {eventsToDisplay.map((ev) => {
-                    const giftSelection = formatGiftSelections(guest, ev._id, ev.eventName);
-                    const showEventName = eventsToDisplay.length > 1;
-                    
-                    return (
-                      <Typography
-                        key={ev._id}
-                        variant="body2"
-                        sx={{
-                          fontSize: '0.875rem',
-                          color: 'text.primary',
-                          pl: 1
-                        }}
-                      >
-                        {showEventName ? `${ev.eventName}: ` : ''}{giftSelection}
-                      </Typography>
-                    );
-                  })}
-                </Box>
-              ) : (
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-                  No event information available
-                </Typography>
-              )}
-            </Box>
-
-            {/* Tags */}
-            {guest.tags && guest.tags.length > 0 && (
-              <>
-                <Divider />
-                <Box>
-                  <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-                    Tags
-                  </Typography>
-                  <Box display="flex" gap={0.5} flexWrap="wrap">
-                    {guest.tags.map((tag, index) => {
-                      const tagColor = tag.color || '#1976d2';
-                      return (
-                        <Chip
-                          key={index}
-                          label={tag.name}
-                          size="small"
-                          sx={{
-                            backgroundColor: `${tagColor} !important`,
-                            color: 'white !important',
-                            fontSize: '0.7rem',
-                            borderRadius: 1,
-                            '& .MuiChip-label': {
-                              color: 'white !important'
-                            }
-                          }}
-                        />
-                      );
-                    })}
-                  </Box>
-                </Box>
-              </>
-            )}
-          </Stack>
-        </CardContent>
-      </Card>
+        {/* Right side: Check-in button */}
+        <Box sx={{ flexShrink: 0 }}>
+          <Button
+            variant={buttonState.variant}
+            color={buttonState.color}
+            size="small"
+            sx={{
+              minWidth: 'auto',
+              px: 1.5,
+              borderRadius: 1.5,
+              fontWeight: 500,
+              fontSize: '0.8125rem',
+              textTransform: 'none',
+              ...(buttonState.variant === 'outlined' && buttonState.color === 'success' && {
+                color: 'success.main',
+                borderColor: 'success.main'
+              }),
+              ...(buttonState.variant === 'outlined' && buttonState.color === 'info' && {
+                color: 'info.main',
+                borderColor: 'info.main'
+              })
+            }}
+            startIcon={<CheckCircleIcon sx={{ fontSize: '1rem' }} />}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (buttonState.active) {
+                handleOpenCheckIn(guest, e);
+              }
+            }}
+            disabled={!buttonState.active || !canCheckInGuests}
+          >
+            {buttonState.label}
+          </Button>
+        </Box>
+      </Box>
     );
+  };
+
+  // Handle status tab change for mobile
+  const handleStatusTabChange = (event, newValue) => {
+    const statusMap = {
+      0: 'all',
+      1: 'outstanding', // Outstanding = not-picked-up OR partially-picked-up
+      2: 'fully-picked-up'
+    };
+    setStatusFilter(statusMap[newValue]);
+  };
+
+  // Get current tab index based on status filter
+  const getStatusTabIndex = () => {
+    // Map status filter to tab index for mobile
+    if (statusFilter === 'all') return 0;
+    if (statusFilter === 'outstanding' || statusFilter === 'not-picked-up' || statusFilter === 'partially-picked-up') return 1;
+    if (statusFilter === 'fully-picked-up') return 2;
+    return 0;
   };
 
   return (
     <>
       <Card>
-        <CardContent>
-          {/* Header with title and actions */}
-          <Box 
-            display="flex" 
-            justifyContent="space-between" 
-            alignItems="center" 
-            mb={3}
-            sx={{ 
-              flexDirection: { xs: 'column', sm: 'row' },
-              gap: { xs: 2, sm: 0 },
-              alignItems: { xs: 'flex-start', sm: 'center' }
-            }}
-          >
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-              <Typography 
-                variant={isMobile ? 'subtitle1' : 'h6'}
-                sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+        {isMobile ? (
+          <>
+            {/* Mobile: Status Tabs */}
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
+              <Tabs
+                value={getStatusTabIndex()}
+                onChange={handleStatusTabChange}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{
+                  '& .MuiTab-root': {
+                    minHeight: 48,
+                    textTransform: 'none',
+                    fontSize: '0.875rem',
+                    fontWeight: 500
+                  },
+                  '& .Mui-selected': {
+                    color: 'primary.main',
+                    fontWeight: 600
+                  }
+                }}
               >
-                Guest List ({filteredAndSortedGuests.length} of {guests.length})
-              </Typography>
-              {canManageEvents && selectedGuests.length > 0 && (
-                <Chip
-                  label={`${selectedGuests.length} selected`}
-                  color="primary"
-                  onDelete={() => setSelectedGuests([])}
-                  deleteIcon={<ClearIcon />}
-                  size={isMobile ? 'small' : 'medium'}
-                />
-              )}
+                <Tab label="All" />
+                <Tab label="Outstanding" />
+                <Tab label="Picked Up" />
+              </Tabs>
             </Box>
-            <Box 
-              display="flex" 
-              gap={2}
-              sx={{ 
-                flexDirection: { xs: 'column', sm: 'row' },
-                width: { xs: '100%', sm: 'auto' }
-              }}
-            >
-              {canManageEvents && selectedGuests.length > 0 && (
-                <Button
-                  variant="contained"
-                  color="error"
-                  startIcon={<DeleteIcon />}
-                  onClick={() => setDeleteDialogOpen(true)}
-                  fullWidth={isMobile}
-                  size={isMobile ? 'medium' : 'large'}
-                >
-                  Delete Selected ({selectedGuests.length})
-                </Button>
-              )}
-              <Button
-                variant="contained"
-                startIcon={<DownloadIcon />}
-                onClick={exportToCSV}
-                fullWidth={isMobile}
-                size={isMobile ? 'medium' : 'large'}
-              >
-                Export CSV File
-              </Button>
-            </Box>
-          </Box>
-        </CardContent>
 
-          {/* Search and Filter Controls */}
-          <Box 
-            mb={3} 
-            sx={{ 
-              width: '100%',
-              px: { xs: 2, sm: 3 },
-              boxSizing: 'border-box'
-            }}
-          >
+            {/* Mobile: Search Bar Only */}
+            <CardContent sx={{ pb: 2 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search by name or initials"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                sx={{
+                  '& .MuiInputBase-root': {
+                    borderRadius: 2,
+                    backgroundColor: 'background.paper'
+                  }
+                }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon color="action" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: searchQuery && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={() => setSearchQuery('')}
+                        sx={{ minWidth: 'auto', p: 0.5 }}
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }}
+              />
+            </CardContent>
+          </>
+        ) : (
+          <>
+            {/* Desktop: Header with title and actions */}
+            <CardContent>
+              <Box 
+                display="flex" 
+                justifyContent="space-between" 
+                alignItems="center" 
+                mb={3}
+              >
+                <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+                  <Typography variant="h6">
+                    Guest List ({filteredAndSortedGuests.length} of {guests.length})
+                  </Typography>
+                  {canManageEvents && selectedGuests.length > 0 && (
+                    <Chip
+                      label={`${selectedGuests.length} selected`}
+                      color="primary"
+                      onDelete={() => setSelectedGuests([])}
+                      deleteIcon={<ClearIcon />}
+                    />
+                  )}
+                </Box>
+                <Box display="flex" gap={2}>
+                  {canManageEvents && selectedGuests.length > 0 && (
+                    <Button
+                      variant="contained"
+                      color="error"
+                      startIcon={<DeleteIcon />}
+                      onClick={() => setDeleteDialogOpen(true)}
+                    >
+                      Delete Selected ({selectedGuests.length})
+                    </Button>
+                  )}
+                  <Button
+                    variant="contained"
+                    startIcon={<DownloadIcon />}
+                    onClick={exportToCSV}
+                  >
+                    Export CSV File
+                  </Button>
+                </Box>
+              </Box>
+            </CardContent>
+
+            {/* Desktop: Search and Filter Controls */}
             <Box 
+              mb={3} 
               sx={{ 
-                display: 'flex',
-                gap: { xs: 1.5, sm: 1.5 },
                 width: '100%',
-                flexDirection: { xs: 'column', md: 'row' },
-                alignItems: { xs: 'stretch', md: 'flex-start' }
+                px: 3,
+                boxSizing: 'border-box'
               }}
             >
-              {/* Search Bar */}
-              <Box sx={{ 
-                width: { xs: '100%', md: '20%' },
-                flex: { xs: '1 1 auto', md: '0 0 20%' },
-                minWidth: 0 
-              }}>
-                <Box>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      mb: 0.5, 
-                      color: 'text.secondary', 
-                      fontSize: { xs: '0.7rem', sm: '0.75rem' } 
-                    }}
-                  >
-                    Search
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size={isMobile ? 'small' : 'small'}
-                    placeholder="Search guests..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    sx={{
-                      '& .MuiInputBase-root': {
-                        minWidth: 0,
-                        fontSize: { xs: '0.875rem', sm: '1rem' }
-                      },
-                      '& .MuiInputLabel-root': {
-                        display: 'none'
-                      }
-                    }}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon color="action" fontSize={isMobile ? 'small' : 'medium'} />
-                        </InputAdornment>
-                      ),
-                      endAdornment: searchQuery && (
-                        <InputAdornment position="end">
-                          <IconButton
-                            size="small"
-                            onClick={() => setSearchQuery('')}
-                            sx={{ minWidth: 'auto', p: 0.5 }}
-                          >
-                            <ClearIcon fontSize={isMobile ? 'small' : 'small'} />
-                          </IconButton>
-                        </InputAdornment>
-                      )
-                    }}
-                  />
-                </Box>
-              </Box>
-
-              {/* Status Filter */}
-              <Box sx={{ 
-                width: { xs: '100%', md: '18%' },
-                flex: { xs: '1 1 auto', md: '0 0 18%' },
-                minWidth: 0 
-              }}>
-                <Box>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      mb: 0.5, 
-                      color: 'text.secondary', 
-                      fontSize: { xs: '0.7rem', sm: '0.75rem' } 
-                    }}
-                  >
-                    Status
-                  </Typography>
-                  <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
-                    <Select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      MenuProps={{
-                        PaperProps: {
-                          style: {
-                            maxHeight: 300
-                          }
-                        }
+              <Box 
+                sx={{ 
+                  display: 'flex',
+                  gap: 1.5,
+                  width: '100%',
+                  flexDirection: 'row',
+                  alignItems: 'flex-start'
+                }}
+              >
+                {/* Search Bar */}
+                <Box sx={{ 
+                  width: '20%',
+                  flex: '0 0 20%',
+                  minWidth: 0 
+                }}>
+                  <Box>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        mb: 0.5, 
+                        color: 'text.secondary', 
+                        fontSize: '0.75rem' 
                       }}
+                    >
+                      Search
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Search guests..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
                       sx={{
-                        fontSize: { xs: '0.875rem', sm: '1rem' },
+                        '& .MuiInputBase-root': {
+                          minWidth: 0,
+                          fontSize: '1rem'
+                        },
                         '& .MuiInputLabel-root': {
                           display: 'none'
                         }
                       }}
-                    >
-                      <MenuItem value="all">All Status</MenuItem>
-                      <MenuItem value="not-picked-up">Not Picked Up</MenuItem>
-                      <MenuItem value="partially-picked-up">Partially Picked Up</MenuItem>
-                      <MenuItem value="fully-picked-up">Fully Picked Up</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Box>
-              </Box>
-
-              {/* Type Filter */}
-              <Box sx={{ 
-                width: { xs: '100%', md: '18%' },
-                flex: { xs: '1 1 auto', md: '0 0 18%' },
-                minWidth: 0 
-              }}>
-                <Box>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      mb: 0.5, 
-                      color: 'text.secondary', 
-                      fontSize: { xs: '0.7rem', sm: '0.75rem' } 
-                    }}
-                  >
-                    Type
-                  </Typography>
-                  <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
-                    <Select
-                      value={typeFilter}
-                      onChange={(e) => setTypeFilter(e.target.value)}
-                      MenuProps={{
-                        PaperProps: {
-                          style: {
-                            maxHeight: 300
-                          }
-                        }
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon color="action" />
+                          </InputAdornment>
+                        ),
+                        endAdornment: searchQuery && (
+                          <InputAdornment position="end">
+                            <IconButton
+                              size="small"
+                              onClick={() => setSearchQuery('')}
+                              sx={{ minWidth: 'auto', p: 0.5 }}
+                            >
+                              <ClearIcon fontSize="small" />
+                            </IconButton>
+                          </InputAdornment>
+                        )
                       }}
-                      sx={{
-                        fontSize: { xs: '0.875rem', sm: '1rem' },
-                        '& .MuiInputLabel-root': {
-                          display: 'none'
-                        }
+                    />
+                  </Box>
+                </Box>
+
+                {/* Status Filter */}
+                <Box sx={{ 
+                  width: '18%',
+                  flex: '0 0 18%',
+                  minWidth: 0 
+                }}>
+                  <Box>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        mb: 0.5, 
+                        color: 'text.secondary', 
+                        fontSize: '0.75rem' 
                       }}
                     >
-                      <MenuItem value="all">All Types</MenuItem>
-                      <MenuItem value="General">General</MenuItem>
-                      {attendeeTypes.map(type => (
-                        <MenuItem key={type} value={type}>{type}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Box>
-              </Box>
-
-              {/* Tag Filter */}
-              <Box sx={{ 
-                width: { xs: '100%', md: 'auto' },
-                flex: { xs: '1 1 auto', md: '1 1 auto' },
-                minWidth: 0 
-              }}>
-                <Box>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      mb: 0.5, 
-                      color: 'text.secondary', 
-                      fontSize: { xs: '0.7rem', sm: '0.75rem' } 
-                    }}
-                  >
-                    Tags
-                  </Typography>
-                  <Autocomplete
-                    multiple
-                    size="small"
-                    options={canManageEvents ? [...allTags, '__CREATE_TAG__'] : allTags}
-                    sx={{
-                      '& .MuiAutocomplete-inputRoot': {
-                        padding: { xs: '6px 10px', sm: '8px 12px' },
-                        minWidth: 0,
-                        fontSize: { xs: '0.875rem', sm: '1rem' }
-                      },
-                      '& .MuiAutocomplete-tag': {
-                        maxWidth: { xs: 'calc(100% - 4px)', sm: 'calc(100% - 8px)' },
-                        fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                        height: { xs: 24, sm: 28 },
-                        '& .MuiChip-label': {
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          paddingLeft: { xs: '6px', sm: '8px' },
-                          paddingRight: { xs: '6px', sm: '8px' }
-                        }
-                      }
-                    }}
-                    value={tagFilter}
-                    onChange={(event, newValue) => {
-                      // Check if the create tag option was selected
-                      if (newValue.includes('__CREATE_TAG__')) {
-                        // Remove the create tag option from selection
-                        const filtered = newValue.filter(v => v !== '__CREATE_TAG__');
-                        setTagFilter(filtered);
-                        // Open the create tag dialog
-                        setNewTagName('');
-                        handleOpenTagDialog();
-                      } else {
-                        setTagFilter(newValue);
-                      }
-                    }}
-                    getOptionLabel={(option) => {
-                      if (option === '__CREATE_TAG__') return '+ Create Tag';
-                      return option;
-                    }}
-                    renderOption={(props, option) => {
-                      if (option === '__CREATE_TAG__') {
-                        return (
-                          <Box
-                            {...props}
-                            key="__CREATE_TAG__"
-                            sx={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 1,
-                              py: 1,
-                              px: 2,
-                              borderTop: '1px solid',
-                              borderColor: 'divider',
-                              mt: 1,
-                              cursor: 'pointer',
-                              '&:hover': {
-                                backgroundColor: 'action.hover'
-                              }
-                            }}
-                          >
-                            <AddIcon fontSize="small" color="primary" />
-                            <Typography variant="body2" color="primary">
-                              + Create Tag
-                            </Typography>
-                          </Box>
-                        );
-                      }
-                      
-                      // Find the tag object to get its color
-                      const tagObj = availableTags.find(t => t.name === option);
-                      const tagColor = tagObj?.color || '#1976d2';
-                      
-                      return (
-                        <Box
-                          {...props}
-                          key={option}
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1,
-                            py: 0.5,
-                            px: 1
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              width: 12,
-                              height: 12,
-                              borderRadius: '50%',
-                              backgroundColor: tagColor,
-                              flexShrink: 0
-                            }}
-                          />
-                          <Typography variant="body2">{option}</Typography>
-                        </Box>
-                      );
-                    }}
-                    renderInput={(params) => (
-                      <TextField 
-                        {...params} 
-                        placeholder={isMobile ? "Tags..." : ""}
-                        InputProps={{
-                          ...params.InputProps,
-                          style: { 
-                            paddingTop: isMobile ? '6px' : '8px',
-                            paddingBottom: isMobile ? '6px' : '8px'
-                          }
-                        }}
-                        inputProps={{
-                          ...params.inputProps,
-                          style: { 
-                            padding: 0,
-                            margin: 0
+                      Status
+                    </Typography>
+                    <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
+                      <Select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        MenuProps={{
+                          PaperProps: {
+                            style: {
+                              maxHeight: 300
+                            }
                           }
                         }}
                         sx={{
+                          fontSize: '1rem',
                           '& .MuiInputLabel-root': {
                             display: 'none'
                           }
                         }}
-                      />
-                    )}
-                    renderTags={(value, getTagProps) =>
-                      value.map((option, index) => {
-                        if (option === '__CREATE_TAG__') return null;
+                      >
+                        <MenuItem value="all">All Status</MenuItem>
+                        <MenuItem value="not-picked-up">Not Picked Up</MenuItem>
+                        <MenuItem value="partially-picked-up">Partially Picked Up</MenuItem>
+                        <MenuItem value="fully-picked-up">Fully Picked Up</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+                </Box>
+
+                {/* Type Filter */}
+                <Box sx={{ 
+                  width: '18%',
+                  flex: '0 0 18%',
+                  minWidth: 0 
+                }}>
+                  <Box>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        mb: 0.5, 
+                        color: 'text.secondary', 
+                        fontSize: '0.75rem' 
+                      }}
+                    >
+                      Type
+                    </Typography>
+                    <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
+                      <Select
+                        value={typeFilter}
+                        onChange={(e) => setTypeFilter(e.target.value)}
+                        MenuProps={{
+                          PaperProps: {
+                            style: {
+                              maxHeight: 300
+                            }
+                          }
+                        }}
+                        sx={{
+                          fontSize: '1rem',
+                          '& .MuiInputLabel-root': {
+                            display: 'none'
+                          }
+                        }}
+                      >
+                        <MenuItem value="all">All Types</MenuItem>
+                        <MenuItem value="General">General</MenuItem>
+                        {attendeeTypes.map(type => (
+                          <MenuItem key={type} value={type}>{type}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Box>
+                </Box>
+
+                {/* Tag Filter */}
+                <Box sx={{ 
+                  width: 'auto',
+                  flex: '1 1 auto',
+                  minWidth: 0 
+                }}>
+                  <Box>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        mb: 0.5, 
+                        color: 'text.secondary', 
+                        fontSize: '0.75rem' 
+                      }}
+                    >
+                      Tags
+                    </Typography>
+                    <Autocomplete
+                      multiple
+                      size="small"
+                      options={canManageEvents ? [...allTags, '__CREATE_TAG__'] : allTags}
+                      sx={{
+                        '& .MuiAutocomplete-inputRoot': {
+                          padding: '8px 12px',
+                          minWidth: 0,
+                          fontSize: '1rem'
+                        },
+                        '& .MuiAutocomplete-tag': {
+                          maxWidth: 'calc(100% - 8px)',
+                          fontSize: '0.75rem',
+                          height: 28,
+                          '& .MuiChip-label': {
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            paddingLeft: '8px',
+                            paddingRight: '8px'
+                          }
+                        }
+                      }}
+                      value={tagFilter}
+                      onChange={(event, newValue) => {
+                        // Check if the create tag option was selected
+                        if (newValue.includes('__CREATE_TAG__')) {
+                          // Remove the create tag option from selection
+                          const filtered = newValue.filter(v => v !== '__CREATE_TAG__');
+                          setTagFilter(filtered);
+                          // Open the create tag dialog
+                          setNewTagName('');
+                          handleOpenTagDialog();
+                        } else {
+                          setTagFilter(newValue);
+                        }
+                      }}
+                      getOptionLabel={(option) => {
+                        if (option === '__CREATE_TAG__') return '+ Create Tag';
+                        return option;
+                      }}
+                      renderOption={(props, option) => {
+                        if (option === '__CREATE_TAG__') {
+                          return (
+                            <Box
+                              {...props}
+                              key="__CREATE_TAG__"
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                py: 1,
+                                px: 2,
+                                borderTop: '1px solid',
+                                borderColor: 'divider',
+                                mt: 1,
+                                cursor: 'pointer',
+                                '&:hover': {
+                                  backgroundColor: 'action.hover'
+                                }
+                              }}
+                            >
+                              <AddIcon fontSize="small" color="primary" />
+                              <Typography variant="body2" color="primary">
+                                + Create Tag
+                              </Typography>
+                            </Box>
+                          );
+                        }
+                        
+                        // Find the tag object to get its color
                         const tagObj = availableTags.find(t => t.name === option);
                         const tagColor = tagObj?.color || '#1976d2';
+                        
                         return (
-                          <Chip
-                            {...getTagProps({ index })}
+                          <Box
+                            {...props}
                             key={option}
-                            label={option}
-                            size="small"
-                            sx={{ 
-                              borderRadius: 1, 
-                              fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                              backgroundColor: `${tagColor} !important`,
-                              color: 'white !important',
-                              height: { xs: 24, sm: 28 },
-                              '& .MuiChip-label': {
-                                color: 'white !important',
-                                paddingLeft: { xs: '6px', sm: '8px' },
-                                paddingRight: { xs: '6px', sm: '8px' }
-                              },
-                              '& .MuiChip-deleteIcon': {
-                                color: 'white !important',
-                                fontSize: { xs: '16px', sm: '18px' }
-                              }
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                              py: 0.5,
+                              px: 1
                             }}
-                          />
+                          >
+                            <Box
+                              sx={{
+                                width: 12,
+                                height: 12,
+                                borderRadius: '50%',
+                                backgroundColor: tagColor,
+                                flexShrink: 0
+                              }}
+                            />
+                            <Typography variant="body2">{option}</Typography>
+                          </Box>
                         );
-                      })
-                    }
-                    isOptionEqualToValue={(option, value) => {
-                      if (option === '__CREATE_TAG__' || value === '__CREATE_TAG__') {
-                        return false;
+                      }}
+                      renderInput={(params) => (
+                        <TextField 
+                          {...params} 
+                          placeholder=""
+                          InputProps={{
+                            ...params.InputProps,
+                            style: { 
+                              paddingTop: '8px',
+                              paddingBottom: '8px'
+                            }
+                          }}
+                          inputProps={{
+                            ...params.inputProps,
+                            style: { 
+                              padding: 0,
+                              margin: 0
+                            }
+                          }}
+                          sx={{
+                            '& .MuiInputLabel-root': {
+                              display: 'none'
+                            }
+                          }}
+                        />
+                      )}
+                      renderTags={(value, getTagProps) =>
+                        value.map((option, index) => {
+                          if (option === '__CREATE_TAG__') return null;
+                          const tagObj = availableTags.find(t => t.name === option);
+                          const tagColor = tagObj?.color || '#1976d2';
+                          return (
+                            <Chip
+                              {...getTagProps({ index })}
+                              key={option}
+                              label={option}
+                              size="small"
+                              sx={{ 
+                                borderRadius: 1, 
+                                fontSize: '0.75rem',
+                                backgroundColor: `${tagColor} !important`,
+                                color: 'white !important',
+                                height: 28,
+                                '& .MuiChip-label': {
+                                  color: 'white !important',
+                                  paddingLeft: '8px',
+                                  paddingRight: '8px'
+                                },
+                                '& .MuiChip-deleteIcon': {
+                                  color: 'white !important',
+                                  fontSize: '18px'
+                                }
+                              }}
+                            />
+                          );
+                        })
                       }
-                      return option === value;
+                      isOptionEqualToValue={(option, value) => {
+                        if (option === '__CREATE_TAG__' || value === '__CREATE_TAG__') {
+                          return false;
+                        }
+                        return option === value;
+                      }}
+                      filterOptions={(options, params) => {
+                        // Filter out __CREATE_TAG__ from regular filtering
+                        const filtered = options.filter(option => {
+                          if (option === '__CREATE_TAG__') return true;
+                          return option.toLowerCase().includes(params.inputValue.toLowerCase());
+                        });
+                        
+                        // Always show create tag option at the bottom if user can modify
+                        if (canManageEvents && !filtered.includes('__CREATE_TAG__')) {
+                          filtered.push('__CREATE_TAG__');
+                        }
+                        
+                        return filtered;
+                      }}
+                    />
+                  </Box>
+                </Box>
+
+                {/* Clear Filters */}
+                <Box sx={{ 
+                  width: 'auto',
+                  flex: '0 0 auto',
+                  minWidth: 0 
+                }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={clearAllFilters}
+                    startIcon={<ClearIcon />}
+                    sx={{ 
+                      height: '40px',
+                      mt: 0.5,
+                      fontSize: '1rem'
                     }}
-                    filterOptions={(options, params) => {
-                      // Filter out __CREATE_TAG__ from regular filtering
-                      const filtered = options.filter(option => {
-                        if (option === '__CREATE_TAG__') return true;
-                        return option.toLowerCase().includes(params.inputValue.toLowerCase());
-                      });
-                      
-                      // Always show create tag option at the bottom if user can modify
-                      if (canManageEvents && !filtered.includes('__CREATE_TAG__')) {
-                        filtered.push('__CREATE_TAG__');
-                      }
-                      
-                      return filtered;
-                    }}
-                  />
+                  >
+                    Clear
+                  </Button>
                 </Box>
               </Box>
-
-              {/* Clear Filters */}
-              <Box sx={{ 
-                width: { xs: '100%', md: 'auto' },
-                flex: { xs: '1 1 auto', md: '0 0 auto' },
-                minWidth: 0 
-              }}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={clearAllFilters}
-                  startIcon={<ClearIcon />}
-                  fullWidth={isMobile}
-                  sx={{ 
-                    height: { xs: '40px', sm: '40px' },
-                    mt: { xs: 0, md: 0.5 },
-                    fontSize: { xs: '0.875rem', sm: '1rem' }
-                  }}
-                >
-                  Clear
-                </Button>
-              </Box>
             </Box>
-          </Box>
+          </>
+        )}
 
-        <CardContent sx={{ pt: 0 }}>
+        <CardContent sx={{ pt: 0, px: { xs: 0, sm: 3 }, pb: { xs: 1, sm: 3 } }}>
           {/* Table or Cards */}
           {isMobile ? (
             <Box>
               {filteredAndSortedGuests.length === 0 ? (
-                <Box sx={{ textAlign: 'center', py: 6 }}>
+                <Box sx={{ textAlign: 'center', py: 6, px: 2 }}>
                   <FilterIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
                   <Typography variant="h6" color="text.secondary">
                     No guests match your filters
@@ -1401,22 +1438,13 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                   </Button>
                 </Box>
               ) : (
-                <>
-                  {canManageEvents && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
-                      <Checkbox
-                        indeterminate={isIndeterminate()}
-                        checked={isAllPageSelected()}
-                        onChange={handleSelectAll}
-                        color="primary"
-                      />
-                      <Typography variant="body2" color="text.secondary">
-                        Select all on this page
-                      </Typography>
-                    </Box>
-                  )}
+                <Box sx={{ 
+                  backgroundColor: 'background.paper',
+                  borderRadius: { xs: 0, sm: 1 },
+                  overflow: 'hidden'
+                }}>
                   {filteredAndSortedGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map(guest => renderGuestCard(guest))}
-                </>
+                </Box>
               )}
             </Box>
           ) : (
@@ -1428,11 +1456,20 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                       <TableCell />
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'name'}
-                          direction={sortBy === 'name' ? sortOrder : 'asc'}
-                          onClick={() => handleSort('name')}
+                          active={sortBy === 'lastName'}
+                          direction={sortBy === 'lastName' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('lastName')}
                         >
-                          Name
+                          Last Name
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell>
+                        <TableSortLabel
+                          active={sortBy === 'firstName'}
+                          direction={sortBy === 'firstName' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('firstName')}
+                        >
+                          First Name
                         </TableSortLabel>
                       </TableCell>
                       <TableCell>
@@ -1529,14 +1566,10 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                             </Button>
                           </TableCell>
                           <TableCell>
-                            <Box display="flex" alignItems="center" gap={1}>
-                              <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
-                            </Box>
-                            {guest.jobTitle && (
-                              <Typography variant="caption" color="textSecondary">
-                                {guest.jobTitle}
-                              </Typography>
-                            )}
+                            <Typography variant="subtitle2">{guest.lastName || ''}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="subtitle2">{guest.firstName || ''}</Typography>
                           </TableCell>
                           <TableCell>{guest.email || 'No email'}</TableCell>
                           <TableCell>
@@ -1647,8 +1680,8 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
           onPageChange={handleChangePage}
           rowsPerPage={rowsPerPage}
           onRowsPerPageChange={handleChangeRowsPerPage}
-          rowsPerPageOptions={[10, 25, 50, 100]}
-          labelRowsPerPage="Guests per page"
+          rowsPerPageOptions={isMobile ? [100] : [10, 25, 50, 100]}
+          labelRowsPerPage={isMobile ? "" : "Guests per page"}
           sx={{ 
             '& .MuiTablePagination-toolbar': {
               flexWrap: 'wrap',
@@ -1658,13 +1691,25 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
               paddingRight: { xs: '8px', sm: '16px' }
             },
             '& .MuiTablePagination-selectLabel': {
-              fontSize: { xs: '0.75rem', sm: '0.875rem' }
+              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+              display: { xs: 'none', sm: 'block' }
+            },
+            '& .MuiTablePagination-select': {
+              display: { xs: 'none', sm: 'block' }
             },
             '& .MuiTablePagination-displayedRows': {
-              fontSize: { xs: '0.75rem', sm: '0.875rem' }
+              fontSize: { xs: '0.875rem', sm: '0.875rem' },
+              fontWeight: { xs: 500, sm: 400 }
             },
             '& .MuiTablePagination-spacer': {
               display: 'none'
+            },
+            '& .MuiIconButton-root': {
+              padding: { xs: '12px', sm: '8px' },
+              fontSize: { xs: '1.5rem', sm: '1.25rem' }
+            },
+            '& .MuiSvgIcon-root': {
+              fontSize: { xs: '2rem', sm: '1.5rem' }
             }
           }}
         />
@@ -1735,6 +1780,129 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
             startIcon={deleting ? <CircularProgress size={20} /> : <DeleteIcon />}
           >
             {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Mobile Filters Dialog */}
+      <Dialog
+        open={showMobileFilters}
+        onClose={() => setShowMobileFilters(false)}
+        fullScreen={isMobile}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Filters
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 2 }}>
+            {/* Type Filter */}
+            <FormControl fullWidth>
+              <InputLabel>Attendee Type</InputLabel>
+              <Select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                label="Attendee Type"
+              >
+                <MenuItem value="all">All Types</MenuItem>
+                <MenuItem value="General">General</MenuItem>
+                {attendeeTypes.map(type => (
+                  <MenuItem key={type} value={type}>{type}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Tag Filter */}
+            <Autocomplete
+              multiple
+              options={canManageEvents ? [...allTags, '__CREATE_TAG__'] : allTags}
+              value={tagFilter}
+              onChange={(event, newValue) => {
+                if (newValue.includes('__CREATE_TAG__')) {
+                  const filtered = newValue.filter(v => v !== '__CREATE_TAG__');
+                  setTagFilter(filtered);
+                  setNewTagName('');
+                  handleOpenTagDialog();
+                } else {
+                  setTagFilter(newValue);
+                }
+              }}
+              getOptionLabel={(option) => {
+                if (option === '__CREATE_TAG__') return '+ Create Tag';
+                return option;
+              }}
+              renderOption={(props, option) => {
+                if (option === '__CREATE_TAG__') {
+                  return (
+                    <Box {...props} key="__CREATE_TAG__" sx={{ py: 1, px: 2, borderTop: '1px solid', borderColor: 'divider', mt: 1 }}>
+                      <AddIcon fontSize="small" color="primary" sx={{ mr: 1 }} />
+                      <Typography variant="body2" color="primary">+ Create Tag</Typography>
+                    </Box>
+                  );
+                }
+                const tagObj = availableTags.find(t => t.name === option);
+                const tagColor = tagObj?.color || '#1976d2';
+                return (
+                  <Box {...props} key={option} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
+                    <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: tagColor }} />
+                    <Typography variant="body2">{option}</Typography>
+                  </Box>
+                );
+              }}
+              renderInput={(params) => (
+                <TextField {...params} label="Tags" placeholder="Select tags" />
+              )}
+              renderTags={(value, getTagProps) =>
+                value.map((option, index) => {
+                  if (option === '__CREATE_TAG__') return null;
+                  const tagObj = availableTags.find(t => t.name === option);
+                  const tagColor = tagObj?.color || '#1976d2';
+                  return (
+                    <Chip
+                      {...getTagProps({ index })}
+                      key={option}
+                      label={option}
+                      size="small"
+                      sx={{
+                        backgroundColor: `${tagColor} !important`,
+                        color: 'white !important',
+                        '& .MuiChip-label': { color: 'white !important' },
+                        '& .MuiChip-deleteIcon': { color: 'white !important' }
+                      }}
+                    />
+                  );
+                })
+              }
+              isOptionEqualToValue={(option, value) => {
+                if (option === '__CREATE_TAG__' || value === '__CREATE_TAG__') return false;
+                return option === value;
+              }}
+              filterOptions={(options, params) => {
+                const filtered = options.filter(option => {
+                  if (option === '__CREATE_TAG__') return true;
+                  return option.toLowerCase().includes(params.inputValue.toLowerCase());
+                });
+                if (canManageEvents && !filtered.includes('__CREATE_TAG__')) {
+                  filtered.push('__CREATE_TAG__');
+                }
+                return filtered;
+              }}
+            />
+
+            <Button
+              variant="outlined"
+              onClick={clearAllFilters}
+              startIcon={<ClearIcon />}
+              fullWidth
+            >
+              Clear All Filters
+            </Button>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowMobileFilters(false)} variant="contained" fullWidth>
+            Done
           </Button>
         </DialogActions>
       </Dialog>

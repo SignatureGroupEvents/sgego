@@ -22,11 +22,13 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
+  const { canManageUsers, isStaff } = usePermissions();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -34,6 +36,11 @@ const Header = () => {
   const [eventsMenuAnchor, setEventsMenuAnchor] = React.useState(null);
 
   const menuItems = [
+    {
+      label: 'My Events',
+      icon: <HomeIcon />,
+      path: '/dashboard'  
+    },
     {
       label: 'Events',
       icon: <EventIcon />,
@@ -53,12 +60,8 @@ const Header = () => {
       label: 'Help',
       icon: <HelpIcon />,
       path: '/help'
-    },
-    {
-      label: 'My Events',
-      icon: <HomeIcon />,
-      path: '/dashboard'  
     }
+ 
   ];
 
   const isActive = (path) => {
@@ -139,42 +142,46 @@ const Header = () => {
               >
                 My Dashboard
               </Button>
-            <Button
-              startIcon={<EventIcon sx={{ color: isActive('/events') ? 'white' : 'inherit' }} />}
-              onClick={() => navigate('/events')}
-              sx={{
-                color: isActive('/events') ? 'white' : 'text.secondary',
-                backgroundColor: isActive('/events') ? '#25c6da' : 'transparent',
-                '&:hover': {
-                  backgroundColor: isActive('/events') ? '#1ba9b5' : 'action.hover',
-                  color: isActive('/events') ? 'white' : 'text.primary'
-                },
-                fontWeight: 600,
-                borderRadius: 2,
-                px: 2,
-                py: 1
-              }}
-            >
-              Events
-            </Button>
-            <Button
-              startIcon={<PersonIcon sx={{ color: isActive('/account') ? 'white' : 'inherit' }} />}
-              onClick={() => navigate('/account')}
-              sx={{
-                color: isActive('/account') ? 'white' : 'text.secondary',
-                backgroundColor: isActive('/account') ? '#25c6da' : 'transparent',
-                '&:hover': {
-                  backgroundColor: isActive('/account') ? '#1ba9b5' : 'action.hover',
-                  color: isActive('/account') ? 'white' : 'text.primary'
-                },
-                fontWeight: 600,
-                borderRadius: 2,
-                px: 2,
-                py: 1
-              }}
-            >
-              User Management
-            </Button>
+            {!isStaff && (
+              <Button
+                startIcon={<EventIcon sx={{ color: isActive('/events') ? 'white' : 'inherit' }} />}
+                onClick={() => navigate('/events')}
+                sx={{
+                  color: isActive('/events') ? 'white' : 'text.secondary',
+                  backgroundColor: isActive('/events') ? '#25c6da' : 'transparent',
+                  '&:hover': {
+                    backgroundColor: isActive('/events') ? '#1ba9b5' : 'action.hover',
+                    color: isActive('/events') ? 'white' : 'text.primary'
+                  },
+                  fontWeight: 600,
+                  borderRadius: 2,
+                  px: 2,
+                  py: 1
+                }}
+              >
+                Events
+              </Button>
+            )}
+            {canManageUsers && (
+              <Button
+                startIcon={<PersonIcon sx={{ color: isActive('/account') ? 'white' : 'inherit' }} />}
+                onClick={() => navigate('/account')}
+                sx={{
+                  color: isActive('/account') ? 'white' : 'text.secondary',
+                  backgroundColor: isActive('/account') ? '#25c6da' : 'transparent',
+                  '&:hover': {
+                    backgroundColor: isActive('/account') ? '#1ba9b5' : 'action.hover',
+                    color: isActive('/account') ? 'white' : 'text.primary'
+                  },
+                  fontWeight: 600,
+                  borderRadius: 2,
+                  px: 2,
+                  py: 1
+                }}
+              >
+                User Management
+              </Button>
+            )}
             <Button
               startIcon={<PersonIcon sx={{ color: isActive('/profile') ? 'white' : 'inherit' }} />}
               onClick={() => navigate('/profile')}
@@ -257,23 +264,35 @@ const Header = () => {
             horizontal: 'right',
           }}
         >
-          {menuItems.map((item) => (
-            <MenuItem
-              key={item.path}
-              onClick={() => handleNavigation(item.path)}
-              sx={{
-                backgroundColor: isActive(item.path) ? 'primary.light' : 'transparent',
-                color: isActive(item.path) ? 'primary.main' : 'text.primary',
-                fontWeight: isActive(item.path) ? 600 : 400,
-                minWidth: 150
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {item.icon}
-                {item.label}
-              </Box>
-            </MenuItem>
-          ))}
+          {menuItems
+            .filter(item => {
+              // Hide Account/User Management for staff
+              if (item.path === '/account' && !canManageUsers) {
+                return false;
+              }
+              // Hide Events for staff
+              if (item.path === '/events' && isStaff) {
+                return false;
+              }
+              return true;
+            })
+            .map((item) => (
+              <MenuItem
+                key={item.path}
+                onClick={() => handleNavigation(item.path)}
+                sx={{
+                  backgroundColor: isActive(item.path) ? 'primary.light' : 'transparent',
+                  color: isActive(item.path) ? 'primary.main' : 'text.primary',
+                  fontWeight: isActive(item.path) ? 600 : 400,
+                  minWidth: 150
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {item.icon}
+                  {item.label}
+                </Box>
+              </MenuItem>
+            ))}
           <MenuItem
             onClick={handleLogout}
             sx={{
