@@ -80,7 +80,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [tagFilter, setTagFilter] = useState([]);
-  const [sortBy, setSortBy] = useState('name');
+  const [sortBy, setSortBy] = useState('lastName');
   const [sortOrder, setSortOrder] = useState('asc');
   
   // Pagination state
@@ -384,7 +384,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
     setStatusFilter('all');
     setTypeFilter('all');
     setTagFilter([]);
-    setSortBy('name');
+    setSortBy('lastName');
     setSortOrder('asc');
     setPage(0);
   };
@@ -677,9 +677,23 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
       let aValue, bValue;
       
       switch (sortBy) {
-        case 'name':
-          aValue = `${a.firstName} ${a.lastName}`.toLowerCase();
-          bValue = `${b.firstName} ${b.lastName}`.toLowerCase();
+        case 'lastName':
+          aValue = (a.lastName || '').toLowerCase();
+          bValue = (b.lastName || '').toLowerCase();
+          // If last names are equal, sort by first name
+          if (aValue === bValue) {
+            aValue = (a.firstName || '').toLowerCase();
+            bValue = (b.firstName || '').toLowerCase();
+          }
+          break;
+        case 'firstName':
+          aValue = (a.firstName || '').toLowerCase();
+          bValue = (b.firstName || '').toLowerCase();
+          // If first names are equal, sort by last name
+          if (aValue === bValue) {
+            aValue = (a.lastName || '').toLowerCase();
+            bValue = (b.lastName || '').toLowerCase();
+          }
           break;
         case 'email':
           aValue = (a.email || '').toLowerCase();
@@ -1428,11 +1442,20 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                       <TableCell />
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'name'}
-                          direction={sortBy === 'name' ? sortOrder : 'asc'}
-                          onClick={() => handleSort('name')}
+                          active={sortBy === 'lastName'}
+                          direction={sortBy === 'lastName' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('lastName')}
                         >
-                          Name
+                          Last Name
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell>
+                        <TableSortLabel
+                          active={sortBy === 'firstName'}
+                          direction={sortBy === 'firstName' ? sortOrder : 'asc'}
+                          onClick={() => handleSort('firstName')}
+                        >
+                          First Name
                         </TableSortLabel>
                       </TableCell>
                       <TableCell>
@@ -1529,14 +1552,10 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                             </Button>
                           </TableCell>
                           <TableCell>
-                            <Box display="flex" alignItems="center" gap={1}>
-                              <Typography variant="subtitle2">{guest.firstName} {guest.lastName}</Typography>
-                            </Box>
-                            {guest.jobTitle && (
-                              <Typography variant="caption" color="textSecondary">
-                                {guest.jobTitle}
-                              </Typography>
-                            )}
+                            <Typography variant="subtitle2">{guest.lastName || ''}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="subtitle2">{guest.firstName || ''}</Typography>
                           </TableCell>
                           <TableCell>{guest.email || 'No email'}</TableCell>
                           <TableCell>
