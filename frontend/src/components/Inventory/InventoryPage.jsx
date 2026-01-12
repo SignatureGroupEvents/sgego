@@ -79,7 +79,7 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   // Pick-up modal field display preferences (stored in localStorage)
-  const [pickupFieldPreferences, setPickupFieldPreferences] = useState(() => {
+  const [savedPickupFieldPreferences, setSavedPickupFieldPreferences] = useState(() => {
     const saved = localStorage.getItem('inventoryPickupFieldPreferences');
     if (saved) {
       try {
@@ -92,10 +92,23 @@ const InventoryPage = ({ eventId, eventName }) => {
     return { type: false, brand: true, product: false, size: false, gender: false, color: false };
   });
 
+  // Temporary preferences (not saved yet)
+  const [pickupFieldPreferences, setPickupFieldPreferences] = useState(savedPickupFieldPreferences);
+
+  // Update temporary preferences when saved preferences change
+  React.useEffect(() => {
+    setPickupFieldPreferences(savedPickupFieldPreferences);
+  }, [savedPickupFieldPreferences]);
+
   const handlePickupFieldToggle = (field) => {
     const updated = { ...pickupFieldPreferences, [field]: !pickupFieldPreferences[field] };
     setPickupFieldPreferences(updated);
-    localStorage.setItem('inventoryPickupFieldPreferences', JSON.stringify(updated));
+  };
+
+  const handleSavePickupFieldPreferences = () => {
+    setSavedPickupFieldPreferences(pickupFieldPreferences);
+    localStorage.setItem('inventoryPickupFieldPreferences', JSON.stringify(pickupFieldPreferences));
+    setSuccess('Pick-up modal display settings saved successfully!');
   };
 
   // Predefined types in alphabetical order
@@ -926,6 +939,16 @@ const InventoryPage = ({ eventId, eventName }) => {
                 />
                 <Typography>Size</Typography>
               </Box>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleSavePickupFieldPreferences}
+                startIcon={<SaveIcon />}
+              >
+                Save Settings
+              </Button>
             </Box>
           </CardContent>
         </Card>
