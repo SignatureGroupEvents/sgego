@@ -81,7 +81,7 @@ const InventoryPage = ({ eventId, eventName }) => {
   // Pick-up modal field display preferences (stored in backend)
   const getDefaultPreferences = () => ({
     type: false,
-    brand: true,
+    brand: false,
     product: false,
     size: false,
     gender: false,
