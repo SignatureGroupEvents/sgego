@@ -15,7 +15,7 @@ import {
 import { fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, bulkDeleteInventory, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
 import { useParams, useNavigate } from 'react-router-dom';
 import MainLayout from '../layout/MainLayout';
-import { getEvent } from '../../services/events';
+import { getEvent, updatePickupFieldPreferences } from '../../services/events';
 import api from '../../services/api';
 import EventIcon from '@mui/icons-material/Event';
 import EventHeader from '../Events/EventHeader';
@@ -78,37 +78,59 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [showEditTypeInput, setShowEditTypeInput] = useState(false);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
-  // Pick-up modal field display preferences (stored in localStorage)
-  const [savedPickupFieldPreferences, setSavedPickupFieldPreferences] = useState(() => {
-    const saved = localStorage.getItem('inventoryPickupFieldPreferences');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return { type: false, brand: true, product: false, size: true, gender: false, color: false };
-      }
-    }
-    // Default: show Brand and Size
-    return { type: false, brand: true, product: false, size: false, gender: false, color: false };
+  // Pick-up modal field display preferences (stored in backend)
+  const getDefaultPreferences = () => ({
+    type: false,
+    brand: true,
+    product: false,
+    size: false,
+    gender: false,
+    color: false
   });
 
-  // Temporary preferences (not saved yet)
-  const [pickupFieldPreferences, setPickupFieldPreferences] = useState(savedPickupFieldPreferences);
+  const [pickupFieldPreferences, setPickupFieldPreferences] = useState(getDefaultPreferences());
+  const [savingPreferences, setSavingPreferences] = useState(false);
 
-  // Update temporary preferences when saved preferences change
+  // Load preferences from event when event is fetched
   React.useEffect(() => {
-    setPickupFieldPreferences(savedPickupFieldPreferences);
-  }, [savedPickupFieldPreferences]);
+    if (event?.pickupFieldPreferences) {
+      // Merge with defaults to ensure all fields are present
+      const prefs = { ...getDefaultPreferences(), ...event.pickupFieldPreferences };
+      setPickupFieldPreferences(prefs);
+    } else if (event) {
+      // Event exists but no preferences set, use defaults
+      setPickupFieldPreferences(getDefaultPreferences());
+    }
+  }, [event]);
 
   const handlePickupFieldToggle = (field) => {
     const updated = { ...pickupFieldPreferences, [field]: !pickupFieldPreferences[field] };
     setPickupFieldPreferences(updated);
   };
 
-  const handleSavePickupFieldPreferences = () => {
-    setSavedPickupFieldPreferences(pickupFieldPreferences);
-    localStorage.setItem('inventoryPickupFieldPreferences', JSON.stringify(pickupFieldPreferences));
-    setSuccess('Pick-up modal display settings saved successfully!');
+  const handleSavePickupFieldPreferences = async () => {
+    if (!eventId) {
+      setError('Event ID is required to save preferences.');
+      return;
+    }
+
+    setSavingPreferences(true);
+    setError('');
+    try {
+      await updatePickupFieldPreferences(eventId, pickupFieldPreferences);
+      setSuccess('Pick-up modal display settings saved successfully!');
+      // Reload event to get updated preferences
+      const updatedEvent = await getEvent(eventId);
+      setEvent(updatedEvent);
+    } catch (err) {
+      if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
+        setError('Unable to connect to server. Please ensure the backend server is running.');
+      } else {
+        setError(err.response?.data?.message || 'Failed to save pick-up modal display settings.');
+      }
+    } finally {
+      setSavingPreferences(false);
+    }
   };
 
   // Predefined types in alphabetical order
@@ -945,9 +967,10 @@ const InventoryPage = ({ eventId, eventName }) => {
                 variant="contained"
                 color="primary"
                 onClick={handleSavePickupFieldPreferences}
-                startIcon={<SaveIcon />}
+                startIcon={savingPreferences ? <CircularProgress size={20} /> : <SaveIcon />}
+                disabled={savingPreferences}
               >
-                Save Settings
+                {savingPreferences ? 'Saving...' : 'Save Settings'}
               </Button>
             </Box>
           </CardContent>

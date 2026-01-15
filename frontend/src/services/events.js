@@ -51,4 +51,9 @@ export const getEventAnalytics = async (eventId) => {
 export const getUserAssignedEvents = async () => {
   const res = await api.get('/users/assigned-events');
   return res.data.assignedEvents;
+};
+
+export const updatePickupFieldPreferences = async (eventId, preferences) => {
+  const res = await api.put(`/events/${eventId}/pickup-field-preferences`, { pickupFieldPreferences: preferences });
+  return res.data;
 }; 

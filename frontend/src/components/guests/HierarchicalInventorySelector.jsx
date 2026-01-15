@@ -8,30 +8,18 @@ import {
   Typography
 } from '@mui/material';
 
-const HierarchicalInventorySelector = ({ inventory, value, onChange, eventName }) => {
-  // Get pick-up modal field display preferences from localStorage
-  const getPickupFieldPreferences = () => {
-    const saved = localStorage.getItem('inventoryPickupFieldPreferences');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Ensure all fields are present with defaults
-        return {
-          type: parsed.type ?? false,
-          brand: parsed.brand ?? true,
-          product: parsed.product ?? false,
-          size: parsed.size ?? false,
-          gender: parsed.gender ?? false,
-          color: parsed.color ?? false
-        };
-      } catch (e) {
-        return { type: false, brand: true, product: false, size: false, gender: false, color: false };
-      }
-    }
-    return { type: false, brand: true, product: false, size: false, gender: false, color: false };
-  };
+const HierarchicalInventorySelector = ({ inventory, value, onChange, eventName, pickupFieldPreferences }) => {
+  // Get pick-up modal field display preferences from props or use defaults
+  const getDefaultPreferences = () => ({
+    type: false,
+    brand: true,
+    product: false,
+    size: false,
+    gender: false,
+    color: false
+  });
 
-  const prefs = getPickupFieldPreferences();
+  const prefs = pickupFieldPreferences || getDefaultPreferences();
   
   // Determine the order of fields based on what's selected
   // Order: Type -> Brand -> Gender -> Product -> Color -> Size
