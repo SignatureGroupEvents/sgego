@@ -433,8 +433,8 @@ export default function GuestDetailPage() {
 
     return (
         <MainLayout eventName={event?.eventName} userName={guest.firstName + ' ' + guest.lastName}>
-            <Box sx={{ minHeight: '100vh', py: 4, px: 2 }}>
-                <Box sx={{ maxWidth: 1200, mx: 'auto', backgroundColor: 'background.paper', borderRadius: 2, p: 4}}>
+            <Box sx={{ minHeight: '100vh', py: { xs: 2, sm: 4 }, px: { xs: 1, sm: 2 } }}>
+                <Box sx={{ maxWidth: { xs: '100%', sm: 1200 }, mx: 'auto', backgroundColor: 'background.paper', borderRadius: 2, p: { xs: 2, sm: 4 }}}>
                     {/* Error Alert */}
                     {error && (
                         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
@@ -447,14 +447,15 @@ export default function GuestDetailPage() {
                         <Button
                             onClick={handleBackToGuestList}
                             startIcon={<ArrowBack />}
-                            sx={{ mb: 2, color: 'text.secondary' }}
+                            sx={{ mb: 2, color: 'text.secondary', minHeight: { xs: 44, sm: 'auto' } }}
+                            size="small"
                         >
                             Back to Guest List
                         </Button>
 
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 2, sm: 0 } }}>
                             <Box>
-                                <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                                <Typography variant={{ xs: 'h4', sm: 'h3' }} component="h1" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
                                     {guest.firstName} {guest.lastName}
                                 </Typography>
                                 {(() => {
@@ -500,7 +501,7 @@ export default function GuestDetailPage() {
                                 })()}
                             </Box>
 
-                            <Stack direction="row" spacing={1}>
+                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
                                 {!isEditing ? (
                                     <>
                                         <Button
@@ -508,6 +509,8 @@ export default function GuestDetailPage() {
                                             startIcon={<Edit />}
                                             variant="contained"
                                             size="large"
+                                            fullWidth
+                                            sx={{ minHeight: { xs: 48, sm: 'auto' } }}
                                         >
                                             Edit Guest
                                         </Button>
@@ -517,6 +520,8 @@ export default function GuestDetailPage() {
                                             variant="outlined"
                                             color="error"
                                             size="large"
+                                            fullWidth
+                                            sx={{ minHeight: { xs: 48, sm: 'auto' } }}
                                         >
                                             Delete Guest
                                         </Button>
@@ -530,6 +535,8 @@ export default function GuestDetailPage() {
                                             color="success"
                                             size="large"
                                             disabled={saving}
+                                            fullWidth
+                                            sx={{ minHeight: { xs: 48, sm: 'auto' } }}
                                         >
                                             {saving ? <CircularProgress size={24} color="inherit" /> : 'Save'}
                                         </Button>
@@ -538,6 +545,8 @@ export default function GuestDetailPage() {
                                             startIcon={<Cancel />}
                                             variant="outlined"
                                             size="large"
+                                            fullWidth
+                                            sx={{ minHeight: { xs: 48, sm: 'auto' } }}
                                         >
                                             Cancel
                                         </Button>
@@ -552,7 +561,7 @@ export default function GuestDetailPage() {
                         {/* Basic Information */}
                         <Card>
                             <CardContent>
-                                <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: 'primary.main' }}>
+                                <Typography variant={{ xs: 'h6', sm: 'h5' }} sx={{ mb: 3, fontWeight: 600, color: 'primary.main' }}>
                                     Basic Information
                                 </Typography>
 
@@ -810,7 +819,7 @@ export default function GuestDetailPage() {
                         {/* Additional Information */}
                         <Card>
                             <CardContent>
-                                <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: 'primary.main' }}>
+                                <Typography variant={{ xs: 'h6', sm: 'h5' }} sx={{ mb: 3, fontWeight: 600, color: 'primary.main' }}>
                                     Gifts & Check-ins
                                 </Typography>
 
@@ -863,17 +872,19 @@ export default function GuestDetailPage() {
                                                         </Box>
 
                                                         {/* Actions */}
-                                                        <Box sx={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                                        <Box sx={{ flex: '0 0 auto', display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' }, gap: 1, width: { xs: '100%', sm: 'auto' } }}>
                                                             <Button
                                                                 variant="contained"
                                                                 color="primary"
                                                                 size="small"
                                                                 startIcon={<SwapHoriz />}
                                                                 onClick={() => openGiftModificationDialog(checkin)}
-                                                                sx={{ 
+                                                                sx={{
                                                                     minWidth: 'auto',
                                                                     fontWeight: 600,
-                                                                    textTransform: 'none'
+                                                                    textTransform: 'none',
+                                                                    minHeight: { xs: 44, sm: 'auto' },
+                                                                    width: { xs: '100%', sm: 'auto' }
                                                                 }}
                                                             >
                                                                 Modify Gifts
@@ -884,10 +895,12 @@ export default function GuestDetailPage() {
                                                                 size="small"
                                                                 startIcon={<Undo />}
                                                                 onClick={() => openUndoDialog(checkin)}
-                                                                sx={{ 
+                                                                sx={{
                                                                     minWidth: 'auto',
                                                                     fontWeight: 600,
-                                                                    textTransform: 'none'
+                                                                    textTransform: 'none',
+                                                                    minHeight: { xs: 44, sm: 'auto' },
+                                                                    width: { xs: '100%', sm: 'auto' }
                                                                 }}
                                                             >
                                                                 Undo
@@ -955,21 +968,28 @@ export default function GuestDetailPage() {
                                 />
                             )}
                         </DialogContent>
-                        <DialogActions>
-                            <Button onClick={() => {
-                                setUndoDialogOpen(false);
-                                setSelectedUndoReason('');
-                                setCustomUndoReason('');
-                                setUndoReason('');
-                            }} disabled={undoLoading}>
+                        <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1, sm: 0 } }}>
+                            <Button
+                                onClick={() => {
+                                    setUndoDialogOpen(false);
+                                    setSelectedUndoReason('');
+                                    setCustomUndoReason('');
+                                    setUndoReason('');
+                                }}
+                                disabled={undoLoading}
+                                fullWidth
+                                sx={{ minHeight: { xs: 44, sm: 'auto' } }}
+                            >
                                 Cancel
                             </Button>
-                            <Button 
-                                onClick={handleUndoCheckin} 
-                                color="warning" 
+                            <Button
+                                onClick={handleUndoCheckin}
+                                color="warning"
                                 variant="contained"
                                 disabled={undoLoading || !selectedUndoReason || (selectedUndoReason === 'other' && !customUndoReason.trim())}
                                 startIcon={undoLoading ? <CircularProgress size={20} /> : <Undo />}
+                                fullWidth
+                                sx={{ minHeight: { xs: 44, sm: 'auto' } }}
                             >
                                 {undoLoading ? 'Undoing...' : 'Undo Check-in'}
                             </Button>
@@ -1079,16 +1099,23 @@ export default function GuestDetailPage() {
                                 Add Gift
                             </Button>
                         </DialogContent>
-                        <DialogActions>
-                            <Button onClick={() => setGiftModificationDialogOpen(false)} disabled={giftModificationLoading}>
+                        <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1, sm: 0 } }}>
+                            <Button
+                                onClick={() => setGiftModificationDialogOpen(false)}
+                                disabled={giftModificationLoading}
+                                fullWidth
+                                sx={{ minHeight: { xs: 44, sm: 'auto' } }}
+                            >
                                 Cancel
                             </Button>
-                            <Button 
-                                onClick={handleModifyGifts} 
-                                color="primary" 
+                            <Button
+                                onClick={handleModifyGifts}
+                                color="primary"
                                 variant="contained"
                                 disabled={giftModificationLoading || !selectedGiftModificationReason || (selectedGiftModificationReason === 'other' && !customGiftModificationReason.trim())}
                                 startIcon={giftModificationLoading ? <CircularProgress size={20} /> : <SwapHoriz />}
+                                fullWidth
+                                sx={{ minHeight: { xs: 44, sm: 'auto' } }}
                             >
                                 {giftModificationLoading ? 'Updating...' : 'Update Gifts'}
                             </Button>
@@ -1114,8 +1141,13 @@ export default function GuestDetailPage() {
                         </Typography>
                     )}
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+                <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1, sm: 0 } }}>
+                    <Button
+                        onClick={() => setDeleteDialogOpen(false)}
+                        disabled={deleting}
+                        fullWidth
+                        sx={{ minHeight: { xs: 44, sm: 'auto' } }}
+                    >
                         Cancel
                     </Button>
                     <Button
@@ -1124,6 +1156,8 @@ export default function GuestDetailPage() {
                         variant="contained"
                         disabled={deleting}
                         startIcon={deleting ? <CircularProgress size={20} /> : <Delete />}
+                        fullWidth
+                        sx={{ minHeight: { xs: 44, sm: 'auto' } }}
                     >
                         {deleting ? 'Deleting...' : 'Delete'}
                     </Button>
