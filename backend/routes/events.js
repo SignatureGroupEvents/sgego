@@ -11,7 +11,8 @@ const {
   checkContractAvailability,
   archiveEvent,
   unarchiveEvent,
-  updateEventStatus
+  updateEventStatus,
+  updatePickupFieldPreferences
 } = require('../controllers/eventController');
 const {
   getEventAssignedUsers,
@@ -55,6 +56,7 @@ router.get('/:id', getEvent);
 router.post('/', requireOperationsOrAdmin, createEvent);
 router.put('/:id', requireOperationsOrAdmin, updateEvent);
 router.put('/:id/status', requireOperationsOrAdmin, updateEventStatus);
+router.put('/:id/pickup-field-preferences', requireOperationsOrAdmin, updatePickupFieldPreferences);
 router.put('/:id/archive', requireOperationsOrAdmin, archiveEvent);
 router.put('/:id/unarchive', requireOperationsOrAdmin, unarchiveEvent);
 router.delete('/:id', requireOperationsOrAdmin, deleteEvent);

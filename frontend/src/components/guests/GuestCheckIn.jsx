@@ -26,27 +26,19 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
   const [error, setError] = useState('');
   const [isCheckedIn, setIsCheckedIn] = useState(false);
 
-  // Get pick-up modal field display preferences from localStorage
-  const getPickupFieldPreferences = () => {
-    const saved = localStorage.getItem('inventoryPickupFieldPreferences');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Ensure all fields are present with defaults
-        return {
-          type: parsed.type ?? false,
-          brand: parsed.brand ?? true,
-          product: parsed.product ?? false,
-          size: parsed.size ?? false,
-          gender: parsed.gender ?? false,
-          color: parsed.color ?? false
-        };
-      } catch (e) {
-        return { type: false, brand: true, product: false, size: false, gender: false, color: false };
-      }
-    }
-    // Default: show Brand only
-    return { type: false, brand: true, product: false, size: false, gender: false, color: false };
+  // Get pick-up modal field display preferences from event or use defaults
+  const getDefaultPreferences = () => ({
+    type: false,
+    brand: true,
+    product: false,
+    size: false,
+    gender: false,
+    color: false
+  });
+
+  const getPickupFieldPreferences = (eventObj = null) => {
+    const eventToUse = eventObj || event;
+    return eventToUse?.pickupFieldPreferences || getDefaultPreferences();
   };
 
   // Check if any fields are selected for gift selection
@@ -419,6 +411,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
                       value={currentSelection}
                       onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
                       eventName={ev.eventName}
+                      pickupFieldPreferences={ev.pickupFieldPreferences || getDefaultPreferences()}
                     />
                   </Box>
                 );

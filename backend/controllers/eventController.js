@@ -901,6 +901,51 @@ exports.updateEventStatus = async (req, res) => {
   }
 };
 
+// Update pickup field preferences for an event
+exports.updatePickupFieldPreferences = async (req, res) => {
+  try {
+    const { pickupFieldPreferences } = req.body;
+    const event = await Event.findById(req.params.id);
+
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    // Check permissions - only operations manager and admin can update preferences
+    if (req.user.role !== 'admin' && req.user.role !== 'operations_manager') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Validate preferences structure
+    const validFields = ['type', 'brand', 'product', 'size', 'gender', 'color'];
+    const preferences = {};
+    
+    validFields.forEach(field => {
+      if (pickupFieldPreferences && typeof pickupFieldPreferences[field] === 'boolean') {
+        preferences[field] = pickupFieldPreferences[field];
+      } else {
+        // Use defaults if not provided
+        preferences[field] = field === 'brand' ? true : false;
+      }
+    });
+
+    const updatedEvent = await Event.findByIdAndUpdate(
+      req.params.id,
+      { pickupFieldPreferences: preferences },
+      { new: true, runValidators: true }
+    );
+
+    res.json({ 
+      success: true,
+      event: updatedEvent,
+      pickupFieldPreferences: updatedEvent.pickupFieldPreferences
+    });
+
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
 // Check if contract number is available for main events
 exports.checkContractAvailability = async (req, res) => {
   try {

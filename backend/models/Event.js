@@ -46,6 +46,17 @@ const eventSchema = new mongoose.Schema({
     description: String,
     isDefault: { type: Boolean, default: false }
   }],
+  pickupFieldPreferences: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {
+      type: false,
+      brand: true,
+      product: false,
+      size: false,
+      gender: false,
+      color: false
+    }
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

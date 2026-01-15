@@ -80,18 +80,18 @@ export default function GuestDetailPage() {
     const [saving, setSaving] = useState(false);
     const [event, setEvent] = useState(null);
 
-    // Get pick-up modal field display preferences from localStorage
+    // Get pick-up modal field display preferences from event or use defaults
+    const getDefaultPreferences = () => ({
+        type: false,
+        brand: true,
+        product: false,
+        size: false,
+        gender: false,
+        color: false
+    });
+
     const getPickupFieldPreferences = () => {
-        const saved = localStorage.getItem('inventoryPickupFieldPreferences');
-        if (saved) {
-            try {
-                return JSON.parse(saved);
-            } catch (e) {
-                return { type: false, brand: true, product: false, size: true, gender: false, color: false };
-            }
-        }
-        // Default: show Brand and Size
-        return { type: false, brand: true, product: false, size: true, gender: false, color: false };
+        return event?.pickupFieldPreferences || getDefaultPreferences();
     };
 
     // Format inventory item display based on preferences
@@ -1036,6 +1036,7 @@ export default function GuestDetailPage() {
                                                                     value={gift.inventoryId}
                                                                     onChange={(inventoryId) => updateGift(index, 'inventoryId', inventoryId)}
                                                                     eventName={selectedCheckin?.eventId?.eventName || 'Event'}
+                                                                    pickupFieldPreferences={selectedCheckin?.eventId?.pickupFieldPreferences || getDefaultPreferences()}
                                                                 />
                                                             </Box>
                                                             <TextField
