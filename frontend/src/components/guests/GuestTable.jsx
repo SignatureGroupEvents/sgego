@@ -419,10 +419,14 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
       'Last Name',
       'Email',
       'Job Title',
+      'Company',
       'Attendee Type',
+      'Notes',
       'Status',
       'Tags',
       'Source',
+      'Created At',
+      'Updated At',
       ...eventsToDisplay.map(ev => `${ev.eventName} - Gift Selection`)
     ];
     
@@ -436,10 +440,14 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
         guest.lastName || '',
         guest.email || '',
         guest.jobTitle || '',
+        guest.company || '',
         guest.attendeeType || 'General',
+        guest.notes || '',
         checkInStatus.label,
         guest.tags?.map(tag => tag.name).join('; ') || '',
         isInherited ? `${guest.originalEventName || 'Main Event'}` : 'Direct',
+        guest.createdAt ? new Date(guest.createdAt).toLocaleDateString() : '',
+        guest.updatedAt ? new Date(guest.updatedAt).toLocaleDateString() : '',
         ...eventsToDisplay.map(ev => formatGiftSelections(guest, ev._id, ev.eventName))
       ];
       

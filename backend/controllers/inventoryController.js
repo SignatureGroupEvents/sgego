@@ -967,8 +967,9 @@ exports.exportInventoryCSV = async (req, res) => {
 
     // Transform data for CSV export
     const csvData = inventory.map(item => ({
-      Type: item.type,
-      Style: item.style,
+      Category: item.type,
+      Brand: item.style,
+      Product: item.product,
       Size: item.size,
       Gender: item.gender,
       Color: item.color,
@@ -984,8 +985,9 @@ exports.exportInventoryCSV = async (req, res) => {
 
     // Define the fields to include in the CSV
     const fields = [
-      { label: 'Type', value: 'Type' },
-      { label: 'Style', value: 'Style' },
+      { label: 'Category', value: 'Category' },
+      { label: 'Brand', value: 'Brand' },
+      { label: 'Product', value: 'Product' },
       { label: 'Size', value: 'Size' },
       { label: 'Gender', value: 'Gender' },
       { label: 'Color', value: 'Color' },
@@ -1043,8 +1045,9 @@ exports.exportInventoryExcel = async (req, res) => {
 
     // Define columns
     worksheet.columns = [
-      { header: 'Type', key: 'type', width: 15 },
-      { header: 'Style', key: 'style', width: 25 },
+      { header: 'Category', key: 'type', width: 15 },
+      { header: 'Brand', key: 'style', width: 25 },
+      { header: 'Product', key: 'product', width: 25 },
       { header: 'Size', key: 'size', width: 10 },
       { header: 'Gender', key: 'gender', width: 10 },
       { header: 'Color', key: 'color', width: 10 },
@@ -1072,6 +1075,7 @@ exports.exportInventoryExcel = async (req, res) => {
       worksheet.addRow({
         type: item.type,
         style: item.style,
+        product: item.product,
         size: item.size,
         gender: item.gender,
         color: item.color,
