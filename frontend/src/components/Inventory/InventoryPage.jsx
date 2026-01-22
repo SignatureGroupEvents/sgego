@@ -1465,13 +1465,14 @@ const InventoryPage = ({ eventId, eventName }) => {
                                       {item.qtyWarehouse || 0}
                                     </Typography>
                                   </Grid>
-                                  <Grid item xs={6}>
+                                  {/* Hidden - Current Inventory calculated field that's confusing to staff */}
+                                  {/* <Grid item xs={6}>
                                     <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
                                       Current Inventory
                                     </Typography>
-                                    <Typography 
-                                      variant="body2" 
-                                      sx={{ 
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
                                         fontWeight: 600,
                                         fontSize: { xs: '0.8rem', sm: '0.875rem' },
                                         color: (item.currentInventory || 0) <= 10 ? 'error.main' : 'success.main'
@@ -1479,7 +1480,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                                     >
                                       {item.currentInventory || 0}
                                     </Typography>
-                                  </Grid>
+                                  </Grid> */}
                                   <Grid item xs={6}>
                                     <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
                                       Qty Before Event
@@ -1674,7 +1675,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                         </TableSortLabel>
                       </TableCell>
                       <TableCell>Qty Before Event</TableCell>
-                      <TableCell>Current Inventory</TableCell>
+                      {/* <TableCell>Current Inventory</TableCell> */} {/* Hidden - calculated field that's confusing to staff */}
                       <TableCell>Post Event Count</TableCell>
                       <TableCell>Allocated Events</TableCell>
                       <TableCell align="center">Actions</TableCell>
@@ -1683,7 +1684,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                   <TableBody>
                     {filteredAndSortedInventory.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={canModifyInventory ? 13 : 12} align="center">
+                        <TableCell colSpan={canModifyInventory ? 12 : 11} align="center">
                           {inventory.length === 0 ? 'No inventory found.' : 'No inventory matches your filters.'}
                         </TableCell>
                       </TableRow>
@@ -1732,7 +1733,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                                 item.qtyBeforeEvent || item.qtyOnSite || 0
                               )}
                             </TableCell>
-                            <TableCell>{item.currentInventory}</TableCell>
+                            {/* <TableCell>{item.currentInventory}</TableCell> */} {/* Hidden - calculated field that's confusing to staff */}
                             <TableCell>
                               {isEditMode ? (
                                 <TextField

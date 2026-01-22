@@ -458,6 +458,11 @@ exports.uploadInventory = async (req, res) => {
           // Only insert new items if there are any (use uniqueNewItems to avoid file duplicates)
           if (uniqueNewItems.length > 0) {
             insertedItems = await Inventory.insertMany(uniqueNewItems, { ordered: false });
+
+            // Recalculate currentInventory for all newly inserted items to ensure accuracy
+            for (const item of insertedItems) {
+              await Inventory.recalculateCurrentInventory(item._id);
+            }
           }
 
           // Clean up file
@@ -595,7 +600,8 @@ exports.updateInventoryCount = async (req, res) => {
     // Update quantity fields if provided - handle both old and new field names
     if (typeof qtyWarehouse !== 'undefined') inventoryItem.qtyWarehouse = Number(qtyWarehouse);
     if (typeof qtyOnSite !== 'undefined') inventoryItem.qtyOnSite = Number(qtyOnSite);
-    if (typeof qtyBeforeEvent !== 'undefined') inventoryItem.qtyOnSite = Number(qtyBeforeEvent); // Map qtyBeforeEvent to qtyOnSite
+    const qtyBeforeEventUpdated = typeof qtyBeforeEvent !== 'undefined';
+    if (qtyBeforeEventUpdated) inventoryItem.qtyOnSite = Number(qtyBeforeEvent); // Map qtyBeforeEvent to qtyOnSite
     if (typeof postEventCount !== 'undefined') inventoryItem.postEventCount = postEventCount ? Number(postEventCount) : null;
 
     // Only update currentInventory if newCount is provided (for manual adjustments)
@@ -606,6 +612,9 @@ exports.updateInventoryCount = async (req, res) => {
         req.user.id,
         reason
       );
+    } else if (qtyBeforeEventUpdated) {
+      // If qtyBeforeEvent was updated, recalculate currentInventory based on actual distributed items
+      await Inventory.recalculateCurrentInventory(inventoryItem._id);
     }
 
     // Save the updated fields
@@ -975,7 +984,7 @@ exports.exportInventoryCSV = async (req, res) => {
       Color: item.color,
       'Qty Warehouse': item.qtyWarehouse || 0,
       'Qty On Site': item.qtyOnSite || 0,
-      'Current Inventory': item.currentInventory || 0,
+      'Auto Calculated Inventory': item.currentInventory || 0,
       'Post Event Count': item.postEventCount || '',
       'Allocated Events': item.allocatedEvents?.map(ev => ev.eventName).join(', ') || '',
       'Status': item.isActive ? 'Active' : 'Inactive',
@@ -993,7 +1002,7 @@ exports.exportInventoryCSV = async (req, res) => {
       { label: 'Color', value: 'Color' },
       { label: 'Qty Warehouse', value: 'Qty Warehouse' },
       { label: 'Qty On Site', value: 'Qty On Site' },
-      { label: 'Current Inventory', value: 'Current Inventory' },
+      { label: 'Auto Calculated Inventory', value: 'Auto Calculated Inventory' },
       { label: 'Post Event Count', value: 'Post Event Count' },
       { label: 'Allocated Events', value: 'Allocated Events' },
       { label: 'Status', value: 'Status' },
@@ -1053,7 +1062,7 @@ exports.exportInventoryExcel = async (req, res) => {
       { header: 'Color', key: 'color', width: 10 },
       { header: 'Qty Warehouse', key: 'qtyWarehouse', width: 15 },
       { header: 'Qty On Site', key: 'qtyOnSite', width: 15 },
-      { header: 'Current Inventory', key: 'currentInventory', width: 18 },
+      { header: 'Auto Calculated Inventory', key: 'currentInventory', width: 18 },
       { header: 'Post Event Count', key: 'postEventCount', width: 18 },
       { header: 'Allocated Events', key: 'allocatedEvents', width: 30 },
       { header: 'Status', key: 'status', width: 12 },
@@ -1097,7 +1106,7 @@ exports.exportInventoryExcel = async (req, res) => {
     worksheet.addRow(['Active Items', inventory.filter(item => item.isActive).length]);
     worksheet.addRow(['Total Warehouse Quantity', inventory.reduce((sum, item) => sum + (item.qtyWarehouse || 0), 0)]);
     worksheet.addRow(['Total On-Site Quantity', inventory.reduce((sum, item) => sum + (item.qtyOnSite || 0), 0)]);
-    worksheet.addRow(['Total Current Inventory', inventory.reduce((sum, item) => sum + (item.currentInventory || 0), 0)]);
+    worksheet.addRow(['Total Auto Calculated Inventory', inventory.reduce((sum, item) => sum + (item.currentInventory || 0), 0)]);
 
     // Style summary section
     const summaryStartRow = inventory.length + 3;
