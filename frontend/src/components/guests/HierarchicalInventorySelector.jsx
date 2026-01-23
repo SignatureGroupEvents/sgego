@@ -121,8 +121,8 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, eventName, 
         // Exactly one match - auto-select it
         if (onChange) onChange(matchingItems[0]._id);
       } else if (matchingItems.length > 1) {
-        // Multiple matches - select the first one (or could show a warning)
-        if (onChange) onChange(matchingItems[0]._id);
+        // Multiple matches - don't auto-select, require manual selection to prevent accidental inventory reduction
+        if (onChange) onChange('');
       } else {
         // No matches - clear selection
         if (onChange) onChange('');
