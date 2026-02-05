@@ -1,5 +1,7 @@
 const Event = require('../models/Event');
 const ActivityLog = require('../models/ActivityLog');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 exports.getEvents = async (req, res) => {
   try {
@@ -969,6 +971,137 @@ exports.checkContractAvailability = async (req, res) => {
         : `Contract number "${contractNumber}" is available`
     });
 
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// ---------- Client Portal (Ops) ----------
+const generatePortalPassword = () => crypto.randomBytes(10).toString('base64').replace(/[+/=]/g, '').slice(0, 12);
+
+const ensureClientPortalDefaults = (event) => {
+  const now = new Date();
+  const startDate = event.eventStart ? new Date(event.eventStart) : now;
+  const closeAt = new Date(startDate);
+  closeAt.setDate(closeAt.getDate() + 30);
+  return {
+    enabled: false,
+    allowedEmails: [],
+    openAt: startDate,
+    closeAt,
+    options: { allowCsvExport: false },
+    createdAt: now,
+    updatedAt: now
+  };
+};
+
+const toClientPortalResponse = (event, passwordPlain = null) => {
+  const cp = event.clientPortal || {};
+  const out = {
+    enabled: !!cp.enabled,
+    allowedEmails: Array.isArray(cp.allowedEmails) ? cp.allowedEmails : [],
+    openAt: cp.openAt || null,
+    closeAt: cp.closeAt || null,
+    options: { allowCsvExport: !!(cp.options && cp.options.allowCsvExport) }
+  };
+  if (passwordPlain) out.passwordPlain = passwordPlain;
+  return out;
+};
+
+exports.getClientPortal = async (req, res) => {
+  try {
+    const eventId = req.params.eventId || req.params.id;
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    const cp = event.clientPortal;
+    const neverInitialized = !cp || (cp.passwordHash == null && cp.enabled !== true);
+
+    if (neverInitialized) {
+      const defaults = ensureClientPortalDefaults(event);
+      const passwordPlain = generatePortalPassword();
+      const passwordHash = await bcrypt.hash(passwordPlain, 10);
+      event.clientPortal = {
+        ...defaults,
+        passwordHash
+      };
+      await event.save();
+      return res.json({
+        settings: toClientPortalResponse(event, passwordPlain),
+        passwordPlain
+      });
+    }
+
+    return res.json({ settings: toClientPortalResponse(event) });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+exports.updateClientPortal = async (req, res) => {
+  try {
+    const eventId = req.params.eventId || req.params.id;
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    const existing = event.clientPortal || ensureClientPortalDefaults(event);
+    const wasEnabled = !!existing.enabled;
+    const { enabled, allowedEmails, openAt, closeAt, options } = req.body;
+
+    let passwordPlain = null;
+    let passwordHash = existing.passwordHash;
+    if (enabled === true && !wasEnabled) {
+      passwordPlain = generatePortalPassword();
+      passwordHash = await bcrypt.hash(passwordPlain, 10);
+    }
+
+    const now = new Date();
+    const updatedPortal = {
+      enabled: typeof enabled === 'boolean' ? enabled : !!existing.enabled,
+      passwordHash,
+      allowedEmails: Array.isArray(allowedEmails)
+        ? allowedEmails.map(e => (e || '').trim()).filter(Boolean)
+        : (Array.isArray(existing.allowedEmails) ? existing.allowedEmails : []),
+      openAt: openAt !== undefined ? (openAt ? new Date(openAt) : null) : (existing.openAt || null),
+      closeAt: closeAt !== undefined ? (closeAt ? new Date(closeAt) : null) : (existing.closeAt || null),
+      options: {
+        allowCsvExport: options && typeof options.allowCsvExport === 'boolean'
+          ? options.allowCsvExport
+          : !!(existing.options && existing.options.allowCsvExport)
+      },
+      createdAt: existing.createdAt || now,
+      updatedAt: now
+    };
+
+    event.clientPortal = updatedPortal;
+    event.markModified('clientPortal');
+    await event.save();
+
+    const response = { settings: toClientPortalResponse(event, passwordPlain || undefined) };
+    if (passwordPlain) response.passwordPlain = passwordPlain;
+    return res.json(response);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+exports.regenerateClientPortalPassword = async (req, res) => {
+  try {
+    const eventId = req.params.eventId || req.params.id;
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    const cp = event.clientPortal || ensureClientPortalDefaults(event);
+    const passwordPlain = generatePortalPassword();
+    cp.passwordHash = await bcrypt.hash(passwordPlain, 10);
+    cp.updatedAt = new Date();
+    event.clientPortal = cp;
+    await event.save();
+
+    return res.json({
+      settings: toClientPortalResponse(event),
+      passwordPlain
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

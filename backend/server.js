@@ -140,6 +140,7 @@ try {
   const inventoryRoutes = require('./routes/inventory');
   const userRoutes = require('./routes/users');
   const analyticsRoutes = require('./routes/analytics');
+  const portalRoutes = require('./routes/portal');
 
   app.use('/api/auth', authRoutes);
   app.use('/api/events', eventRoutes);
@@ -148,6 +149,7 @@ try {
   app.use('/api/inventory', inventoryRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/analytics', analyticsRoutes);
+  app.use('/api/portal', portalRoutes);
 
   // DEBUG: list all mounted endpoints (TEMPORARY)
   const listEndpoints = require('express-list-endpoints');

@@ -88,6 +88,18 @@ const eventSchema = new mongoose.Schema({
   unarchivedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
+  },
+  clientPortal: {
+    enabled: { type: Boolean, default: false },
+    passwordHash: { type: String, default: null },
+    allowedEmails: [{ type: String, trim: true }],
+    openAt: { type: Date, default: null },
+    closeAt: { type: Date, default: null },
+    options: {
+      allowCsvExport: { type: Boolean, default: false }
+    },
+    createdAt: { type: Date, default: null },
+    updatedAt: { type: Date, default: null }
   }
 }, {
   timestamps: true

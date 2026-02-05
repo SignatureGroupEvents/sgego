@@ -22,6 +22,12 @@ exports.getGuests = async (req, res) => {
     if (event.parentEventId && includeInherited === 'true') {
       guestEventIds.push(event.parentEventId);
     }
+    // If this is a main event and includeInherited is true, also get guests from all secondary events
+    if (event.isMainEvent && includeInherited === 'true') {
+      const secondaryEvents = await Event.find({ parentEventId: eventId }).select('_id').lean();
+      const secondaryIds = secondaryEvents.map((e) => e._id);
+      guestEventIds = [...guestEventIds, ...secondaryIds];
+    }
 
     const guests = await Guest.find({ eventId: { $in: guestEventIds } })
       .populate('eventId', 'eventName isMainEvent')
@@ -29,12 +35,15 @@ exports.getGuests = async (req, res) => {
       .populate('eventCheckins.giftsReceived.inventoryId', 'type style size')
       .sort({ createdAt: -1 });
 
-    // Add a flag to indicate which guests are inherited vs. directly assigned
+    // Add flags: isInherited (when viewing secondary = guest from parent), isFromSecondaryEvent (when viewing main = guest from a check-in event)
     const guestsWithInheritance = guests.map(guest => {
-      const isInherited = guest.eventId._id.toString() === event.parentEventId?.toString();
+      const guestEventIdStr = guest.eventId._id.toString();
+      const isInherited = event.parentEventId && guestEventIdStr === event.parentEventId.toString();
+      const isFromSecondaryEvent = event.isMainEvent && guestEventIdStr !== eventId;
       return {
         ...guest.toObject(),
         isInherited,
+        isFromSecondaryEvent: !!isFromSecondaryEvent,
         originalEventId: guest.eventId._id,
         originalEventName: guest.eventId.eventName
       };
