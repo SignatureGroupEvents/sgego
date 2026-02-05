@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { Box, Typography, TextField, Button, Card, CardContent, Alert, CircularProgress } from '@mui/material';
+import { Box, Typography, TextField, Button, Card, CardContent, Alert, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Link } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { portalLogin, setPortalSession } from '../../services/portalApi';
 import toast from 'react-hot-toast';
+
+const DATA_USE_NOTICE =
+  'By accessing this portal, you acknowledge that guest information (including names, emails, shipping addresses, and order details) is provided solely for event and fulfillment purposes. Please do not share login credentials or distribute personal information outside your organization. Do not use guest information for marketing or unrelated communications. Access may be limited to event dates and disabled after the program closes. If you need extended access, contact your operations manager.';
 
 const isValidEventId = (id) => typeof id === 'string' && id.length === 24 && /^[a-fA-F0-9]+$/.test(id);
 
@@ -14,6 +17,7 @@ export default function PortalLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [closedMessage, setClosedMessage] = useState('');
+  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
 
   const invalidEventId = !eventId || !isValidEventId(eventId);
 
@@ -113,10 +117,38 @@ export default function PortalLoginPage() {
               >
                 {loading ? <CircularProgress size={24} /> : 'Sign in'}
               </Button>
+              <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                <Typography variant="caption" color="text.secondary" component="div" sx={{ lineHeight: 1.4 }}>
+                  By signing in, you acknowledge that guest information is provided for event and fulfillment purposes only. Do not share credentials or use guest data for marketing. Access may be limited to event dates.
+                </Typography>
+                <Link
+                  component="button"
+                  type="button"
+                  variant="caption"
+                  onClick={() => setPrivacyModalOpen(true)}
+                  sx={{ mt: 0.5, display: 'inline-block', cursor: 'pointer' }}
+                >
+                  Privacy &amp; Data Use
+                </Link>
+              </Box>
             </form>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={privacyModalOpen} onClose={() => setPrivacyModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Privacy &amp; Data Use</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
+            {DATA_USE_NOTICE}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPrivacyModalOpen(false)} color="primary">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
