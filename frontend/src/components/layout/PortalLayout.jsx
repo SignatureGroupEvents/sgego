@@ -28,7 +28,7 @@ export default function PortalLayout({ children, eventName = 'Event' }) {
         }}
       >
         <Typography variant="h6" fontWeight={600} color="primary.main">
-          {eventName} — Client View
+          {eventName} — Client Portal
         </Typography>
         <Button startIcon={<LogoutIcon />} onClick={handleSignOut} size="small" color="inherit">
           Sign out

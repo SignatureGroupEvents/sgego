@@ -4,6 +4,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { portalLogin, setPortalSession } from '../../services/portalApi';
 import toast from 'react-hot-toast';
 
+const isValidEventId = (id) => typeof id === 'string' && id.length === 24 && /^[a-fA-F0-9]+$/.test(id);
+
 export default function PortalLoginPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
@@ -13,12 +15,18 @@ export default function PortalLoginPage() {
   const [error, setError] = useState('');
   const [closedMessage, setClosedMessage] = useState('');
 
+  const invalidEventId = !eventId || !isValidEventId(eventId);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setClosedMessage('');
     if (!email.trim() || !password) {
       setError('Email and password are required.');
+      return;
+    }
+    if (invalidEventId) {
+      setError('Invalid event link. Use the exact URL from your event’s Client Portal settings.');
       return;
     }
     setLoading(true);
@@ -60,7 +68,11 @@ export default function PortalLoginPage() {
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 2 }}>
             Sign in to view event analytics
           </Typography>
-          {closedMessage ? (
+          {invalidEventId ? (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Invalid event link. Open the portal using the <strong>exact URL</strong> from your event’s Client Portal settings (e.g. from the Operations team). Do not use a URL that contains the placeholder &quot;&lt;eventId&gt;&quot;.
+            </Alert>
+          ) : closedMessage ? (
             <Alert severity="warning" sx={{ mb: 2 }}>
               {closedMessage}
             </Alert>
@@ -96,7 +108,7 @@ export default function PortalLoginPage() {
                 fullWidth
                 variant="contained"
                 size="large"
-                disabled={loading}
+                disabled={loading || invalidEventId}
                 sx={{ mt: 2 }}
               >
                 {loading ? <CircularProgress size={24} /> : 'Sign in'}

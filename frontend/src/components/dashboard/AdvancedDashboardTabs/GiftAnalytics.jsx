@@ -31,7 +31,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as BarTooltip, ResponsiveContainer as BarResponsiveContainer, Cell as BarCell } from 'recharts';
 import AnalyticsPieChart from '../../analytics/charts/AnalyticsPieChart';
 import AnalyticsBarChart from '../../analytics/charts/AnalyticsBarChart';
-import { getAllEventAnalytics } from '../../../services/analytics';
+import { useAnalyticsApi } from '../../../contexts/AnalyticsApiContext';
 import { ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
 import ClearIcon from '@mui/icons-material/Clear';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -44,6 +44,7 @@ const UNKNOWN_LABEL = 'Unlabeled';
 
 const GiftAnalytics = ({ event, guests = [], inventory = [] }) => {
   const theme = useTheme();
+  const getAnalytics = useAnalyticsApi();
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [analyticsError, setAnalyticsError] = useState(null);
@@ -101,7 +102,7 @@ const GiftAnalytics = ({ event, guests = [], inventory = [] }) => {
       
       setAnalyticsLoading(true);
       try {
-        const data = await getAllEventAnalytics(event._id);
+        const data = await getAnalytics(event._id);
         setAnalytics(data);
       } catch (err) {
         console.error('Error fetching gift analytics:', err);
@@ -115,7 +116,7 @@ const GiftAnalytics = ({ event, guests = [], inventory = [] }) => {
     // Refresh every 30 seconds for live updates
     const interval = setInterval(fetchAnalytics, 30000);
     return () => clearInterval(interval);
-  }, [event?._id]);
+  }, [event?._id, getAnalytics]);
 
   const giftCounts = useMemo(() => {
     const countMap = {};

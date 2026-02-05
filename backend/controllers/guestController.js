@@ -4,8 +4,9 @@ const { v4: uuidv4 } = require('uuid');
 
 exports.getGuests = async (req, res) => {
   try {
-    const { eventId, includeInherited = 'true' } = req.query;
-    
+    const eventId = req.query.eventId || req.params.eventId;
+    const includeInherited = req.query.includeInherited !== undefined ? req.query.includeInherited : 'true';
+
     if (!eventId) {
       return res.status(400).json({ message: 'Event ID is required' });
     }
@@ -37,15 +38,16 @@ exports.getGuests = async (req, res) => {
 
     // Add flags: isInherited (when viewing secondary = guest from parent), isFromSecondaryEvent (when viewing main = guest from a check-in event)
     const guestsWithInheritance = guests.map(guest => {
-      const guestEventIdStr = guest.eventId._id.toString();
+      const gEventId = guest.eventId && (guest.eventId._id || guest.eventId);
+      const guestEventIdStr = gEventId ? gEventId.toString() : '';
       const isInherited = event.parentEventId && guestEventIdStr === event.parentEventId.toString();
-      const isFromSecondaryEvent = event.isMainEvent && guestEventIdStr !== eventId;
+      const isFromSecondaryEvent = event.isMainEvent && guestEventIdStr && guestEventIdStr !== eventId;
       return {
         ...guest.toObject(),
         isInherited,
         isFromSecondaryEvent: !!isFromSecondaryEvent,
-        originalEventId: guest.eventId._id,
-        originalEventName: guest.eventId.eventName
+        originalEventId: gEventId || null,
+        originalEventName: (guest.eventId && guest.eventId.eventName) || null
       };
     });
 

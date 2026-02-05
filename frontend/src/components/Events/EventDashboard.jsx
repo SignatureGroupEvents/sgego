@@ -105,13 +105,16 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
 
     const fetchGuests = async () => {
       try {
+        let list = [];
         if (isPortalView) {
           const response = await getPortalGuests(eventId, true);
-          setGuests(response.guests || []);
+          list = response.guests || [];
         } else {
           const response = await getGuests(eventId, true);
-          setGuests(response.data.guests || []);
+          list = response.data?.guests || [];
         }
+        setGuests(list);
+        setLocalGuests(list);
       } catch (error) {
         console.error('Error fetching guests:', error);
       }
@@ -241,7 +244,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             {/* List Tab (0) - Guest Table */}
             {mobileTab === 0 && (
               <GuestTable
-                guests={localGuests}
+                guests={localGuests.length > 0 ? localGuests : guests}
                 onAddGuest={handleAddGuest}
                 onUploadGuests={handleUploadGuests}
                 event={{
@@ -279,11 +282,20 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             {/* Stats Tab (2) - Analytics */}
             {mobileTab === 2 && (
               <Box sx={{ width: '100%', px: { xs: 1, sm: 2 }, py: { xs: 1, sm: 2 }, backgroundColor: '#fdf9f6' }}>
+                {isPortalView && viewMode === 'advanced' && (
+                  <Box sx={{ mb: 2 }}>
+                    <Button variant="outlined" size="small" onClick={() => setViewMode('basic')}>
+                      ← Back to overview
+                    </Button>
+                  </Box>
+                )}
                 {viewMode === 'basic' ? (
                   <BasicAnalytics
                     event={event}
                     guests={guests}
                     inventory={inventory}
+                    isPortalView={isPortalView}
+                    onShowAdvanced={isPortalView ? () => navigate(`/portal/${eventId}/advanced`) : undefined}
                   />
                 ) : (
                   <AdvancedView
@@ -304,11 +316,20 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
 
             {/* Event Overview Section */}
             <Box sx={{ width: '100%', px: 2, py: 2, backgroundColor: '#fdf9f6' }}>
+              {isPortalView && viewMode === 'advanced' && (
+                <Box sx={{ mb: 2 }}>
+                  <Button variant="outlined" size="small" onClick={() => setViewMode('basic')}>
+                    ← Back to overview
+                  </Button>
+                </Box>
+              )}
               {viewMode === 'basic' ? (
                 <BasicAnalytics
                   event={event}
                   guests={guests}
                   inventory={inventory}
+                  isPortalView={isPortalView}
+                  onShowAdvanced={isPortalView ? () => navigate(`/portal/${eventId}/advanced`) : undefined}
                 />
               ) : (
                 <AdvancedView
@@ -337,7 +358,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
 
             {/* Guest Table */}
             <GuestTable
-              guests={localGuests}
+              guests={localGuests.length > 0 ? localGuests : guests}
               onAddGuest={handleAddGuest}
               onUploadGuests={handleUploadGuests}
               event={{

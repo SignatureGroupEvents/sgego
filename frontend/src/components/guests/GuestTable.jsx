@@ -818,6 +818,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
       <Box
         key={guest._id}
         onClick={(e) => {
+          if (readOnly) return;
           // Don't navigate if clicking button
           if (!e.target.closest('button')) {
             navigate(`/events/${event._id}/guests/${guest._id}`);
@@ -832,7 +833,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
           backgroundColor: getStatusBackgroundColor(),
           borderBottom: '1px solid',
           borderColor: 'divider',
-          cursor: 'pointer',
+          cursor: readOnly ? 'default' : 'pointer',
           transition: 'background-color 0.2s',
           '&:hover': {
             backgroundColor: checkInStatus.status === 'fully-checked-in' 
@@ -1086,7 +1087,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                   gap: 1.5,
                   width: '100%',
                   flexDirection: 'row',
-                  alignItems: 'flex-start'
+                  alignItems: 'flex-end'
                 }}
               >
                 {/* Search Bar */}
@@ -1232,7 +1233,8 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                   </Box>
                 </Box>
 
-                {/* Tag Filter */}
+                {/* Tag Filter - hidden in portal (readOnly) */}
+                {!readOnly && (
                 <Box sx={{ 
                   width: 'auto',
                   flex: '1 1 auto',
@@ -1252,7 +1254,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                     <Autocomplete
                       multiple
                       size="small"
-                      options={canManageEvents ? [...allTags, '__CREATE_TAG__'] : allTags}
+                      options={canManageEvents && !readOnly ? [...allTags, '__CREATE_TAG__'] : allTags}
                       sx={{
                         '& .MuiAutocomplete-inputRoot': {
                           padding: '8px 12px',
@@ -1426,6 +1428,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                     />
                   </Box>
                 </Box>
+                )}
 
                 {/* Clear Filters */}
                 <Box sx={{ 
@@ -1440,7 +1443,6 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                     startIcon={<ClearIcon />}
                     sx={{ 
                       height: '40px',
-                      mt: 0.5,
                       fontSize: '1rem'
                     }}
                   >
@@ -1560,8 +1562,9 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                       return (
                         <TableRow 
                           key={guest._id} 
-                          hover 
+                          hover={!readOnly}
                           onClick={(e) => {
+                            if (readOnly) return;
                             // Don't navigate if clicking checkbox
                             if (e.target.type !== 'checkbox' && !e.target.closest('button')) {
                               navigate(`/events/${event._id}/guests/${guest._id}`);
@@ -1573,8 +1576,8 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                               borderLeftColor: 'warning.main'
                             }),
                             '&:hover': {
-                              cursor: 'pointer',
-                              backgroundColor: 'action.hover',
+                              cursor: readOnly ? 'default' : 'pointer',
+                              ...(readOnly ? {} : { backgroundColor: 'action.hover' }),
                               ...(isInherited && {
                                 backgroundColor: 'rgba(25, 118, 210, 0.04)',
                                 '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.08)' }
@@ -1865,7 +1868,8 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
               </Select>
             </FormControl>
 
-            {/* Tag Filter */}
+            {/* Tag Filter - hidden in portal (readOnly) */}
+            {!readOnly && (
             <Autocomplete
               multiple
               options={canManageEvents ? [...allTags, '__CREATE_TAG__'] : allTags}
@@ -1941,6 +1945,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                 return filtered;
               }}
             />
+            )}
 
             <Button
               variant="outlined"

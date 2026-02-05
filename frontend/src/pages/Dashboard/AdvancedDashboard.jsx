@@ -8,20 +8,16 @@ import {
   Card,
   CardActionArea
 } from '@mui/material';
-import { 
-  Add as AddIcon, 
-  Search as SearchIcon,
+import {
   Analytics as AnalyticsIcon,
   Event as EventIcon,
   Feed as FeedIcon,
-  Assessment as AssessmentIcon,
   ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import MainLayout from '../../components/layout/MainLayout';
 import GiftAnalytics from '../../components/dashboard/AdvancedDashboardTabs/GiftAnalytics';
 import EventAnalytics from '../../components/dashboard/AdvancedDashboardTabs/EventAnalytics';
 import ActivityFeed from '../../components/dashboard/AdvancedDashboardTabs/ActivityFeed';
-import ComprehensiveAnalytics from '../../components/analytics/ComprehensiveAnalytics';
 import EventHeader from '../../components/Events/EventHeader';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getEvent } from '../../services/events';
@@ -36,7 +32,7 @@ const AdvancedDashboard = () => {
   const [event, setEvent] = useState(null);
   const [parentEvent, setParentEvent] = useState(null);
   const [secondaryEvents, setSecondaryEvents] = useState([]);
-  const [selectedModule, setSelectedModule] = useState(null); // null = selection page, 'gift' | 'event' | 'activity' | 'comprehensive'
+  const [selectedModule, setSelectedModule] = useState(null); // null = selection page, 'gift' | 'event' | 'activity'
   const [guests, setGuests] = useState([]);
   const [inventory, setInventory] = useState([]);
 
@@ -186,7 +182,7 @@ const AdvancedDashboard = () => {
                       Activity Feed
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Real-time activity log and event updates
+                      Real-time activity log: who did what and when
                     </Typography>
                   </Box>
                 </CardActionArea>
@@ -237,8 +233,6 @@ const AdvancedDashboard = () => {
         return <EventAnalytics eventId={eventId} />;
       case 'activity':
         return <ActivityFeed />;
-      // case 'comprehensive':
-      //   return <ComprehensiveAnalytics eventId={eventId} />;
       default:
         return null;
     }

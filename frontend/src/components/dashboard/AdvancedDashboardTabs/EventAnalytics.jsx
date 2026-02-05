@@ -10,6 +10,7 @@ import {
   TableCell,
   TableBody,
   TableContainer,
+  TablePagination,
   Paper,
   Box,
   FormControl,
@@ -35,7 +36,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import MuiTooltip from '@mui/material/Tooltip';
 import Menu from '@mui/material/Menu';
-import { getAllEventAnalytics } from '../../../services/analytics';
+import { useAnalyticsApi } from '../../../contexts/AnalyticsApiContext';
 import AnalyticsFilters from '../../analytics/AnalyticsFilters';
 
 // Centralized fallback label
@@ -43,6 +44,7 @@ const UNKNOWN_LABEL = 'Unlabeled';
 
 const EventAnalytics = ({ eventId }) => {
   const theme = useTheme();
+  const getAnalytics = useAnalyticsApi();
   
   // State management
   const [analytics, setAnalytics] = useState(null);
@@ -54,7 +56,9 @@ const EventAnalytics = ({ eventId }) => {
   const prevFiltersRef = useRef(null);
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   const [exporting, setExporting] = useState(false);
-  
+  const [checkInPage, setCheckInPage] = useState(0);
+  const [checkInRowsPerPage, setCheckInRowsPerPage] = useState(10);
+
   // Memoize the filters change handler to prevent AnalyticsFilters from remounting
   const handleFiltersChange = useCallback((newFilters) => {
     setFilters(newFilters);
@@ -99,7 +103,7 @@ const EventAnalytics = ({ eventId }) => {
       try {
         setLoading(true);
         setError('');
-        const data = await getAllEventAnalytics(eventId, filters);
+        const data = await getAnalytics(eventId, filters);
         setAnalytics(data);
         
         // console.log('✅ Event analytics loaded successfully:', {
@@ -116,7 +120,12 @@ const EventAnalytics = ({ eventId }) => {
     };
 
     fetchAnalytics();
-  }, [eventId, filters]);
+  }, [eventId, filters, getAnalytics]);
+
+  // Reset check-in table page when data changes (e.g. after filter)
+  useEffect(() => {
+    setCheckInPage(0);
+  }, [analytics?.detailedCheckIns?.length, filters.startDate, filters.endDate]);
 
   // Use theme palette colors for the charts
   const CHART_COLORS = useMemo(() => [
@@ -486,7 +495,9 @@ const EventAnalytics = ({ eventId }) => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {analytics.detailedCheckIns.map((checkin) => (
+                    {analytics.detailedCheckIns
+                      .slice(checkInPage * checkInRowsPerPage, checkInPage * checkInRowsPerPage + checkInRowsPerPage)
+                      .map((checkin) => (
                       <TableRow key={checkin._id} hover>
                         <TableCell>{checkin.guestName || 'N/A'}</TableCell>
                         <TableCell>{checkin.guestEmail || 'N/A'}</TableCell>
@@ -529,6 +540,20 @@ const EventAnalytics = ({ eventId }) => {
                   </TableBody>
                 </Table>
               </TableContainer>
+              <TablePagination
+                component="div"
+                count={analytics.detailedCheckIns.length}
+                page={checkInPage}
+                onPageChange={(_, newPage) => setCheckInPage(newPage)}
+                rowsPerPage={checkInRowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setCheckInRowsPerPage(parseInt(e.target.value, 10));
+                  setCheckInPage(0);
+                }}
+                rowsPerPageOptions={[10, 25, 50, 100]}
+                labelRowsPerPage="Rows per page:"
+                sx={{ borderTop: 1, borderColor: 'divider' }}
+              />
             </>
           ) : (
             <Alert severity="info" sx={{ mt: 2 }}>

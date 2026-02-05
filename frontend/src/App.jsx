@@ -21,6 +21,7 @@ import ManageTeamWrapper from './components/Events/ManageTeam.jsx';
 import ClientPortalSettings from './pages/Events/ClientPortalSettings.jsx';
 import PortalLoginPage from './pages/Portal/PortalLoginPage.jsx';
 import PortalDashboardPage from './pages/Portal/PortalDashboardPage.jsx';
+import PortalAdvancedPage from './pages/Portal/PortalAdvancedPage.jsx';
 import AccountPage from "./pages/Account/AccountPage.jsx";
 import AccountEditPage from "./pages/Account/AccountEditPage.jsx";
 // import f from "./pages/user-management/UserManagement.jsx";
@@ -66,6 +67,7 @@ function App() {
             {/* Client Portal (no normal auth; portal token only) */}
             <Route path="/portal/:eventId/login" element={<PortalLoginPage />} />
             <Route path="/portal/:eventId/dashboard" element={<PortalDashboardPage />} />
+            <Route path="/portal/:eventId/advanced" element={<PortalAdvancedPage />} />
 
             {/* Dashboard + event routes */}
             {/* VIEW_EVENTS: Admin, Ops, Staff - all authenticated users */}

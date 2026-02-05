@@ -29,7 +29,7 @@ router.get('/:eventId/analytics', requirePortalAuth, (req, res, next) => {
 });
 
 router.get('/:eventId/guests', requirePortalAuth, (req, res, next) => {
-  req.query.eventId = req.params.eventId;
+  req.query = { ...req.query, eventId: req.params.eventId };
   return guestController.getGuests(req, res, next);
 });
 

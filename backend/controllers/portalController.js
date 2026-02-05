@@ -10,11 +10,16 @@ const PORTAL_TOKEN_EXPIRY = '10h'; // 8–12 hours
  * Validates: portal enabled, time in openAt/closeAt, email in allowedEmails, password match.
  * Returns JWT with scope: "portal", eventId, email. 403 PORTAL_CLOSED if closed/disabled.
  */
+const isValidObjectId = (id) => typeof id === 'string' && /^[a-fA-F0-9]{24}$/.test(id);
+
 exports.portalLogin = async (req, res) => {
   try {
     const { eventId } = req.params;
     const { email, password } = req.body;
 
+    if (!eventId || !isValidObjectId(eventId)) {
+      return res.status(400).json({ message: 'Invalid event link. Use the exact URL from your event’s Client Portal settings.' });
+    }
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }

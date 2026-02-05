@@ -8,16 +8,16 @@ import {
   CircularProgress,
   Alert,
   Chip,
-  Avatar,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
-  Divider,
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow
 } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import { getEventActivityFeed } from '../../../services/api';
@@ -25,6 +25,28 @@ import PersonIcon from '@mui/icons-material/Person';
 import EventIcon from '@mui/icons-material/Event';
 import GiftIcon from '@mui/icons-material/Redeem';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import InventoryIcon from '@mui/icons-material/Inventory';
+import NoteIcon from '@mui/icons-material/Note';
+import UndoIcon from '@mui/icons-material/Undo';
+
+const ACTION_LABELS = {
+  checkin: 'Guest check-in',
+  undo_checkin: 'Check-in undone',
+  inventory_update: 'Inventory updated',
+  inventory_add: 'Inventory item added',
+  allocation_update: 'Allocation updated',
+  update_gifts: 'Gift selection updated',
+  note: 'Note updated',
+  event_create: 'Event created',
+  event_update: 'Event updated',
+  event_status_change: 'Event status changed',
+  event_archive: 'Event archived',
+  event_unarchive: 'Event unarchived',
+  test: 'Test action',
+  other: 'Other activity'
+};
+
+const getActionLabel = (type) => ACTION_LABELS[type] || (type ? type.replace(/_/g, ' ') : 'Activity');
 
 const ActivityFeed = () => {
   const { eventId } = useParams();
@@ -44,14 +66,9 @@ const ActivityFeed = () => {
 
       setLoading(true);
       setError('');
-      
       try {
-        const filters = {};
-        if (filterType !== 'all') {
-          filters.type = filterType;
-        }
-        filters.limit = limit;
-
+        const filters = { limit };
+        if (filterType !== 'all') filters.type = filterType;
         const response = await getEventActivityFeed(eventId, filters);
         setLogs(response.data?.logs || []);
       } catch (err) {
@@ -69,13 +86,24 @@ const ActivityFeed = () => {
   const getActivityIcon = (type) => {
     switch (type) {
       case 'checkin':
-        return <CheckCircleIcon color="success" />;
-      case 'gift':
-        return <GiftIcon color="primary" />;
-      case 'event':
-        return <EventIcon color="info" />;
+        return <CheckCircleIcon color="success" fontSize="small" />;
+      case 'undo_checkin':
+        return <UndoIcon color="action" fontSize="small" />;
+      case 'inventory_update':
+      case 'inventory_add':
+      case 'allocation_update':
+      case 'update_gifts':
+        return <InventoryIcon color="primary" fontSize="small" />;
+      case 'note':
+        return <NoteIcon color="secondary" fontSize="small" />;
+      case 'event_create':
+      case 'event_update':
+      case 'event_status_change':
+      case 'event_archive':
+      case 'event_unarchive':
+        return <EventIcon color="info" fontSize="small" />;
       default:
-        return <PersonIcon color="action" />;
+        return <PersonIcon color="action" fontSize="small" />;
     }
   };
 
@@ -83,65 +111,69 @@ const ActivityFeed = () => {
     switch (type) {
       case 'checkin':
         return 'success';
-      case 'gift':
+      case 'undo_checkin':
+        return 'warning';
+      case 'inventory_update':
+      case 'inventory_add':
+      case 'allocation_update':
+      case 'update_gifts':
         return 'primary';
-      case 'event':
+      case 'event_create':
+      case 'event_update':
+      case 'event_status_change':
+      case 'event_archive':
+      case 'event_unarchive':
         return 'info';
       default:
         return 'default';
     }
   };
 
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return 'Unknown time';
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
-    
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formatDateTime = (timestamp) => {
+    if (!timestamp) return '—';
+    const d = new Date(timestamp);
+    return d.toLocaleString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
   };
 
   return (
     <Card sx={{ mb: 4 }}>
       <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}>
           <Box>
             <Typography variant="h6" fontWeight={700} color="primary.main">
-          Activity Feed
-        </Typography>
+              Activity Feed
+            </Typography>
             <Typography variant="body2" color="text.secondary">
-              Real-time activity log and event updates
+              Who did what and when — action, person, date & time
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 2 }}>
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Filter Type</InputLabel>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>Filter by type</InputLabel>
               <Select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
-                label="Filter Type"
+                label="Filter by type"
               >
-                <MenuItem value="all">All Activities</MenuItem>
+                <MenuItem value="all">All activities</MenuItem>
                 <MenuItem value="checkin">Check-ins</MenuItem>
-                <MenuItem value="gift">Gifts</MenuItem>
-                <MenuItem value="event">Events</MenuItem>
+                <MenuItem value="undo_checkin">Undo check-in</MenuItem>
+                <MenuItem value="inventory_update">Inventory update</MenuItem>
+                <MenuItem value="inventory_add">Inventory add</MenuItem>
+                <MenuItem value="allocation_update">Allocation update</MenuItem>
+                <MenuItem value="update_gifts">Gift update</MenuItem>
+                <MenuItem value="note">Note</MenuItem>
+                <MenuItem value="event_update">Event update</MenuItem>
+                <MenuItem value="event_status_change">Status change</MenuItem>
+                <MenuItem value="other">Other</MenuItem>
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
+            <FormControl size="small" sx={{ minWidth: 100 }}>
               <InputLabel>Limit</InputLabel>
-              <Select
-                value={limit}
-                onChange={(e) => setLimit(e.target.value)}
-                label="Limit"
-              >
+              <Select value={limit} onChange={(e) => setLimit(Number(e.target.value))} label="Limit">
                 <MenuItem value={25}>25</MenuItem>
                 <MenuItem value={50}>50</MenuItem>
                 <MenuItem value={100}>100</MenuItem>
@@ -152,59 +184,67 @@ const ActivityFeed = () => {
         </Box>
 
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
             <CircularProgress />
           </Box>
         ) : error ? (
           <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
         ) : logs.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
-        <Typography variant="body1" color="text.secondary">
-              No activity logs found for this event.
+            <Typography variant="body1" color="text.secondary">
+              No activity for this event yet.
             </Typography>
           </Box>
         ) : (
-          <Paper variant="outlined" sx={{ maxHeight: '600px', overflow: 'auto' }}>
-            <List>
-              {logs.map((log, index) => (
-                <React.Fragment key={log._id || index}>
-                  <ListItem alignItems="flex-start">
-                    <ListItemAvatar>
-                      <Avatar sx={{ bgcolor: 'transparent' }}>
+          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
+            <Table stickyHeader size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Action</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Details</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Performed by</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Date & time</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {logs.map((log, index) => (
+                  <TableRow key={log._id || index} hover>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {getActivityIcon(log.type)}
-                      </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                          <Typography variant="subtitle2" component="span">
-                            {log.details?.message || log.type || 'Activity'}
-                          </Typography>
-                          <Chip
-                            label={log.type || 'unknown'}
-                            size="small"
-                            color={getActivityColor(log.type)}
-                            sx={{ height: 20, fontSize: '0.7rem' }}
-                          />
-                        </Box>
-                      }
-                      secondary={
-                        <Box>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            {log.performedBy?.username || log.performedBy?.email || 'System'}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {formatTimestamp(log.timestamp)}
-        </Typography>
-                        </Box>
-                      }
-                    />
-                  </ListItem>
-                  {index < logs.length - 1 && <Divider variant="inset" component="li" />}
-                </React.Fragment>
-              ))}
-            </List>
-      </Paper>
+                        <Typography variant="body2" fontWeight={500}>
+                          {getActionLabel(log.type)}
+                        </Typography>
+                        <Chip
+                          label={log.type || 'other'}
+                          size="small"
+                          color={getActivityColor(log.type)}
+                          sx={{ height: 20, fontSize: '0.7rem' }}
+                        />
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {log.details?.message || log.details?.description || '—'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {log.performedBy?.username || log.performedBy?.email || (log.performedBy?.firstName && log.performedBy?.lastName
+                          ? `${log.performedBy.firstName} ${log.performedBy.lastName}`
+                          : 'System')}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {formatDateTime(log.timestamp)}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </CardContent>
     </Card>

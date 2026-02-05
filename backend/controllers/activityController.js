@@ -39,7 +39,7 @@ exports.getGlobalFeed = async (req, res) => {
     console.log('Filter:', filter);
     
     const logs = await ActivityLog.find(filter)
-      .populate('performedBy', 'username email')
+      .populate('performedBy', 'username email firstName lastName')
       .sort({ timestamp: -1 })
       .limit(Number(limit));
     
@@ -66,7 +66,7 @@ exports.getEventFeed = async (req, res) => {
     console.log('Filter:', filter);
     
     const logs = await ActivityLog.find(filter)
-      .populate('performedBy', 'username email')
+      .populate('performedBy', 'username email firstName lastName')
       .sort({ timestamp: -1 })
       .limit(Number(limit));
     
