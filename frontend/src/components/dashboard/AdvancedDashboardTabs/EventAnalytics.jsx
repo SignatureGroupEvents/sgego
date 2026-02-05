@@ -32,7 +32,6 @@ import AnalyticsBarChart from '../../analytics/charts/AnalyticsBarChart';
 import AnalyticsPieChart from '../../analytics/charts/AnalyticsPieChart';
 import AnalyticsLineChart from '../../analytics/charts/AnalyticsLineChart';
 import ClearIcon from '@mui/icons-material/Clear';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import MuiTooltip from '@mui/material/Tooltip';
 import Menu from '@mui/material/Menu';
@@ -42,7 +41,7 @@ import AnalyticsFilters from '../../analytics/AnalyticsFilters';
 // Centralized fallback label
 const UNKNOWN_LABEL = 'Unlabeled';
 
-const EventAnalytics = ({ eventId }) => {
+const EventAnalytics = ({ eventId, refreshKey = 0 }) => {
   const theme = useTheme();
   const getAnalytics = useAnalyticsApi();
   
@@ -54,6 +53,7 @@ const EventAnalytics = ({ eventId }) => {
   const [hiddenCategories, setHiddenCategories] = useState([]);
   const [filters, setFilters] = useState({});
   const prevFiltersRef = useRef(null);
+  const lastRefreshKeyRef = useRef(refreshKey);
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [checkInPage, setCheckInPage] = useState(0);
@@ -92,18 +92,20 @@ const EventAnalytics = ({ eventId }) => {
       if (isInitialMount.current) {
         isInitialMount.current = false;
         prevFiltersRef.current = JSON.parse(JSON.stringify(filters));
+        lastRefreshKeyRef.current = refreshKey;
         // Continue to fetch...
-      } else if (filtersString === prevFiltersString) {
-        // Skip fetch if filters haven't actually changed (after initial mount)
+      } else if (filtersString === prevFiltersString && refreshKey === lastRefreshKeyRef.current) {
+        // Skip fetch if filters and refresh key unchanged
         return;
       }
       
       prevFiltersRef.current = JSON.parse(JSON.stringify(filters));
+      lastRefreshKeyRef.current = refreshKey;
 
       try {
         setLoading(true);
         setError('');
-        const data = await getAnalytics(eventId, filters);
+        const data = await getAnalytics(eventId, { ...filters, timelineGroupBy: filters.timelineGroupBy || 'hour' });
         setAnalytics(data);
         
         // console.log('✅ Event analytics loaded successfully:', {
@@ -120,7 +122,7 @@ const EventAnalytics = ({ eventId }) => {
     };
 
     fetchAnalytics();
-  }, [eventId, filters, getAnalytics]);
+  }, [eventId, filters, getAnalytics, refreshKey]);
 
   // Reset check-in table page when data changes (e.g. after filter)
   useEffect(() => {
@@ -149,29 +151,32 @@ const EventAnalytics = ({ eventId }) => {
     '#D6A4A4', // dusty rose
   ], [theme]);
 
-  // Process check-in timeline data
+  // Process check-in timeline data (supports day / hour / minute granularity)
+  const timelineGranularity = filters.timelineGroupBy || 'hour';
   const timelineData = useMemo(() => {
     if (!analytics?.checkInTimeline) return [];
-    
-    const processed = analytics.checkInTimeline.map(item => ({
+    const granularity = filters.timelineGroupBy || 'hour';
+
+    const formatTimelineLabel = (dateStr) => {
+      if (!dateStr) return '';
+      if (granularity === 'minute' && dateStr.includes('T') && /^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}$/.test(dateStr)) {
+        const iso = `${dateStr}:00.000Z`;
+        return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      }
+      if (granularity === 'hour' && dateStr.includes('T') && /^\d{4}-\d{2}-\d{2}T\d{1,2}$/.test(dateStr)) {
+        const iso = `${dateStr}:00:00.000Z`;
+        return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      }
+      return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    return analytics.checkInTimeline.map(item => ({
       date: item._id.date,
       checkIns: item.checkIns,
       giftsDistributed: item.giftsDistributed,
-      formattedDate: new Date(item._id.date).toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric' 
-      })
+      formattedDate: formatTimelineLabel(item._id.date)
     }));
-
-    // console.log('📈 Timeline Data Processing:', {
-    //   totalDays: processed.length,
-    //   totalCheckIns: processed.reduce((sum, item) => sum + item.checkIns, 0),
-    //   totalGifts: processed.reduce((sum, item) => sum + item.giftsDistributed, 0),
-    //   dateRange: processed.length > 0 ? `${processed[0].date} to ${processed[processed.length - 1].date}` : 'No data'
-    // });
-
-    return processed;
-  }, [analytics?.checkInTimeline]);
+  }, [analytics?.checkInTimeline, filters.timelineGroupBy]);
 
   // Error handling for missing data
   if (error) {
@@ -469,6 +474,49 @@ const EventAnalytics = ({ eventId }) => {
           </Box>
         </Box>
 
+        {/* SECTION 3: Check-in Timeline - above Check-in Details */}
+        {timelineData.length > 0 && (
+          <Box mb={3} sx={{ maxWidth: 560, width: '100%' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+              <Box>
+                <Typography variant="subtitle1" fontWeight={600} color="primary.main">
+                  📈 Check-in Timeline (Last 7 Days)
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Line chart showing check-in activity over time
+                </Typography>
+              </Box>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <Select
+                  value={timelineGranularity}
+                  onChange={(e) => setFilters(prev => ({ ...prev, timelineGroupBy: e.target.value }))}
+                  displayEmpty
+                  sx={{ fontSize: '0.875rem' }}
+                >
+                  <MenuItem value="hour">Hourly</MenuItem>
+                  <MenuItem value="minute">Per minute</MenuItem>
+                  <MenuItem value="day">Daily</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+            <AnalyticsLineChart
+              data={timelineData}
+              lines={[
+                { 
+                  dataKey: 'checkIns', 
+                  name: 'Check-ins', 
+                  color: CHART_COLORS[0],
+                  strokeWidth: 3
+                }
+              ]}
+              xAxisKey="formattedDate"
+              height={300}
+              loading={loading}
+              showGrid={true}
+            />
+          </Box>
+        )}
+
         {/* SECTION 1.5: Detailed Check-in List */}
         <Box sx={{ mb: 4 }}>
           <Typography variant="h6" fontWeight={600} mb={2} color="primary.main">
@@ -563,55 +611,6 @@ const EventAnalytics = ({ eventId }) => {
             </Alert>
           )}
         </Box>
-
-        {/* SECTION 2: Chart Controls */}
-        <Box mb={2} pb={2} display="flex" alignItems="center" justifyContent="space-between">
-          <MuiTooltip title="Reset Charts">
-            <IconButton
-              color="secondary"
-              onClick={() => {
-                setActiveFilter(null);
-                setHiddenCategories([]);
-              }}
-              aria-label="Reset Charts"
-            >
-              <RefreshIcon />
-            </IconButton>
-          </MuiTooltip>
-        </Box>
-
-        {/* SECTION 3: Check-in Timeline */}
-        {timelineData.length > 0 && (
-          <Box mb={4}>
-            <Typography variant="subtitle1" fontWeight={600} mb={2} color="primary.main">
-              📈 Check-in Timeline (Last 7 Days)
-            </Typography>
-            <Typography variant="body2" color="text.secondary" mb={2}>
-              Line chart showing check-in patterns and gift distribution over time
-            </Typography>
-            <AnalyticsLineChart
-              data={timelineData}
-              lines={[
-                { 
-                  dataKey: 'checkIns', 
-                  name: 'Check-ins', 
-                  color: CHART_COLORS[0],
-                  strokeWidth: 3
-                },
-                { 
-                  dataKey: 'giftsDistributed', 
-                  name: 'Gifts Distributed', 
-                  color: CHART_COLORS[1],
-                  strokeWidth: 3
-                }
-              ]}
-              xAxisKey="formattedDate"
-              height={300}
-              loading={loading}
-              showGrid={true}
-            />
-          </Box>
-        )}
 
       </CardContent>
     </Card>

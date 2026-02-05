@@ -274,12 +274,19 @@ exports.deleteSecondaryEvent = async (req, res) => {
 exports.getEventAnalytics = async (req, res) => {
   try {
     const { id: eventId } = req.params;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, timelineGroupBy } = req.query;
+    
+    const timelineFormat = (timelineGroupBy === 'hour')
+      ? '%Y-%m-%dT%H'
+      : (timelineGroupBy === 'minute')
+        ? '%Y-%m-%dT%H:%M'
+        : '%Y-%m-%d';
     
     console.log('📥 Backend received request:', {
       eventId,
       startDate,
       endDate,
+      timelineGroupBy: timelineGroupBy || 'day',
       queryParams: req.query
     });
     
@@ -539,7 +546,7 @@ exports.getEventAnalytics = async (req, res) => {
       {
         $group: {
           _id: {
-            date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }
+            date: { $dateToString: { format: timelineFormat, date: '$createdAt', timezone: 'UTC' } }
           },
           checkIns: { $sum: 1 },
           giftsDistributed: { $sum: { $size: '$giftsDistributed' } }

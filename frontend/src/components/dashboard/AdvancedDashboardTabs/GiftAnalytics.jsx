@@ -42,7 +42,7 @@ import Menu from '@mui/material/Menu';
 // Centralized fallback label
 const UNKNOWN_LABEL = 'Unlabeled';
 
-const GiftAnalytics = ({ event, guests = [], inventory = [] }) => {
+const GiftAnalytics = ({ event, guests = [], inventory = [], refreshKey = 0 }) => {
   const theme = useTheme();
   const getAnalytics = useAnalyticsApi();
   const [analytics, setAnalytics] = useState(null);
@@ -116,7 +116,7 @@ const GiftAnalytics = ({ event, guests = [], inventory = [] }) => {
     // Refresh every 30 seconds for live updates
     const interval = setInterval(fetchAnalytics, 30000);
     return () => clearInterval(interval);
-  }, [event?._id, getAnalytics]);
+  }, [event?._id, getAnalytics, refreshKey]);
 
   const giftCounts = useMemo(() => {
     const countMap = {};

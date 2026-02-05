@@ -48,7 +48,7 @@ const ACTION_LABELS = {
 
 const getActionLabel = (type) => ACTION_LABELS[type] || (type ? type.replace(/_/g, ' ') : 'Activity');
 
-const ActivityFeed = () => {
+const ActivityFeed = ({ refreshKey = 0 } = {}) => {
   const { eventId } = useParams();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +81,7 @@ const ActivityFeed = () => {
     };
 
     fetchActivityFeed();
-  }, [eventId, filterType, limit]);
+  }, [eventId, filterType, limit, refreshKey]);
 
   const getActivityIcon = (type) => {
     switch (type) {
