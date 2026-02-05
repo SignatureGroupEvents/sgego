@@ -5,12 +5,13 @@ const eventController = require('../controllers/eventController');
 const guestController = require('../controllers/guestController');
 const inventoryController = require('../controllers/inventoryController');
 const { requirePortalAuth } = require('../middleware/portalAuth');
+const { sanitizePortalEvent } = require('../utils/portalSanitizer');
 
 const router = express.Router();
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 10,
   message: { message: 'Too many login attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false
@@ -18,9 +19,8 @@ const loginLimiter = rateLimit({
 
 router.post('/:eventId/login', loginLimiter, portalController.portalLogin);
 
-router.get('/:eventId', requirePortalAuth, (req, res, next) => {
-  req.params.id = req.params.eventId;
-  return eventController.getEvent(req, res, next);
+router.get('/:eventId', requirePortalAuth, (req, res) => {
+  res.json({ event: sanitizePortalEvent(req.portal.event) });
 });
 
 router.get('/:eventId/analytics', requirePortalAuth, (req, res, next) => {

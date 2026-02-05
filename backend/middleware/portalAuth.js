@@ -1,9 +1,12 @@
 const jwt = require('jsonwebtoken');
 const Event = require('../models/Event');
 
+const PORTAL_CLOSED_MESSAGE = 'This event portal has closed. Need to reopen? Contact your operations manager to reopen this event.';
+
 /**
  * requirePortalAuth: verify JWT, require scope === "portal", eventId match,
  * reload event and re-check enabled + open window each request.
+ * Rejects: missing token, invalid token, wrong scope (admin token cannot access portal).
  */
 exports.requirePortalAuth = async (req, res, next) => {
   try {
@@ -32,17 +35,17 @@ exports.requirePortalAuth = async (req, res, next) => {
 
     const cp = event.clientPortal;
     if (!cp || !cp.enabled) {
-      return res.status(403).json({ code: 'PORTAL_CLOSED', message: 'This event portal has closed. Contact your operations manager to reopen this event.' });
+      return res.status(403).json({ code: 'PORTAL_CLOSED', message: PORTAL_CLOSED_MESSAGE });
     }
 
     const now = new Date();
     const openAt = cp.openAt ? new Date(cp.openAt) : null;
     const closeAt = cp.closeAt ? new Date(cp.closeAt) : null;
     if (openAt && now < openAt) {
-      return res.status(403).json({ code: 'PORTAL_CLOSED', message: 'This event portal has closed. Contact your operations manager to reopen this event.' });
+      return res.status(403).json({ code: 'PORTAL_CLOSED', message: PORTAL_CLOSED_MESSAGE });
     }
     if (closeAt && now > closeAt) {
-      return res.status(403).json({ code: 'PORTAL_CLOSED', message: 'This event portal has closed. Contact your operations manager to reopen this event.' });
+      return res.status(403).json({ code: 'PORTAL_CLOSED', message: PORTAL_CLOSED_MESSAGE });
     }
 
     req.portal = { eventId, email: decoded.email, event };
