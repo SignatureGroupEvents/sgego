@@ -33,20 +33,30 @@ export default function PortalLayout({ children, eventName = 'Event' }) {
           gap: 1
         }}
       >
-        <Typography
-          variant="h6"
-          fontWeight={600}
-          color="primary.main"
-          sx={{
-            minWidth: 0,
-            flex: { xs: '0 0 auto', sm: '1 1 auto' },
-            overflow: 'hidden',
-            textOverflow: { xs: 'unset', sm: 'ellipsis' },
-            whiteSpace: { xs: 'normal', sm: 'nowrap' }
-          }}
-        >
-          {eventName} — Client Portal
-        </Typography>
+        <Box sx={{ minWidth: 0, flex: { xs: '0 0 auto', sm: '1 1 auto' } }}>
+          <Typography
+            variant="h6"
+            fontWeight={600}
+            color="primary.main"
+            sx={{
+              overflow: 'hidden',
+              textOverflow: { xs: 'unset', sm: 'ellipsis' },
+              whiteSpace: { xs: 'normal', sm: 'nowrap' }
+            }}
+          >
+            {eventName} — Dashboard
+          </Typography>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+              mt: 0.25
+            }}
+          >
+            Welcome to your Client Portal
+          </Typography>
+        </Box>
         <Button
           startIcon={<LogoutIcon />}
           onClick={handleSignOut}
@@ -57,7 +67,15 @@ export default function PortalLayout({ children, eventName = 'Event' }) {
           Sign out
         </Button>
       </Box>
-      <Box sx={{ flex: 1 }}>{children}</Box>
+      <Box
+        sx={{
+          flex: 1,
+          px: { xs: 2, sm: 3, md: 4, lg: 6 },
+          py: { xs: 2, sm: 3 }
+        }}
+      >
+        {children}
+      </Box>
       <Box
         component="footer"
         sx={{
