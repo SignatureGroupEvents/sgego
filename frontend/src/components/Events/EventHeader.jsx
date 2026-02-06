@@ -6,9 +6,10 @@ import { updateEvent } from '../../services/events';
 import toast from 'react-hot-toast';
 import { usePermissions } from '../../hooks/usePermissions';
 
-const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = false, onEventUpdate }) => {
+const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = false, onEventUpdate, readOnly = false }) => {
   const navigate = useNavigate();
   const { canManageEvents } = usePermissions();
+  const canEdit = !readOnly && canManageEvents;
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     eventName: '',
@@ -131,7 +132,7 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
                 </Box>
               </Box>
             </Box>
-            {canManageEvents && (
+            {canEdit && (
               <Tooltip title="Edit Event Details">
                 <IconButton 
                   onClick={handleEditClick}

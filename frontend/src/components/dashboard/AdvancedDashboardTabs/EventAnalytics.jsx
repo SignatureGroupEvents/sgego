@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useTheme } from '@mui/material/styles';
 import {
   Card,
@@ -17,217 +17,262 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  ButtonGroup,
   Button,
   IconButton,
   Grid,
-  Divider,
   CircularProgress,
-  Alert
+  Alert,
+  TextField,
+  InputAdornment,
+  Skeleton,
+  Tooltip as MuiTooltip
 } from '@mui/material';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { BarChart, Bar, XAxis, YAxis, Tooltip as BarTooltip, ResponsiveContainer as BarResponsiveContainer, Cell as BarCell } from 'recharts';
-import { LineChart, Line, CartesianGrid } from 'recharts';
-import AnalyticsBarChart from '../../analytics/charts/AnalyticsBarChart';
-import AnalyticsPieChart from '../../analytics/charts/AnalyticsPieChart';
-import AnalyticsLineChart from '../../analytics/charts/AnalyticsLineChart';
-import ClearIcon from '@mui/icons-material/Clear';
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceDot } from 'recharts';
+import SearchIcon from '@mui/icons-material/Search';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import MuiTooltip from '@mui/material/Tooltip';
 import Menu from '@mui/material/Menu';
+import toast from 'react-hot-toast';
 import { useAnalyticsApi } from '../../../contexts/AnalyticsApiContext';
-import AnalyticsFilters from '../../analytics/AnalyticsFilters';
 
-// Centralized fallback label
-const UNKNOWN_LABEL = 'Unlabeled';
+const EMPTY_LABEL = '—';
 
-const EventAnalytics = ({ eventId, refreshKey = 0 }) => {
+// Normalize backend bucket date string to valid ISO for parsing (backend uses UTC)
+function normalizeBucketToISO(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return dateStr;
+  const s = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}$/.test(s)) return `${s}:00.000Z`;
+  if (/^\d{4}-\d{2}-\d{2}T\d{1,2}$/.test(s)) return `${s}:00:00.000Z`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s}T12:00:00.000Z`;
+  return s;
+}
+
+// Format peak bucket for display: day = date only (UTC), hour/minute = date + time (local)
+function formatPeakPeriodLabel(rawDate, groupBy) {
+  if (!rawDate) return '';
+  const iso = normalizeBucketToISO(rawDate);
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return rawDate;
+  if (groupBy === 'day') {
+    return d.toLocaleDateString(undefined, { dateStyle: 'long', timeZone: 'UTC' });
+  }
+  return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short', timeZone: 'UTC' });
+}
+
+// Date preset helpers: 'all' = no date filter (entire event); others filter by range
+const getDateRange = (preset, customStart, customEnd) => {
+  if (preset === 'all') {
+    return { startDate: undefined, endDate: undefined };
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const toStr = (d) => d.toISOString().split('T')[0];
+  if (preset === 'today') {
+    return { startDate: toStr(today), endDate: toStr(today) };
+  }
+  if (preset === 'last7') {
+    const start = new Date(today);
+    start.setDate(start.getDate() - 6);
+    return { startDate: toStr(start), endDate: toStr(today) };
+  }
+  if (preset === 'last30') {
+    const start = new Date(today);
+    start.setDate(start.getDate() - 29);
+    return { startDate: toStr(start), endDate: toStr(today) };
+  }
+  return { startDate: customStart || undefined, endDate: customEnd || undefined };
+};
+
+const EventAnalytics = ({ eventId, refreshKey = 0, isPortalView = false }) => {
   const theme = useTheme();
   const getAnalytics = useAnalyticsApi();
-  
-  // State management
+
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeFilter, setActiveFilter] = useState(null);
-  const [hiddenCategories, setHiddenCategories] = useState([]);
-  const [filters, setFilters] = useState({});
-  const prevFiltersRef = useRef(null);
-  const lastRefreshKeyRef = useRef(refreshKey);
+  const [retryCount, setRetryCount] = useState(0);
+  const [dateRangePreset, setDateRangePreset] = useState('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [timelineGroupBy, setTimelineGroupBy] = useState('hour');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedTimeBucket, setSelectedTimeBucket] = useState(null);
+  const [sortBy, setSortBy] = useState('checkedInAt');
+  const [sortOrder, setSortOrder] = useState('desc');
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [checkInPage, setCheckInPage] = useState(0);
   const [checkInRowsPerPage, setCheckInRowsPerPage] = useState(10);
-
-  // Memoize the filters change handler to prevent AnalyticsFilters from remounting
-  const handleFiltersChange = useCallback((newFilters) => {
-    setFilters(newFilters);
-  }, []);
-
-  // Debug logging for data validation (commented out to reduce console noise)
-  // console.log('📊 EventAnalytics Debug:', {
-  //   eventId,
-  //   hasAnalytics: !!analytics,
-  //   loading,
-  //   error
-  // });
-
-  // Track if this is the initial mount
+  const [dateRangeStart, setDateRangeStart] = useState('');
+  const [dateRangeEnd, setDateRangeEnd] = useState('');
+  const prevFiltersRef = useRef(null);
+  const lastRefreshKeyRef = useRef(refreshKey);
   const isInitialMount = useRef(true);
-  
-  // Fetch analytics data
-  useEffect(() => {
-    const fetchAnalytics = async () => {
-      if (!eventId) {
-        setError('No event ID provided');
-        setLoading(false);
-        return;
-      }
 
-      // Compare filters to previous to prevent unnecessary fetches
-      const filtersString = JSON.stringify(filters);
-      const prevFiltersString = prevFiltersRef.current ? JSON.stringify(prevFiltersRef.current) : null;
-      
-      // On initial mount, fetch once with empty filters, then mark as not initial
-      if (isInitialMount.current) {
-        isInitialMount.current = false;
-        prevFiltersRef.current = JSON.parse(JSON.stringify(filters));
-        lastRefreshKeyRef.current = refreshKey;
-        // Continue to fetch...
-      } else if (filtersString === prevFiltersString && refreshKey === lastRefreshKeyRef.current) {
-        // Skip fetch if filters and refresh key unchanged
-        return;
-      }
-      
-      prevFiltersRef.current = JSON.parse(JSON.stringify(filters));
-      lastRefreshKeyRef.current = refreshKey;
-
-      try {
-        setLoading(true);
-        setError('');
-        const data = await getAnalytics(eventId, { ...filters, timelineGroupBy: filters.timelineGroupBy || 'hour' });
-        setAnalytics(data);
-        
-        // console.log('✅ Event analytics loaded successfully:', {
-        //   eventStats: data.eventStats,
-        //   timelineLength: data.checkInTimeline?.length || 0,
-        //   hasGiftData: !!data.giftSummary
-        // });
-      } catch (err) {
-        console.error('❌ Error fetching event analytics:', err);
-        setError('Failed to load event analytics data');
-      } finally {
-        setLoading(false);
-      }
+  // API filters: date range (from calendar) + granularity
+  const apiFilters = useMemo(() => {
+    const start = dateRangeStart?.trim() || undefined;
+    const end = dateRangeEnd?.trim() || undefined;
+    return {
+      startDate: start,
+      endDate: end || start,
+      timelineGroupBy: timelineGroupBy || 'hour'
     };
+  }, [dateRangeStart, dateRangeEnd, timelineGroupBy]);
 
-    fetchAnalytics();
-  }, [eventId, filters, getAnalytics, refreshKey]);
+  const fetchAnalytics = useCallback(async () => {
+    if (!eventId) {
+      setError('No event ID provided');
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError('');
+      const data = await getAnalytics(eventId, apiFilters);
+      setAnalytics(data);
+    } catch (err) {
+      console.error('❌ Error fetching event analytics:', err);
+      setError('Failed to load event analytics data');
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId, apiFilters, getAnalytics]);
 
-  // Reset check-in table page when data changes (e.g. after filter)
+  useEffect(() => {
+    const filtersString = JSON.stringify(apiFilters);
+    const prevString = prevFiltersRef.current ? JSON.stringify(prevFiltersRef.current) : null;
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      prevFiltersRef.current = { ...apiFilters };
+      lastRefreshKeyRef.current = refreshKey;
+      fetchAnalytics();
+    } else if (filtersString !== prevString || refreshKey !== lastRefreshKeyRef.current) {
+      prevFiltersRef.current = { ...apiFilters };
+      lastRefreshKeyRef.current = refreshKey;
+      fetchAnalytics();
+    }
+
+    // Auto-refresh every 30 seconds for near real-time check-in data (same as Gift Analytics)
+    const interval = setInterval(fetchAnalytics, 30000);
+    return () => clearInterval(interval);
+  }, [apiFilters, refreshKey, fetchAnalytics]);
+
   useEffect(() => {
     setCheckInPage(0);
-  }, [analytics?.detailedCheckIns?.length, filters.startDate, filters.endDate]);
+  }, [analytics?.detailedCheckIns?.length, apiFilters.startDate, apiFilters.endDate, statusFilter, searchQuery, selectedTimeBucket]);
 
-  // Use theme palette colors for the charts
-  const CHART_COLORS = useMemo(() => [
-    theme.palette.primary.main,      // #00B2C0
-    theme.palette.secondary.main,    // #31365E
-    theme.palette.warning.main,      // #CB1033
-    theme.palette.info.main,         // #FAA951
-    '#00838F', // dark teal
-    '#4DD0E1', // light teal
-    '#FFD166', // soft yellow
-    '#F67280', // soft red/pink
-    '#6C5B7B', // muted purple
-    '#355C7D', // blue-grey
-    '#B5EAD7', // mint
-    '#FFB7B2', // light coral
-    '#B2C2FF', // soft blue
-    '#F6D186', // pale gold
-    '#C06C84', // mauve
-    '#F8B195', // light peach
-    '#A8E6CF', // light green
-    '#D6A4A4', // dusty rose
-  ], [theme]);
 
-  // Process check-in timeline data (supports day / hour / minute granularity)
-  const timelineGranularity = filters.timelineGroupBy || 'hour';
+  // Process check-in timeline data (minute / hour / day)
   const timelineData = useMemo(() => {
     if (!analytics?.checkInTimeline) return [];
-    const granularity = filters.timelineGroupBy || 'hour';
+    const groupBy = timelineGroupBy || 'hour';
 
     const formatTimelineLabel = (dateStr) => {
       if (!dateStr) return '';
-      if (granularity === 'minute' && dateStr.includes('T') && /^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}$/.test(dateStr)) {
+      if (groupBy === 'minute' && dateStr.includes('T') && /^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}$/.test(dateStr)) {
         const iso = `${dateStr}:00.000Z`;
-        return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
       }
-      if (granularity === 'hour' && dateStr.includes('T') && /^\d{4}-\d{2}-\d{2}T\d{1,2}$/.test(dateStr)) {
+      if (groupBy === 'hour' && dateStr.includes('T') && /^\d{4}-\d{2}-\d{2}T\d{1,2}$/.test(dateStr)) {
         const iso = `${dateStr}:00:00.000Z`;
-        return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
       }
-      return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      if (groupBy === 'day' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return new Date(dateStr + 'T12:00:00.000Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+      }
+      return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
     };
 
     return analytics.checkInTimeline.map(item => ({
       date: item._id.date,
+      rawDate: normalizeBucketToISO(item._id.date),
       checkIns: item.checkIns,
-      giftsDistributed: item.giftsDistributed,
       formattedDate: formatTimelineLabel(item._id.date)
     }));
-  }, [analytics?.checkInTimeline, filters.timelineGroupBy]);
+  }, [analytics?.checkInTimeline, timelineGroupBy]);
 
-  // Error handling for missing data
-  if (error) {
-    return (
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" color="error" gutterBottom>
-            ⚠️ Event Analytics Error
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {error}. Please refresh the page or contact support.
-          </Typography>
-        </CardContent>
-      </Card>
-    );
-  }
+  const peakBucket = useMemo(() => {
+    if (!timelineData.length) return null;
+    const max = timelineData.reduce((acc, d) => (d.checkIns > (acc?.checkIns ?? 0) ? d : acc), null);
+    return max;
+  }, [timelineData]);
 
-  if (loading) {
-    return (
-      <Card sx={{ mb: 4 }}>
-        <CardContent sx={{ textAlign: 'center', py: 4 }}>
-          <CircularProgress size={60} />
-          <Typography variant="body1" sx={{ mt: 2 }}>
-            Loading Event Analytics...
-          </Typography>
-        </CardContent>
-      </Card>
-    );
-  }
 
-  if (!analytics) {
-    return (
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" color="error" gutterBottom>
-            ⚠️ No Analytics Data
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            No event analytics data available. This may be because no guests have checked in yet.
-          </Typography>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Avg check-ins per hour: total check-ins over the timeline span, with min 1 hour so short bursts don't inflate
+  const avgCheckInsPerHour = useMemo(() => {
+    if (!timelineData.length) return 0;
+    const total = timelineData.reduce((a, b) => a + (b.checkIns || 0), 0);
+    const first = new Date(timelineData[0].rawDate).getTime();
+    const last = new Date(timelineData[timelineData.length - 1].rawDate).getTime();
+    const spanHours = Math.max((last - first) / (1000 * 60 * 60), 1);
+    return total / spanHours;
+  }, [timelineData]);
 
-  const { eventStats, detailedCheckIns } = analytics;
+  // Filter and sort table data (client-side)
+  const rawCheckIns = analytics?.detailedCheckIns ?? [];
+  const filteredAndSortedCheckIns = useMemo(() => {
+    let list = [...(rawCheckIns || [])];
+    const q = (searchQuery || '').trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (c) =>
+          (c.guestName || '').toLowerCase().includes(q) ||
+          (c.guestEmail || '').toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter === 'checked_in') {
+      list = list.filter((c) => c.checkedInAt);
+    } else if (statusFilter === 'pending') {
+      list = list.filter((c) => !c.checkedInAt);
+    }
+    if (selectedTimeBucket?.date) {
+      const bucket = selectedTimeBucket.date;
+      list = list.filter((c) => {
+        if (!c.checkedInAt) return false;
+        const at = new Date(c.checkedInAt);
+        if (timelineGroupBy === 'minute' && /^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}$/.test(bucket)) {
+          const bucketStart = new Date(bucket + ':00.000Z');
+          const bucketEnd = new Date(bucketStart.getTime() + 60 * 1000);
+          return at >= bucketStart && at < bucketEnd;
+        }
+        if (timelineGroupBy === 'hour' && bucket.includes('T') && /^\d{4}-\d{2}-\d{2}T\d{1,2}$/.test(bucket)) {
+          const bucketStart = new Date(bucket + ':00:00.000Z');
+          const bucketEnd = new Date(bucketStart);
+          bucketEnd.setHours(bucketEnd.getHours() + 1);
+          return at >= bucketStart && at < bucketEnd;
+        }
+        const dayStr = at.toISOString().split('T')[0];
+        return bucket === dayStr || bucket.startsWith(dayStr);
+      });
+    }
+    list.sort((a, b) => {
+      let aVal = a[sortBy];
+      let bVal = b[sortBy];
+      if (sortBy === 'checkedInAt') {
+        aVal = aVal ? new Date(aVal).getTime() : 0;
+        bVal = bVal ? new Date(bVal).getTime() : 0;
+      } else {
+        aVal = (aVal || '').toString().toLowerCase();
+        bVal = (bVal || '').toString().toLowerCase();
+      }
+      if (sortOrder === 'desc') [aVal, bVal] = [bVal, aVal];
+      return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+    });
+    return list;
+  }, [rawCheckIns, searchQuery, statusFilter, selectedTimeBucket, sortBy, sortOrder, timelineGroupBy]);
+
+  const paginatedCheckIns = useMemo(() => {
+    const start = checkInPage * checkInRowsPerPage;
+    return filteredAndSortedCheckIns.slice(start, start + checkInRowsPerPage);
+  }, [filteredAndSortedCheckIns, checkInPage, checkInRowsPerPage]);
+
+  const eventStats = analytics?.eventStats ?? { totalGuests: 0, checkedInGuests: 0, pendingGuests: 0, checkInPercentage: 0 };
+  const detailedCheckIns = rawCheckIns;
 
   // Export functions
   const exportCheckInsToCSV = () => {
-    if (!detailedCheckIns || detailedCheckIns.length === 0) return;
-    
+    if (!analytics) return;
     const sections = [];
     
     // Section 0: Export Information
@@ -238,34 +283,31 @@ const EventAnalytics = ({ eventId, refreshKey = 0 }) => {
     sections.push('');
     
     // Section 1: Filtered Dates (if any)
-    if (filters.startDate || filters.endDate) {
+    if (apiFilters.startDate || apiFilters.endDate) {
       sections.push('=== FILTERED DATE RANGE ===');
-      if (filters.startDate) {
-        sections.push(`Start Date,"${new Date(filters.startDate).toLocaleDateString()}"`);
+      if (apiFilters.startDate) {
+        sections.push(`Start Date,"${new Date(apiFilters.startDate).toLocaleDateString()}"`);
       }
-      if (filters.endDate) {
-        sections.push(`End Date,"${new Date(filters.endDate).toLocaleDateString()}"`);
+      if (apiFilters.endDate) {
+        sections.push(`End Date,"${new Date(apiFilters.endDate).toLocaleDateString()}"`);
       }
       sections.push('');
     }
     
-    // Section 2: Event Summary
-    sections.push('=== EVENT SUMMARY ===');
-    sections.push(`Event Name,"${(eventStats.eventName || 'N/A').replace(/"/g, '""')}"`);
-    sections.push(`Contract Number,"${(eventStats.eventContractNumber || 'N/A').replace(/"/g, '""')}"`);
-    sections.push(`Event Type,"${(eventStats.isMainEvent ? 'Main Event' : 'Secondary Event').replace(/"/g, '""')}"`);
+    // Section 2: Quick Summary
+    sections.push('=== QUICK SUMMARY ===');
     sections.push(`Total Guests,${eventStats.totalGuests || 0}`);
     sections.push(`Checked In,${eventStats.checkedInGuests || 0}`);
     sections.push(`Pending,${eventStats.pendingGuests || 0}`);
     sections.push(`Check-in Rate,${eventStats.checkInPercentage || 0}%`);
     sections.push('');
     
-    // Section 3: Check-in Details
+    // Section 3: Check-in Details (export uses current filtered list)
     sections.push('=== CHECK-IN DETAILS ===');
     const headers = ['Guest Name', 'Email', 'Checked In At', 'Checked In By', 'Gifts Count', 'Notes'];
     sections.push(headers.join(','));
     
-    const rows = detailedCheckIns.map(checkin => [
+    const rows = filteredAndSortedCheckIns.map(checkin => [
       (checkin.guestName || '').replace(/"/g, '""'),
       (checkin.guestEmail || '').replace(/"/g, '""'),
       checkin.checkedInAt ? new Date(checkin.checkedInAt).toLocaleString().replace(/"/g, '""') : '',
@@ -293,12 +335,16 @@ const EventAnalytics = ({ eventId, refreshKey = 0 }) => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     setExportMenuAnchor(null);
+    toast.success('Check-ins exported to CSV');
   };
 
   const exportCheckInsToExcel = async () => {
     setExporting(true);
     try {
-      if (!detailedCheckIns || detailedCheckIns.length === 0) return;
+      if (!filteredAndSortedCheckIns?.length && !rawCheckIns?.length) {
+        toast.error('No check-ins to export');
+        return;
+      }
       
       const sections = [];
       
@@ -310,34 +356,31 @@ const EventAnalytics = ({ eventId, refreshKey = 0 }) => {
       sections.push('');
       
       // Section 1: Filtered Dates (if any)
-      if (filters.startDate || filters.endDate) {
+      if (apiFilters.startDate || apiFilters.endDate) {
         sections.push('=== FILTERED DATE RANGE ===');
-        if (filters.startDate) {
-          sections.push(`Start Date\t${new Date(filters.startDate).toLocaleDateString()}`);
+        if (apiFilters.startDate) {
+          sections.push(`Start Date\t${new Date(apiFilters.startDate).toLocaleDateString()}`);
         }
-        if (filters.endDate) {
-          sections.push(`End Date\t${new Date(filters.endDate).toLocaleDateString()}`);
+        if (apiFilters.endDate) {
+          sections.push(`End Date\t${new Date(apiFilters.endDate).toLocaleDateString()}`);
         }
         sections.push('');
       }
       
-      // Section 2: Event Summary
-      sections.push('=== EVENT SUMMARY ===');
-      sections.push(`Event Name\t${eventStats.eventName || 'N/A'}`);
-      sections.push(`Contract Number\t${eventStats.eventContractNumber || 'N/A'}`);
-      sections.push(`Event Type\t${eventStats.isMainEvent ? 'Main Event' : 'Secondary Event'}`);
+      // Section 2: Quick Summary
+      sections.push('=== QUICK SUMMARY ===');
       sections.push(`Total Guests\t${eventStats.totalGuests || 0}`);
       sections.push(`Checked In\t${eventStats.checkedInGuests || 0}`);
       sections.push(`Pending\t${eventStats.pendingGuests || 0}`);
       sections.push(`Check-in Rate\t${eventStats.checkInPercentage || 0}%`);
       sections.push('');
       
-      // Section 3: Check-in Details
+      // Section 3: Check-in Details (current filtered list)
       sections.push('=== CHECK-IN DETAILS ===');
       const headers = ['Guest Name', 'Email', 'Checked In At', 'Checked In By', 'Gifts Count', 'Notes'];
       sections.push(headers.join('\t'));
       
-      const rows = detailedCheckIns.map(checkin => [
+      const rows = filteredAndSortedCheckIns.map(checkin => [
         checkin.guestName || '',
         checkin.guestEmail || '',
         checkin.checkedInAt ? new Date(checkin.checkedInAt).toLocaleString() : '',
@@ -364,193 +407,393 @@ const EventAnalytics = ({ eventId, refreshKey = 0 }) => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+      toast.success('Check-ins exported to Excel');
     } catch (error) {
       console.error('Error exporting to Excel:', error);
+      toast.error('Export failed');
     } finally {
       setExporting(false);
       setExportMenuAnchor(null);
     }
   };
 
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(field);
+      setSortOrder(field === 'checkedInAt' ? 'desc' : 'asc');
+    }
+    setCheckInPage(0);
+  };
+
+  const chartColor = theme.palette.primary.main;
+
   return (
     <Card sx={{ mb: 4 }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+      <CardContent sx={{ px: { xs: 2, sm: 3 }, py: 3 }}>
+        {/* Page header: title + Export */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 2,
+            pb: 3,
+            mb: 3,
+            borderBottom: 1,
+            borderColor: 'divider'
+          }}
+        >
           <Box>
-            <Typography variant="h6" fontWeight={700} color="primary.main">
+            <Typography variant="h5" fontWeight={700} color="primary.main" sx={{ letterSpacing: '-0.02em', lineHeight: 1.3 }}>
               Event Analytics Dashboard
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               Track guest check-ins, event performance, and attendance patterns
             </Typography>
           </Box>
-          <MuiTooltip title="Export Data">
-            <IconButton
-              size="small"
-              onClick={(e) => setExportMenuAnchor(e.currentTarget)}
-              disabled={exporting || !analytics}
-            >
-              <FileDownloadIcon />
-            </IconButton>
-          </MuiTooltip>
+          <Button
+            variant="contained"
+            size="large"
+            startIcon={<FileDownloadIcon />}
+            onClick={(e) => setExportMenuAnchor(e.currentTarget)}
+            disabled={exporting || !analytics}
+            sx={{ px: 3, py: 1.5 }}
+          >
+            Export
+          </Button>
         </Box>
-        
-        {/* Export Menu - placed outside Box for proper portal rendering */}
+
+        {/* Error state */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+            {error}
+            <Button size="small" sx={{ ml: 1 }} onClick={() => { setError(null); fetchAnalytics(); }}>
+              Retry
+            </Button>
+          </Alert>
+        )}
+
         <Menu
           anchorEl={exportMenuAnchor}
           open={Boolean(exportMenuAnchor)}
           onClose={() => setExportMenuAnchor(null)}
         >
-          <MenuItem onClick={exportCheckInsToCSV} disabled={exporting || !detailedCheckIns?.length}>
-            Export Check-ins as CSV
+          <MenuItem onClick={exportCheckInsToCSV} disabled={exporting}>
+            Export as CSV
           </MenuItem>
-          <MenuItem onClick={exportCheckInsToExcel} disabled={exporting || !detailedCheckIns?.length}>
-            Export Check-ins as Excel
+          <MenuItem onClick={exportCheckInsToExcel} disabled={exporting}>
+            Export as XLSX
           </MenuItem>
         </Menu>
 
-        {/* Analytics Filters */}
-        <Box sx={{ mb: 3 }}>
-          <AnalyticsFilters
-            key={`analytics-filters-${eventId}`}
-            initialEventId={eventId}
-            showEventSelector={false}
-            onFiltersChange={handleFiltersChange}
-            autoApply={true}
-            variant="compact"
-          />
+        {/* Chart (left) + Granularity & KPI cards (right); on mobile/tablet: stacked, cards wrap */}
+        <Box
+          sx={{
+            mb: 4,
+            display: 'flex',
+            flexDirection: { xs: 'column', md: 'row' },
+            gap: 3,
+            alignItems: 'stretch'
+          }}
+        >
+          {/* Check-in Timeline - left */}
+          <Box sx={{ flex: { xs: '0 0 auto', md: '1 1 50%' }, minWidth: 0, width: '100%' }}>
+            {/* Date Range - calendar pickers above chart */}
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+              Date Range
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 2 }}>
+              <TextField
+                size="small"
+                type="date"
+                label="Start"
+                value={dateRangeStart}
+                onChange={(e) => { setDateRangeStart(e.target.value); setSelectedTimeBucket(null); }}
+                InputLabelProps={{ shrink: true }}
+                sx={{ width: 160 }}
+              />
+              <TextField
+                size="small"
+                type="date"
+                label="End"
+                value={dateRangeEnd}
+                onChange={(e) => { setDateRangeEnd(e.target.value); setSelectedTimeBucket(null); }}
+                InputLabelProps={{ shrink: true }}
+                sx={{ width: 160 }}
+              />
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => { setDateRangeStart(''); setDateRangeEnd(''); setSelectedTimeBucket(null); }}
+                disabled={!dateRangeStart && !dateRangeEnd}
+              >
+                Clear
+              </Button>
+            </Box>
+            <Typography variant="h6" fontWeight={600} color="primary.main" sx={{ mb: 2 }}>
+              Check-in Timeline
+            </Typography>
+            {loading ? (
+              <Skeleton variant="rounded" height={280} sx={{ height: { xs: 240, sm: 280 } }} />
+            ) : timelineData.length > 0 ? (
+              <Card variant="outlined" sx={{ overflow: 'hidden', minHeight: { xs: 240, sm: 280 } }}>
+                <CardContent sx={{ height: '100%', '&:last-child': { pb: 2 } }}>
+                  <ResponsiveContainer width="100%" height={300} minHeight={240}>
+                  <LineChart data={timelineData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+                    <XAxis dataKey="formattedDate" tick={{ fontSize: 12 }} stroke={theme.palette.text.secondary} />
+                    <YAxis tick={{ fontSize: 12 }} stroke={theme.palette.text.secondary} allowDecimals={false} />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        const p = payload[0]?.payload;
+                        return (
+                          <Paper elevation={2} sx={{ px: 1.5, py: 1 }}>
+                            <Typography variant="caption" display="block">{p?.rawDate ? new Date(p.rawDate).toLocaleString(undefined, { timeZone: 'UTC', dateStyle: 'short', timeStyle: 'short' }) : label}</Typography>
+                            <Typography variant="body2" fontWeight={600}>Check-ins: {p?.checkIns ?? 0}</Typography>
+                            {peakBucket && p?.rawDate === peakBucket.rawDate && (
+                              <Typography variant="caption" color="primary.main">Peak</Typography>
+                            )}
+                          </Paper>
+                        );
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="checkIns"
+                      name="Check-ins"
+                      stroke={chartColor}
+                      strokeWidth={2}
+                      dot={{ r: 4, fill: chartColor }}
+                      activeDot={(props) => {
+                        const { cx, cy, payload } = props;
+                        return (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={6}
+                            fill={chartColor}
+                            stroke={theme.palette.background.paper}
+                            strokeWidth={2}
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => {
+                              if (payload) setSelectedTimeBucket(prev => (prev?.rawDate === payload.rawDate ? null : { date: payload.rawDate, label: payload.formattedDate }));
+                            }}
+                          />
+                        );
+                      }}
+                    />
+                    {peakBucket && (
+                      <ReferenceDot
+                        x={peakBucket.formattedDate}
+                        y={peakBucket.checkIns}
+                        r={6}
+                        fill={theme.palette.warning.main}
+                        stroke={theme.palette.background.paper}
+                        strokeWidth={2}
+                      />
+                    )}
+                  </LineChart>
+                  </ResponsiveContainer>
+                  {selectedTimeBucket && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                      Table filtered to: {selectedTimeBucket.label}. Click again to clear.
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <Card variant="outlined"><CardContent><Typography variant="body2" color="text.secondary">No timeline data for the selected range.</Typography></CardContent></Card>
+            )}
+          </Box>
+
+          {/* Right: Group by time + KPI cards, aligned with chart (below Date Range + title) */}
+          <Box
+            sx={{
+              flex: { xs: '0 0 auto', md: '0 0 auto' },
+              width: { xs: '100%', md: 340 },
+              maxWidth: '100%',
+              pt: { xs: 0, md: 15 },
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1.5,
+              alignItems: { xs: 'stretch', md: 'flex-start' }
+            }}
+          >
+            <FormControl size="small" sx={{ minWidth: 180, width: '100%' }}>
+              <InputLabel>Group by time</InputLabel>
+              <Select
+                value={timelineGroupBy}
+                label="Group by time"
+                onChange={(e) => setTimelineGroupBy(e.target.value)}
+              >
+                <MenuItem value="minute">By minute</MenuItem>
+                <MenuItem value="hour">By hour</MenuItem>
+                <MenuItem value="day">By day</MenuItem>
+              </Select>
+            </FormControl>
+            {loading ? (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: '1fr' }, gap: 1.5 }}>
+                <Skeleton variant="rounded" height={64} />
+                <Skeleton variant="rounded" height={64} />
+                <Skeleton variant="rounded" height={64} />
+              </Box>
+            ) : (
+              <Card variant="outlined" sx={{ display: 'block', width: '100%', minWidth: 0 }}>
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: '1fr' },
+                      gap: 1.5,
+                      minWidth: 0
+                    }}
+                  >
+                    <Card variant="outlined" sx={{ cursor: 'pointer', borderLeft: 3, borderLeftColor: 'primary.main', boxShadow: 'none', minWidth: 0 }} onClick={() => setStatusFilter('all')}>
+                      <CardContent sx={{ py: 1, px: 2, '&:last-child': { pb: 1 } }}>
+                        <Typography variant="caption" color="text.secondary">Check-in Rate</Typography>
+                        <Typography variant="body1" fontWeight={700} color="primary.main">{eventStats.checkInPercentage}%</Typography>
+                      </CardContent>
+                    </Card>
+{peakBucket && (
+                  <Card variant="outlined" sx={{ borderLeft: 3, borderLeftColor: 'warning.main', boxShadow: 'none', minWidth: 0 }}>
+                    <CardContent sx={{ py: 1, px: 2, '&:last-child': { pb: 1 } }}>
+                      <Typography variant="caption" color="text.secondary">Peak period</Typography>
+                      <Typography variant="body2" fontWeight={600} color="warning.main" sx={{ wordBreak: 'break-word' }}>
+                        {formatPeakPeriodLabel(peakBucket.rawDate, timelineGroupBy)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">{peakBucket.checkIns} check-ins</Typography>
+                    </CardContent>
+                  </Card>
+                )}
+                    {timelineData.length > 0 && (
+                      <Card variant="outlined" sx={{ borderLeft: 3, borderLeftColor: 'info.main', boxShadow: 'none', minWidth: 0 }}>
+                        <CardContent sx={{ py: 1, px: 2, '&:last-child': { pb: 1 } }}>
+                          <Typography variant="caption" color="text.secondary">Avg check-ins/hour</Typography>
+                          <Typography variant="body1" fontWeight={700} color="info.main">
+                            {Math.round(avgCheckInsPerHour)}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
+            )}
+          </Box>
         </Box>
 
-        {/* Event Summary - Combined with Event Details */}
-        <Box mb={3} p={2} bgcolor="grey.50" borderRadius={2}>
-          <Typography variant="subtitle2" fontWeight={600} mb={2} color="primary.main">
-            📈 Event Summary
-          </Typography>
-          
-          {/* Event Information */}
-          <Box mb={2} pb={2} borderBottom="1px solid" borderColor="divider">
-            <Box display="flex" gap={4} flexWrap="wrap">
-              <Box>
-                <Typography variant="caption" color="text.secondary">Event Name</Typography>
-                <Typography variant="body1" fontWeight={600}>{eventStats.eventName || 'N/A'}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Contract Number</Typography>
-                <Typography variant="body1" fontWeight={600}>{eventStats.eventContractNumber || 'N/A'}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Event Type</Typography>
-                <Typography variant="body1" fontWeight={600}>
-                  {eventStats.isMainEvent ? 'Main Event' : 'Secondary Event'}
-                </Typography>
-              </Box>
-            </Box>
-          </Box>
-
-          {/* Statistics */}
-          <Box display="flex" gap={3} flexWrap="wrap">
-            <Box>
-              <Typography variant="caption" color="text.secondary">Total Guests</Typography>
-              <Typography variant="h6" fontWeight={700}>{eventStats.totalGuests}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">Checked In</Typography>
-              <Typography variant="h6" fontWeight={700} color="success.main">
-                {eventStats.checkedInGuests}
-              </Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">Pending</Typography>
-              <Typography variant="h6" fontWeight={700} color="warning.main">
-                {eventStats.pendingGuests}
-              </Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">Check-in Rate</Typography>
-              <Typography variant="h6" fontWeight={700} color="primary.main">
-                {eventStats.checkInPercentage}%
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-
-        {/* SECTION 3: Check-in Timeline - above Check-in Details */}
-        {timelineData.length > 0 && (
-          <Box mb={3} sx={{ maxWidth: 560, width: '100%' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-              <Box>
-                <Typography variant="subtitle1" fontWeight={600} color="primary.main">
-                  📈 Check-in Timeline (Last 7 Days)
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Line chart showing check-in activity over time
-                </Typography>
-              </Box>
-              <FormControl size="small" sx={{ minWidth: 140 }}>
-                <Select
-                  value={timelineGranularity}
-                  onChange={(e) => setFilters(prev => ({ ...prev, timelineGroupBy: e.target.value }))}
-                  displayEmpty
-                  sx={{ fontSize: '0.875rem' }}
-                >
-                  <MenuItem value="hour">Hourly</MenuItem>
-                  <MenuItem value="minute">Per minute</MenuItem>
-                  <MenuItem value="day">Daily</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-            <AnalyticsLineChart
-              data={timelineData}
-              lines={[
-                { 
-                  dataKey: 'checkIns', 
-                  name: 'Check-ins', 
-                  color: CHART_COLORS[0],
-                  strokeWidth: 3
-                }
-              ]}
-              xAxisKey="formattedDate"
-              height={300}
-              loading={loading}
-              showGrid={true}
-            />
-          </Box>
-        )}
-
-        {/* SECTION 1.5: Detailed Check-in List */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h6" fontWeight={600} mb={2} color="primary.main">
+        {/* Check-in Details */}
+        <Box sx={{ mt: 1, mb: 4 }}>
+          <Typography variant="h6" fontWeight={600} color="primary.main" sx={{ mb: 2 }}>
             Check-in Details
           </Typography>
-          {analytics.detailedCheckIns && Array.isArray(analytics.detailedCheckIns) && analytics.detailedCheckIns.length > 0 ? (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2, alignItems: 'center' }}>
+            <Card
+              variant="outlined"
+              sx={{
+                cursor: 'pointer',
+                borderColor: statusFilter === 'all' ? 'primary.main' : 'divider',
+                borderWidth: statusFilter === 'all' ? 2 : 1,
+                bgcolor: statusFilter === 'all' ? 'action.selected' : 'background.paper',
+                minWidth: 120
+              }}
+              onClick={() => setStatusFilter('all')}
+            >
+              <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                <Typography variant="caption" color="text.secondary">Total Guests</Typography>
+                <Typography variant="h6" fontWeight={700}>{eventStats.totalGuests}</Typography>
+              </CardContent>
+            </Card>
+            <Card
+              variant="outlined"
+              sx={{
+                cursor: 'pointer',
+                borderColor: statusFilter === 'checked_in' ? 'success.main' : 'divider',
+                borderWidth: statusFilter === 'checked_in' ? 2 : 1,
+                bgcolor: statusFilter === 'checked_in' ? 'action.selected' : 'background.paper',
+                minWidth: 120
+              }}
+              onClick={() => setStatusFilter('checked_in')}
+            >
+              <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                <Typography variant="caption" color="text.secondary">Checked In</Typography>
+                <Typography variant="h6" fontWeight={700} color="success.main">{eventStats.checkedInGuests}</Typography>
+              </CardContent>
+            </Card>
+            <Card
+              variant="outlined"
+              sx={{
+                cursor: 'pointer',
+                borderColor: statusFilter === 'pending' ? 'warning.main' : 'divider',
+                borderWidth: statusFilter === 'pending' ? 2 : 1,
+                bgcolor: statusFilter === 'pending' ? 'action.selected' : 'background.paper',
+                minWidth: 120
+              }}
+              onClick={() => setStatusFilter('pending')}
+            >
+              <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                <Typography variant="caption" color="text.secondary">Pending</Typography>
+                <Typography variant="h6" fontWeight={700} color="warning.main">{eventStats.pendingGuests}</Typography>
+              </CardContent>
+            </Card>
+            <TextField
+            size="small"
+            placeholder="Search guest name or email"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCheckInPage(0); }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              )
+            }}
+            sx={{ ml: 'auto', minWidth: 320, width: 420 }}
+            />
+          </Box>
+          {loading ? (
+            <Skeleton variant="rounded" height={320} />
+          ) : filteredAndSortedCheckIns.length === 0 ? (
+            <Alert severity="info">
+              No check-ins recorded yet.
+            </Alert>
+          ) : (
             <>
               <Typography variant="body2" color="text.secondary" mb={2}>
-                {filters.startDate || filters.endDate 
-                  ? `Showing check-ins filtered by date range${filters.startDate ? ` from ${new Date(filters.startDate).toLocaleDateString()}` : ''}${filters.endDate ? ` to ${new Date(filters.endDate).toLocaleDateString()}` : ''}`
-                  : 'All check-ins for this event'
-                } ({analytics.detailedCheckIns.length} total)
+                Showing {filteredAndSortedCheckIns.length} check-in(s).
+                {selectedTimeBucket && ` Filtered to: ${selectedTimeBucket.label}.`}
               </Typography>
-              <TableContainer component={Paper} elevation={1}>
-                <Table size="small">
+              <TableContainer component={Paper} elevation={1} sx={{ maxHeight: 440, overflowX: 'auto' }}>
+                <Table size="small" stickyHeader>
                   <TableHead>
-                    <TableRow sx={{ bgcolor: 'background.default' }}>
-                      <TableCell sx={{ fontWeight: 600 }}>Guest Name</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Checked In At</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Checked In By</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Gifts</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Notes</TableCell>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }} onClick={() => handleSort('guestName')}>
+                        Guest Name {sortBy === 'guestName' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }} onClick={() => handleSort('guestEmail')}>
+                        Email {sortBy === 'guestEmail' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }} onClick={() => handleSort('checkedInAt')}>
+                        Checked In At {sortBy === 'checkedInAt' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </TableCell>
+                      {!isPortalView && (
+                        <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }}>Checked In By</TableCell>
+                      )}
+                      <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }} align="center">Gifts</TableCell>
+                      <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }}>Notes</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {analytics.detailedCheckIns
-                      .slice(checkInPage * checkInRowsPerPage, checkInPage * checkInRowsPerPage + checkInRowsPerPage)
-                      .map((checkin) => (
+                    {paginatedCheckIns.map((checkin) => (
                       <TableRow key={checkin._id} hover>
-                        <TableCell>{checkin.guestName || 'N/A'}</TableCell>
-                        <TableCell>{checkin.guestEmail || 'N/A'}</TableCell>
+                        <TableCell>{checkin.guestName || EMPTY_LABEL}</TableCell>
+                        <TableCell>{checkin.guestEmail || EMPTY_LABEL}</TableCell>
                         <TableCell>
-                          {checkin.checkedInAt 
+                          {checkin.checkedInAt
                             ? new Date(checkin.checkedInAt).toLocaleString('en-US', {
                                 month: 'short',
                                 day: 'numeric',
@@ -558,29 +801,24 @@ const EventAnalytics = ({ eventId, refreshKey = 0 }) => {
                                 hour: '2-digit',
                                 minute: '2-digit'
                               })
-                            : 'N/A'
+                            : EMPTY_LABEL
                           }
                         </TableCell>
-                        <TableCell>{checkin.checkedInBy || checkin.checkedInByUsername || 'Unknown'}</TableCell>
+                        {!isPortalView && (
+                          <TableCell>{checkin.checkedInBy || checkin.checkedInByUsername || EMPTY_LABEL}</TableCell>
+                        )}
                         <TableCell align="center">
                           {checkin.giftsCount > 0 ? (
                             <Typography variant="body2" color="success.main" fontWeight={600}>
                               {checkin.giftsCount}
                             </Typography>
                           ) : (
-                            <Typography variant="body2" color="text.secondary">
-                              0
-                            </Typography>
+                            <Typography variant="body2" color="text.secondary">0</Typography>
                           )}
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2" color="text.secondary" sx={{ 
-                            maxWidth: 200, 
-                            overflow: 'hidden', 
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {checkin.notes || '-'}
+                          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {checkin.notes || EMPTY_LABEL}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -590,7 +828,7 @@ const EventAnalytics = ({ eventId, refreshKey = 0 }) => {
               </TableContainer>
               <TablePagination
                 component="div"
-                count={analytics.detailedCheckIns.length}
+                count={filteredAndSortedCheckIns.length}
                 page={checkInPage}
                 onPageChange={(_, newPage) => setCheckInPage(newPage)}
                 rowsPerPage={checkInRowsPerPage}
@@ -603,12 +841,6 @@ const EventAnalytics = ({ eventId, refreshKey = 0 }) => {
                 sx={{ borderTop: 1, borderColor: 'divider' }}
               />
             </>
-          ) : (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              {filters.startDate || filters.endDate
-                ? 'No check-ins found for the selected date range.'
-                : 'No check-ins have been recorded for this event yet.'}
-            </Alert>
           )}
         </Box>
 

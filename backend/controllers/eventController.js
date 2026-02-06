@@ -317,10 +317,11 @@ exports.getEventAnalytics = async (req, res) => {
         console.log('📅 Applied startDate filter:', dateFilter.createdAt.$gte);
       }
       if (endDate) {
-        // If endDate is just a date string without time, set to end of day
+        // If endDate is just a date string without time, set to end of that day in UTC
+        // (so "View by day" works regardless of server timezone)
         const endDateObj = new Date(endDate);
         if (endDate.split('T').length === 1) {
-          endDateObj.setHours(23, 59, 59, 999);
+          endDateObj.setUTCHours(23, 59, 59, 999);
         }
         dateFilter.createdAt.$lte = endDateObj;
         console.log('📅 Applied endDate filter:', dateFilter.createdAt.$lte);

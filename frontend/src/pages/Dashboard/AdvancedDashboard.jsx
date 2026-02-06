@@ -244,46 +244,22 @@ const AdvancedDashboard = () => {
     <MainLayout eventName={event?.eventName || 'Loading Event...'} parentEventName={parentEvent && parentEvent._id !== event?._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event?._id ? parentEvent._id : null}>
       <EventHeader event={event} mainEvent={parentEvent} secondaryEvents={secondaryEvents} />
       <Container maxWidth="xl" sx={{ py: 3 }}>
-        {/* Back + Refresh */}
+        {/* Back + Refresh — default primary button style for consistency */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-          <Button 
+          <Button
             onClick={handleBackToSelection}
             variant="outlined"
             color="primary"
             size="large"
-            sx={{
-              px: 3,
-              py: 1.5,
-              fontSize: '1rem',
-              fontWeight: 600,
-              borderWidth: 2,
-              '&:hover': {
-                borderWidth: 2,
-                transform: 'translateY(-2px)',
-                boxShadow: 3
-              },
-              transition: 'all 0.2s ease'
-            }}
             startIcon={<ArrowBackIcon />}
           >
             Back to Analytics Modules
           </Button>
-          <Button 
+          <Button
             onClick={() => setRefreshKey(k => k + 1)}
             variant="contained"
             color="primary"
             size="large"
-            sx={{
-              px: 3,
-              py: 1.5,
-              fontSize: '1rem',
-              fontWeight: 600,
-              '&:hover': {
-                transform: 'translateY(-2px)',
-                boxShadow: 3
-              },
-              transition: 'all 0.2s ease'
-            }}
             startIcon={<RefreshIcon />}
           >
             Refresh

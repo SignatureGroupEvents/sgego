@@ -249,24 +249,11 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
         <Container maxWidth="xl" sx={{ py: 3 }}>
           <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
           {!propEventId && (
-            <Button 
+            <Button
               onClick={() => navigate(`/events/${eventId}/dashboard/advanced`)}
               variant="outlined"
               color="primary"
               size="large"
-              sx={{ 
-                px: 3,
-                py: 1.5,
-                fontSize: '1rem',
-                fontWeight: 600,
-                borderWidth: 2,
-                '&:hover': {
-                  borderWidth: 2,
-                  transform: 'translateY(-2px)',
-                  boxShadow: 3
-                },
-                transition: 'all 0.2s ease'
-              }}
               startIcon={<ArrowBackIcon />}
             >
               Back to Analytics Modules
@@ -283,25 +270,12 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
       <LayoutWrapper>
         <Container maxWidth="xl" sx={{ py: 3 }}>
           {!propEventId && (
-            <Button 
+            <Button
               onClick={() => navigate(`/events/${eventId}/dashboard/advanced`)}
               variant="outlined"
               color="primary"
               size="large"
-              sx={{ 
-                mb: 3,
-                px: 3,
-                py: 1.5,
-                fontSize: '1rem',
-                fontWeight: 600,
-                borderWidth: 2,
-                '&:hover': {
-                  borderWidth: 2,
-                  transform: 'translateY(-2px)',
-                  boxShadow: 3
-                },
-                transition: 'all 0.2s ease'
-              }}
+              sx={{ mb: 3 }}
               startIcon={<ArrowBackIcon />}
             >
               Back to Analytics Modules
@@ -519,25 +493,12 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
       <Container maxWidth="xl" sx={{ py: 3 }}>
         {/* Back Button - only shown when used as standalone route */}
         {!propEventId && (
-          <Button 
+          <Button
             onClick={() => navigate(`/events/${eventId}/dashboard/advanced`)}
             variant="outlined"
             color="primary"
             size="large"
-            sx={{ 
-              mb: 3,
-              px: 3,
-              py: 1.5,
-              fontSize: '1rem',
-              fontWeight: 600,
-              borderWidth: 2,
-              '&:hover': {
-                borderWidth: 2,
-                transform: 'translateY(-2px)',
-                boxShadow: 3
-              },
-              transition: 'all 0.2s ease'
-            }}
+            sx={{ mb: 3 }}
             startIcon={<ArrowBackIcon />}
           >
             Back to Analytics Modules
