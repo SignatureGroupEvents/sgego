@@ -10,9 +10,10 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Divider
+  Divider,
+  Link
 } from '@mui/material';
-import { useParams } from 'react-router-dom';
+import { useParams, Link as RouterLink } from 'react-router-dom';
 import { getEventActivityFeed } from '../../../services/api';
 import { getUserDisplayName } from '../../../utils/userDisplay';
 import AvatarIcon from '../AvatarIcon';
@@ -84,6 +85,24 @@ const getTypeColor = (type) => {
 const getNotes = (log) => {
   const notes = log.details?.notes ?? log.details?.reason;
   return typeof notes === 'string' && notes.trim() ? notes.trim() : null;
+};
+
+/** Whether this log has a guest we can link to (check-in, undo, update gifts) */
+const hasGuestLink = (log) => {
+  const guestId = log.details?.guestId;
+  const guestName = log.details?.guestName;
+  const linkable = ['checkin', 'undo_checkin', 'update_gifts'].includes(log.type);
+  return linkable && guestId && guestName;
+};
+
+/** Prefix text before guest name for linkable actions */
+const getGuestActionPrefix = (type) => {
+  switch (type) {
+    case 'checkin': return 'Checked in ';
+    case 'undo_checkin': return 'Undid check-in for ';
+    case 'update_gifts': return 'Updated gifts for ';
+    default: return '';
+  }
 };
 
 const ActivityFeed = ({ refreshKey = 0 } = {}) => {
@@ -218,7 +237,25 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
                         color={getTypeColor(log.type)}
                         sx={{ ml: 0.5, fontWeight: 500 }}
                       >
-                        {actionLine}
+                        {hasGuestLink(log) && eventId ? (
+                          <>
+                            {getGuestActionPrefix(log.type)}
+                            <Link
+                              component={RouterLink}
+                              to={`/events/${eventId}/guests/${log.details.guestId}`}
+                              sx={{
+                                color: 'inherit',
+                                fontWeight: 600,
+                                textDecoration: 'underline',
+                                '&:hover': { textDecoration: 'underline' }
+                              }}
+                            >
+                              {log.details.guestName}
+                            </Link>
+                          </>
+                        ) : (
+                          actionLine
+                        )}
                       </Typography>
                       <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.25 }}>
                         {formatDateTime(log.timestamp)}
