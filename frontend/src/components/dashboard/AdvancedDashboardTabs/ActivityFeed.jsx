@@ -1,52 +1,90 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Paper,
   Typography,
   Card,
   CardContent,
   CircularProgress,
   Alert,
-  Chip,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow
+  Divider
 } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import { getEventActivityFeed } from '../../../services/api';
-import PersonIcon from '@mui/icons-material/Person';
-import EventIcon from '@mui/icons-material/Event';
-import GiftIcon from '@mui/icons-material/Redeem';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import InventoryIcon from '@mui/icons-material/Inventory';
-import NoteIcon from '@mui/icons-material/Note';
-import UndoIcon from '@mui/icons-material/Undo';
+import { getUserDisplayName } from '../../../utils/userDisplay';
+import AvatarIcon from '../AvatarIcon';
 
-const ACTION_LABELS = {
-  checkin: 'Guest check-in',
-  undo_checkin: 'Check-in undone',
-  inventory_update: 'Inventory updated',
-  inventory_add: 'Inventory item added',
-  allocation_update: 'Allocation updated',
-  update_gifts: 'Gift selection updated',
-  note: 'Note updated',
-  event_create: 'Event created',
-  event_update: 'Event updated',
-  event_status_change: 'Event status changed',
-  event_archive: 'Event archived',
-  event_unarchive: 'Event unarchived',
-  test: 'Test action',
-  other: 'Other activity'
+/** Action phrase only (no name): "Updated inventory", "Checked in Miranda Lambert", etc. */
+const getActionLine = (log) => {
+  const guestName = log.details?.guestName;
+  const msg = log.details?.message || log.details?.description;
+  switch (log.type) {
+    case 'checkin':
+      return guestName ? `Checked in ${guestName}` : 'Checked in a guest';
+    case 'undo_checkin':
+      return guestName ? `Undid check-in for ${guestName}` : 'Undid a check-in';
+    case 'update_gifts':
+      return guestName ? `Updated gifts for ${guestName}` : 'Updated gift selection';
+    case 'inventory_update':
+      return msg || 'Updated inventory';
+    case 'inventory_add':
+      return msg || 'Added inventory item';
+    case 'allocation_update':
+      return msg || 'Updated allocation';
+    case 'note':
+      return msg || 'Added or updated a note';
+    case 'event_create':
+      return msg || 'Created event';
+    case 'event_update':
+      return msg || 'Updated event';
+    case 'event_status_change':
+      return msg || 'Changed event status';
+    case 'event_archive':
+      return msg || 'Archived event';
+    case 'event_unarchive':
+      return msg || 'Unarchived event';
+    case 'test':
+      return msg || 'Test action';
+    case 'other':
+    default:
+      return msg || 'Activity';
+  }
 };
 
-const getActionLabel = (type) => ACTION_LABELS[type] || (type ? type.replace(/_/g, ' ') : 'Activity');
+/** MUI color or hex for type (for color-coding the action) */
+const getTypeColor = (type) => {
+  switch (type) {
+    case 'checkin':
+      return 'success';
+    case 'undo_checkin':
+      return 'warning';
+    case 'update_gifts':
+      return 'primary';
+    case 'inventory_update':
+    case 'inventory_add':
+    case 'allocation_update':
+      return 'primary';
+    case 'note':
+      return 'secondary';
+    case 'event_create':
+    case 'event_update':
+    case 'event_status_change':
+    case 'event_archive':
+    case 'event_unarchive':
+      return 'info';
+    default:
+      return 'default';
+  }
+};
+
+/** Notes/reason from details (check-in notes, undo reason, etc.) */
+const getNotes = (log) => {
+  const notes = log.details?.notes ?? log.details?.reason;
+  return typeof notes === 'string' && notes.trim() ? notes.trim() : null;
+};
 
 const ActivityFeed = ({ refreshKey = 0 } = {}) => {
   const { eventId } = useParams();
@@ -83,52 +121,6 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
     fetchActivityFeed();
   }, [eventId, filterType, limit, refreshKey]);
 
-  const getActivityIcon = (type) => {
-    switch (type) {
-      case 'checkin':
-        return <CheckCircleIcon color="success" fontSize="small" />;
-      case 'undo_checkin':
-        return <UndoIcon color="action" fontSize="small" />;
-      case 'inventory_update':
-      case 'inventory_add':
-      case 'allocation_update':
-      case 'update_gifts':
-        return <InventoryIcon color="primary" fontSize="small" />;
-      case 'note':
-        return <NoteIcon color="secondary" fontSize="small" />;
-      case 'event_create':
-      case 'event_update':
-      case 'event_status_change':
-      case 'event_archive':
-      case 'event_unarchive':
-        return <EventIcon color="info" fontSize="small" />;
-      default:
-        return <PersonIcon color="action" fontSize="small" />;
-    }
-  };
-
-  const getActivityColor = (type) => {
-    switch (type) {
-      case 'checkin':
-        return 'success';
-      case 'undo_checkin':
-        return 'warning';
-      case 'inventory_update':
-      case 'inventory_add':
-      case 'allocation_update':
-      case 'update_gifts':
-        return 'primary';
-      case 'event_create':
-      case 'event_update':
-      case 'event_status_change':
-      case 'event_archive':
-      case 'event_unarchive':
-        return 'info';
-      default:
-        return 'default';
-    }
-  };
-
   const formatDateTime = (timestamp) => {
     if (!timestamp) return '—';
     const d = new Date(timestamp);
@@ -147,7 +139,7 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
               Activity Feed
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Who did what and when — action, person, date & time
+              Activities by type — who did what and when
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 2 }}>
@@ -161,13 +153,16 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
                 <MenuItem value="all">All activities</MenuItem>
                 <MenuItem value="checkin">Check-ins</MenuItem>
                 <MenuItem value="undo_checkin">Undo check-in</MenuItem>
+                <MenuItem value="update_gifts">Gift update</MenuItem>
                 <MenuItem value="inventory_update">Inventory update</MenuItem>
                 <MenuItem value="inventory_add">Inventory add</MenuItem>
                 <MenuItem value="allocation_update">Allocation update</MenuItem>
-                <MenuItem value="update_gifts">Gift update</MenuItem>
                 <MenuItem value="note">Note</MenuItem>
+                <MenuItem value="event_create">Event created</MenuItem>
                 <MenuItem value="event_update">Event update</MenuItem>
                 <MenuItem value="event_status_change">Status change</MenuItem>
+                <MenuItem value="event_archive">Event archived</MenuItem>
+                <MenuItem value="event_unarchive">Event unarchived</MenuItem>
                 <MenuItem value="other">Other</MenuItem>
               </Select>
             </FormControl>
@@ -196,55 +191,49 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
             </Typography>
           </Box>
         ) : (
-          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
-            <Table stickyHeader size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Action</TableCell>
-                  <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Details</TableCell>
-                  <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Performed by</TableCell>
-                  <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Date & time</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {logs.map((log, index) => (
-                  <TableRow key={log._id || index} hover>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {getActivityIcon(log.type)}
-                        <Typography variant="body2" fontWeight={500}>
-                          {getActionLabel(log.type)}
-                        </Typography>
-                        <Chip
-                          label={log.type || 'other'}
-                          size="small"
-                          color={getActivityColor(log.type)}
-                          sx={{ height: 20, fontSize: '0.7rem' }}
-                        />
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {log.details?.message || log.details?.description || '—'}
+          <Box sx={{ maxHeight: 560, overflowY: 'auto' }}>
+            {logs.map((log, index) => {
+              const displayName = getUserDisplayName(log.performedBy, 'Someone');
+              const actionLine = getActionLine(log);
+              const notes = getNotes(log);
+              return (
+                <Box key={log._id || index}>
+                  {index > 0 && <Divider sx={{ my: 1.5 }} />}
+                  <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', py: 0.5 }}>
+                    {/* Avatar uses user's profile color (and name-based initials) via AvatarIcon; backend populates performedBy with profileColor */}
+                    <Box sx={{ mt: 0.25, flexShrink: 0 }}>
+                      <AvatarIcon
+                        user={log.performedBy}
+                        userId={log.performedBy?._id}
+                        showTooltip={true}
+                      />
+                    </Box>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography variant="body2" component="span" fontWeight={600}>
+                        {displayName}
                       </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {log.performedBy?.username || log.performedBy?.email || (log.performedBy?.firstName && log.performedBy?.lastName
-                          ? `${log.performedBy.firstName} ${log.performedBy.lastName}`
-                          : 'System')}
+                      <Typography
+                        variant="body2"
+                        component="span"
+                        color={getTypeColor(log.type)}
+                        sx={{ ml: 0.5, fontWeight: 500 }}
+                      >
+                        {actionLine}
                       </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.25 }}>
                         {formatDateTime(log.timestamp)}
                       </Typography>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                      {notes && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, fontStyle: 'italic' }}>
+                          {notes}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
         )}
       </CardContent>
     </Card>

@@ -477,6 +477,12 @@ exports.getEventAnalytics = async (req, res) => {
         uniqueGuestCount: item.uniqueGuestCount
       }));
 
+    // 4b. INVENTORY LIST - Full list for same event(s) as rawGiftDistribution (so frontend table matches analytics)
+    const inventoryList = await Inventory.find({
+      eventId: { $in: eventIds.map(id => id.toString()) },
+      isActive: true
+    }).lean();
+
     // 5. INVENTORY ANALYTICS - Current Stock Levels
     const inventoryAnalytics = await Inventory.aggregate([
       { 
@@ -666,7 +672,9 @@ exports.getEventAnalytics = async (req, res) => {
         
         // Raw Data for Advanced Processing
         rawGiftDistribution: giftDistribution,
-        secondaryEvents: event.isMainEvent ? await Event.find({ parentEventId: eventId }).select('eventName eventContractNumber') : []
+        // Full inventory list for same event(s) as rawGiftDistribution (main + secondaries when main)
+        inventory: inventoryList,
+        secondaryEvents: event.isMainEvent ? await Event.find({ parentEventId: eventId }).select('_id eventName eventContractNumber') : []
       }
     });
 

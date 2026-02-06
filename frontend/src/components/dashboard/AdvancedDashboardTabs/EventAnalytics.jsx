@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { io } from 'socket.io-client';
 import { useTheme } from '@mui/material/styles';
 import {
   Card,
@@ -25,7 +26,7 @@ import {
   TextField,
   InputAdornment,
   Skeleton,
-  Tooltip as MuiTooltip
+  useMediaQuery
 } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceDot } from 'recharts';
 import SearchIcon from '@mui/icons-material/Search';
@@ -58,41 +59,14 @@ function formatPeakPeriodLabel(rawDate, groupBy) {
   return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short', timeZone: 'UTC' });
 }
 
-// Date preset helpers: 'all' = no date filter (entire event); others filter by range
-const getDateRange = (preset, customStart, customEnd) => {
-  if (preset === 'all') {
-    return { startDate: undefined, endDate: undefined };
-  }
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const toStr = (d) => d.toISOString().split('T')[0];
-  if (preset === 'today') {
-    return { startDate: toStr(today), endDate: toStr(today) };
-  }
-  if (preset === 'last7') {
-    const start = new Date(today);
-    start.setDate(start.getDate() - 6);
-    return { startDate: toStr(start), endDate: toStr(today) };
-  }
-  if (preset === 'last30') {
-    const start = new Date(today);
-    start.setDate(start.getDate() - 29);
-    return { startDate: toStr(start), endDate: toStr(today) };
-  }
-  return { startDate: customStart || undefined, endDate: customEnd || undefined };
-};
-
-const EventAnalytics = ({ eventId, refreshKey = 0, isPortalView = false }) => {
+const EventAnalytics = ({ eventId, refreshKey = 0, isPortalView = false, allowCsvExport = true }) => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const getAnalytics = useAnalyticsApi();
 
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [retryCount, setRetryCount] = useState(0);
-  const [dateRangePreset, setDateRangePreset] = useState('all');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
   const [timelineGroupBy, setTimelineGroupBy] = useState('hour');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -108,6 +82,7 @@ const EventAnalytics = ({ eventId, refreshKey = 0, isPortalView = false }) => {
   const prevFiltersRef = useRef(null);
   const lastRefreshKeyRef = useRef(refreshKey);
   const isInitialMount = useRef(true);
+  const canExport = !isPortalView || allowCsvExport;
 
   // API filters: date range (from calendar) + granularity
   const apiFilters = useMemo(() => {
@@ -138,6 +113,31 @@ const EventAnalytics = ({ eventId, refreshKey = 0, isPortalView = false }) => {
       setLoading(false);
     }
   }, [eventId, apiFilters, getAnalytics]);
+
+  const fetchAnalyticsRef = useRef(fetchAnalytics);
+  fetchAnalyticsRef.current = fetchAnalytics;
+
+  // Listen for real-time analytics updates when someone checks in (gifts distributed, undo, etc.)
+  useEffect(() => {
+    if (!eventId) return;
+    const socketUrl = import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '')
+      : 'http://localhost:3001';
+    const socket = io(socketUrl, { path: '/socket.io', transports: ['websocket', 'polling'] });
+    const eventIdStr = String(eventId);
+    socket.emit('join-event', eventIdStr);
+    const onUpdate = (data) => {
+      if (data?.eventId && String(data.eventId) === eventIdStr && fetchAnalyticsRef.current) {
+        fetchAnalyticsRef.current();
+      }
+    };
+    socket.on('analytics:update', onUpdate);
+    return () => {
+      socket.off('analytics:update', onUpdate);
+      socket.emit('leave-event', eventIdStr);
+      socket.disconnect();
+    };
+  }, [eventId]);
 
   useEffect(() => {
     const filtersString = JSON.stringify(apiFilters);
@@ -454,16 +454,18 @@ const EventAnalytics = ({ eventId, refreshKey = 0, isPortalView = false }) => {
               Track guest check-ins, event performance, and attendance patterns
             </Typography>
           </Box>
-          <Button
-            variant="contained"
-            size="large"
-            startIcon={<FileDownloadIcon />}
-            onClick={(e) => setExportMenuAnchor(e.currentTarget)}
-            disabled={exporting || !analytics}
-            sx={{ px: 3, py: 1.5 }}
-          >
-            Export
-          </Button>
+          {canExport && (
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<FileDownloadIcon />}
+              onClick={(e) => setExportMenuAnchor(e.currentTarget)}
+              disabled={exporting || !analytics}
+              sx={{ px: 3, py: 1.5 }}
+            >
+              Export
+            </Button>
+          )}
         </Box>
 
         {/* Error state */}
@@ -476,18 +478,20 @@ const EventAnalytics = ({ eventId, refreshKey = 0, isPortalView = false }) => {
           </Alert>
         )}
 
-        <Menu
-          anchorEl={exportMenuAnchor}
-          open={Boolean(exportMenuAnchor)}
-          onClose={() => setExportMenuAnchor(null)}
-        >
-          <MenuItem onClick={exportCheckInsToCSV} disabled={exporting}>
-            Export as CSV
-          </MenuItem>
-          <MenuItem onClick={exportCheckInsToExcel} disabled={exporting}>
-            Export as XLSX
-          </MenuItem>
-        </Menu>
+        {canExport && (
+          <Menu
+            anchorEl={exportMenuAnchor}
+            open={Boolean(exportMenuAnchor)}
+            onClose={() => setExportMenuAnchor(null)}
+          >
+            <MenuItem onClick={exportCheckInsToCSV} disabled={exporting}>
+              Export as CSV
+            </MenuItem>
+            <MenuItem onClick={exportCheckInsToExcel} disabled={exporting}>
+              Export as XLSX
+            </MenuItem>
+          </Menu>
+        )}
 
         {/* Chart (left) + Granularity & KPI cards (right); on mobile/tablet: stacked, cards wrap */}
         <Box
@@ -763,83 +767,134 @@ const EventAnalytics = ({ eventId, refreshKey = 0, isPortalView = false }) => {
             </Alert>
           ) : (
             <>
-              <Typography variant="body2" color="text.secondary" mb={2}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Showing {filteredAndSortedCheckIns.length} check-in(s).
                 {selectedTimeBucket && ` Filtered to: ${selectedTimeBucket.label}.`}
               </Typography>
-              <TableContainer component={Paper} elevation={1} sx={{ maxHeight: 440, overflowX: 'auto' }}>
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }} onClick={() => handleSort('guestName')}>
-                        Guest Name {sortBy === 'guestName' && (sortOrder === 'asc' ? '↑' : '↓')}
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }} onClick={() => handleSort('guestEmail')}>
-                        Email {sortBy === 'guestEmail' && (sortOrder === 'asc' ? '↑' : '↓')}
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }} onClick={() => handleSort('checkedInAt')}>
-                        Checked In At {sortBy === 'checkedInAt' && (sortOrder === 'asc' ? '↑' : '↓')}
-                      </TableCell>
-                      {!isPortalView && (
-                        <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }}>Checked In By</TableCell>
-                      )}
-                      <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }} align="center">Gifts</TableCell>
-                      <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }}>Notes</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {paginatedCheckIns.map((checkin) => (
-                      <TableRow key={checkin._id} hover>
-                        <TableCell>{checkin.guestName || EMPTY_LABEL}</TableCell>
-                        <TableCell>{checkin.guestEmail || EMPTY_LABEL}</TableCell>
-                        <TableCell>
-                          {checkin.checkedInAt
-                            ? new Date(checkin.checkedInAt).toLocaleString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })
-                            : EMPTY_LABEL
-                          }
-                        </TableCell>
-                        {!isPortalView && (
-                          <TableCell>{checkin.checkedInBy || checkin.checkedInByUsername || EMPTY_LABEL}</TableCell>
-                        )}
-                        <TableCell align="center">
-                          {checkin.giftsCount > 0 ? (
-                            <Typography variant="body2" color="success.main" fontWeight={600}>
-                              {checkin.giftsCount}
-                            </Typography>
-                          ) : (
-                            <Typography variant="body2" color="text.secondary">0</Typography>
+              {isMobile ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {paginatedCheckIns.map((checkin) => (
+                    <Card key={checkin._id} variant="outlined" sx={{ borderLeft: 3, borderLeftColor: 'success.main' }}>
+                      <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+                        <Typography variant="subtitle2" fontWeight={600} color="primary.main" sx={{ mb: 0.5 }}>
+                          {checkin.guestName || EMPTY_LABEL}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                          {checkin.guestEmail || EMPTY_LABEL}
+                        </Typography>
+                        <Box sx={{ typography: 'body2', color: 'text.secondary', '& > span': { display: 'block' } }}>
+                          <span>
+                            Checked in: {checkin.checkedInAt
+                              ? new Date(checkin.checkedInAt).toLocaleString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })
+                              : EMPTY_LABEL}
+                          </span>
+                          {!isPortalView && (
+                            <span>By: {checkin.checkedInBy || checkin.checkedInByUsername || EMPTY_LABEL}</span>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {checkin.notes || EMPTY_LABEL}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              <TablePagination
-                component="div"
-                count={filteredAndSortedCheckIns.length}
-                page={checkInPage}
-                onPageChange={(_, newPage) => setCheckInPage(newPage)}
-                rowsPerPage={checkInRowsPerPage}
-                onRowsPerPageChange={(e) => {
-                  setCheckInRowsPerPage(parseInt(e.target.value, 10));
-                  setCheckInPage(0);
-                }}
-                rowsPerPageOptions={[10, 25, 50, 100]}
-                labelRowsPerPage="Rows per page:"
-                sx={{ borderTop: 1, borderColor: 'divider' }}
-              />
+                          <span>Gifts: {checkin.giftsCount > 0 ? <Typography component="span" variant="body2" color="success.main" fontWeight={600}>{checkin.giftsCount}</Typography> : '0'}</span>
+                          {checkin.notes ? <span>Notes: {checkin.notes}</span> : null}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  <TablePagination
+                    component="div"
+                    count={filteredAndSortedCheckIns.length}
+                    page={checkInPage}
+                    onPageChange={(_, newPage) => setCheckInPage(newPage)}
+                    rowsPerPage={checkInRowsPerPage}
+                    onRowsPerPageChange={(e) => {
+                      setCheckInRowsPerPage(parseInt(e.target.value, 10));
+                      setCheckInPage(0);
+                    }}
+                    rowsPerPageOptions={[10, 25, 50, 100]}
+                    labelRowsPerPage="Rows per page:"
+                    sx={{ borderTop: 1, borderColor: 'divider' }}
+                  />
+                </Box>
+              ) : (
+                <>
+                  <TableContainer component={Paper} elevation={1} sx={{ maxHeight: 440, overflowX: 'auto' }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }} onClick={() => handleSort('guestName')}>
+                            Guest Name {sortBy === 'guestName' && (sortOrder === 'asc' ? '↑' : '↓')}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }} onClick={() => handleSort('guestEmail')}>
+                            Email {sortBy === 'guestEmail' && (sortOrder === 'asc' ? '↑' : '↓')}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }} onClick={() => handleSort('checkedInAt')}>
+                            Checked In At {sortBy === 'checkedInAt' && (sortOrder === 'asc' ? '↑' : '↓')}
+                          </TableCell>
+                          {!isPortalView && (
+                            <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }}>Checked In By</TableCell>
+                          )}
+                          <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }} align="center">Gifts</TableCell>
+                          <TableCell sx={{ fontWeight: 600, bgcolor: 'background.default' }}>Notes</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {paginatedCheckIns.map((checkin) => (
+                          <TableRow key={checkin._id} hover>
+                            <TableCell>{checkin.guestName || EMPTY_LABEL}</TableCell>
+                            <TableCell>{checkin.guestEmail || EMPTY_LABEL}</TableCell>
+                            <TableCell>
+                              {checkin.checkedInAt
+                                ? new Date(checkin.checkedInAt).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })
+                                : EMPTY_LABEL
+                              }
+                            </TableCell>
+                            {!isPortalView && (
+                              <TableCell>{checkin.checkedInBy || checkin.checkedInByUsername || EMPTY_LABEL}</TableCell>
+                            )}
+                            <TableCell align="center">
+                              {checkin.giftsCount > 0 ? (
+                                <Typography variant="body2" color="success.main" fontWeight={600}>
+                                  {checkin.giftsCount}
+                                </Typography>
+                              ) : (
+                                <Typography variant="body2" color="text.secondary">0</Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {checkin.notes || EMPTY_LABEL}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  <TablePagination
+                    component="div"
+                    count={filteredAndSortedCheckIns.length}
+                    page={checkInPage}
+                    onPageChange={(_, newPage) => setCheckInPage(newPage)}
+                    rowsPerPage={checkInRowsPerPage}
+                    onRowsPerPageChange={(e) => {
+                      setCheckInRowsPerPage(parseInt(e.target.value, 10));
+                      setCheckInPage(0);
+                    }}
+                    rowsPerPageOptions={[10, 25, 50, 100]}
+                    labelRowsPerPage="Rows per page:"
+                    sx={{ borderTop: 1, borderColor: 'divider' }}
+                  />
+                </>
+              )}
             </>
           )}
         </Box>

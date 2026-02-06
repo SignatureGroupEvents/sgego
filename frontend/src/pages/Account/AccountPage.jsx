@@ -35,6 +35,7 @@ import AccountFilters from '../../components/account/AccountFilters';
 import AvatarIcon from '../../components/dashboard/AvatarIcon';
 
 import { getUserProfile, getAllUsers, inviteUser } from '../../services/api';
+import { getUserDisplayName } from '../../utils/userDisplay';
 
 const ROLE_LABELS = {
   admin: 'Admin',
@@ -130,11 +131,11 @@ const AccountPage = () => {
     if (filterStatus === 'removal_requested' && !u.accountRemovalRequested) return false;
     if (filterRole !== 'all' && u.role !== filterRole) return false;
 
+    const displayName = getUserDisplayName(u, '');
     const match =
-      (u.username || '')
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase());
+      displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.username || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.email || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     return match;
   });
@@ -155,7 +156,7 @@ const AccountPage = () => {
   }
 
   return (
-    <MainLayout userName={user?.username}>
+    <MainLayout userName={user ? getUserDisplayName(user, user?.email) : undefined}>
       <Box 
         display="flex" 
         flexDirection={{ xs: 'column', sm: 'row' }}
@@ -223,7 +224,7 @@ const AccountPage = () => {
                           />
                           <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Typography variant="body1" fontWeight={600} noWrap>
-                              {u.username || '-'}
+                              {getUserDisplayName(u, '-')}
                             </Typography>
                             <Typography variant="body2" color="text.secondary" noWrap>
                               {u.email}
@@ -345,7 +346,7 @@ const AccountPage = () => {
                           showTooltip={true}
                         />
                         <Typography variant="body2" fontWeight={500}>
-                          {u.username || '-'}
+                          {getUserDisplayName(u, '-')}
                         </Typography>
                       </Box>
                     </TableCell>

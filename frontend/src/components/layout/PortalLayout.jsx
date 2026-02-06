@@ -27,14 +27,33 @@ export default function PortalLayout({ children, eventName = 'Event' }) {
           borderColor: 'divider',
           bgcolor: 'white',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'center' },
+          justifyContent: 'space-between',
+          gap: 1
         }}
       >
-        <Typography variant="h6" fontWeight={600} color="primary.main">
+        <Typography
+          variant="h6"
+          fontWeight={600}
+          color="primary.main"
+          sx={{
+            minWidth: 0,
+            flex: { xs: '0 0 auto', sm: '1 1 auto' },
+            overflow: 'hidden',
+            textOverflow: { xs: 'unset', sm: 'ellipsis' },
+            whiteSpace: { xs: 'normal', sm: 'nowrap' }
+          }}
+        >
           {eventName} — Client Portal
         </Typography>
-        <Button startIcon={<LogoutIcon />} onClick={handleSignOut} size="small" color="inherit">
+        <Button
+          startIcon={<LogoutIcon />}
+          onClick={handleSignOut}
+          size="small"
+          color="inherit"
+          sx={{ flexShrink: 0, alignSelf: { xs: 'flex-end', sm: 'center' } }}
+        >
           Sign out
         </Button>
       </Box>

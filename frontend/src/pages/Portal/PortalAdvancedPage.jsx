@@ -70,13 +70,14 @@ export default function PortalAdvancedPage() {
   const handleModuleSelect = (module) => setSelectedModule(module);
   const handleBackToSelection = () => setSelectedModule(null);
   const handleBackToDashboard = () => navigate(`/portal/${eventId}/dashboard`, { replace: true });
+  const allowCsvExport = !!(event?.clientPortal?.options?.allowCsvExport);
 
   const renderContent = () => {
     switch (selectedModule) {
       case 'gift':
-        return <GiftAnalytics event={event} guests={guests} inventory={inventory} />;
+        return <GiftAnalytics event={event} guests={guests} inventory={inventory} allowCsvExport={allowCsvExport} />;
       case 'event':
-        return <EventAnalytics eventId={eventId} isPortalView />;
+        return <EventAnalytics eventId={eventId} isPortalView allowCsvExport={allowCsvExport} />;
       default:
         return null;
     }
