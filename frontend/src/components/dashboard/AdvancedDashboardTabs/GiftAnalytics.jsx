@@ -28,7 +28,12 @@ import {
   Alert,
   TextField,
   InputAdornment,
-  useMediaQuery
+  useMediaQuery,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import AnalyticsPieChart from '../../analytics/charts/AnalyticsPieChart';
 import { useAnalyticsApi } from '../../../contexts/AnalyticsApiContext';
@@ -86,6 +91,8 @@ const GiftAnalytics = ({ event, guests = [], inventory = [], refreshKey = 0, all
   const [groupBy] = useState('style');
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [confirmExportOpen, setConfirmExportOpen] = useState(false);
+  const [confirmExportFormat, setConfirmExportFormat] = useState(null); // 'csv' | 'xlsx'
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedSegments, setSelectedSegments] = useState([]); // Track selected pie chart segments (array for multi-select)
@@ -757,14 +764,50 @@ const GiftAnalytics = ({ event, guests = [], inventory = [], refreshKey = 0, all
             open={Boolean(exportMenuAnchor)}
             onClose={() => setExportMenuAnchor(null)}
           >
-            <MenuItem onClick={exportGiftDataToCSV} disabled={exporting || !inventorySummaryTableData?.length}>
+            <MenuItem
+              onClick={() => {
+                setExportMenuAnchor(null);
+                setConfirmExportFormat('csv');
+                setConfirmExportOpen(true);
+              }}
+              disabled={exporting || !inventorySummaryTableData?.length}
+            >
               Export as CSV
             </MenuItem>
-            <MenuItem onClick={exportGiftDataToExcel} disabled={exporting || !inventorySummaryTableData?.length}>
+            <MenuItem
+              onClick={() => {
+                setExportMenuAnchor(null);
+                setConfirmExportFormat('xlsx');
+                setConfirmExportOpen(true);
+              }}
+              disabled={exporting || !inventorySummaryTableData?.length}
+            >
               Export as XLSX
             </MenuItem>
           </Menu>
         )}
+        <Dialog open={confirmExportOpen} onClose={() => { setConfirmExportOpen(false); setConfirmExportFormat(null); }}>
+          <DialogTitle>Confirm export</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Export gift analytics ({inventorySummaryTableData?.length ?? 0} inventory {inventorySummaryTableData?.length === 1 ? 'item' : 'items'}) as {confirmExportFormat === 'xlsx' ? 'Excel (XLSX)' : 'CSV'}? A file will be downloaded.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => { setConfirmExportOpen(false); setConfirmExportFormat(null); }}>Cancel</Button>
+            <Button
+              variant="contained"
+              onClick={() => {
+                if (confirmExportFormat === 'csv') exportGiftDataToCSV();
+                else if (confirmExportFormat === 'xlsx') exportGiftDataToExcel();
+                setConfirmExportOpen(false);
+                setConfirmExportFormat(null);
+              }}
+            >
+              Export
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Analytics Error Alert */}
         {analyticsError && (

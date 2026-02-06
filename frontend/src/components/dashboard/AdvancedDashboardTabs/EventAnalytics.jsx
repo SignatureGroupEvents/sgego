@@ -26,7 +26,12 @@ import {
   TextField,
   InputAdornment,
   Skeleton,
-  useMediaQuery
+  useMediaQuery,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceDot } from 'recharts';
 import SearchIcon from '@mui/icons-material/Search';
@@ -75,6 +80,8 @@ const EventAnalytics = ({ eventId, refreshKey = 0, isPortalView = false, allowCs
   const [sortOrder, setSortOrder] = useState('desc');
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [confirmExportOpen, setConfirmExportOpen] = useState(false);
+  const [confirmExportFormat, setConfirmExportFormat] = useState(null); // 'csv' | 'xlsx'
   const [checkInPage, setCheckInPage] = useState(0);
   const [checkInRowsPerPage, setCheckInRowsPerPage] = useState(10);
   const [dateRangeStart, setDateRangeStart] = useState('');
@@ -484,13 +491,51 @@ const EventAnalytics = ({ eventId, refreshKey = 0, isPortalView = false, allowCs
             open={Boolean(exportMenuAnchor)}
             onClose={() => setExportMenuAnchor(null)}
           >
-            <MenuItem onClick={exportCheckInsToCSV} disabled={exporting}>
+            <MenuItem
+              onClick={() => {
+                setExportMenuAnchor(null);
+                setConfirmExportFormat('csv');
+                setConfirmExportOpen(true);
+              }}
+              disabled={exporting}
+            >
               Export as CSV
             </MenuItem>
-            <MenuItem onClick={exportCheckInsToExcel} disabled={exporting}>
+            <MenuItem
+              onClick={() => {
+                setExportMenuAnchor(null);
+                setConfirmExportFormat('xlsx');
+                setConfirmExportOpen(true);
+              }}
+              disabled={exporting}
+            >
               Export as XLSX
             </MenuItem>
           </Menu>
+        )}
+        {canExport && (
+          <Dialog open={confirmExportOpen} onClose={() => { setConfirmExportOpen(false); setConfirmExportFormat(null); }}>
+            <DialogTitle>Confirm export</DialogTitle>
+            <DialogContent>
+              <DialogContentText>
+                Export {filteredAndSortedCheckIns?.length ?? 0} check-in {filteredAndSortedCheckIns?.length === 1 ? 'record' : 'records'} as {confirmExportFormat === 'xlsx' ? 'Excel (XLSX)' : 'CSV'}? A file will be downloaded.
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => { setConfirmExportOpen(false); setConfirmExportFormat(null); }}>Cancel</Button>
+              <Button
+                variant="contained"
+                onClick={() => {
+                  if (confirmExportFormat === 'csv') exportCheckInsToCSV();
+                  else if (confirmExportFormat === 'xlsx') exportCheckInsToExcel();
+                  setConfirmExportOpen(false);
+                  setConfirmExportFormat(null);
+                }}
+              >
+                Export
+              </Button>
+            </DialogActions>
+          </Dialog>
         )}
 
         {/* Chart (left) + Granularity & KPI cards (right); on mobile/tablet: stacked, cards wrap */}

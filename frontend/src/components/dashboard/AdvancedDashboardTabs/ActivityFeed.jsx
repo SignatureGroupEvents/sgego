@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -11,9 +11,21 @@ import {
   Select,
   MenuItem,
   Divider,
-  Link
+  Link,
+  TextField,
+  InputAdornment,
+  Button,
+  Menu,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import { useParams, Link as RouterLink } from 'react-router-dom';
+import SearchIcon from '@mui/icons-material/Search';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import toast from 'react-hot-toast';
 import { getEventActivityFeed } from '../../../services/api';
 import { getUserDisplayName } from '../../../utils/userDisplay';
 import AvatarIcon from '../AvatarIcon';
@@ -112,6 +124,11 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
   const [error, setError] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [limit, setLimit] = useState(50);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [confirmExportOpen, setConfirmExportOpen] = useState(false);
+  const [confirmExportFormat, setConfirmExportFormat] = useState(null); // 'csv' | 'xlsx'
 
   useEffect(() => {
     const fetchActivityFeed = async () => {
@@ -149,6 +166,112 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
     });
   };
 
+  const filteredLogs = useMemo(() => {
+    if (!searchQuery.trim()) return logs;
+    const q = searchQuery.trim().toLowerCase();
+    return logs.filter((log) => {
+      const displayName = getUserDisplayName(log.performedBy, '');
+      const actionLine = getActionLine(log);
+      const guestName = (log.details?.guestName || '').toLowerCase();
+      const notes = (getNotes(log) || '').toLowerCase();
+      return (
+        displayName.toLowerCase().includes(q) ||
+        actionLine.toLowerCase().includes(q) ||
+        guestName.includes(q) ||
+        notes.includes(q)
+      );
+    });
+  }, [logs, searchQuery]);
+
+  const exportActivityToCSV = () => {
+    if (!filteredLogs.length) {
+      toast.error('No activity to export');
+      return;
+    }
+    const sections = [];
+    sections.push('=== EXPORT INFORMATION ===');
+    sections.push(`Exported On,"${new Date().toLocaleString()}"`);
+    sections.push(`Filter,"${filterType === 'all' ? 'All activities' : filterType}"`);
+    sections.push(`Search,"${(searchQuery || '').replace(/"/g, '""')}"`);
+    sections.push('');
+    sections.push('=== ACTIVITY FEED ===');
+    const headers = ['Date & Time', 'Performed By', 'Action Type', 'Action / Details', 'Guest Name', 'Notes'];
+    sections.push(headers.join(','));
+    filteredLogs.forEach((log) => {
+      const displayName = getUserDisplayName(log.performedBy, 'Someone');
+      const actionLine = getActionLine(log);
+      const guestName = (log.details?.guestName || '').replace(/"/g, '""');
+      const notes = (getNotes(log) || '').replace(/"/g, '""');
+      const row = [
+        formatDateTime(log.timestamp).replace(/"/g, '""'),
+        displayName.replace(/"/g, '""'),
+        (log.type || '').replace(/"/g, '""'),
+        actionLine.replace(/"/g, '""'),
+        guestName,
+        notes
+      ];
+      sections.push(row.map((cell) => `"${cell}"`).join(','));
+    });
+    const csvContent = sections.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `activity_feed_${eventId}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    setExportMenuAnchor(null);
+    toast.success('Activity feed exported to CSV');
+  };
+
+  const exportActivityToExcel = () => {
+    setExporting(true);
+    try {
+      if (!filteredLogs.length) {
+        toast.error('No activity to export');
+        return;
+      }
+      const sections = [];
+      sections.push('=== EXPORT INFORMATION ===');
+      sections.push(`Exported On\t${new Date().toLocaleString()}`);
+      sections.push(`Filter\t${filterType === 'all' ? 'All activities' : filterType}`);
+      sections.push(`Search\t${searchQuery || ''}`);
+      sections.push('');
+      sections.push('=== ACTIVITY FEED ===');
+      const headers = ['Date & Time', 'Performed By', 'Action Type', 'Action / Details', 'Guest Name', 'Notes'];
+      sections.push(headers.join('\t'));
+      filteredLogs.forEach((log) => {
+        const displayName = getUserDisplayName(log.performedBy, 'Someone');
+        const actionLine = getActionLine(log);
+        const guestName = log.details?.guestName || '';
+        const notes = getNotes(log) || '';
+        sections.push(
+          [
+            formatDateTime(log.timestamp),
+            displayName,
+            log.type || '',
+            actionLine,
+            guestName,
+            notes
+          ].join('\t')
+        );
+      });
+      const excelContent = sections.join('\n');
+      const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `activity_feed_${eventId}_${new Date().toISOString().split('T')[0]}.xls`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      toast.success('Activity feed exported to Excel');
+    } catch (err) {
+      console.error('Error exporting activity:', err);
+      toast.error('Export failed');
+    } finally {
+      setExporting(false);
+      setExportMenuAnchor(null);
+    }
+  };
+
   return (
     <Card sx={{ mb: 4 }}>
       <CardContent>
@@ -161,7 +284,21 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
               Activities by type — who did what and when
             </Typography>
           </Box>
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+            <TextField
+              size="small"
+              placeholder="Search by name, action, guest, notes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              sx={{ minWidth: 320, maxWidth: 420 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                )
+              }}
+            />
             <FormControl size="small" sx={{ minWidth: 160 }}>
               <InputLabel>Filter by type</InputLabel>
               <Select
@@ -194,8 +331,65 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
                 <MenuItem value={200}>200</MenuItem>
               </Select>
             </FormControl>
+            <Button
+              variant="contained"
+              startIcon={<FileDownloadIcon />}
+              onClick={(e) => setExportMenuAnchor(e.currentTarget)}
+              disabled={exporting || !filteredLogs.length}
+              sx={{ px: 2, py: 1 }}
+            >
+              Export
+            </Button>
           </Box>
         </Box>
+        <Menu
+          anchorEl={exportMenuAnchor}
+          open={Boolean(exportMenuAnchor)}
+          onClose={() => setExportMenuAnchor(null)}
+        >
+          <MenuItem
+            onClick={() => {
+              setExportMenuAnchor(null);
+              setConfirmExportFormat('csv');
+              setConfirmExportOpen(true);
+            }}
+            disabled={exporting || !filteredLogs.length}
+          >
+            Export as CSV
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              setExportMenuAnchor(null);
+              setConfirmExportFormat('xlsx');
+              setConfirmExportOpen(true);
+            }}
+            disabled={exporting || !filteredLogs.length}
+          >
+            Export as XLSX
+          </MenuItem>
+        </Menu>
+        <Dialog open={confirmExportOpen} onClose={() => { setConfirmExportOpen(false); setConfirmExportFormat(null); }}>
+          <DialogTitle>Confirm export</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Export {filteredLogs.length} activity log {filteredLogs.length === 1 ? 'entry' : 'entries'} as {confirmExportFormat === 'xlsx' ? 'Excel (XLSX)' : 'CSV'}? A file will be downloaded.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => { setConfirmExportOpen(false); setConfirmExportFormat(null); }}>Cancel</Button>
+            <Button
+              variant="contained"
+              onClick={() => {
+                if (confirmExportFormat === 'csv') exportActivityToCSV();
+                else if (confirmExportFormat === 'xlsx') exportActivityToExcel();
+                setConfirmExportOpen(false);
+                setConfirmExportFormat(null);
+              }}
+            >
+              Export
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
@@ -209,9 +403,15 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
               No activity for this event yet.
             </Typography>
           </Box>
+        ) : filteredLogs.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <Typography variant="body1" color="text.secondary">
+              No activity matches your search. Try a different search or filter.
+            </Typography>
+          </Box>
         ) : (
           <Box sx={{ maxHeight: 560, overflowY: 'auto' }}>
-            {logs.map((log, index) => {
+            {filteredLogs.map((log, index) => {
               const displayName = getUserDisplayName(log.performedBy, 'Someone');
               const actionLine = getActionLine(log);
               const notes = getNotes(log);
