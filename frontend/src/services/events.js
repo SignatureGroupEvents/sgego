@@ -56,4 +56,20 @@ export const getUserAssignedEvents = async () => {
 export const updatePickupFieldPreferences = async (eventId, preferences) => {
   const res = await api.put(`/events/${eventId}/pickup-field-preferences`, { pickupFieldPreferences: preferences });
   return res.data;
+};
+
+// Client Portal (Ops)
+export const getClientPortal = async (eventId) => {
+  const res = await api.get(`/events/${eventId}/client-portal`);
+  return res.data;
+};
+
+export const updateClientPortal = async (eventId, body) => {
+  const res = await api.put(`/events/${eventId}/client-portal`, body);
+  return res.data;
+};
+
+export const regenerateClientPortalPassword = async (eventId) => {
+  const res = await api.post(`/events/${eventId}/client-portal/regenerate-password`);
+  return res.data;
 }; 

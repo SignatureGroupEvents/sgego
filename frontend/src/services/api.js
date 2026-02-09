@@ -28,7 +28,10 @@ api.interceptors.response.use(
     
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
-      window.location.href = '/auth?view=login';
+      // Don't redirect to main app login when user is in the client portal
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/portal')) {
+        window.location.href = '/auth?view=login';
+      }
     }
     return Promise.reject(error);
   }

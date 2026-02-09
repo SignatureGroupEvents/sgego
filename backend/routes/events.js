@@ -12,7 +12,10 @@ const {
   archiveEvent,
   unarchiveEvent,
   updateEventStatus,
-  updatePickupFieldPreferences
+  updatePickupFieldPreferences,
+  getClientPortal,
+  updateClientPortal,
+  regenerateClientPortalPassword
 } = require('../controllers/eventController');
 const {
   getEventAssignedUsers,
@@ -48,6 +51,9 @@ router.delete('/:id/assigned-users/:assignmentId', requireOperationsOrAdmin, rem
 // Other specific routes - must come before generic /:id route
 router.get('/:id/analytics', getEventAnalytics);
 router.get('/:id/inventory', getEventInventory);
+router.get('/:id/client-portal', requireOperationsOrAdmin, getClientPortal);
+router.put('/:id/client-portal', requireOperationsOrAdmin, updateClientPortal);
+router.post('/:id/client-portal/regenerate-password', requireOperationsOrAdmin, regenerateClientPortalPassword);
 
 // Generic routes - must come last
 router.get('/:id', getEvent);

@@ -4,8 +4,9 @@ const { v4: uuidv4 } = require('uuid');
 
 exports.getGuests = async (req, res) => {
   try {
-    const { eventId, includeInherited = 'true' } = req.query;
-    
+    const eventId = req.query.eventId || req.params.eventId;
+    const includeInherited = req.query.includeInherited !== undefined ? req.query.includeInherited : 'true';
+
     if (!eventId) {
       return res.status(400).json({ message: 'Event ID is required' });
     }
@@ -22,6 +23,12 @@ exports.getGuests = async (req, res) => {
     if (event.parentEventId && includeInherited === 'true') {
       guestEventIds.push(event.parentEventId);
     }
+    // If this is a main event and includeInherited is true, also get guests from all secondary events
+    if (event.isMainEvent && includeInherited === 'true') {
+      const secondaryEvents = await Event.find({ parentEventId: eventId }).select('_id').lean();
+      const secondaryIds = secondaryEvents.map((e) => e._id);
+      guestEventIds = [...guestEventIds, ...secondaryIds];
+    }
 
     const guests = await Guest.find({ eventId: { $in: guestEventIds } })
       .populate('eventId', 'eventName isMainEvent')
@@ -29,14 +36,18 @@ exports.getGuests = async (req, res) => {
       .populate('eventCheckins.giftsReceived.inventoryId', 'type style size')
       .sort({ createdAt: -1 });
 
-    // Add a flag to indicate which guests are inherited vs. directly assigned
+    // Add flags: isInherited (when viewing secondary = guest from parent), isFromSecondaryEvent (when viewing main = guest from a check-in event)
     const guestsWithInheritance = guests.map(guest => {
-      const isInherited = guest.eventId._id.toString() === event.parentEventId?.toString();
+      const gEventId = guest.eventId && (guest.eventId._id || guest.eventId);
+      const guestEventIdStr = gEventId ? gEventId.toString() : '';
+      const isInherited = event.parentEventId && guestEventIdStr === event.parentEventId.toString();
+      const isFromSecondaryEvent = event.isMainEvent && guestEventIdStr && guestEventIdStr !== eventId;
       return {
         ...guest.toObject(),
         isInherited,
-        originalEventId: guest.eventId._id,
-        originalEventName: guest.eventId.eventName
+        isFromSecondaryEvent: !!isFromSecondaryEvent,
+        originalEventId: gEventId || null,
+        originalEventName: (guest.eventId && guest.eventId.eventName) || null
       };
     });
 

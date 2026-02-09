@@ -1,5 +1,7 @@
 const Event = require('../models/Event');
 const ActivityLog = require('../models/ActivityLog');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 exports.getEvents = async (req, res) => {
   try {
@@ -272,12 +274,19 @@ exports.deleteSecondaryEvent = async (req, res) => {
 exports.getEventAnalytics = async (req, res) => {
   try {
     const { id: eventId } = req.params;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, timelineGroupBy } = req.query;
+    
+    const timelineFormat = (timelineGroupBy === 'hour')
+      ? '%Y-%m-%dT%H'
+      : (timelineGroupBy === 'minute')
+        ? '%Y-%m-%dT%H:%M'
+        : '%Y-%m-%d';
     
     console.log('📥 Backend received request:', {
       eventId,
       startDate,
       endDate,
+      timelineGroupBy: timelineGroupBy || 'day',
       queryParams: req.query
     });
     
@@ -308,10 +317,11 @@ exports.getEventAnalytics = async (req, res) => {
         console.log('📅 Applied startDate filter:', dateFilter.createdAt.$gte);
       }
       if (endDate) {
-        // If endDate is just a date string without time, set to end of day
+        // If endDate is just a date string without time, set to end of that day in UTC
+        // (so "View by day" works regardless of server timezone)
         const endDateObj = new Date(endDate);
         if (endDate.split('T').length === 1) {
-          endDateObj.setHours(23, 59, 59, 999);
+          endDateObj.setUTCHours(23, 59, 59, 999);
         }
         dateFilter.createdAt.$lte = endDateObj;
         console.log('📅 Applied endDate filter:', dateFilter.createdAt.$lte);
@@ -467,6 +477,12 @@ exports.getEventAnalytics = async (req, res) => {
         uniqueGuestCount: item.uniqueGuestCount
       }));
 
+    // 4b. INVENTORY LIST - Full list for same event(s) as rawGiftDistribution (so frontend table matches analytics)
+    const inventoryList = await Inventory.find({
+      eventId: { $in: eventIds.map(id => id.toString()) },
+      isActive: true
+    }).lean();
+
     // 5. INVENTORY ANALYTICS - Current Stock Levels
     const inventoryAnalytics = await Inventory.aggregate([
       { 
@@ -537,7 +553,7 @@ exports.getEventAnalytics = async (req, res) => {
       {
         $group: {
           _id: {
-            date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }
+            date: { $dateToString: { format: timelineFormat, date: '$createdAt', timezone: 'UTC' } }
           },
           checkIns: { $sum: 1 },
           giftsDistributed: { $sum: { $size: '$giftsDistributed' } }
@@ -656,7 +672,9 @@ exports.getEventAnalytics = async (req, res) => {
         
         // Raw Data for Advanced Processing
         rawGiftDistribution: giftDistribution,
-        secondaryEvents: event.isMainEvent ? await Event.find({ parentEventId: eventId }).select('eventName eventContractNumber') : []
+        // Full inventory list for same event(s) as rawGiftDistribution (main + secondaries when main)
+        inventory: inventoryList,
+        secondaryEvents: event.isMainEvent ? await Event.find({ parentEventId: eventId }).select('_id eventName eventContractNumber') : []
       }
     });
 
@@ -969,6 +987,137 @@ exports.checkContractAvailability = async (req, res) => {
         : `Contract number "${contractNumber}" is available`
     });
 
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// ---------- Client Portal (Ops) ----------
+const generatePortalPassword = () => crypto.randomBytes(10).toString('base64').replace(/[+/=]/g, '').slice(0, 12);
+
+const ensureClientPortalDefaults = (event) => {
+  const now = new Date();
+  const startDate = event.eventStart ? new Date(event.eventStart) : now;
+  const closeAt = new Date(startDate);
+  closeAt.setDate(closeAt.getDate() + 30);
+  return {
+    enabled: false,
+    allowedEmails: [],
+    openAt: startDate,
+    closeAt,
+    options: { allowCsvExport: false },
+    createdAt: now,
+    updatedAt: now
+  };
+};
+
+const toClientPortalResponse = (event, passwordPlain = null) => {
+  const cp = event.clientPortal || {};
+  const out = {
+    enabled: !!cp.enabled,
+    allowedEmails: Array.isArray(cp.allowedEmails) ? cp.allowedEmails : [],
+    openAt: cp.openAt || null,
+    closeAt: cp.closeAt || null,
+    options: { allowCsvExport: !!(cp.options && cp.options.allowCsvExport) }
+  };
+  if (passwordPlain) out.passwordPlain = passwordPlain;
+  return out;
+};
+
+exports.getClientPortal = async (req, res) => {
+  try {
+    const eventId = req.params.eventId || req.params.id;
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    const cp = event.clientPortal;
+    const neverInitialized = !cp || (cp.passwordHash == null && cp.enabled !== true);
+
+    if (neverInitialized) {
+      const defaults = ensureClientPortalDefaults(event);
+      const passwordPlain = generatePortalPassword();
+      const passwordHash = await bcrypt.hash(passwordPlain, 10);
+      event.clientPortal = {
+        ...defaults,
+        passwordHash
+      };
+      await event.save();
+      return res.json({
+        settings: toClientPortalResponse(event, passwordPlain),
+        passwordPlain
+      });
+    }
+
+    return res.json({ settings: toClientPortalResponse(event) });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+exports.updateClientPortal = async (req, res) => {
+  try {
+    const eventId = req.params.eventId || req.params.id;
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    const existing = event.clientPortal || ensureClientPortalDefaults(event);
+    const wasEnabled = !!existing.enabled;
+    const { enabled, allowedEmails, openAt, closeAt, options } = req.body;
+
+    let passwordPlain = null;
+    let passwordHash = existing.passwordHash;
+    if (enabled === true && !wasEnabled) {
+      passwordPlain = generatePortalPassword();
+      passwordHash = await bcrypt.hash(passwordPlain, 10);
+    }
+
+    const now = new Date();
+    const updatedPortal = {
+      enabled: typeof enabled === 'boolean' ? enabled : !!existing.enabled,
+      passwordHash,
+      allowedEmails: Array.isArray(allowedEmails)
+        ? allowedEmails.map(e => (e || '').trim()).filter(Boolean)
+        : (Array.isArray(existing.allowedEmails) ? existing.allowedEmails : []),
+      openAt: openAt !== undefined ? (openAt ? new Date(openAt) : null) : (existing.openAt || null),
+      closeAt: closeAt !== undefined ? (closeAt ? new Date(closeAt) : null) : (existing.closeAt || null),
+      options: {
+        allowCsvExport: options && typeof options.allowCsvExport === 'boolean'
+          ? options.allowCsvExport
+          : !!(existing.options && existing.options.allowCsvExport)
+      },
+      createdAt: existing.createdAt || now,
+      updatedAt: now
+    };
+
+    event.clientPortal = updatedPortal;
+    event.markModified('clientPortal');
+    await event.save();
+
+    const response = { settings: toClientPortalResponse(event, passwordPlain || undefined) };
+    if (passwordPlain) response.passwordPlain = passwordPlain;
+    return res.json(response);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+exports.regenerateClientPortalPassword = async (req, res) => {
+  try {
+    const eventId = req.params.eventId || req.params.id;
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    const cp = event.clientPortal || ensureClientPortalDefaults(event);
+    const passwordPlain = generatePortalPassword();
+    cp.passwordHash = await bcrypt.hash(passwordPlain, 10);
+    cp.updatedAt = new Date();
+    event.clientPortal = cp;
+    await event.save();
+
+    return res.json({
+      settings: toClientPortalResponse(event),
+      passwordPlain
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

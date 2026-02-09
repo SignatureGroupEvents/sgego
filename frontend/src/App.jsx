@@ -18,6 +18,10 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import EventDashboardWrapper from './components/Events/EventDashboardWrapper.jsx';
 import InventoryPageWrapper from './components/Inventory/InventoryPage.jsx';
 import ManageTeamWrapper from './components/Events/ManageTeam.jsx';
+import ClientPortalSettings from './pages/Events/ClientPortalSettings.jsx';
+import PortalLoginPage from './pages/Portal/PortalLoginPage.jsx';
+import PortalDashboardPage from './pages/Portal/PortalDashboardPage.jsx';
+import PortalAdvancedPage from './pages/Portal/PortalAdvancedPage.jsx';
 import AccountPage from "./pages/Account/AccountPage.jsx";
 import AccountEditPage from "./pages/Account/AccountEditPage.jsx";
 // import f from "./pages/user-management/UserManagement.jsx";
@@ -59,6 +63,11 @@ function App() {
             <Route path="/invite/:token" element={<InviteRedirect />} />
             <Route path="/reset-password" element={<Navigate to="/auth?view=forgot-password" replace />} />
             <Route path="/reset-password/:token" element={<ResetPasswordTokenRedirect />} />
+
+            {/* Client Portal (no normal auth; portal token only) */}
+            <Route path="/portal/:eventId/login" element={<PortalLoginPage />} />
+            <Route path="/portal/:eventId/dashboard" element={<PortalDashboardPage />} />
+            <Route path="/portal/:eventId/advanced" element={<PortalAdvancedPage />} />
 
             {/* Dashboard + event routes */}
             {/* VIEW_EVENTS: Admin, Ops, Staff - all authenticated users */}
@@ -134,6 +143,11 @@ function App() {
             <Route path="/events/:eventId/team" element={
               <ProtectedRoute requiredCapability="MANAGE_EVENTS">
                 <ManageTeamWrapper />
+              </ProtectedRoute>
+            } />
+            <Route path="/events/:eventId/client-portal" element={
+              <ProtectedRoute requiredCapability="MANAGE_EVENTS">
+                <ClientPortalSettings />
               </ProtectedRoute>
             } />
             

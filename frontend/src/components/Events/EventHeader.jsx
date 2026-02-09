@@ -5,10 +5,12 @@ import { Edit as EditIcon, Dashboard as DashboardIcon, Event as EventIcon } from
 import { updateEvent } from '../../services/events';
 import toast from 'react-hot-toast';
 import { usePermissions } from '../../hooks/usePermissions';
+import { getUserDisplayName } from '../../utils/userDisplay';
 
-const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = false, onEventUpdate }) => {
+const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = false, onEventUpdate, readOnly = false }) => {
   const navigate = useNavigate();
   const { canManageEvents } = usePermissions();
+  const canEdit = !readOnly && canManageEvents;
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     eventName: '',
@@ -131,7 +133,7 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
                 </Box>
               </Box>
             </Box>
-            {canManageEvents && (
+            {canEdit && (
               <Tooltip title="Edit Event Details">
                 <IconButton 
                   onClick={handleEditClick}
@@ -193,7 +195,7 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
                 fontSize: { xs: '0.75rem', sm: '0.875rem' }
               }}
             >
-              Operations Manager: {event.createdBy ? event.createdBy.username : '—'}
+              Operations Manager: {event.createdBy ? getUserDisplayName(event.createdBy, '—') : '—'}
             </Typography> 
           </Box>
 

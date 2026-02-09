@@ -1,56 +1,45 @@
 import React from 'react';
 import { Avatar, IconButton, Tooltip } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { getUserDisplayName } from '../../utils/userDisplay';
 
 function stringToColor(string) {
+  if (!string) return '#9e9e9e';
   let hash = 0;
   for (let i = 0; i < string.length; i++) {
     hash = string.charCodeAt(i) + ((hash << 5) - hash);
   }
-  
-  // Convert hash to HSL for better color control
   const hue = Math.abs(hash) % 360;
-  const saturation = 70; // Keep colors vibrant
-  const lightness = 50; // Keep colors medium brightness for good contrast
-  
+  const saturation = 70;
+  const lightness = 50;
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
-function stringAvatar(name, profileColor) {
+function stringAvatar(displayName, profileColor) {
   return {
     sx: {
-      bgcolor: profileColor || stringToColor(name),
+      bgcolor: (profileColor && String(profileColor).trim()) ? profileColor.trim() : stringToColor(displayName),
     },
   };
-}       
+}
 
-// Extract initials from username (first name initial + last name initial)
-function getInitials(username) {
-  if (!username) return 'U';
-  
-  const parts = username.trim().split(' ');
-  if (parts.length === 1) {
-    // Only one name, return first two characters
-    return parts[0].substring(0, 2).toUpperCase();
-  } else {
-    // Multiple names, return first letter of first and last name
-    const firstInitial = parts[0].charAt(0).toUpperCase();
-    const lastInitial = parts[parts.length - 1].charAt(0).toUpperCase();
-    return firstInitial + lastInitial;
+/** Initials from display name (e.g. "Lisa Scott" -> "LS", "John" -> "JO") */
+function getInitials(displayName) {
+  if (!displayName || displayName === 'Someone') return '?';
+  const parts = String(displayName).trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
+  return displayName.slice(0, 2).toUpperCase();
 }
 
 export default function AvatarIcon({ user, userId, showTooltip = true }) {
   const navigate = useNavigate();
-  
-  const handleAvatarClick = () => {
-    if (userId) {
-      navigate(`/profile/${userId}`);
-    }
-  };
 
-  const initials = getInitials(user.username);
-  const displayName = user.username || 'Unknown';
+  if (!user) return null;
+
+  const displayName = getUserDisplayName(user, 'Someone');
+  const initials = getInitials(displayName);
   const profileColor = user.profileColor || null;
 
   const avatarElement = (
@@ -58,6 +47,10 @@ export default function AvatarIcon({ user, userId, showTooltip = true }) {
       {initials}
     </Avatar>
   );
+
+  const handleAvatarClick = () => {
+    if (userId) navigate(`/profile/${userId}`);
+  };
 
   const tooltipTitle = showTooltip ? `${displayName}${user.email ? ` (${user.email})` : ''}` : '';
 

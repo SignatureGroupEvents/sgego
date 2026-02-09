@@ -197,6 +197,9 @@ export const getAllEventAnalytics = async (eventId, filters = {}) => {
       params.append('endDate', filters.endDate);
       console.log('📤 Adding endDate to query:', filters.endDate);
     }
+    if (filters.timelineGroupBy) {
+      params.append('timelineGroupBy', filters.timelineGroupBy);
+    }
     
     const queryString = params.toString();
     const url = `/events/${eventId}/analytics${queryString ? `?${queryString}` : ''}`;

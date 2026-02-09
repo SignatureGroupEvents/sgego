@@ -13,7 +13,9 @@ import GuestCheckIn from '../guests/GuestCheckIn';
 import BasicAnalytics from '../dashboard/BasicAnalytics';
 import { getEvent } from '../../services/events';
 import { getEventActivityFeed, getGuests } from '../../services/api';
+import { getPortalEvent, getPortalGuests } from '../../services/portalApi';
 import ManageSection from './ManageSection';
+import PortalLayout from '../layout/PortalLayout';
 import EventHeader from '../Events/EventHeader';
 import GuestTable from '../guests/GuestTable';
 import AdvancedView from './AdvancedView/AdvancedView';
@@ -21,7 +23,7 @@ import MobileBottomTabs from './MobileBottomTabs';
 import toast from 'react-hot-toast';
 
 
-const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inventoryError = '', onInventoryChange }) => {
+const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inventoryError = '', onInventoryChange, isPortalView = false }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { isOperationsManager, isAdmin } = usePermissions();
@@ -53,8 +55,14 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     setLocalGuests(guests);
   }, [guests]);
 
-  // Determine if user can modify events
-  const canModifyEvents = isOperationsManager || isAdmin;
+  // Portal mobile: no Manage tab; if we're on tab 1, show List
+  React.useEffect(() => {
+    if (isPortalView && mobileTab === 1) setMobileTab(0);
+  }, [isPortalView, mobileTab]);
+
+  // Determine if user can modify events (portal view is always read-only)
+  const canModifyEvents = !isPortalView && (isOperationsManager || isAdmin);
+  const allowCsvExport = isPortalView ? (event?.clientPortal?.options?.allowCsvExport ?? false) : true;
 
   const handleOpenCheckIn = (guest) => {
     setCheckInGuest(guest);
@@ -79,16 +87,19 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     const fetchEventData = async () => {
       try {
         setLoading(true);
-        const eventData = await getEvent(eventId);
+        const eventData = isPortalView ? await getPortalEvent(eventId) : await getEvent(eventId);
         setEvent(eventData);
-        // If this is a secondary event, fetch the parent event
-        if (eventData.parentEventId) {
+        if (!eventData) return;
+        // If this is a secondary event, fetch the parent event (skip in portal view for simplicity)
+        if (!isPortalView && eventData.parentEventId) {
           try {
             const parentData = await getEvent(eventData.parentEventId);
             setParentEvent(parentData);
           } catch (error) {
             console.error('Error fetching parent event:', error);
           }
+        } else if (eventData.parentEventId) {
+          setParentEvent(null);
         }
       } catch (error) {
         setError(error.response?.data?.message || 'Failed to fetch event');
@@ -97,51 +108,48 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
       }
     };
 
-    const fetchGuests = async (mainEventId) => {
+    const fetchGuests = async () => {
       try {
-        // Updated API call to match backend route with inheritance support
-        const response = await getGuests(eventId, true);
-        setGuests(response.data.guests || []);
+        let list = [];
+        if (isPortalView) {
+          const response = await getPortalGuests(eventId, true);
+          list = response.guests || [];
+        } else {
+          const response = await getGuests(eventId, true);
+          list = response.data?.guests || [];
+        }
+        setGuests(list);
+        setLocalGuests(list);
       } catch (error) {
         console.error('Error fetching guests:', error);
       }
     };
 
     const fetchSecondaryEvents = async () => {
+      if (isPortalView) return;
       try {
-        // Determine the main event ID to fetch secondary events for
         let mainEventId = eventId;
-        if (event && event.parentEventId) {
-          // If we're viewing a secondary event, fetch secondary events for the parent
-          mainEventId = event.parentEventId;
-        } else if (event && event.isMainEvent) {
-          // If we're viewing a main event, fetch its secondary events
-          mainEventId = event._id;
-        }
-
+        if (event && event.parentEventId) mainEventId = event.parentEventId;
+        else if (event && event.isMainEvent) mainEventId = event._id;
         const response = await api.get(`/events?parentEventId=${mainEventId}`);
         setSecondaryEvents(response.data.events || response.data);
       } catch (error) {
-        // ignore for now
+        // ignore
       }
     };
 
     const fetchAllData = async () => {
       try {
         await fetchEventData();
-        // Use the eventId directly since we just fetched the event data
-        const mainEventId = eventId;
-        await Promise.all([
-          fetchGuests(mainEventId),
-          fetchSecondaryEvents()
-        ]);
+        await fetchGuests();
+        await fetchSecondaryEvents();
       } catch (error) {
         console.error('Error fetching data:', error);
       }
     };
 
     fetchAllData();
-  }, [eventId]);
+  }, [eventId, isPortalView]);
 
   const handleUploadGuests = () => {
     navigate(`/events/${eventId}/upload`);
@@ -200,21 +208,23 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     setLocalGuests(updateGuestState);
   };
 
+  const Layout = isPortalView ? PortalLayout : MainLayout;
+
   if (loading) {
     return (
-      <MainLayout eventName={event?.eventName || 'Loading Event...'}>
+      <Layout eventName={event?.eventName || 'Loading Event...'}>
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
           <CircularProgress size={60} />
         </Box>
-      </MainLayout>
+      </Layout>
     );
   }
 
   if (error || !event) {
     return (
-      <MainLayout eventName={event?.eventName || 'Loading Event...'}>
+      <Layout eventName={event?.eventName || 'Loading Event...'}>
         <Alert severity="error">{error || 'Event not found'}</Alert>
-      </MainLayout>
+      </Layout>
     );
   }
 
@@ -231,7 +241,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const mainEvent = event && event.isMainEvent ? event : parentEvent || event;
 
   return (
-    <MainLayout eventName={event.eventName || 'Loading Event...'} parentEventName={parentEvent && parentEvent._id !== event._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event._id ? parentEvent._id : null}>
+    <Layout eventName={event.eventName || 'Loading Event...'} parentEventName={!isPortalView && parentEvent && parentEvent._id !== event._id ? parentEvent.eventName : null} parentEventId={!isPortalView && parentEvent && parentEvent._id !== event._id ? parentEvent._id : null}>
       <Box sx={{ pb: { xs: 8, sm: 0 } }}>
         {/* Mobile: Show content based on active tab, Desktop: Show all */}
         {isMobile ? (
@@ -239,7 +249,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             {/* List Tab (0) - Guest Table */}
             {mobileTab === 0 && (
               <GuestTable
-                guests={localGuests}
+                guests={localGuests.length > 0 ? localGuests : guests}
                 onAddGuest={handleAddGuest}
                 onUploadGuests={handleUploadGuests}
                 event={{
@@ -251,11 +261,13 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                 onCheckInSuccess={handleCheckInSuccess}
                 inventory={inventory}
                 onGuestsChange={() => fetchGuests(eventId)}
+                readOnly={isPortalView}
+                allowCsvExport={allowCsvExport}
               />
             )}
 
-            {/* Manage Tab (1) - Event Header and Manage Section */}
-            {mobileTab === 1 && (
+            {/* Manage Tab (1) - Event Header and Manage Section (hidden in portal view) */}
+            {mobileTab === 1 && !isPortalView && (
               <>
                 <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={true} onEventUpdate={handleEventUpdate} />
                 <ManageSection
@@ -265,6 +277,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                   onAddEvent={() => setSecondaryModalOpen(true)}
                   onDeleteEvent={handleDeleteEvent}
                   onManageTeam={() => navigate(`/events/${eventId}/team`)}
+                  onClientPortal={() => navigate(`/events/${eventId}/client-portal`)}
                   canModify={canModifyEvents}
                   canManageTeam={canModifyEvents}
                 />
@@ -273,12 +286,22 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
 
             {/* Stats Tab (2) - Analytics */}
             {mobileTab === 2 && (
-              <Box sx={{ width: '100%', px: { xs: 1, sm: 2 }, py: { xs: 1, sm: 2 }, backgroundColor: '#fdf9f6' }}>
+              <Box sx={{ width: '100%', px: { xs: 1, sm: 2 }, py: { xs: 1, sm: 2 }, bgcolor: 'background.default' }}>
+                {isPortalView && viewMode === 'advanced' && (
+                  <Box sx={{ mb: 2 }}>
+                    <Button variant="outlined" size="small" onClick={() => setViewMode('basic')}>
+                      ← Back to overview
+                    </Button>
+                  </Box>
+                )}
+                {/* Client portal: advanced analytics link hidden. To re-enable, pass onShowAdvanced={isPortalView ? () => navigate(`/portal/${eventId}/advanced`) : undefined} */}
                 {viewMode === 'basic' ? (
                   <BasicAnalytics
                     event={event}
                     guests={guests}
                     inventory={inventory}
+                    isPortalView={isPortalView}
+                    onShowAdvanced={undefined}
                   />
                 ) : (
                   <AdvancedView
@@ -295,15 +318,24 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         ) : (
           <>
             {/* Desktop: Show all content */}
-            <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={true} onEventUpdate={handleEventUpdate} />
+            <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={!isPortalView} onEventUpdate={handleEventUpdate} readOnly={isPortalView} />
 
             {/* Event Overview Section */}
-            <Box sx={{ width: '100%', px: 2, py: 2, backgroundColor: '#fdf9f6' }}>
+            <Box sx={{ width: '100%', py: 2, bgcolor: 'background.default' }}>
+              {isPortalView && viewMode === 'advanced' && (
+                <Box sx={{ mb: 2 }}>
+                  <Button variant="outlined" size="small" onClick={() => setViewMode('basic')}>
+                    ← Back to overview
+                  </Button>
+                </Box>
+              )}
               {viewMode === 'basic' ? (
                 <BasicAnalytics
                   event={event}
                   guests={guests}
                   inventory={inventory}
+                  isPortalView={isPortalView}
+                  onShowAdvanced={undefined}
                 />
               ) : (
                 <AdvancedView
@@ -316,20 +348,23 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
               )}
             </Box>
 
-            <ManageSection
-              onInventory={() => navigate(`/events/${eventId}/inventory`)}
-              onUpload={handleUploadGuests}
-              onAddGuest={handleAddGuest}
-              onAddEvent={() => setSecondaryModalOpen(true)}
-              onDeleteEvent={handleDeleteEvent}
-              onManageTeam={() => navigate(`/events/${eventId}/team`)}
-              canModify={canModifyEvents}
-              canManageTeam={canModifyEvents}
-            />
+            {!isPortalView && (
+              <ManageSection
+                onInventory={() => navigate(`/events/${eventId}/inventory`)}
+                onUpload={handleUploadGuests}
+                onAddGuest={handleAddGuest}
+                onAddEvent={() => setSecondaryModalOpen(true)}
+                onDeleteEvent={handleDeleteEvent}
+                onManageTeam={() => navigate(`/events/${eventId}/team`)}
+                onClientPortal={() => navigate(`/events/${eventId}/client-portal`)}
+                canModify={canModifyEvents}
+                canManageTeam={canModifyEvents}
+              />
+            )}
 
             {/* Guest Table */}
             <GuestTable
-              guests={localGuests}
+              guests={localGuests.length > 0 ? localGuests : guests}
               onAddGuest={handleAddGuest}
               onUploadGuests={handleUploadGuests}
               event={{
@@ -341,13 +376,19 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
               onCheckInSuccess={handleCheckInSuccess}
               inventory={inventory}
               onGuestsChange={() => fetchGuests(eventId)}
+              readOnly={isPortalView}
+              allowCsvExport={allowCsvExport}
             />
           </>
         )}
       </Box>
 
-      {/* Mobile Bottom Tabs */}
-      <MobileBottomTabs value={mobileTab} onChange={setMobileTab} />
+      {/* Mobile Bottom Tabs - portal: only List and Stats */}
+      <MobileBottomTabs
+        value={isPortalView ? (mobileTab === 2 ? 1 : 0) : mobileTab}
+        onChange={isPortalView ? (v) => setMobileTab(v === 1 ? 2 : 0) : setMobileTab}
+        hideManage={isPortalView}
+      />
 
       {/* Check-in Modal */}
       <Dialog
@@ -438,7 +479,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         </DialogActions>
       </Dialog>
 
-    </MainLayout>
+    </Layout>
   );
 };
 

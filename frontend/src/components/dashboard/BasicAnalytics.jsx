@@ -1,16 +1,8 @@
-import React, { useState } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  Collapse,
-  IconButton,
-  useMediaQuery
-} from '@mui/material';
-import { ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
+import React from 'react';
+import { Box, Paper, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { usePermissions } from '../../hooks/usePermissions';
-import GiftAnalyticsPreview from './GiftAnalyticsPreview';
+import CheckInGiftsTimeline from './CheckInGiftsTimeline';
 
 /**
  * BasicAnalytics - Main dashboard analytics component
@@ -22,11 +14,9 @@ import GiftAnalyticsPreview from './GiftAnalyticsPreview';
  * Note: GiftAnalyticsPreview handles its own data fetching and state management
  * for better separation of concerns and reusability.
  */
-const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
+const BasicAnalytics = ({ event = {}, guests = [], inventory = [], isPortalView = false, onShowAdvanced }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { canAccessAnalyticsFull } = usePermissions();
-  const [mobileExpanded, setMobileExpanded] = useState(false);
   const totalGuests = guests.length;
   
   // Use eventCheckins as source of truth for attendance
@@ -106,8 +96,41 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
         >
           {pendingGuests} guests pending
         </Typography>
-        {/* Advanced Analytics Button - now grouped below stats - Only visible to Admin and Ops */}
-        {canAccessAnalyticsFull && (
+        {/* Portal: "View detailed analytics" stays in portal. Ops: "Advanced Analytics" links to full dashboard. */}
+        {isPortalView && onShowAdvanced && (
+          <Box sx={{ mt: { xs: 1, sm: 2 }, display: 'flex', justifyContent: 'center', width: '100%' }}>
+            <Box
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 1,
+                px: { xs: 2, sm: 4 },
+                py: { xs: 1, sm: 2 },
+                borderRadius: 3,
+                cursor: 'pointer',
+                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                color: 'white',
+                fontWeight: 700,
+                fontSize: { xs: '0.875rem', sm: '1rem' },
+                letterSpacing: 0.5,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                transition: 'all 0.3s ease',
+                width: { xs: '100%', sm: 'auto' },
+                justifyContent: 'center',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
+                  background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                },
+                '&:active': { transform: 'translateY(0)', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }
+              }}
+              onClick={onShowAdvanced}
+            >
+              View detailed analytics →
+            </Box>
+          </Box>
+        )}
+        {!isPortalView && canAccessAnalyticsFull && (
           <Box sx={{ mt: { xs: 1, sm: 2 }, display: 'flex', justifyContent: 'center', width: '100%' }}>
             <Box
               sx={{
@@ -141,47 +164,38 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [] }) => {
                 window.location.href = `/events/${event?._id || 'demo'}/dashboard/advanced`
               }
             >
-             Advanced Analytics →
+              Advanced Analytics →
             </Box>
           </Box>
         )}
       </Paper>
 
-      {/* Gift Analytics Preview - Collapsible on mobile */}
-      <Box sx={{ width: '100%', flex: { xs: '1 1 100%', sm: '1 1 500px' } }}>
-        {/* Collapsible Header - Only visible on mobile */}
-        {isMobile && (
+      {/* Check-in & Gifts Timeline - in place of Gift Distribution card (compact, responsive) */}
+      {event?._id && (
+        <Box sx={{ width: '100%', flex: { xs: '1 1 100%', sm: '1 1 500px' }, minWidth: 0 }}>
           <Paper
             elevation={2}
             sx={{
               p: { xs: 1.5, sm: 2 },
               borderRadius: 2,
-              mb: { xs: 0.5, sm: 1 },
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              cursor: 'pointer',
+              height: '100%',
+              minHeight: { xs: 'auto', sm: 320 },
               backgroundColor: theme.palette.background.paper,
-              '&:hover': {
-                backgroundColor: theme.palette.action.hover,
-              }
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
             }}
-            onClick={() => setMobileExpanded(!mobileExpanded)}
           >
-            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-              Gift Distribution
-            </Typography>
-            <IconButton size="small">
-              {mobileExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            </IconButton>
+            <CheckInGiftsTimeline
+              eventId={event._id}
+              isPortalView={isPortalView}
+              onShowAdvanced={onShowAdvanced}
+              compact
+            />
           </Paper>
-        )}
-        
-        {/* Gift Analytics Preview - Always visible on desktop, collapsible on mobile */}
-        <Collapse in={!isMobile || mobileExpanded} timeout="auto" unmountOnExit={false}>
-          <GiftAnalyticsPreview event={event} inventory={inventory} />
-        </Collapse>
-      </Box>
+        </Box>
+      )}
+
     </Box>
   );
 };

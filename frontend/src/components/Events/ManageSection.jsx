@@ -6,6 +6,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventIcon from '@mui/icons-material/Event';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PeopleIcon from '@mui/icons-material/People';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 const BUTTON_SIZE = { xs: '100%', sm: 250 };
 
@@ -16,6 +17,7 @@ const ManageSection = ({
   onAddEvent,
   onDeleteEvent,
   onManageTeam,
+  onClientPortal,
   canModify,
   canManageTeam
 }) => (
@@ -152,6 +154,22 @@ const ManageSection = ({
           }}
         >
           Manage Your Team
+        </Button>
+      )}
+      {canManageTeam && onClientPortal && (
+        <Button
+          variant="outlined"
+          startIcon={<OpenInNewIcon />}
+          onClick={onClientPortal}
+          sx={{
+            borderRadius: 5,
+            fontWeight: 600,
+            minWidth: BUTTON_SIZE,
+            width: BUTTON_SIZE,
+            height: 40,
+          }}
+        >
+          Client Portal
         </Button>
       )}
     </Box>

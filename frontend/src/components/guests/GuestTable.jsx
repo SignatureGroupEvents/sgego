@@ -49,6 +49,7 @@ import {
   Download as DownloadIcon,
   Upload as UploadIcon,
   AccountTree as InheritedIcon,
+  Event as EventIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
   Clear as ClearIcon,
@@ -64,7 +65,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api, { deleteGuest, bulkDeleteGuests } from '../../services/api';
 import toast from 'react-hot-toast';
 
-const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckInSuccess, inventory = [], onGuestsChange }) => {
+const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckInSuccess, inventory = [], onGuestsChange, readOnly = false, allowCsvExport = true }) => {
   const [checkInGuest, setCheckInGuest] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const { canCheckInGuests, canManageEvents } = usePermissions();
@@ -492,12 +493,19 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
 
   // Calculate comprehensive check-in status for a guest
   const getGuestCheckInStatus = (guest) => {
-    const eventsToCheck = getEventsToDisplay();
-    
+    const eventsToCheck = getEventsToDisplay().filter(Boolean);
     let totalEvents = eventsToCheck.length;
     let checkedInEvents = 0;
-    
+    if (totalEvents === 0) {
+      return {
+        status: 'not-checked-in',
+        label: 'Not Picked Up',
+        color: 'default',
+        icon: PersonIcon
+      };
+    }
     eventsToCheck.forEach(ev => {
+      if (!ev?._id) return;
       // Check if there's an eventCheckin record for this event (regardless of gifts)
       const checkin = guest.eventCheckins?.find(ec => {
         // Handle both populated and unpopulated eventId
@@ -614,14 +622,13 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
 
   // Determine which events to show based on current view
   const getEventsToDisplay = () => {
-    if (event?.isMainEvent) {
+    if (!event) return [];
+    if (event.isMainEvent) {
       // Main event view: only show secondary events if they exist, otherwise show main event
-      const secondaryEvents = event?.secondaryEvents || [];
-      return secondaryEvents.length > 0 ? secondaryEvents : [event];
-    } else {
-      // Secondary event view: show only this event
-      return [event];
+      const secondaryEvents = event.secondaryEvents || [];
+      return secondaryEvents.length > 0 ? secondaryEvents.filter(Boolean) : [event];
     }
+    return [event];
   };
 
   // Format gift selections for display
@@ -755,7 +762,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
     });
 
     return filtered;
-  }, [guests, searchQuery, statusFilter, typeFilter, tagFilter, sortBy, sortOrder]);
+  }, [guests, event, searchQuery, statusFilter, typeFilter, tagFilter, sortBy, sortOrder]);
 
   if (guests.length === 0) {
     return (
@@ -766,17 +773,19 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
             No guests added yet
           </Typography>
           <Typography color="textSecondary" paragraph>
-            Get started by uploading a guest list.
+            {readOnly ? 'No guests in this event.' : 'Get started by uploading a guest list.'}
           </Typography>
-          <Box display="flex" gap={2} justifyContent="center">
-            <Button
-              variant="contained"
-              startIcon={<UploadIcon />}
-              onClick={onUploadGuests}
-            >
-              Upload CSV/Excel
-            </Button>
-          </Box>
+          {!readOnly && (
+            <Box display="flex" gap={2} justifyContent="center">
+              <Button
+                variant="contained"
+                startIcon={<UploadIcon />}
+                onClick={onUploadGuests}
+              >
+                Upload CSV/Excel
+              </Button>
+            </Box>
+          )}
         </CardContent>
       </Card>
     );
@@ -787,6 +796,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
   // Card rendering function for mobile - simplified table-like format
   const renderGuestCard = (guest) => {
     const isInherited = guest.isInherited;
+    const isFromSecondaryEvent = guest.isFromSecondaryEvent;
     const checkInStatus = getGuestCheckInStatus(guest);
     const buttonState = getCheckInButtonState(guest);
 
@@ -808,6 +818,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
       <Box
         key={guest._id}
         onClick={(e) => {
+          if (readOnly) return;
           // Don't navigate if clicking button
           if (!e.target.closest('button')) {
             navigate(`/events/${event._id}/guests/${guest._id}`);
@@ -822,7 +833,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
           backgroundColor: getStatusBackgroundColor(),
           borderBottom: '1px solid',
           borderColor: 'divider',
-          cursor: 'pointer',
+          cursor: readOnly ? 'default' : 'pointer',
           transition: 'background-color 0.2s',
           '&:hover': {
             backgroundColor: checkInStatus.status === 'fully-checked-in' 
@@ -834,6 +845,11 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
           ...(isInherited && {
             borderLeft: '3px solid',
             borderLeftColor: 'primary.main',
+            pl: 1.5
+          }),
+          ...(isFromSecondaryEvent && !isInherited && {
+            borderLeft: '3px solid',
+            borderLeftColor: 'warning.main',
             pl: 1.5
           })
         }}
@@ -858,6 +874,11 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                 <InheritedIcon fontSize="small" color="primary" sx={{ fontSize: '1rem' }} />
               </Tooltip>
             )}
+            {isFromSecondaryEvent && !isInherited && (
+              <Tooltip title={`Check-in event: ${guest.originalEventName || 'Secondary'}`}>
+                <EventIcon fontSize="small" color="warning" sx={{ fontSize: '1rem' }} />
+              </Tooltip>
+            )}
           </Box>
           {eventsToDisplay.length > 0 && (
             <Typography 
@@ -879,40 +900,42 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
           )}
         </Box>
 
-        {/* Right side: Check-in button */}
-        <Box sx={{ flexShrink: 0 }}>
-          <Button
-            variant={buttonState.variant}
-            color={buttonState.color}
-            size="small"
-            sx={{
-              minWidth: 'auto',
-              px: 1.5,
-              borderRadius: 1.5,
-              fontWeight: 500,
-              fontSize: '0.8125rem',
-              textTransform: 'none',
-              ...(buttonState.variant === 'outlined' && buttonState.color === 'success' && {
-                color: 'success.main',
-                borderColor: 'success.main'
-              }),
-              ...(buttonState.variant === 'outlined' && buttonState.color === 'info' && {
-                color: 'info.main',
-                borderColor: 'info.main'
-              })
-            }}
-            startIcon={<CheckCircleIcon sx={{ fontSize: '1rem' }} />}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (buttonState.active) {
-                handleOpenCheckIn(guest, e);
-              }
-            }}
-            disabled={!buttonState.active || !canCheckInGuests}
-          >
-            {buttonState.label}
-          </Button>
-        </Box>
+        {/* Right side: Check-in button (hidden in read-only portal view) */}
+        {!readOnly && (
+          <Box sx={{ flexShrink: 0 }}>
+            <Button
+              variant={buttonState.variant}
+              color={buttonState.color}
+              size="small"
+              sx={{
+                minWidth: 'auto',
+                px: 1.5,
+                borderRadius: 1.5,
+                fontWeight: 500,
+                fontSize: '0.8125rem',
+                textTransform: 'none',
+                ...(buttonState.variant === 'outlined' && buttonState.color === 'success' && {
+                  color: 'success.main',
+                  borderColor: 'success.main'
+                }),
+                ...(buttonState.variant === 'outlined' && buttonState.color === 'info' && {
+                  color: 'info.main',
+                  borderColor: 'info.main'
+                })
+              }}
+              startIcon={<CheckCircleIcon sx={{ fontSize: '1rem' }} />}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (buttonState.active) {
+                  handleOpenCheckIn(guest, e);
+                }
+              }}
+              disabled={!buttonState.active || !canCheckInGuests}
+            >
+              {buttonState.label}
+            </Button>
+          </Box>
+        )}
       </Box>
     );
   };
@@ -1016,7 +1039,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                   <Typography variant="h6">
                     Guest List ({filteredAndSortedGuests.length} of {guests.length})
                   </Typography>
-                  {canManageEvents && selectedGuests.length > 0 && (
+                  {!readOnly && canManageEvents && selectedGuests.length > 0 && (
                     <Chip
                       label={`${selectedGuests.length} selected`}
                       color="primary"
@@ -1026,7 +1049,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                   )}
                 </Box>
                 <Box display="flex" gap={2}>
-                  {canManageEvents && selectedGuests.length > 0 && (
+                  {!readOnly && canManageEvents && selectedGuests.length > 0 && (
                     <Button
                       variant="contained"
                       color="error"
@@ -1036,13 +1059,15 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                       Delete Selected ({selectedGuests.length})
                     </Button>
                   )}
-                  <Button
-                    variant="contained"
-                    startIcon={<DownloadIcon />}
-                    onClick={exportToCSV}
-                  >
-                    Export CSV File
-                  </Button>
+                  {allowCsvExport && (
+                    <Button
+                      variant="contained"
+                      startIcon={<DownloadIcon />}
+                      onClick={exportToCSV}
+                    >
+                      Export CSV File
+                    </Button>
+                  )}
                 </Box>
               </Box>
             </CardContent>
@@ -1062,7 +1087,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                   gap: 1.5,
                   width: '100%',
                   flexDirection: 'row',
-                  alignItems: 'flex-start'
+                  alignItems: 'flex-end'
                 }}
               >
                 {/* Search Bar */}
@@ -1208,7 +1233,8 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                   </Box>
                 </Box>
 
-                {/* Tag Filter */}
+                {/* Tag Filter - hidden in portal (readOnly) */}
+                {!readOnly && (
                 <Box sx={{ 
                   width: 'auto',
                   flex: '1 1 auto',
@@ -1228,7 +1254,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                     <Autocomplete
                       multiple
                       size="small"
-                      options={canManageEvents ? [...allTags, '__CREATE_TAG__'] : allTags}
+                      options={canManageEvents && !readOnly ? [...allTags, '__CREATE_TAG__'] : allTags}
                       sx={{
                         '& .MuiAutocomplete-inputRoot': {
                           padding: '8px 12px',
@@ -1402,6 +1428,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                     />
                   </Box>
                 </Box>
+                )}
 
                 {/* Clear Filters */}
                 <Box sx={{ 
@@ -1416,7 +1443,6 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                     startIcon={<ClearIcon />}
                     sx={{ 
                       height: '40px',
-                      mt: 0.5,
                       fontSize: '1rem'
                     }}
                   >
@@ -1457,7 +1483,11 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
             </Box>
           ) : (
             <>
-              <TableContainer component={Paper} variant="outlined">
+              <TableContainer
+                component={Paper}
+                variant="outlined"
+                sx={{ minHeight: filteredAndSortedGuests.length > 0 ? 400 : undefined }}
+              >
                 <Table>
                   <TableHead>
                     <TableRow>
@@ -1509,7 +1539,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                         </TableSortLabel>
                       </TableCell>
                       <TableCell>Tags</TableCell>
-                      {canManageEvents && (
+                      {!readOnly && canManageEvents && (
                         <TableCell padding="checkbox">
                           <Checkbox
                             indeterminate={isIndeterminate()}
@@ -1524,6 +1554,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                   <TableBody>
                     {filteredAndSortedGuests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((guest) => {
                       const isInherited = guest.isInherited;
+                      const isFromSecondaryEvent = guest.isFromSecondaryEvent;
                       const checkInStatus = getGuestCheckInStatus(guest);
                       const buttonState = getCheckInButtonState(guest);
                       const StatusIcon = checkInStatus.icon;
@@ -1531,20 +1562,29 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                       return (
                         <TableRow 
                           key={guest._id} 
-                          hover 
+                          hover={!readOnly}
                           onClick={(e) => {
+                            if (readOnly) return;
                             // Don't navigate if clicking checkbox
                             if (e.target.type !== 'checkbox' && !e.target.closest('button')) {
                               navigate(`/events/${event._id}/guests/${guest._id}`);
                             }
                           }}
                           sx={{
+                            ...(isFromSecondaryEvent && !isInherited && {
+                              borderLeft: '3px solid',
+                              borderLeftColor: 'warning.main'
+                            }),
                             '&:hover': {
-                              cursor: 'pointer',
-                              backgroundColor: 'action.hover',
+                              cursor: readOnly ? 'default' : 'pointer',
+                              ...(readOnly ? {} : { backgroundColor: 'action.hover' }),
                               ...(isInherited && {
                                 backgroundColor: 'rgba(25, 118, 210, 0.04)',
                                 '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.08)' }
+                              }),
+                              ...(isFromSecondaryEvent && !isInherited && {
+                                backgroundColor: 'rgba(255, 152, 0, 0.04)',
+                                '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.08)' }
                               })
                             }
                           }}
@@ -1574,7 +1614,14 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                             </Button>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="subtitle2">{guest.lastName || ''}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Typography variant="subtitle2">{guest.lastName || ''}</Typography>
+                              {isFromSecondaryEvent && !isInherited && (
+                                <Tooltip title={`Check-in event: ${guest.originalEventName || 'Secondary'}`}>
+                                  <EventIcon sx={{ fontSize: '1rem' }} color="warning" />
+                                </Tooltip>
+                              )}
+                            </Box>
                           </TableCell>
                           <TableCell>
                             <Typography variant="subtitle2">{guest.firstName || ''}</Typography>
@@ -1642,7 +1689,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                               })}
                             </Box>
                           </TableCell>
-                          {canManageEvents && (
+                          {!readOnly && canManageEvents && (
                             <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
                               <Checkbox
                                 checked={isGuestSelected(guest)}
@@ -1821,7 +1868,8 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
               </Select>
             </FormControl>
 
-            {/* Tag Filter */}
+            {/* Tag Filter - hidden in portal (readOnly) */}
+            {!readOnly && (
             <Autocomplete
               multiple
               options={canManageEvents ? [...allTags, '__CREATE_TAG__'] : allTags}
@@ -1897,6 +1945,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                 return filtered;
               }}
             />
+            )}
 
             <Button
               variant="outlined"
