@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Typography, Button, Link, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Container, Typography, Button, Link, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useNavigate, useParams } from 'react-router-dom';
 import { clearPortalSession } from '../../services/portalApi';
@@ -38,7 +38,20 @@ export default function PortalLayout({ children, eventName = 'Event' }) {
           Sign out
         </Button>
       </Box>
-      <Box sx={{ flex: 1 }}>{children}</Box>
+      <Box sx={{ flex: 1 }}>
+        <Container
+          maxWidth="xl"
+          sx={{
+            py: 3,
+            px: { xs: 2, sm: 3, md: 4 },
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0
+          }}
+        >
+          {children}
+        </Container>
+      </Box>
       <Box
         component="footer"
         sx={{
