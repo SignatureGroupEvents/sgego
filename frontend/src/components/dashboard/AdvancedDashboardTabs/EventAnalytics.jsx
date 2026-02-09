@@ -31,11 +31,13 @@ import {
   DialogTitle,
   DialogContent,
   DialogContentText,
-  DialogActions
+  DialogActions,
+  Tooltip
 } from '@mui/material';
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceDot } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid, ResponsiveContainer, ReferenceDot } from 'recharts';
 import SearchIcon from '@mui/icons-material/Search';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import Menu from '@mui/material/Menu';
 import toast from 'react-hot-toast';
 import { useAnalyticsApi } from '../../../contexts/AnalyticsApiContext';
@@ -582,9 +584,22 @@ const EventAnalytics = ({ eventId, refreshKey = 0, isPortalView = false, allowCs
                 Clear
               </Button>
             </Box>
-            <Typography variant="h6" fontWeight={600} color="primary.main" sx={{ mb: 2 }}>
-              Check-in Timeline
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1 }}>
+              <Typography variant="h6" fontWeight={600} color="primary.main">
+                Event Analytics
+              </Typography>
+              <Tooltip title="Refresh">
+                <IconButton
+                  size="medium"
+                  onClick={() => fetchAnalytics()}
+                  disabled={loading}
+                  aria-label="Refresh analytics"
+                  sx={{ color: 'primary.main' }}
+                >
+                  <RefreshIcon fontSize="medium" />
+                </IconButton>
+              </Tooltip>
+            </Box>
             {loading ? (
               <Skeleton variant="rounded" height={280} sx={{ height: { xs: 240, sm: 280 } }} />
             ) : timelineData.length > 0 ? (
@@ -595,7 +610,7 @@ const EventAnalytics = ({ eventId, refreshKey = 0, isPortalView = false, allowCs
                     <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
                     <XAxis dataKey="formattedDate" tick={{ fontSize: 12 }} stroke={theme.palette.text.secondary} />
                     <YAxis tick={{ fontSize: 12 }} stroke={theme.palette.text.secondary} allowDecimals={false} />
-                    <Tooltip
+                    <RechartsTooltip
                       content={({ active, payload, label }) => {
                         if (!active || !payload?.length) return null;
                         const p = payload[0]?.payload;

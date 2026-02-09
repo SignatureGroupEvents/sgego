@@ -11,16 +11,19 @@ import {
   Select,
   MenuItem,
   Skeleton,
+  IconButton,
+  Tooltip,
   useTheme,
   useMediaQuery
 } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   LineChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
   Legend
 } from 'recharts';
@@ -133,14 +136,26 @@ export default function CheckInGiftsTimeline({ eventId, isPortalView = false, on
 
   return (
     <Box sx={{ width: '100%', mb: compact ? 0 : 3 }}>
-      <Typography
-        variant={compact ? 'subtitle1' : 'h6'}
-        fontWeight={600}
-        color="primary.main"
-        sx={{ mb: compact ? 1 : 2 }}
-      >
-        Check-in &amp; Gifts Timeline
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: compact ? 1 : 2, gap: 1 }}>
+        <Typography
+          variant={compact ? 'subtitle1' : 'h6'}
+          fontWeight={600}
+          color="primary.main"
+        >
+          Event Analytics
+        </Typography>
+        <Tooltip title="Refresh">
+          <IconButton
+            size="medium"
+            onClick={() => fetchAnalytics()}
+            disabled={loading}
+            aria-label="Refresh analytics"
+            sx={{ color: 'primary.main' }}
+          >
+            <RefreshIcon fontSize="medium" />
+          </IconButton>
+        </Tooltip>
+      </Box>
 
       {/* Date Range - compact single row */}
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: { xs: 1, sm: 1.5 }, mb: 1.5 }}>
@@ -207,7 +222,7 @@ export default function CheckInGiftsTimeline({ eventId, isPortalView = false, on
                     <XAxis dataKey="formattedDate" tick={{ fontSize: isCompact ? 10 : 12 }} stroke={theme.palette.text.secondary} />
                     <YAxis yAxisId="left" tick={{ fontSize: isCompact ? 10 : 12 }} stroke={theme.palette.text.secondary} allowDecimals={false} width={28} />
                     <YAxis yAxisId="right" orientation="right" tick={{ fontSize: isCompact ? 10 : 12 }} stroke={theme.palette.text.secondary} allowDecimals={false} width={28} />
-                    <Tooltip
+                    <RechartsTooltip
                       content={({ active, payload }) => {
                         if (!active || !payload?.length) return null;
                         const p = payload[0]?.payload;
