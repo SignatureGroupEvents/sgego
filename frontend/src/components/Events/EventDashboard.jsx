@@ -289,13 +289,14 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                     </Button>
                   </Box>
                 )}
+                {/* Client portal: advanced analytics link hidden. To re-enable, pass onShowAdvanced={isPortalView ? () => navigate(`/portal/${eventId}/advanced`) : undefined} */}
                 {viewMode === 'basic' ? (
                   <BasicAnalytics
                     event={event}
                     guests={guests}
                     inventory={inventory}
                     isPortalView={isPortalView}
-                    onShowAdvanced={isPortalView ? () => navigate(`/portal/${eventId}/advanced`) : undefined}
+                    onShowAdvanced={undefined}
                   />
                 ) : (
                   <AdvancedView
@@ -329,7 +330,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                   guests={guests}
                   inventory={inventory}
                   isPortalView={isPortalView}
-                  onShowAdvanced={isPortalView ? () => navigate(`/portal/${eventId}/advanced`) : undefined}
+                  onShowAdvanced={undefined}
                 />
               ) : (
                 <AdvancedView
