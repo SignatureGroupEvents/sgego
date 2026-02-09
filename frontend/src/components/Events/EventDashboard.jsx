@@ -55,6 +55,11 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     setLocalGuests(guests);
   }, [guests]);
 
+  // Portal mobile: no Manage tab; if we're on tab 1, show List
+  React.useEffect(() => {
+    if (isPortalView && mobileTab === 1) setMobileTab(0);
+  }, [isPortalView, mobileTab]);
+
   // Determine if user can modify events (portal view is always read-only)
   const canModifyEvents = !isPortalView && (isOperationsManager || isAdmin);
   const allowCsvExport = isPortalView ? (event?.clientPortal?.options?.allowCsvExport ?? false) : true;
@@ -281,7 +286,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
 
             {/* Stats Tab (2) - Analytics */}
             {mobileTab === 2 && (
-              <Box sx={{ width: '100%', px: { xs: 1, sm: 2 }, py: { xs: 1, sm: 2 }, backgroundColor: '#fdf9f6' }}>
+              <Box sx={{ width: '100%', px: { xs: 1, sm: 2 }, py: { xs: 1, sm: 2 }, bgcolor: 'background.default' }}>
                 {isPortalView && viewMode === 'advanced' && (
                   <Box sx={{ mb: 2 }}>
                     <Button variant="outlined" size="small" onClick={() => setViewMode('basic')}>
@@ -316,7 +321,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={!isPortalView} onEventUpdate={handleEventUpdate} readOnly={isPortalView} />
 
             {/* Event Overview Section */}
-            <Box sx={{ width: '100%', py: 2, backgroundColor: '#fdf9f6' }}>
+            <Box sx={{ width: '100%', py: 2, bgcolor: 'background.default' }}>
               {isPortalView && viewMode === 'advanced' && (
                 <Box sx={{ mb: 2 }}>
                   <Button variant="outlined" size="small" onClick={() => setViewMode('basic')}>
@@ -378,8 +383,12 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         )}
       </Box>
 
-      {/* Mobile Bottom Tabs */}
-      <MobileBottomTabs value={mobileTab} onChange={setMobileTab} />
+      {/* Mobile Bottom Tabs - portal: only List and Stats */}
+      <MobileBottomTabs
+        value={isPortalView ? (mobileTab === 2 ? 1 : 0) : mobileTab}
+        onChange={isPortalView ? (v) => setMobileTab(v === 1 ? 2 : 0) : setMobileTab}
+        hideManage={isPortalView}
+      />
 
       {/* Check-in Modal */}
       <Dialog

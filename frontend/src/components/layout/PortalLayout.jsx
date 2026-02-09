@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { Box, Container, Typography, Button, Link, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  Link,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
+} from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useNavigate, useParams } from 'react-router-dom';
 import { clearPortalSession } from '../../services/portalApi';

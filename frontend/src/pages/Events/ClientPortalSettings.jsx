@@ -115,6 +115,8 @@ export default function ClientPortalSettings() {
     load();
   }, [eventId]);
 
+  const closeBeforeOpenError = form.openAt && form.closeAt && new Date(form.closeAt).getTime() < new Date(form.openAt).getTime();
+
   const clientPortalUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/portal/${eventId}/login`
     : '';
@@ -150,6 +152,10 @@ export default function ClientPortalSettings() {
   };
 
   const handleSave = async () => {
+    if (closeBeforeOpenError) {
+      toast.error('Close date must be after the open date.');
+      return;
+    }
     setSaving(true);
     try {
       const body = {
@@ -283,7 +289,7 @@ export default function ClientPortalSettings() {
                   variant="contained"
                   startIcon={<SaveIcon />}
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || closeBeforeOpenError}
                   sx={{ bgcolor: TEAL, '&:hover': { bgcolor: '#00919e' } }}
                 >
                   {saving ? 'Saving…' : 'SAVE SETTINGS'}
@@ -441,6 +447,8 @@ export default function ClientPortalSettings() {
               value={form.closeAt}
               onChange={(e) => setForm((f) => ({ ...f, closeAt: e.target.value }))}
               disabled={!editing}
+              error={!!closeBeforeOpenError}
+              helperText={closeBeforeOpenError ? 'Set the close date after the open date.' : undefined}
               InputLabelProps={{ shrink: true }}
               InputProps={{ sx: { borderRadius: 1 } }}
               sx={{ mr: 2, mb: 0.5, minWidth: 160 }}

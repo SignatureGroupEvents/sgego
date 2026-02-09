@@ -28,7 +28,8 @@ exports.requirePortalAuth = async (req, res, next) => {
       return res.status(403).json({ message: 'Event access denied' });
     }
 
-    const event = await Event.findById(eventId);
+    const event = await Event.findById(eventId)
+      .populate('createdBy', 'firstName lastName username');
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
     }
