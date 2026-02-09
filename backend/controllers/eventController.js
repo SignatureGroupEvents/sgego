@@ -274,12 +274,19 @@ exports.deleteSecondaryEvent = async (req, res) => {
 exports.getEventAnalytics = async (req, res) => {
   try {
     const { id: eventId } = req.params;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, timelineGroupBy } = req.query;
+    
+    const timelineFormat = (timelineGroupBy === 'hour')
+      ? '%Y-%m-%dT%H'
+      : (timelineGroupBy === 'minute')
+        ? '%Y-%m-%dT%H:%M'
+        : '%Y-%m-%d';
     
     console.log('📥 Backend received request:', {
       eventId,
       startDate,
       endDate,
+      timelineGroupBy: timelineGroupBy || 'day',
       queryParams: req.query
     });
     
@@ -310,10 +317,11 @@ exports.getEventAnalytics = async (req, res) => {
         console.log('📅 Applied startDate filter:', dateFilter.createdAt.$gte);
       }
       if (endDate) {
-        // If endDate is just a date string without time, set to end of day
+        // If endDate is just a date string without time, set to end of that day in UTC
+        // (so "View by day" works regardless of server timezone)
         const endDateObj = new Date(endDate);
         if (endDate.split('T').length === 1) {
-          endDateObj.setHours(23, 59, 59, 999);
+          endDateObj.setUTCHours(23, 59, 59, 999);
         }
         dateFilter.createdAt.$lte = endDateObj;
         console.log('📅 Applied endDate filter:', dateFilter.createdAt.$lte);
@@ -469,6 +477,12 @@ exports.getEventAnalytics = async (req, res) => {
         uniqueGuestCount: item.uniqueGuestCount
       }));
 
+    // 4b. INVENTORY LIST - Full list for same event(s) as rawGiftDistribution (so frontend table matches analytics)
+    const inventoryList = await Inventory.find({
+      eventId: { $in: eventIds.map(id => id.toString()) },
+      isActive: true
+    }).lean();
+
     // 5. INVENTORY ANALYTICS - Current Stock Levels
     const inventoryAnalytics = await Inventory.aggregate([
       { 
@@ -539,7 +553,7 @@ exports.getEventAnalytics = async (req, res) => {
       {
         $group: {
           _id: {
-            date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }
+            date: { $dateToString: { format: timelineFormat, date: '$createdAt', timezone: 'UTC' } }
           },
           checkIns: { $sum: 1 },
           giftsDistributed: { $sum: { $size: '$giftsDistributed' } }
@@ -658,7 +672,9 @@ exports.getEventAnalytics = async (req, res) => {
         
         // Raw Data for Advanced Processing
         rawGiftDistribution: giftDistribution,
-        secondaryEvents: event.isMainEvent ? await Event.find({ parentEventId: eventId }).select('eventName eventContractNumber') : []
+        // Full inventory list for same event(s) as rawGiftDistribution (main + secondaries when main)
+        inventory: inventoryList,
+        secondaryEvents: event.isMainEvent ? await Event.find({ parentEventId: eventId }).select('_id eventName eventContractNumber') : []
       }
     });
 

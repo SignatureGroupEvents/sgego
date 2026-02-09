@@ -65,6 +65,7 @@ export const getPortalAllEventAnalytics = async (eventId, filters = {}) => {
   const params = {};
   if (filters.startDate) params.startDate = filters.startDate;
   if (filters.endDate) params.endDate = filters.endDate;
+  if (filters.timelineGroupBy) params.timelineGroupBy = filters.timelineGroupBy;
   const data = await getPortalAnalytics(eventId, params);
   return data.analytics || data;
 };

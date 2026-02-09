@@ -37,6 +37,7 @@ import toast from 'react-hot-toast';
 import MainLayout from '../../components/layout/MainLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUserProfile, getAllUsers } from '../../services/api';
+import { getUserDisplayName } from '../../utils/userDisplay';
 import AvatarIcon from '../../components/dashboard/AvatarIcon';
 
 const ROLE_LABELS = {
@@ -51,8 +52,9 @@ const ROLE_COLORS = {
   operations_manager: '#31365E'
 };
 
-// Helper function to generate color from string
+// Same color algorithm as AvatarIcon so profile avatar matches site-wide
 function stringToColor(string) {
+  if (!string) return '#9e9e9e';
   let hash = 0;
   for (let i = 0; i < string.length; i++) {
     hash = string.charCodeAt(i) + ((hash << 5) - hash);
@@ -61,23 +63,14 @@ function stringToColor(string) {
   return `hsl(${hue}, 70%, 50%)`;
 }
 
-// Extract initials from name
-function getInitials(name, email) {
-  if (name) {
-    const parts = name.trim().split(' ');
-    if (parts.length === 1) {
-      return parts[0].substring(0, 2).toUpperCase();
-    } else {
-      const firstInitial = parts[0].charAt(0).toUpperCase();
-      const lastInitial = parts[parts.length - 1].charAt(0).toUpperCase();
-      return firstInitial + lastInitial;
-    }
+// Initials from display name only (no email) — matches AvatarIcon
+function getInitialsFromName(displayName) {
+  if (!displayName || displayName === 'Someone') return '?';
+  const parts = String(displayName).trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
-  // Fallback to email initials
-  if (email) {
-    return email.substring(0, 2).toUpperCase();
-  }
-  return 'U';
+  return displayName.slice(0, 2).toUpperCase();
 }
 
 const UserProfile = () => {
@@ -213,11 +206,7 @@ const UserProfile = () => {
   }
 
   return (
-    <MainLayout userName={
-      user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}`
-        : user.firstName || user.lastName || user.email || 'User'
-    }>
+    <MainLayout userName={getUserDisplayName(user, user.email || 'User')}>
       <Box 
         display="flex" 
         flexDirection={{ xs: 'column', md: 'row' }}
@@ -250,22 +239,13 @@ const UserProfile = () => {
                 sx={{
                   width: { xs: 80, sm: 120 },
                   height: { xs: 80, sm: 120 },
-                  bgcolor: profileColor || stringToColor(
-                    user.firstName && user.lastName 
-                      ? `${user.firstName} ${user.lastName}`
-                      : user.firstName || user.lastName || user.email
-                  ),
+                  bgcolor: profileColor || stringToColor(getUserDisplayName(user, 'Someone')),
                   fontSize: { xs: '2rem', sm: '3rem' },
                   fontWeight: 700,
                   border: '3px solid #e0e0e0'
                 }}
               >
-                {getInitials(
-                  user.firstName && user.lastName 
-                    ? `${user.firstName} ${user.lastName}`
-                    : user.firstName || user.lastName || user.username || user.email,
-                  user.email
-                )}
+                {getInitialsFromName(getUserDisplayName(user, 'Someone'))}
               </Avatar>
               
               {/* Pencil icon overlay (bottom right) for color editing */}
@@ -298,13 +278,7 @@ const UserProfile = () => {
                 color="#1a1a1a" 
                 mb={1}
               >
-                {user.firstName && user.lastName 
-                  ? `${user.firstName} ${user.lastName}`
-                  : user.firstName 
-                  ? user.firstName 
-                  : user.lastName 
-                  ? user.lastName 
-                  : user.email}
+                {getUserDisplayName(user, user.email)}
               </Typography>
               <Box display="flex" alignItems="center" justifyContent={{ xs: 'center', sm: 'flex-start' }} gap={1}>
                 <Typography variant="body2" color="text.secondary">
@@ -596,13 +570,7 @@ const UserProfile = () => {
                               fontSize: '0.9375rem'
                             }}
                           >
-                            {contactUser.firstName && contactUser.lastName
-                              ? `${contactUser.firstName} ${contactUser.lastName}`
-                              : contactUser.firstName 
-                              ? contactUser.firstName 
-                              : contactUser.lastName 
-                              ? contactUser.lastName 
-                              : contactUser.email}
+                            {getUserDisplayName(contactUser, contactUser.email)}
                           </Typography>
                           {contactUser._id === currentUser?.id && (
                             <Tooltip title="Your profile">

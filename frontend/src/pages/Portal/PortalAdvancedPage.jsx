@@ -70,13 +70,14 @@ export default function PortalAdvancedPage() {
   const handleModuleSelect = (module) => setSelectedModule(module);
   const handleBackToSelection = () => setSelectedModule(null);
   const handleBackToDashboard = () => navigate(`/portal/${eventId}/dashboard`, { replace: true });
+  const allowCsvExport = !!(event?.clientPortal?.options?.allowCsvExport);
 
   const renderContent = () => {
     switch (selectedModule) {
       case 'gift':
-        return <GiftAnalytics event={event} guests={guests} inventory={inventory} />;
+        return <GiftAnalytics event={event} guests={guests} inventory={inventory} allowCsvExport={allowCsvExport} />;
       case 'event':
-        return <EventAnalytics eventId={eventId} />;
+        return <EventAnalytics eventId={eventId} isPortalView allowCsvExport={allowCsvExport} />;
       default:
         return null;
     }
@@ -170,16 +171,7 @@ export default function PortalAdvancedPage() {
               variant="outlined"
               color="primary"
               size="large"
-              sx={{
-                mb: 3,
-                px: 3,
-                py: 1.5,
-                fontSize: '1rem',
-                fontWeight: 600,
-                borderWidth: 2,
-                '&:hover': { borderWidth: 2, transform: 'translateY(-2px)', boxShadow: 3 },
-                transition: 'all 0.2s ease'
-              }}
+              sx={{ mb: 3 }}
               startIcon={<ArrowBackIcon />}
             >
               {selectedModule ? 'Back to Analytics Modules' : 'Back to dashboard'}

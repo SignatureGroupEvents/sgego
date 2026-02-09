@@ -12,7 +12,8 @@ import {
   Analytics as AnalyticsIcon,
   Event as EventIcon,
   Feed as FeedIcon,
-  ArrowBack as ArrowBackIcon
+  ArrowBack as ArrowBackIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import MainLayout from '../../components/layout/MainLayout';
 import GiftAnalytics from '../../components/dashboard/AdvancedDashboardTabs/GiftAnalytics';
@@ -33,6 +34,7 @@ const AdvancedDashboard = () => {
   const [parentEvent, setParentEvent] = useState(null);
   const [secondaryEvents, setSecondaryEvents] = useState([]);
   const [selectedModule, setSelectedModule] = useState(null); // null = selection page, 'gift' | 'event' | 'activity'
+  const [refreshKey, setRefreshKey] = useState(0);
   const [guests, setGuests] = useState([]);
   const [inventory, setInventory] = useState([]);
 
@@ -228,11 +230,11 @@ const AdvancedDashboard = () => {
   const renderModuleContent = () => {
     switch (selectedModule) {
       case 'gift':
-        return <GiftAnalytics event={event} guests={guests} inventory={inventory} />;
+        return <GiftAnalytics event={event} guests={guests} inventory={inventory} refreshKey={refreshKey} />;
       case 'event':
-        return <EventAnalytics eventId={eventId} />;
+        return <EventAnalytics eventId={eventId} refreshKey={refreshKey} />;
       case 'activity':
-        return <ActivityFeed />;
+        return <ActivityFeed refreshKey={refreshKey} />;
       default:
         return null;
     }
@@ -242,30 +244,27 @@ const AdvancedDashboard = () => {
     <MainLayout eventName={event?.eventName || 'Loading Event...'} parentEventName={parentEvent && parentEvent._id !== event?._id ? parentEvent.eventName : null} parentEventId={parentEvent && parentEvent._id !== event?._id ? parentEvent._id : null}>
       <EventHeader event={event} mainEvent={parentEvent} secondaryEvents={secondaryEvents} />
       <Container maxWidth="xl" sx={{ py: 3 }}>
-        {/* Back Button */}
-        <Button 
-          onClick={handleBackToSelection}
-          variant="outlined"
-          color="primary"
-          size="large"
-          sx={{
-            mb: 3,
-            px: 3,
-            py: 1.5,
-              fontSize: '1rem',
-            fontWeight: 600,
-            borderWidth: 2,
-            '&:hover': {
-              borderWidth: 2,
-              transform: 'translateY(-2px)',
-              boxShadow: 3
-            },
-            transition: 'all 0.2s ease'
-          }}
-          startIcon={<ArrowBackIcon />}
-        >
-          Back to Analytics Modules
-        </Button>
+        {/* Back + Refresh — default primary button style for consistency */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+          <Button
+            onClick={handleBackToSelection}
+            variant="outlined"
+            color="primary"
+            size="large"
+            startIcon={<ArrowBackIcon />}
+          >
+            Back to Analytics Modules
+          </Button>
+          <Button
+            onClick={() => setRefreshKey(k => k + 1)}
+            variant="contained"
+            color="primary"
+            size="large"
+            startIcon={<RefreshIcon />}
+          >
+            Refresh
+          </Button>
+        </Box>
 
         {/* Module Content */}
       <Box sx={{ minHeight: '500px' }}>

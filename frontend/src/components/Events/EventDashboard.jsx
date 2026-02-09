@@ -312,10 +312,10 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         ) : (
           <>
             {/* Desktop: Show all content */}
-            <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={!isPortalView} onEventUpdate={handleEventUpdate} />
+            <EventHeader event={event} mainEvent={parentEvent || event} secondaryEvents={secondaryEvents} showDropdown={!isPortalView} onEventUpdate={handleEventUpdate} readOnly={isPortalView} />
 
             {/* Event Overview Section */}
-            <Box sx={{ width: '100%', px: 2, py: 2, backgroundColor: '#fdf9f6' }}>
+            <Box sx={{ width: '100%', py: 2, backgroundColor: '#fdf9f6' }}>
               {isPortalView && viewMode === 'advanced' && (
                 <Box sx={{ mb: 2 }}>
                   <Button variant="outlined" size="small" onClick={() => setViewMode('basic')}>

@@ -65,9 +65,9 @@ const AnalyticsPieChart = ({
     ? data.filter(item => item && item[nameKey] && (item[dataKey] !== undefined && item[dataKey] !== null) && Number(item[dataKey]) > 0)
     : [];
 
-  // Label formatter - show just the value/count on segments
+  // Label formatter - show realValue when present (e.g. zero-count items), else value
   const labelFormatter = showLabel 
-    ? ({ value }) => value  // Show just the number count
+    ? ({ value, payload }) => (payload && payload.realValue !== undefined ? payload.realValue : value)
     : null;
 
   return (
