@@ -1,16 +1,8 @@
-import React, { useState } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  Collapse,
-  IconButton,
-  useMediaQuery
-} from '@mui/material';
-import { ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
+import React from 'react';
+import { Box, Paper, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { usePermissions } from '../../hooks/usePermissions';
-import GiftAnalyticsPreview from './GiftAnalyticsPreview';
+import CheckInGiftsTimeline from './CheckInGiftsTimeline';
 
 /**
  * BasicAnalytics - Main dashboard analytics component
@@ -24,9 +16,7 @@ import GiftAnalyticsPreview from './GiftAnalyticsPreview';
  */
 const BasicAnalytics = ({ event = {}, guests = [], inventory = [], isPortalView = false, onShowAdvanced }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { canAccessAnalyticsFull } = usePermissions();
-  const [mobileExpanded, setMobileExpanded] = useState(false);
   const totalGuests = guests.length;
   
   // Use eventCheckins as source of truth for attendance
@@ -180,41 +170,32 @@ const BasicAnalytics = ({ event = {}, guests = [], inventory = [], isPortalView 
         )}
       </Paper>
 
-      {/* Gift Analytics Preview - Collapsible on mobile */}
-      <Box sx={{ width: '100%', flex: { xs: '1 1 100%', sm: '1 1 500px' } }}>
-        {/* Collapsible Header - Only visible on mobile */}
-        {isMobile && (
+      {/* Check-in & Gifts Timeline - in place of Gift Distribution card (compact, responsive) */}
+      {event?._id && (
+        <Box sx={{ width: '100%', flex: { xs: '1 1 100%', sm: '1 1 500px' }, minWidth: 0 }}>
           <Paper
             elevation={2}
             sx={{
               p: { xs: 1.5, sm: 2 },
               borderRadius: 2,
-              mb: { xs: 0.5, sm: 1 },
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              cursor: 'pointer',
+              height: '100%',
+              minHeight: { xs: 'auto', sm: 320 },
               backgroundColor: theme.palette.background.paper,
-              '&:hover': {
-                backgroundColor: theme.palette.action.hover,
-              }
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
             }}
-            onClick={() => setMobileExpanded(!mobileExpanded)}
           >
-            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-              Gift Distribution
-            </Typography>
-            <IconButton size="small">
-              {mobileExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            </IconButton>
+            <CheckInGiftsTimeline
+              eventId={event._id}
+              isPortalView={isPortalView}
+              onShowAdvanced={onShowAdvanced}
+              compact
+            />
           </Paper>
-        )}
-        
-        {/* Gift Analytics Preview - Always visible on desktop, collapsible on mobile */}
-        <Collapse in={!isMobile || mobileExpanded} timeout="auto" unmountOnExit={false}>
-          <GiftAnalyticsPreview event={event} inventory={inventory} />
-        </Collapse>
-      </Box>
+        </Box>
+      )}
+
     </Box>
   );
 };
