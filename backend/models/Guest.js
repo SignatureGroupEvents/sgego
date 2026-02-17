@@ -91,7 +91,12 @@ const guestSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
       }
-    }]
+    }],
+    // Snapshot of event pickup field preferences at check-in; display only these fields so no false positives if Ops enables more fields later
+    pickupFieldPreferencesAtCheckin: {
+      type: mongoose.Schema.Types.Mixed,
+      default: undefined
+    }
   }],
   additionalInfo: {
     type: mongoose.Schema.Types.Mixed,

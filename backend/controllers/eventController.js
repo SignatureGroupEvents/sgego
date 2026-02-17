@@ -124,7 +124,14 @@ exports.getEvent = async (req, res) => {
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    res.json({ event });
+    const eventObj = event.toObject ? event.toObject() : event;
+    if (event.isMainEvent) {
+      eventObj.secondaryEvents = await Event.find({ parentEventId: req.params.id, isActive: true })
+        .select('_id eventName eventContractNumber isMainEvent parentEventId pickupFieldPreferences')
+        .lean();
+    }
+
+    res.json({ event: eventObj });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -403,6 +410,8 @@ exports.getEventAnalytics = async (req, res) => {
         $match: giftDistributionMatch
       },
       { $unwind: '$giftsDistributed' },
+      // Exclude invalid/empty inventoryId so $lookup doesn't trigger "Cast to ObjectId failed"
+      { $match: { 'giftsDistributed.inventoryId': { $exists: true, $nin: [null, ''] } } },
       {
         $lookup: {
           from: 'inventories',

@@ -902,15 +902,15 @@ const InventoryPage = ({ eventId, eventName }) => {
         <Alert onClose={() => setSuccess('')} severity="success" sx={{ width: '100%' }}>{success}</Alert>
       </Snackbar>}
 
-      {/* Pick-up Modal Field Preferences Section - Only visible to Ops and Admin */}
-      {canModifyInventory && (
+      {/* Pick-up Modal Field Preferences: only on main event; nested events use main event's settings */}
+      {canModifyInventory && event?.isMainEvent && (
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
               Pick-up Modal Display Settings
             </Typography>
             <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              Select which fields should appear in the guest pick-up modal dropdowns:
+              Select which fields should appear in the guest pick-up modal for this event and all nested events:
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -973,6 +973,26 @@ const InventoryPage = ({ eventId, eventName }) => {
                 {savingPreferences ? 'Saving...' : 'Save Settings'}
               </Button>
             </Box>
+          </CardContent>
+        </Card>
+      )}
+      {canModifyInventory && event && !event.isMainEvent && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Pick-up Modal Display Settings
+            </Typography>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Pick-up modal settings are managed by the main event and apply to all nested events. Configure them from the main event&apos;s Inventory page.
+            </Alert>
+            <Button
+              variant="outlined"
+              color="primary"
+              startIcon={<HomeIcon />}
+              onClick={() => navigate(`/events/${event.parentEventId}/inventory`)}
+            >
+              Open main event Inventory
+            </Button>
           </CardContent>
         </Card>
       )}

@@ -63,6 +63,26 @@ import {
   PlayArrow as PlayArrowIcon
 } from '@mui/icons-material';
 
+// Format an ISO date for display without timezone shift (e.g. 2026-02-19T00:00:00.000Z -> 2/19/2026)
+const formatEventDate = (val) => {
+  if (val == null) return '—';
+  let y, m, d;
+  if (typeof val === 'string') {
+    const datePart = val.slice(0, 10);
+    [y, m, d] = datePart.split('-').map(Number);
+  } else if (val instanceof Date || (typeof val === 'object' && typeof val.getUTCFullYear === 'function')) {
+    const date = new Date(val);
+    if (Number.isNaN(date.getTime())) return '—';
+    y = date.getUTCFullYear();
+    m = date.getUTCMonth() + 1;
+    d = date.getUTCDate();
+  } else {
+    return '—';
+  }
+  if (!y || !m || !d) return '—';
+  return new Date(y, m - 1, d).toLocaleDateString();
+};
+
 // Sorting function
 const sortEvents = (events, sortBy, sortOrder) => {
   return [...events].sort((a, b) => {
@@ -464,7 +484,7 @@ const EventsList = () => {
                   Start Date
                 </Typography>
                 <Typography variant="body2" fontWeight={500}>
-                  {new Date(event.eventStart).toLocaleDateString()}
+                  {formatEventDate(event.eventStart)}
                 </Typography>
               </Grid>
               {event.eventEnd && event.eventEnd !== event.eventStart && (
@@ -473,7 +493,7 @@ const EventsList = () => {
                     End Date
                   </Typography>
                   <Typography variant="body2" fontWeight={500}>
-                    {new Date(event.eventEnd).toLocaleDateString()}
+                    {formatEventDate(event.eventEnd)}
                   </Typography>
                 </Grid>
               )}
@@ -793,11 +813,11 @@ const EventsList = () => {
                         <TableCell>
                           <Box>
                             <Typography variant="body2" fontWeight={500}>
-                              {new Date(event.eventStart).toLocaleDateString()}
+                              {formatEventDate(event.eventStart)}
                             </Typography>
                             {event.eventEnd && event.eventEnd !== event.eventStart && (
                               <Typography variant="caption" color="text.secondary">
-                                to {new Date(event.eventEnd).toLocaleDateString()}
+                                to {formatEventDate(event.eventEnd)}
                               </Typography>
                             )}
                           </Box>

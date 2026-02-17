@@ -110,6 +110,7 @@ inventorySchema.methods.updateInventory = function(newCount, action, userId, rea
 
 // Add a static method to recalculate currentInventory as qtyOnSite minus all distributed check-ins
 inventorySchema.statics.recalculateCurrentInventory = async function(inventoryId) {
+  if (!inventoryId || !mongoose.Types.ObjectId.isValid(inventoryId)) return;
   const Checkin = require('./Checkin');
   const inventoryItem = await this.findById(inventoryId);
   if (!inventoryItem) return;

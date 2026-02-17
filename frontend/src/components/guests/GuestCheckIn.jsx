@@ -16,7 +16,7 @@ import { CheckCircleOutline as CheckCircleIcon } from '@mui/icons-material';
 import HomeIcon from '@mui/icons-material/Home';
 import HierarchicalInventorySelector from './HierarchicalInventorySelector';
 
-const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onInventoryChange }) => {
+const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSuccess, onInventoryChange }) => {
   const [qrData, setQrData] = useState('');
   const [guest, setGuest] = useState(propGuest || null);
   const [context, setContext] = useState(null);
@@ -36,8 +36,9 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
     color: false
   });
 
+  // Use main event's pickup settings for all events (main + nested) so one config applies everywhere
   const getPickupFieldPreferences = (eventObj = null) => {
-    const eventToUse = eventObj || event;
+    const eventToUse = mainEvent || eventObj || event;
     return eventToUse?.pickupFieldPreferences || getDefaultPreferences();
   };
 
@@ -239,13 +240,15 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
           
         const checkins = eventsToCheckIn.map(ev => ({
           eventId: ev._id,
-          selectedGifts: giftSelections[ev._id] ? [giftSelections[ev._id]] : []
+          selectedGifts: giftSelections[ev._id] ? [giftSelections[ev._id]] : [],
+          pickupFieldPreferences: mainEvent?.pickupFieldPreferences ?? getPickupFieldPreferences(ev)
         }));
         response = await multiEventCheckin(guest._id, checkins);
       } else {
         // Single event check-in
         const selectedGifts = giftSelections[event._id] ? [giftSelections[event._id]] : [];
-        response = await singleEventCheckin(guest._id, event._id, selectedGifts);
+        const pickupFieldPreferences = getPickupFieldPreferences(event);
+        response = await singleEventCheckin(guest._id, event._id, selectedGifts, '', pickupFieldPreferences);
       }
       
       // Update local state to show success
@@ -274,45 +277,28 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
     }
   };
 
-  // Helper function to check if guest can still be checked in (same logic as GuestTable)
+  // Helper: can guest still add/complete check-in? Same logic as GuestTable (pending = no check-in or no gift for that event).
   const canGuestBeCheckedIn = (guest, event) => {
     if (!guest || !event) return false;
-    
+
     if (event?.isMainEvent) {
-      // Main event view - check if there are any pending check-ins across all events
-      const eventsToCheck = [event, ...(event?.secondaryEvents || [])];
-      let hasPendingCheckIns = false;
-      
+      const secondaries = event?.secondaryEvents || [];
+      const eventsToCheck = secondaries.length > 0 ? secondaries : [event];
+      let hasPending = false;
       eventsToCheck.forEach(ev => {
         const checkin = guest.eventCheckins?.find(ec => {
-          let checkinEventId;
-          if (ec.eventId && typeof ec.eventId === 'object') {
-            checkinEventId = ec.eventId._id || ec.eventId.toString();
-          } else {
-            checkinEventId = ec.eventId;
-          }
-          return checkinEventId?.toString() === ev._id?.toString();
+          const id = ec.eventId && typeof ec.eventId === 'object' ? ec.eventId._id || ec.eventId.toString() : ec.eventId;
+          return id?.toString() === ev._id?.toString();
         });
-        
-        if (!checkin) {
-          hasPendingCheckIns = true;
-        }
+        if (!checkin || !checkin.giftsReceived?.length) hasPending = true;
       });
-      
-      return hasPendingCheckIns;
+      return hasPending;
     } else {
-      // Secondary event view - check only this specific event
       const checkin = guest.eventCheckins?.find(ec => {
-        let checkinEventId;
-        if (ec.eventId && typeof ec.eventId === 'object') {
-          checkinEventId = ec.eventId._id || ec.eventId.toString();
-        } else {
-          checkinEventId = ec.eventId;
-        }
-        return checkinEventId?.toString() === event._id?.toString();
+        const id = ec.eventId && typeof ec.eventId === 'object' ? ec.eventId._id || ec.eventId.toString() : ec.eventId;
+        return id?.toString() === event._id?.toString();
       });
-      
-      return !checkin;
+      return !checkin || !checkin.giftsReceived?.length;
     }
   };
 
@@ -380,45 +366,47 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
             Type: {guest.type || 'General'}
           </Typography>
           
-          {/* Only show gift selection if fields are configured */}
-          {hasGiftSelectionFields() && (
-            <Box sx={{ mt: 3 }}>
-              <Typography variant="subtitle1" gutterBottom>
-                Select Gifts:
-              </Typography>
-              {/* Filter out main events if secondary events exist */}
-              {(() => {
-                const hasSecondaryEvents = context.availableEvents.some(ev => !ev.isMainEvent);
-                const eventsToShow = hasSecondaryEvents 
-                  ? context.availableEvents.filter(ev => !ev.isMainEvent)
-                  : context.availableEvents;
-                
-                return eventsToShow.map(ev => {
-                const currentSelection = giftSelections[ev._id]?.inventoryId || '';
-                console.log(`Rendering dropdown for ${ev.eventName} (${ev._id}):`, {
-                  currentSelection,
-                  allGiftSelections: giftSelections,
-                  availableInventory: context.inventoryByEvent?.[ev._id] || []
+          {/* Only show gift selection if fields are configured; on main dashboard with nested events, only show events that still need a gift */}
+          {hasGiftSelectionFields() && (() => {
+            const hasSecondaryEvents = context.availableEvents.some(ev => !ev.isMainEvent);
+            let eventsToShow = hasSecondaryEvents
+              ? context.availableEvents.filter(ev => !ev.isMainEvent)
+              : context.availableEvents;
+            if (hasSecondaryEvents && guest?.eventCheckins && eventsToShow.length > 1) {
+              eventsToShow = eventsToShow.filter(ev => {
+                const checkin = guest.eventCheckins.find(ec => {
+                  const id = ec.eventId && typeof ec.eventId === 'object' ? ec.eventId._id?.toString() : ec.eventId?.toString();
+                  return id === ev._id?.toString();
                 });
-                
-                return (
-                  <Box key={ev._id} sx={{ mb: 3 }}>
-                    <Typography variant="body2" fontWeight={500} gutterBottom>
-                      {ev.eventName} Gift:
-                    </Typography>
-                    <HierarchicalInventorySelector
-                      inventory={context.inventoryByEvent?.[ev._id] || []}
-                      value={currentSelection}
-                      onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
-                      eventName={ev.eventName}
-                      pickupFieldPreferences={ev.pickupFieldPreferences || getDefaultPreferences()}
-                    />
-                  </Box>
-                );
-                });
-              })()}
-            </Box>
-          )}
+                return !checkin || !checkin.giftsReceived?.length;
+              });
+            }
+            if (eventsToShow.length === 0) return null;
+            return (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Select Gifts:
+                </Typography>
+                {eventsToShow.map(ev => {
+                  const currentSelection = giftSelections[ev._id]?.inventoryId || '';
+                  return (
+                    <Box key={ev._id} sx={{ mb: 3 }}>
+                      <Typography variant="body2" fontWeight={500} gutterBottom>
+                        {ev.eventName} Gift:
+                      </Typography>
+                      <HierarchicalInventorySelector
+                        inventory={context.inventoryByEvent?.[ev._id] || []}
+                        value={currentSelection}
+                        onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
+                        eventName={ev.eventName}
+                        pickupFieldPreferences={getPickupFieldPreferences(ev)}
+                      />
+                    </Box>
+                  );
+                })}
+              </Box>
+            );
+          })()}
           
           <Button 
             variant="contained" 

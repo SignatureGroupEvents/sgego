@@ -449,7 +449,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
         isInherited ? `${guest.originalEventName || 'Main Event'}` : 'Direct',
         guest.createdAt ? new Date(guest.createdAt).toLocaleDateString() : '',
         guest.updatedAt ? new Date(guest.updatedAt).toLocaleDateString() : '',
-        ...eventsToDisplay.map(ev => formatGiftSelections(guest, ev._id, ev.eventName))
+        ...eventsToDisplay.map(ev => formatGiftSelections(guest, ev._id, ev.eventName, ev))
       ];
       
       return row;
@@ -521,12 +521,12 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
         return checkinEventId?.toString() === ev._id?.toString();
       });
       
-      // If there's a checkin record, the guest is checked in (even if no gifts)
-      if (checkin) {
+      // Count only events where the guest has at least one gift selected; no gift = not "picked up" for that event
+      if (checkin && checkin.giftsReceived?.length > 0) {
         checkedInEvents++;
       }
     });
-    
+
     if (checkedInEvents === 0) {
       return {
         status: 'not-checked-in',
@@ -559,7 +559,6 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
       let hasPendingCheckIns = false;
       
       eventsToCheck.forEach(ev => {
-        // Check if there's an eventCheckin record for this event
         const checkin = guest.eventCheckins?.find(ec => {
           let checkinEventId;
           if (ec.eventId && typeof ec.eventId === 'object') {
@@ -569,12 +568,12 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
           }
           return checkinEventId?.toString() === ev._id?.toString();
         });
-        
-        if (!checkin) {
+        // Pending = no check-in for this event, or check-in with no gift selected
+        if (!checkin || !checkin.giftsReceived?.length) {
           hasPendingCheckIns = true;
         }
       });
-      
+
       if (hasPendingCheckIns) {
         return {
           active: true,
@@ -601,8 +600,8 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
         }
         return checkinEventId?.toString() === event._id?.toString();
       });
-      
-      if (!checkin) {
+
+      if (!checkin || !checkin.giftsReceived?.length) {
         return {
           active: true,
           label: 'Pick Up',
@@ -620,6 +619,9 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
     }
   };
 
+  // Main event: pickup modal settings apply to all nested events; use for getPickupFieldPreferences in check-in modal
+  const mainEvent = event?.isMainEvent ? event : event?.parentEvent;
+
   // Determine which events to show based on current view
   const getEventsToDisplay = () => {
     if (!event) return [];
@@ -631,27 +633,53 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
     return [event];
   };
 
-  // Format gift selections for display
-  const formatGiftSelections = (guest, eventId, eventName) => {
+  // Base: all fields off. Only fields explicitly true in stored/event prefs are shown (supports any combination: brand+product, category+product, etc.).
+  const displayPrefsBase = {
+    type: false,
+    brand: false,
+    product: false,
+    size: false,
+    gender: false,
+    color: false
+  };
+
+  // Use stored prefs at check-in so we only show what staff actually selected. Fall back to current event prefs for legacy data.
+  const getDisplayPrefsForGifts = (guest, eventId, eventObj) => {
+    const ec = guest.eventCheckins?.find(ec => (ec.eventId?._id ?? ec.eventId)?.toString() === eventId?.toString());
+    const stored = ec?.pickupFieldPreferencesAtCheckin ?? eventObj?.pickupFieldPreferences ?? event?.pickupFieldPreferences;
+    return { ...displayPrefsBase, ...(stored && typeof stored === 'object' ? stored : {}) };
+  };
+
+  const formatGiftSelections = (guest, eventId, eventName, eventObj = null) => {
     const gifts = getGiftSelectionsForEvent(guest, eventId);
     
     if (gifts.length === 0) {
       return `No gift selected`;
     }
     
+    const prefs = getDisplayPrefsForGifts(guest, eventId, eventObj);
+    const partsForItem = (item) => {
+      const parts = [];
+      if (prefs.type && item.type) parts.push(item.type);
+      if (prefs.brand && item.style) parts.push(item.style);
+      if (prefs.product && item.product) parts.push(item.product);
+      if (prefs.size && item.size) parts.push(`Size ${item.size}`);
+      if (prefs.gender && item.gender && item.gender !== 'N/A') parts.push(item.gender);
+      if (prefs.color && item.color) parts.push(item.color);
+      if (parts.length === 0) return `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''}`;
+      return parts.join(' - ');
+    };
+
     const giftDetails = gifts.map(gift => {
-      // Handle both populated and unpopulated inventory items
       let inventoryItem;
       if (gift.inventoryId && typeof gift.inventoryId === 'object') {
-        // Populated inventory item
         inventoryItem = gift.inventoryId;
       } else {
-        // Unpopulated inventory item, find in inventory array
         inventoryItem = inventory.find(item => item._id === gift.inventoryId);
       }
       
       if (inventoryItem) {
-        return `${inventoryItem.type}${inventoryItem.style ? ` (${inventoryItem.style})` : ''}${gift.quantity > 1 ? ` x${gift.quantity}` : ''}`;
+        return `${partsForItem(inventoryItem)}${gift.quantity > 1 ? ` x${gift.quantity}` : ''}`;
       }
       return 'Unknown gift';
     }).join(', ');
@@ -893,7 +921,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
               }}
             >
               {eventsToDisplay.map((ev) => {
-                const giftSelection = formatGiftSelections(guest, ev._id, ev.eventName);
+                const giftSelection = formatGiftSelections(guest, ev._id, ev.eventName, ev);
                 return giftSelection;
               }).join(', ')}
             </Typography>
@@ -1631,7 +1659,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                               {eventsToDisplay.length > 0 ? (
                                 eventsToDisplay.map((ev, index) => {
-                                  const giftSelection = formatGiftSelections(guest, ev._id, ev.eventName);
+                                  const giftSelection = formatGiftSelections(guest, ev._id, ev.eventName, ev);
                                   
                                   // Only show event name if there are multiple events, otherwise just show the gift
                                   const showEventName = eventsToDisplay.length > 1;
@@ -1789,6 +1817,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
           {checkInGuest && (
             <GuestCheckIn
               event={event}
+              mainEvent={mainEvent}
               guest={checkInGuest}
               onClose={handleCloseCheckIn}
               onInventoryChange={onInventoryChange}

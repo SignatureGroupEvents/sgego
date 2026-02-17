@@ -113,18 +113,15 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, eventName, 
     
     setSelections(updatedSelections);
     
-    // If all hierarchical levels are now selected, auto-select matching inventory item
+    // If all hierarchical levels are now selected, auto-select a matching inventory item.
+    // When multiple items match (e.g. same category/brand/product but different size), pick the first so we send a valid ID;
+    // modal settings control which fields are shown—we don't add extra "variant" dropdowns.
     const allSelected = fieldOrder.every(f => updatedSelections[f]);
     if (allSelected) {
       const matchingItems = getFilteredInventoryForSelections(updatedSelections);
-      if (matchingItems.length === 1) {
-        // Exactly one match - auto-select it
+      if (matchingItems.length >= 1) {
         if (onChange) onChange(matchingItems[0]._id);
-      } else if (matchingItems.length > 1) {
-        // Multiple matches - don't auto-select, require manual selection to prevent accidental inventory reduction
-        if (onChange) onChange('');
       } else {
-        // No matches - clear selection
         if (onChange) onChange('');
       }
     } else {
@@ -168,7 +165,6 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, eventName, 
     );
   }
 
-  // Render hierarchical selects
   return (
     <Box>
       {fieldOrder.map((field, level) => {

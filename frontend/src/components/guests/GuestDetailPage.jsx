@@ -94,6 +94,26 @@ export default function GuestDetailPage() {
         return event?.pickupFieldPreferences || getDefaultPreferences();
     };
 
+    // Base: all fields off so any combination (e.g. brand+product only, category+product) shows only those fields.
+    const displayPrefsBase = { type: false, brand: false, product: false, size: false, gender: false, color: false };
+
+    // Format gift label using prefs at check-in (stored) so we only show what staff actually selected; fall back to current event prefs for legacy.
+    const formatGiftLabelWithPrefs = (gift, eventCheckin) => {
+        const stored = eventCheckin?.pickupFieldPreferencesAtCheckin ?? event?.pickupFieldPreferences;
+        const prefs = { ...displayPrefsBase, ...(stored && typeof stored === 'object' ? stored : {}) };
+        const item = gift.inventoryId && typeof gift.inventoryId === 'object' ? gift.inventoryId : null;
+        if (!item) return `Unknown x${gift.quantity || 1}`;
+        const parts = [];
+        if (prefs.type && item.type) parts.push(item.type);
+        if (prefs.brand && item.style) parts.push(item.style);
+        if (prefs.product && item.product) parts.push(item.product);
+        if (prefs.size && item.size) parts.push(`Size ${item.size}`);
+        if (prefs.gender && item.gender && item.gender !== 'N/A') parts.push(item.gender);
+        if (prefs.color && item.color) parts.push(item.color);
+        if (parts.length === 0) return `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''} x${gift.quantity || 1}`;
+        return `${parts.join(' - ')} x${gift.quantity || 1}`;
+    };
+
     // Format inventory item display based on preferences
     const formatInventoryItemDisplay = (item) => {
         const prefs = getPickupFieldPreferences();
@@ -459,19 +479,26 @@ export default function GuestDetailPage() {
                                     {guest.firstName} {guest.lastName}
                                 </Typography>
                                 {(() => {
-                                    // Calculate check-in status - exclude main events when secondary events exist
+                                    // Match Guest Table logic: only count events where guest has at least one gift (no gift = not "picked up" for that event)
                                     const hasSecondaryEvents = event?.secondaryEvents && event.secondaryEvents.length > 0;
-                                    const eventsToCheck = hasSecondaryEvents ? event.secondaryEvents : [event];
+                                    const eventsToCheck = hasSecondaryEvents ? event.secondaryEvents : (event ? [event] : []);
                                     const totalEvents = eventsToCheck.length;
-                                    const checkedInEvents = guest.eventCheckins?.length || 0;
-                                    const isFullyCheckedIn = checkedInEvents >= totalEvents;
-                                    const isPartiallyCheckedIn = checkedInEvents > 0 && checkedInEvents < totalEvents;
-                                    
+                                    let eventsWithGift = 0;
+                                    eventsToCheck.forEach(ev => {
+                                        const checkin = guest.eventCheckins?.find(ec => {
+                                            const id = ec.eventId && typeof ec.eventId === 'object' ? ec.eventId._id?.toString() : ec.eventId?.toString();
+                                            return id === ev._id?.toString();
+                                        });
+                                        if (checkin && checkin.giftsReceived?.length > 0) eventsWithGift++;
+                                    });
+                                    const isFullyCheckedIn = totalEvents > 0 && eventsWithGift === totalEvents;
+                                    const isPartiallyCheckedIn = eventsWithGift > 0 && eventsWithGift < totalEvents;
+
                                     if (isFullyCheckedIn) {
                                         return (
                                             <Chip
                                                 label="Fully Picked Up"
-                                                color="success"
+                                                color="info"
                                                 size="small"
                                                 icon={<CheckCircle />}
                                                 sx={{ fontWeight: 600 }}
@@ -480,7 +507,7 @@ export default function GuestDetailPage() {
                                     } else if (isPartiallyCheckedIn) {
                                         return (
                                             <Chip
-                                                label="Partial"
+                                                label="Partially Picked Up"
                                                 color="warning"
                                                 size="small"
                                                 icon={<Star />}
@@ -823,14 +850,29 @@ export default function GuestDetailPage() {
                                     Gifts & Check-ins
                                 </Typography>
 
-                                {/* Gifts Table */}
-                                {guest.eventCheckins && guest.eventCheckins.length > 0 ? (
+                                {/* Gifts Table - only show check-ins where at least one gift was selected (match table/detail status logic) */}
+                                {(() => {
+                                    const checkinsWithGifts = (guest.eventCheckins || []).filter(ec => ec.giftsReceived?.length > 0);
+                                    if (checkinsWithGifts.length === 0) {
+                                        return (
+                                            <Box sx={{ textAlign: 'center', py: 4 }}>
+                                                <Star sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
+                                                <Typography variant="h6" color="textSecondary">
+                                                    No Check-ins Yet
+                                                </Typography>
+                                                <Typography variant="body2" color="textSecondary">
+                                                    This guest hasn&apos;t been checked into any events with a gift selected
+                                                </Typography>
+                                            </Box>
+                                        );
+                                    }
+                                    return (
                                     <Box>
                                         <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
                                             Check-in Details
                                         </Typography>
                                         <Stack spacing={2}>
-                                            {guest.eventCheckins.map((checkin, index) => (
+                                            {checkinsWithGifts.map((checkin, index) => (
                                                 <Card key={index} variant="outlined" sx={{ p: 2 }}>
                                                     <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' }, alignItems: { md: 'center' } }}>
                                                         {/* Event Info */}
@@ -857,7 +899,7 @@ export default function GuestDetailPage() {
                                                                     {checkin.giftsReceived.map((gift, giftIndex) => (
                                                                         <Chip
                                                                             key={giftIndex}
-                                                                            label={`${gift.inventoryId?.type || 'Unknown'} ${gift.inventoryId?.style ? `(${gift.inventoryId.style})` : ''} x${gift.quantity}`}
+                                                                            label={formatGiftLabelWithPrefs(gift, checkin)}
                                                                             size="small"
                                                                             variant="outlined"
                                                                             color="primary"
@@ -911,17 +953,8 @@ export default function GuestDetailPage() {
                                             ))}
                                         </Stack>
                                     </Box>
-                                ) : (
-                                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                                        <Star sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
-                                        <Typography variant="h6" color="textSecondary">
-                                            No Check-ins Yet
-                                        </Typography>
-                                        <Typography variant="body2" color="textSecondary">
-                                            This guest hasn't been checked into any events
-                                        </Typography>
-                                    </Box>
-                                )}
+                                    );
+                                })()}
                             </CardContent>
                         </Card>
                     </Stack>
