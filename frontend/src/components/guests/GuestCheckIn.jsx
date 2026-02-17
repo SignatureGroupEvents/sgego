@@ -277,45 +277,28 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
     }
   };
 
-  // Helper function to check if guest can still be checked in (same logic as GuestTable)
+  // Helper: can guest still add/complete check-in? Same logic as GuestTable (pending = no check-in or no gift for that event).
   const canGuestBeCheckedIn = (guest, event) => {
     if (!guest || !event) return false;
-    
+
     if (event?.isMainEvent) {
-      // Main event view - check if there are any pending check-ins across all events
-      const eventsToCheck = [event, ...(event?.secondaryEvents || [])];
-      let hasPendingCheckIns = false;
-      
+      const secondaries = event?.secondaryEvents || [];
+      const eventsToCheck = secondaries.length > 0 ? secondaries : [event];
+      let hasPending = false;
       eventsToCheck.forEach(ev => {
         const checkin = guest.eventCheckins?.find(ec => {
-          let checkinEventId;
-          if (ec.eventId && typeof ec.eventId === 'object') {
-            checkinEventId = ec.eventId._id || ec.eventId.toString();
-          } else {
-            checkinEventId = ec.eventId;
-          }
-          return checkinEventId?.toString() === ev._id?.toString();
+          const id = ec.eventId && typeof ec.eventId === 'object' ? ec.eventId._id || ec.eventId.toString() : ec.eventId;
+          return id?.toString() === ev._id?.toString();
         });
-        
-        if (!checkin) {
-          hasPendingCheckIns = true;
-        }
+        if (!checkin || !checkin.giftsReceived?.length) hasPending = true;
       });
-      
-      return hasPendingCheckIns;
+      return hasPending;
     } else {
-      // Secondary event view - check only this specific event
       const checkin = guest.eventCheckins?.find(ec => {
-        let checkinEventId;
-        if (ec.eventId && typeof ec.eventId === 'object') {
-          checkinEventId = ec.eventId._id || ec.eventId.toString();
-        } else {
-          checkinEventId = ec.eventId;
-        }
-        return checkinEventId?.toString() === event._id?.toString();
+        const id = ec.eventId && typeof ec.eventId === 'object' ? ec.eventId._id || ec.eventId.toString() : ec.eventId;
+        return id?.toString() === event._id?.toString();
       });
-      
-      return !checkin;
+      return !checkin || !checkin.giftsReceived?.length;
     }
   };
 

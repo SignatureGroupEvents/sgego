@@ -521,12 +521,12 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
         return checkinEventId?.toString() === ev._id?.toString();
       });
       
-      // If there's a checkin record, the guest is checked in (even if no gifts)
-      if (checkin) {
+      // Count only events where the guest has at least one gift selected; no gift = not "picked up" for that event
+      if (checkin && checkin.giftsReceived?.length > 0) {
         checkedInEvents++;
       }
     });
-    
+
     if (checkedInEvents === 0) {
       return {
         status: 'not-checked-in',
@@ -559,7 +559,6 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
       let hasPendingCheckIns = false;
       
       eventsToCheck.forEach(ev => {
-        // Check if there's an eventCheckin record for this event
         const checkin = guest.eventCheckins?.find(ec => {
           let checkinEventId;
           if (ec.eventId && typeof ec.eventId === 'object') {
@@ -569,12 +568,12 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
           }
           return checkinEventId?.toString() === ev._id?.toString();
         });
-        
-        if (!checkin) {
+        // Pending = no check-in for this event, or check-in with no gift selected
+        if (!checkin || !checkin.giftsReceived?.length) {
           hasPendingCheckIns = true;
         }
       });
-      
+
       if (hasPendingCheckIns) {
         return {
           active: true,
@@ -601,8 +600,8 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
         }
         return checkinEventId?.toString() === event._id?.toString();
       });
-      
-      if (!checkin) {
+
+      if (!checkin || !checkin.giftsReceived?.length) {
         return {
           active: true,
           label: 'Pick Up',
