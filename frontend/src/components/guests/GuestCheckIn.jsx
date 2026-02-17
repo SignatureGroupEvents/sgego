@@ -16,7 +16,7 @@ import { CheckCircleOutline as CheckCircleIcon } from '@mui/icons-material';
 import HomeIcon from '@mui/icons-material/Home';
 import HierarchicalInventorySelector from './HierarchicalInventorySelector';
 
-const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onInventoryChange }) => {
+const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSuccess, onInventoryChange }) => {
   const [qrData, setQrData] = useState('');
   const [guest, setGuest] = useState(propGuest || null);
   const [context, setContext] = useState(null);
@@ -36,8 +36,9 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
     color: false
   });
 
+  // Use main event's pickup settings for all events (main + nested) so one config applies everywhere
   const getPickupFieldPreferences = (eventObj = null) => {
-    const eventToUse = eventObj || event;
+    const eventToUse = mainEvent || eventObj || event;
     return eventToUse?.pickupFieldPreferences || getDefaultPreferences();
   };
 
@@ -240,7 +241,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
         const checkins = eventsToCheckIn.map(ev => ({
           eventId: ev._id,
           selectedGifts: giftSelections[ev._id] ? [giftSelections[ev._id]] : [],
-          pickupFieldPreferences: ev.pickupFieldPreferences ?? getPickupFieldPreferences(ev)
+          pickupFieldPreferences: mainEvent?.pickupFieldPreferences ?? getPickupFieldPreferences(ev)
         }));
         response = await multiEventCheckin(guest._id, checkins);
       } else {
@@ -413,7 +414,7 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
                       value={currentSelection}
                       onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
                       eventName={ev.eventName}
-                      pickupFieldPreferences={ev.pickupFieldPreferences || getDefaultPreferences()}
+                      pickupFieldPreferences={getPickupFieldPreferences(ev)}
                     />
                   </Box>
                 );
