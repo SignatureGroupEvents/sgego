@@ -7,6 +7,38 @@ import toast from 'react-hot-toast';
 import { usePermissions } from '../../hooks/usePermissions';
 import { getUserDisplayName } from '../../utils/userDisplay';
 
+// Format an ISO date for display without timezone shift (e.g. 2026-02-19T00:00:00.000Z -> 2/19/2026)
+const formatEventDate = (val) => {
+  if (val == null) return '—';
+  let y, m, d;
+  if (typeof val === 'string') {
+    const datePart = val.slice(0, 10);
+    [y, m, d] = datePart.split('-').map(Number);
+  } else if (val instanceof Date || (typeof val === 'object' && typeof val.getUTCFullYear === 'function')) {
+    const date = new Date(val);
+    if (Number.isNaN(date.getTime())) return '—';
+    y = date.getUTCFullYear();
+    m = date.getUTCMonth() + 1;
+    d = date.getUTCDate();
+  } else {
+    return '—';
+  }
+  if (!y || !m || !d) return '—';
+  return new Date(y, m - 1, d).toLocaleDateString();
+};
+
+// Get YYYY-MM-DD for date inputs (avoids UTC midnight shifting to previous day in local TZ)
+const toDateInputValue = (val) => {
+  if (val == null) return '';
+  if (typeof val === 'string') return val.slice(0, 10);
+  const d = new Date(val);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = false, onEventUpdate, readOnly = false }) => {
   const navigate = useNavigate();
   const { canManageEvents } = usePermissions();
@@ -27,8 +59,8 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
   const handleEditClick = () => {
     setEditForm({
       eventName: event.eventName || '',
-      eventStart: event.eventStart ? new Date(event.eventStart).toISOString().split('T')[0] : '',
-      eventEnd: event.eventEnd ? new Date(event.eventEnd).toISOString().split('T')[0] : ''
+      eventStart: toDateInputValue(event.eventStart),
+      eventEnd: toDateInputValue(event.eventEnd)
     });
     setEditModalOpen(true);
   };
@@ -173,7 +205,7 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
                 fontSize: { xs: '0.75rem', sm: '0.875rem' }
               }}
             >
-              Start Date: {event.eventStart ? new Date(event.eventStart).toLocaleDateString() : '—'}
+              Start Date: {formatEventDate(event.eventStart)}
             </Typography> 
             <Typography 
               variant="body2" 
@@ -183,7 +215,7 @@ const EventHeader = ({ event, mainEvent, secondaryEvents = [], showDropdown = fa
                 fontSize: { xs: '0.75rem', sm: '0.875rem' }
               }}
             >
-              End Date: {event.eventEnd ? new Date(event.eventEnd).toLocaleDateString() : '—'}
+              End Date: {formatEventDate(event.eventEnd)}
             </Typography>
           </Box>
           <Box>
