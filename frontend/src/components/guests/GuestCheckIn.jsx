@@ -366,45 +366,47 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
             Type: {guest.type || 'General'}
           </Typography>
           
-          {/* Only show gift selection if fields are configured */}
-          {hasGiftSelectionFields() && (
-            <Box sx={{ mt: 3 }}>
-              <Typography variant="subtitle1" gutterBottom>
-                Select Gifts:
-              </Typography>
-              {/* Filter out main events if secondary events exist */}
-              {(() => {
-                const hasSecondaryEvents = context.availableEvents.some(ev => !ev.isMainEvent);
-                const eventsToShow = hasSecondaryEvents 
-                  ? context.availableEvents.filter(ev => !ev.isMainEvent)
-                  : context.availableEvents;
-                
-                return eventsToShow.map(ev => {
-                const currentSelection = giftSelections[ev._id]?.inventoryId || '';
-                console.log(`Rendering dropdown for ${ev.eventName} (${ev._id}):`, {
-                  currentSelection,
-                  allGiftSelections: giftSelections,
-                  availableInventory: context.inventoryByEvent?.[ev._id] || []
+          {/* Only show gift selection if fields are configured; on main dashboard with nested events, only show events that still need a gift */}
+          {hasGiftSelectionFields() && (() => {
+            const hasSecondaryEvents = context.availableEvents.some(ev => !ev.isMainEvent);
+            let eventsToShow = hasSecondaryEvents
+              ? context.availableEvents.filter(ev => !ev.isMainEvent)
+              : context.availableEvents;
+            if (hasSecondaryEvents && guest?.eventCheckins && eventsToShow.length > 1) {
+              eventsToShow = eventsToShow.filter(ev => {
+                const checkin = guest.eventCheckins.find(ec => {
+                  const id = ec.eventId && typeof ec.eventId === 'object' ? ec.eventId._id?.toString() : ec.eventId?.toString();
+                  return id === ev._id?.toString();
                 });
-                
-                return (
-                  <Box key={ev._id} sx={{ mb: 3 }}>
-                    <Typography variant="body2" fontWeight={500} gutterBottom>
-                      {ev.eventName} Gift:
-                    </Typography>
-                    <HierarchicalInventorySelector
-                      inventory={context.inventoryByEvent?.[ev._id] || []}
-                      value={currentSelection}
-                      onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
-                      eventName={ev.eventName}
-                      pickupFieldPreferences={getPickupFieldPreferences(ev)}
-                    />
-                  </Box>
-                );
-                });
-              })()}
-            </Box>
-          )}
+                return !checkin || !checkin.giftsReceived?.length;
+              });
+            }
+            if (eventsToShow.length === 0) return null;
+            return (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Select Gifts:
+                </Typography>
+                {eventsToShow.map(ev => {
+                  const currentSelection = giftSelections[ev._id]?.inventoryId || '';
+                  return (
+                    <Box key={ev._id} sx={{ mb: 3 }}>
+                      <Typography variant="body2" fontWeight={500} gutterBottom>
+                        {ev.eventName} Gift:
+                      </Typography>
+                      <HierarchicalInventorySelector
+                        inventory={context.inventoryByEvent?.[ev._id] || []}
+                        value={currentSelection}
+                        onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
+                        eventName={ev.eventName}
+                        pickupFieldPreferences={getPickupFieldPreferences(ev)}
+                      />
+                    </Box>
+                  );
+                })}
+              </Box>
+            );
+          })()}
           
           <Button 
             variant="contained" 
