@@ -82,17 +82,18 @@ export const getCheckinContext = (eventId) => {
   return api.get(`/checkins/context/${eventId}`);
 };
 
-export const singleEventCheckin = (guestId, eventId, selectedGifts, notes = '') => {
+export const singleEventCheckin = (guestId, eventId, selectedGifts, notes = '', pickupFieldPreferences = null) => {
   return api.post('/checkins/single', {
     guestId,
     eventId,
     selectedGifts,
-    notes
+    notes,
+    ...(pickupFieldPreferences != null && { pickupFieldPreferences })
   });
 };
 
 export const multiEventCheckin = (guestId, checkins, notes = '') => {
-  // checkins: [{ eventId, selectedGifts: [{ inventoryId, quantity }] }]
+  // checkins: [{ eventId, selectedGifts, pickupFieldPreferences? }]
   return api.post('/checkins/multi', {
     guestId,
     checkins,

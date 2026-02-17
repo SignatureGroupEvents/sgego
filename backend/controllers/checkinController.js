@@ -1,8 +1,12 @@
+const mongoose = require('mongoose');
 const Checkin = require('../models/Checkin');
 const Guest = require('../models/Guest');
 const Event = require('../models/Event');
 const Inventory = require('../models/Inventory');
 const ActivityLog = require('../models/ActivityLog');
+
+// Skip invalid/empty inventory IDs to avoid "Cast to ObjectId failed" (e.g. when multiple items share category/brand and UI sends '')
+const isValidInventoryId = (id) => id && mongoose.Types.ObjectId.isValid(id);
 
 // Helper function to emit analytics update
 const emitAnalyticsUpdate = (eventId) => {
@@ -102,10 +106,11 @@ exports.multiEventCheckin = async (req, res) => {
 
       const giftsDistributed = [];
 
-      // Process gift selections for this event
+      // Process gift selections for this event (skip invalid/empty inventoryId to avoid Cast to ObjectId errors)
       if (checkin.selectedGifts && checkin.selectedGifts.length > 0) {
         for (const gift of checkin.selectedGifts) {
           const inventoryId = gift.inventoryId;
+          if (!isValidInventoryId(inventoryId)) continue;
           const quantity = gift.quantity || 1;
 
           // Track cumulative inventory changes
@@ -124,7 +129,8 @@ exports.multiEventCheckin = async (req, res) => {
         eventId: checkin.eventId,
         eventName: event.eventName,
         success: true,
-        giftsDistributed
+        giftsDistributed,
+        pickupFieldPreferencesAtCheckin: checkin.pickupFieldPreferences ?? event.pickupFieldPreferences
       });
 
       updatedEventIds.add(checkin.eventId);
@@ -132,6 +138,7 @@ exports.multiEventCheckin = async (req, res) => {
 
     // Validate total inventory requirements
     for (const [inventoryId, totalQuantity] of inventoryUpdates) {
+      if (!isValidInventoryId(inventoryId)) continue;
       const inventoryItem = await Inventory.findById(inventoryId);
       if (!inventoryItem) {
         return res.status(404).json({
@@ -151,6 +158,7 @@ exports.multiEventCheckin = async (req, res) => {
         (!ec.giftsReceived || ec.giftsReceived.length === 0)
       );
 
+      const pickupPrefs = result.pickupFieldPreferencesAtCheckin || undefined;
       let checkinRecord;
       if (existingCheckin) {
         // Update existing check-in record with gifts
@@ -161,12 +169,14 @@ exports.multiEventCheckin = async (req, res) => {
         }));
         existingCheckin.checkedInAt = new Date();
         existingCheckin.checkedInBy = req.user.id;
-        
+        if (pickupPrefs != null) existingCheckin.pickupFieldPreferencesAtCheckin = pickupPrefs;
+
         // Create or update the Checkin document
         const existingCheckinDoc = await Checkin.findOne({ guestId, eventId: result.eventId });
         if (existingCheckinDoc) {
           existingCheckinDoc.giftsDistributed = result.giftsDistributed;
           existingCheckinDoc.notes = notes;
+          if (pickupPrefs != null) existingCheckinDoc.pickupFieldPreferencesAtCheckin = pickupPrefs;
           checkinRecord = await existingCheckinDoc.save();
         } else {
           checkinRecord = await Checkin.create({
@@ -174,7 +184,8 @@ exports.multiEventCheckin = async (req, res) => {
             eventId: result.eventId,
             checkedInBy: req.user.id,
             giftsDistributed: result.giftsDistributed,
-            notes
+            notes,
+            pickupFieldPreferencesAtCheckin: pickupPrefs
           });
         }
       } else {
@@ -184,7 +195,8 @@ exports.multiEventCheckin = async (req, res) => {
           eventId: result.eventId,
           checkedInBy: req.user.id,
           giftsDistributed: result.giftsDistributed,
-          notes
+          notes,
+          pickupFieldPreferencesAtCheckin: pickupPrefs
         });
 
         // Add new event check-in record
@@ -197,7 +209,8 @@ exports.multiEventCheckin = async (req, res) => {
             inventoryId: gift.inventoryId,
             quantity: gift.quantity,
             distributedAt: new Date()
-          }))
+          })),
+          ...(pickupPrefs != null && { pickupFieldPreferencesAtCheckin: pickupPrefs })
         });
       }
 
@@ -206,6 +219,7 @@ exports.multiEventCheckin = async (req, res) => {
 
     // Update inventory counts
     for (const [inventoryId, totalQuantity] of inventoryUpdates) {
+      if (!isValidInventoryId(inventoryId)) continue;
       const inventoryItem = await Inventory.findById(inventoryId);
       await inventoryItem.updateInventory(
         inventoryItem.currentInventory - totalQuantity,
@@ -222,7 +236,7 @@ exports.multiEventCheckin = async (req, res) => {
     await guest.populate([
       { path: 'eventId', select: 'eventName isMainEvent' },
       { path: 'eventCheckins.eventId', select: 'eventName isMainEvent' },
-      { path: 'eventCheckins.giftsReceived.inventoryId', select: 'type style size' }
+      { path: 'eventCheckins.giftsReceived.inventoryId', select: 'type style product size gender color' }
     ]);
 
     // Populate the checkin records for response
@@ -235,7 +249,7 @@ exports.multiEventCheckin = async (req, res) => {
 
     // Recalculate current inventory for each inventory item
     for (const [inventoryId] of inventoryUpdates) {
-      await Inventory.recalculateCurrentInventory(inventoryId);
+      if (isValidInventoryId(inventoryId)) await Inventory.recalculateCurrentInventory(inventoryId);
     }
 
     // After guest and inventory are updated, log activity for each event check-in
@@ -274,7 +288,7 @@ exports.multiEventCheckin = async (req, res) => {
 
 exports.singleEventCheckin = async (req, res) => {
   try {
-    const { guestId, eventId, selectedGifts, notes } = req.body;
+    const { guestId, eventId, selectedGifts, notes, pickupFieldPreferences } = req.body;
 
     const guest = await Guest.findById(guestId);
     if (!guest) {
@@ -293,9 +307,10 @@ exports.singleEventCheckin = async (req, res) => {
 
     const giftsDistributed = [];
 
-    // Process gift selections
+    // Process gift selections (skip invalid/empty inventoryId)
     if (selectedGifts && selectedGifts.length > 0) {
       for (const gift of selectedGifts) {
+        if (!isValidInventoryId(gift.inventoryId)) continue;
         const inventoryItem = await Inventory.findById(gift.inventoryId);
         if (!inventoryItem) {
           return res.status(404).json({ message: `Inventory item not found: ${gift.inventoryId}` });
@@ -317,6 +332,8 @@ exports.singleEventCheckin = async (req, res) => {
       }
     }
 
+    const pickupPrefs = pickupFieldPreferences ?? event.pickupFieldPreferences ?? undefined;
+
     // Check if guest already has a check-in record for this event with no gifts
     const existingCheckin = guest.eventCheckins.find(ec => 
       ec.eventId.toString() === eventId.toString() && 
@@ -334,12 +351,14 @@ exports.singleEventCheckin = async (req, res) => {
       }));
       existingCheckin.checkedInAt = new Date();
       existingCheckin.checkedInBy = req.user.id;
-      
+      if (pickupPrefs != null) existingCheckin.pickupFieldPreferencesAtCheckin = pickupPrefs;
+
       // Create or update the Checkin document
       const existingCheckinDoc = await Checkin.findOne({ guestId, eventId });
       if (existingCheckinDoc) {
         existingCheckinDoc.giftsDistributed = giftsDistributed;
         existingCheckinDoc.notes = notes;
+        if (pickupPrefs != null) existingCheckinDoc.pickupFieldPreferencesAtCheckin = pickupPrefs;
         checkin = await existingCheckinDoc.save();
       } else {
         checkin = await Checkin.create({
@@ -347,7 +366,8 @@ exports.singleEventCheckin = async (req, res) => {
           eventId,
           checkedInBy: req.user.id,
           giftsDistributed,
-          notes
+          notes,
+          pickupFieldPreferencesAtCheckin: pickupPrefs
         });
       }
     } else {
@@ -357,7 +377,8 @@ exports.singleEventCheckin = async (req, res) => {
         eventId,
         checkedInBy: req.user.id,
         giftsDistributed,
-        notes
+        notes,
+        pickupFieldPreferencesAtCheckin: pickupPrefs
       });
 
       // Add new event check-in record
@@ -370,7 +391,8 @@ exports.singleEventCheckin = async (req, res) => {
           inventoryId: gift.inventoryId,
           quantity: gift.quantity,
           distributedAt: new Date()
-        }))
+        })),
+        ...(pickupPrefs != null && { pickupFieldPreferencesAtCheckin: pickupPrefs })
       });
     }
 
@@ -379,7 +401,7 @@ exports.singleEventCheckin = async (req, res) => {
 
     // Recalculate current inventory for each inventory item
     for (const gift of giftsDistributed) {
-      await Inventory.recalculateCurrentInventory(gift.inventoryId);
+      if (isValidInventoryId(gift.inventoryId)) await Inventory.recalculateCurrentInventory(gift.inventoryId);
     }
 
     await checkin.populate([
@@ -393,7 +415,7 @@ exports.singleEventCheckin = async (req, res) => {
     await guest.populate([
       { path: 'eventId', select: 'eventName isMainEvent' },
       { path: 'eventCheckins.eventId', select: 'eventName isMainEvent' },
-      { path: 'eventCheckins.giftsReceived.inventoryId', select: 'type style size' }
+      { path: 'eventCheckins.giftsReceived.inventoryId', select: 'type style product size gender color' }
     ]);
 
     // After guest and inventory are updated, log activity for each event check-in
@@ -436,7 +458,7 @@ exports.getCheckins = async (req, res) => {
     const checkins = await Checkin.find({ eventId })
       .populate('guestId', 'firstName lastName email')
       .populate('checkedInBy', 'username')
-      .populate('giftsDistributed.inventoryId', 'type style size')
+      .populate('giftsDistributed.inventoryId', 'type style product size gender color')
       .sort({ createdAt: -1 });
 
     res.json({ checkins });
@@ -488,7 +510,9 @@ exports.undoCheckin = async (req, res) => {
 
     // Restore inventory
     for (const gift of checkin.giftsDistributed) {
-      const inventoryItem = await Inventory.findById(gift.inventoryId._id);
+      const id = gift.inventoryId?._id ?? gift.inventoryId;
+      if (!isValidInventoryId(id)) continue;
+      const inventoryItem = await Inventory.findById(id);
       if (inventoryItem) {
         await inventoryItem.updateInventory(
           inventoryItem.currentInventory + gift.quantity,
@@ -530,7 +554,8 @@ exports.undoCheckin = async (req, res) => {
 
     // Recalculate current inventory for affected items
     for (const gift of checkin.giftsDistributed) {
-      await Inventory.recalculateCurrentInventory(gift.inventoryId._id);
+      const id = gift.inventoryId?._id ?? gift.inventoryId;
+      if (isValidInventoryId(id)) await Inventory.recalculateCurrentInventory(id);
     }
 
     // Emit WebSocket update for analytics
@@ -588,15 +613,18 @@ exports.updateCheckinGifts = async (req, res) => {
     const newGiftsMap = new Map();
     const inventoryChanges = new Map();
 
-    // Track old gifts
+    // Track old gifts (skip invalid inventoryId)
     for (const gift of checkin.giftsDistributed) {
-      const key = gift.inventoryId._id.toString();
+      const id = gift.inventoryId?._id ?? gift.inventoryId;
+      if (!isValidInventoryId(id)) continue;
+      const key = id.toString();
       oldGifts.set(key, gift.quantity);
       inventoryChanges.set(key, gift.quantity); // Will be subtracted
     }
 
-    // Track new gifts
+    // Track new gifts (skip invalid inventoryId)
     for (const gift of newGifts) {
+      if (!isValidInventoryId(gift.inventoryId)) continue;
       const key = gift.inventoryId;
       newGiftsMap.set(key, gift.quantity);
       const currentChange = inventoryChanges.get(key) || 0;
@@ -605,6 +633,7 @@ exports.updateCheckinGifts = async (req, res) => {
 
     // Validate inventory availability for new gifts
     for (const [inventoryId, change] of inventoryChanges) {
+      if (!isValidInventoryId(inventoryId)) continue;
       if (change < 0) { // We're adding more than we had
         const inventoryItem = await Inventory.findById(inventoryId);
         if (!inventoryItem) {
@@ -615,6 +644,7 @@ exports.updateCheckinGifts = async (req, res) => {
 
     // Restore old gifts to inventory
     for (const [inventoryId, quantity] of oldGifts) {
+      if (!isValidInventoryId(inventoryId)) continue;
       const inventoryItem = await Inventory.findById(inventoryId);
       if (inventoryItem) {
         await inventoryItem.updateInventory(
@@ -628,6 +658,7 @@ exports.updateCheckinGifts = async (req, res) => {
 
     // Distribute new gifts
     for (const gift of newGifts) {
+      if (!isValidInventoryId(gift.inventoryId)) continue;
       const inventoryItem = await Inventory.findById(gift.inventoryId);
       if (inventoryItem) {
         await inventoryItem.updateInventory(
@@ -639,12 +670,14 @@ exports.updateCheckinGifts = async (req, res) => {
       }
     }
 
-    // Update checkin record
-    checkin.giftsDistributed = newGifts.map(gift => ({
-      inventoryId: gift.inventoryId,
-      quantity: gift.quantity,
-      notes: gift.notes || ''
-    }));
+    // Update checkin record (only persist valid inventoryIds)
+    checkin.giftsDistributed = newGifts
+      .filter(g => isValidInventoryId(g.inventoryId))
+      .map(gift => ({
+        inventoryId: gift.inventoryId,
+        quantity: gift.quantity,
+        notes: gift.notes || ''
+      }));
     await checkin.save();
 
     // Update guest record
@@ -654,17 +687,19 @@ exports.updateCheckinGifts = async (req, res) => {
     );
 
     if (guestCheckin) {
-      guestCheckin.giftsReceived = newGifts.map(gift => ({
-        inventoryId: gift.inventoryId,
-        quantity: gift.quantity,
-        distributedAt: new Date()
-      }));
+      guestCheckin.giftsReceived = newGifts
+        .filter(g => isValidInventoryId(g.inventoryId))
+        .map(gift => ({
+          inventoryId: gift.inventoryId,
+          quantity: gift.quantity,
+          distributedAt: new Date()
+        }));
       await guest.save();
     }
 
     // Recalculate current inventory for affected items
     for (const [inventoryId] of inventoryChanges) {
-      await Inventory.recalculateCurrentInventory(inventoryId);
+      if (isValidInventoryId(inventoryId)) await Inventory.recalculateCurrentInventory(inventoryId);
     }
 
     // Log activity
@@ -730,7 +765,9 @@ exports.deleteCheckin = async (req, res) => {
 
     // Restore inventory
     for (const gift of checkin.giftsDistributed) {
-      const inventoryItem = await Inventory.findById(gift.inventoryId._id);
+      const id = gift.inventoryId?._id ?? gift.inventoryId;
+      if (!isValidInventoryId(id)) continue;
+      const inventoryItem = await Inventory.findById(id);
       if (inventoryItem) {
         await inventoryItem.updateInventory(
           inventoryItem.currentInventory + gift.quantity,

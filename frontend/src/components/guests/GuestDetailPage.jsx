@@ -94,6 +94,26 @@ export default function GuestDetailPage() {
         return event?.pickupFieldPreferences || getDefaultPreferences();
     };
 
+    // Base: all fields off so any combination (e.g. brand+product only, category+product) shows only those fields.
+    const displayPrefsBase = { type: false, brand: false, product: false, size: false, gender: false, color: false };
+
+    // Format gift label using prefs at check-in (stored) so we only show what staff actually selected; fall back to current event prefs for legacy.
+    const formatGiftLabelWithPrefs = (gift, eventCheckin) => {
+        const stored = eventCheckin?.pickupFieldPreferencesAtCheckin ?? event?.pickupFieldPreferences;
+        const prefs = { ...displayPrefsBase, ...(stored && typeof stored === 'object' ? stored : {}) };
+        const item = gift.inventoryId && typeof gift.inventoryId === 'object' ? gift.inventoryId : null;
+        if (!item) return `Unknown x${gift.quantity || 1}`;
+        const parts = [];
+        if (prefs.type && item.type) parts.push(item.type);
+        if (prefs.brand && item.style) parts.push(item.style);
+        if (prefs.product && item.product) parts.push(item.product);
+        if (prefs.size && item.size) parts.push(`Size ${item.size}`);
+        if (prefs.gender && item.gender && item.gender !== 'N/A') parts.push(item.gender);
+        if (prefs.color && item.color) parts.push(item.color);
+        if (parts.length === 0) return `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''} x${gift.quantity || 1}`;
+        return `${parts.join(' - ')} x${gift.quantity || 1}`;
+    };
+
     // Format inventory item display based on preferences
     const formatInventoryItemDisplay = (item) => {
         const prefs = getPickupFieldPreferences();
@@ -857,7 +877,7 @@ export default function GuestDetailPage() {
                                                                     {checkin.giftsReceived.map((gift, giftIndex) => (
                                                                         <Chip
                                                                             key={giftIndex}
-                                                                            label={`${gift.inventoryId?.type || 'Unknown'} ${gift.inventoryId?.style ? `(${gift.inventoryId.style})` : ''} x${gift.quantity}`}
+                                                                            label={formatGiftLabelWithPrefs(gift, checkin)}
                                                                             size="small"
                                                                             variant="outlined"
                                                                             color="primary"

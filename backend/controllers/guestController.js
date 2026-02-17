@@ -33,7 +33,7 @@ exports.getGuests = async (req, res) => {
     const guests = await Guest.find({ eventId: { $in: guestEventIds } })
       .populate('eventId', 'eventName isMainEvent')
       .populate('eventCheckins.eventId', 'eventName isMainEvent')
-      .populate('eventCheckins.giftsReceived.inventoryId', 'type style size')
+      .populate('eventCheckins.giftsReceived.inventoryId', 'type style product size gender color')
       .sort({ createdAt: -1 });
 
     // Add flags: isInherited (when viewing secondary = guest from parent), isFromSecondaryEvent (when viewing main = guest from a check-in event)
@@ -149,7 +149,7 @@ exports.createGuest = async (req, res) => {
     await guest.populate([
       { path: 'eventId', select: 'eventName isMainEvent' },
       { path: 'eventCheckins.eventId', select: 'eventName isMainEvent' },
-      { path: 'eventCheckins.giftsReceived.inventoryId', select: 'type style size' }
+      { path: 'eventCheckins.giftsReceived.inventoryId', select: 'type style product size gender color' }
     ]);
 
     res.status(201).json({
@@ -299,7 +299,7 @@ exports.getGuestCheckinStatus = async (req, res) => {
     const guest = await Guest.findById(guestId)
       .populate('eventId', 'eventName isMainEvent')
       .populate('eventCheckins.eventId', 'eventName isMainEvent')
-      .populate('eventCheckins.giftsReceived.inventoryId', 'type style size');
+      .populate('eventCheckins.giftsReceived.inventoryId', 'type style product size gender color');
 
     if (!guest) {
       return res.status(404).json({ message: 'Guest not found' });
@@ -330,7 +330,7 @@ exports.getGuestById = async (req, res) => {
     const guest = await Guest.findById(id)
       .populate('eventId', 'eventName isMainEvent')
       .populate('eventCheckins.eventId', 'eventName isMainEvent')
-      .populate('eventCheckins.giftsReceived.inventoryId', 'type style size color')
+      .populate('eventCheckins.giftsReceived.inventoryId', 'type style product size gender color')
       .populate('eventCheckins.checkedInBy', 'username');
 
     if (!guest) {
@@ -365,7 +365,7 @@ exports.updateGuest = async (req, res) => {
     )
     .populate('eventId', 'eventName isMainEvent')
     .populate('eventCheckins.eventId', 'eventName isMainEvent')
-    .populate('eventCheckins.giftsReceived.inventoryId', 'type style size color')
+    .populate('eventCheckins.giftsReceived.inventoryId', 'type style product size gender color')
     .populate('eventCheckins.checkedInBy', 'username');
 
     if (!guest) {

@@ -403,6 +403,8 @@ exports.getEventAnalytics = async (req, res) => {
         $match: giftDistributionMatch
       },
       { $unwind: '$giftsDistributed' },
+      // Exclude invalid/empty inventoryId so $lookup doesn't trigger "Cast to ObjectId failed"
+      { $match: { 'giftsDistributed.inventoryId': { $exists: true, $nin: [null, ''] } } },
       {
         $lookup: {
           from: 'inventories',

@@ -44,6 +44,11 @@ const checkinSchema = new mongoose.Schema({
   notes: {
     type: String,
     trim: true
+  },
+  // Snapshot of event pickup field preferences at check-in; used so we only display what staff actually selected (e.g. only category, not auto-filled brand)
+  pickupFieldPreferencesAtCheckin: {
+    type: mongoose.Schema.Types.Mixed,
+    default: undefined
   }
 }, {
   timestamps: true

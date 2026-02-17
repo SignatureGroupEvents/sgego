@@ -95,6 +95,7 @@ exports.getOverviewAnalytics = async (req, res) => {
     const giftDistributionPipeline = [
       { $match: { eventId: { $in: eventIds }, isValid: true } },
       { $unwind: '$giftsDistributed' },
+      { $match: { 'giftsDistributed.inventoryId': { $exists: true, $nin: [null, ''] } } },
       {
         $lookup: {
           from: 'inventories',
@@ -296,6 +297,7 @@ exports.getOverviewAnalytics = async (req, res) => {
     const trendAnalysisPipeline = [
       { $match: { eventId: { $in: eventIds }, isValid: true } },
       { $unwind: '$giftsDistributed' },
+      { $match: { 'giftsDistributed.inventoryId': { $exists: true, $nin: [null, ''] } } },
       {
         $lookup: {
           from: 'inventories',
@@ -487,6 +489,7 @@ exports.getGiftTypeAnalytics = async (req, res) => {
     const pipeline = [
       { $match: matchStage },
       { $unwind: '$giftsDistributed' },
+      { $match: { 'giftsDistributed.inventoryId': { $exists: true, $nin: [null, ''] } } },
       {
         $lookup: {
           from: 'inventories',
@@ -616,6 +619,7 @@ exports.exportAnalytics = async (req, res) => {
     const giftDistributionPipeline = [
       { $match: { eventId: { $in: eventIds }, isValid: true } },
       { $unwind: '$giftsDistributed' },
+      { $match: { 'giftsDistributed.inventoryId': { $exists: true, $nin: [null, ''] } } },
       {
         $lookup: {
           from: 'inventories',

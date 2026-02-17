@@ -239,13 +239,15 @@ const GuestCheckIn = ({ event, guest: propGuest, onClose, onCheckinSuccess, onIn
           
         const checkins = eventsToCheckIn.map(ev => ({
           eventId: ev._id,
-          selectedGifts: giftSelections[ev._id] ? [giftSelections[ev._id]] : []
+          selectedGifts: giftSelections[ev._id] ? [giftSelections[ev._id]] : [],
+          pickupFieldPreferences: ev.pickupFieldPreferences ?? getPickupFieldPreferences(ev)
         }));
         response = await multiEventCheckin(guest._id, checkins);
       } else {
         // Single event check-in
         const selectedGifts = giftSelections[event._id] ? [giftSelections[event._id]] : [];
-        response = await singleEventCheckin(guest._id, event._id, selectedGifts);
+        const pickupFieldPreferences = getPickupFieldPreferences(event);
+        response = await singleEventCheckin(guest._id, event._id, selectedGifts, '', pickupFieldPreferences);
       }
       
       // Update local state to show success
