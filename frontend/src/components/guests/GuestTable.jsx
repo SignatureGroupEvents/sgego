@@ -1519,7 +1519,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell />
+                      {!readOnly && <TableCell />}
                       <TableCell>
                         <TableSortLabel
                           active={sortBy === 'lastName'}
@@ -1617,30 +1617,32 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
                             }
                           }}
                         >
-                          <TableCell>
-                            <Button
-                              variant={buttonState.variant}
-                              color={buttonState.color}
-                              size="small"
-                              sx={{ 
-                                justifyContent: 'center', 
-                                width: '100%', 
-                                borderRadius: 2, 
-                                fontWeight: 600,
-                                ...(buttonState.variant === 'outlined' && buttonState.color === 'success' && {
-                                  color: 'success.main'
-                                }),
-                                ...(buttonState.variant === 'outlined' && buttonState.color === 'info' && {
-                                  color: 'info.main'
-                                })
-                              }}
-                              startIcon={<CheckCircleIcon />}
-                              onClick={(e) => buttonState.active ? handleOpenCheckIn(guest, e) : null}
-                              disabled={!buttonState.active || !canCheckInGuests}
-                            >
-                              {buttonState.label}
-                            </Button>
-                          </TableCell>
+                          {!readOnly && (
+                            <TableCell>
+                              <Button
+                                variant={buttonState.variant}
+                                color={buttonState.color}
+                                size="small"
+                                sx={{ 
+                                  justifyContent: 'center', 
+                                  width: '100%', 
+                                  borderRadius: 2, 
+                                  fontWeight: 600,
+                                  ...(buttonState.variant === 'outlined' && buttonState.color === 'success' && {
+                                    color: 'success.main'
+                                  }),
+                                  ...(buttonState.variant === 'outlined' && buttonState.color === 'info' && {
+                                    color: 'info.main'
+                                  })
+                                }}
+                                startIcon={<CheckCircleIcon />}
+                                onClick={(e) => buttonState.active ? handleOpenCheckIn(guest, e) : null}
+                                disabled={!buttonState.active || !canCheckInGuests}
+                              >
+                                {buttonState.label}
+                              </Button>
+                            </TableCell>
+                          )}
                           <TableCell>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                               <Typography variant="subtitle2">{guest.lastName || ''}</Typography>
