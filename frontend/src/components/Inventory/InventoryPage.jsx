@@ -135,7 +135,7 @@ const InventoryPage = ({ eventId, eventName }) => {
 
   // Predefined types in alphabetical order
   const predefinedTypes = ['Accessories', 'Apparel', 'Bags', 'Electronics', 'Hats', 'Sandals', 'Sneakers', 'Sunglasses'];
-  
+
   // Get all unique types from inventory + predefined types, sorted alphabetically
   const allAvailableTypes = React.useMemo(() => {
     const typeSet = new Set(predefinedTypes);
@@ -148,7 +148,7 @@ const InventoryPage = ({ eventId, eventName }) => {
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  
+
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -249,7 +249,7 @@ const InventoryPage = ({ eventId, eventName }) => {
   const filteredAndSortedInventory = React.useMemo(() => {
     let filtered = inventory.filter(item => {
       // Search filter
-      const searchMatch = searchQuery === '' || 
+      const searchMatch = searchQuery === '' ||
         item.type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.style?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.size?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -271,7 +271,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     // Sort inventory
     filtered.sort((a, b) => {
       let aValue, bValue;
-      
+
       switch (sortBy) {
         case 'type':
           aValue = (a.type || '').toLowerCase();
@@ -491,8 +491,8 @@ const InventoryPage = ({ eventId, eventName }) => {
 
   // Bulk delete handlers
   const handleSelectItem = (itemId) => {
-    setSelectedItems(prev => 
-      prev.includes(itemId) 
+    setSelectedItems(prev =>
+      prev.includes(itemId)
         ? prev.filter(id => id !== itemId)
         : [...prev, itemId]
     );
@@ -529,7 +529,7 @@ const InventoryPage = ({ eventId, eventName }) => {
       // Delete items one by one (since bulk delete endpoint expects eventId and might have different logic)
       const deletePromises = selectedItems.map(itemId => deleteInventoryItem(itemId));
       await Promise.all(deletePromises);
-      
+
       setSuccess(`Successfully deleted ${selectedItems.length} inventory item(s).`);
       setSelectedItems([]);
       loadInventory();
@@ -592,13 +592,13 @@ const InventoryPage = ({ eventId, eventName }) => {
     setEditTypeInputValue(value);
     // Capitalize first letter
     const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
-    
+
     // Check for duplicates (case-insensitive)
     const normalizedValue = capitalized.toLowerCase().trim();
     const isDuplicate = allAvailableTypes.some(
       existingType => existingType.toLowerCase().trim() === normalizedValue
     );
-    
+
     if (isDuplicate && normalizedValue) {
       setError(`Category "${capitalized}" already exists. Please select it from the dropdown.`);
     } else {
@@ -627,13 +627,13 @@ const InventoryPage = ({ eventId, eventName }) => {
       // Final validation for type - check for duplicates (but allow if it's the same as the original)
       const normalizedType = editItem.type.toLowerCase().trim();
       const originalNormalizedType = editingItem?.type?.toLowerCase().trim();
-      
+
       // Only check for duplicates if the type has changed
       if (normalizedType !== originalNormalizedType) {
         const isDuplicate = allAvailableTypes.some(
           existingType => existingType.toLowerCase().trim() === normalizedType
         );
-        
+
         if (isDuplicate) {
           setError(`Type "${editItem.type}" already exists. Please select it from the dropdown.`);
           return;
@@ -769,13 +769,13 @@ const InventoryPage = ({ eventId, eventName }) => {
     setTypeInputValue(value);
     // Capitalize first letter
     const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
-    
+
     // Check for duplicates (case-insensitive)
     const normalizedValue = capitalized.toLowerCase().trim();
     const isDuplicate = allAvailableTypes.some(
       existingType => existingType.toLowerCase().trim() === normalizedValue
     );
-    
+
     if (isDuplicate && normalizedValue) {
       setError(`Category "${capitalized}" already exists. Please select it from the dropdown.`);
     } else {
@@ -804,7 +804,7 @@ const InventoryPage = ({ eventId, eventName }) => {
       const isDuplicate = allAvailableTypes.some(
         existingType => existingType.toLowerCase().trim() === normalizedType && existingType !== newItem.type
       );
-      
+
       if (isDuplicate) {
         setError(`Type "${newItem.type}" already exists. Please select it from the dropdown.`);
         return;
@@ -855,10 +855,10 @@ const InventoryPage = ({ eventId, eventName }) => {
       </Box>
       <Typography variant="body2" color="textSecondary" mb={2}>
         {canModifyInventory
-          ? event?.isMainEvent 
+          ? event?.isMainEvent
             ? 'Upload a CSV file to import inventory. The table below shows all inventory items for this event and its sub-events.'
             : 'The table below shows inventory items allocated to this sub-event. Use the main event to manage all inventory.'
-          : event?.isMainEvent 
+          : event?.isMainEvent
             ? 'The table below shows all inventory items for this event and its sub-events.'
             : 'The table below shows inventory items allocated to this sub-event.'
         }
@@ -1033,16 +1033,16 @@ const InventoryPage = ({ eventId, eventName }) => {
                       )
                     }}
                   />
-                  
+
                   {/* Collapsible Filters Accordion */}
-                  <Accordion 
-                    expanded={filtersExpanded} 
+                  <Accordion
+                    expanded={filtersExpanded}
                     onChange={() => setFiltersExpanded(!filtersExpanded)}
                     sx={{ boxShadow: 1 }}
                   >
                     <AccordionSummary
                       expandIcon={<ExpandMoreIcon />}
-                      sx={{ 
+                      sx={{
                         minHeight: 48,
                         '&.Mui-expanded': { minHeight: 48 }
                       }}
@@ -1053,9 +1053,9 @@ const InventoryPage = ({ eventId, eventName }) => {
                           Filters
                         </Typography>
                         {activeFiltersCount > 0 && (
-                          <Chip 
-                            label={activeFiltersCount} 
-                            size="small" 
+                          <Chip
+                            label={activeFiltersCount}
+                            size="small"
                             color="primary"
                             sx={{ height: 20, minWidth: 20 }}
                           />
@@ -1291,7 +1291,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                       size="small"
                       onClick={clearAllFilters}
                       startIcon={<ClearIcon />}
-                      sx={{ 
+                      sx={{
                         minWidth: 'auto',
                         height: '40px',
                         mt: 0.5
@@ -1364,7 +1364,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                 )}
 
                 {filteredAndSortedInventory.length === 0 ? (
-                  <Box sx={{ textAlign: 'center', py: 6 }}>
+                  <Box size={{ textAlign: 'center', py: 6 }}>
                     <FilterIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
                     <Typography variant="h6" color="text.secondary">
                       {inventory.length === 0 ? 'No inventory found.' : 'No inventory matches your filters.'}
@@ -1381,14 +1381,15 @@ const InventoryPage = ({ eventId, eventName }) => {
                     )}
                   </Box>
                 ) : (
-                  <Grid container spacing={1}>
+                  <Grid container spacing={1} sx={{ width: '100%' }}>
                     {filteredAndSortedInventory
                       .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                       .map(item => (
-                        <Grid item xs={12} key={item._id}>
+                        <Grid item xs={12} key={item._id} sx={{ width: '100%', minWidth: 0 }}>
                           <Card
                             elevation={1}
                             sx={{
+                              width: '100%',
                               height: '100%',
                               display: 'flex',
                               flexDirection: 'column',
@@ -1414,19 +1415,19 @@ const InventoryPage = ({ eventId, eventName }) => {
                                 )}
                                 {canModifyInventory && !isEditMode && (
                                   <Box sx={{ display: 'flex', gap: 0.25 }}>
-                                    <IconButton 
-                                      color="primary" 
-                                      onClick={() => handleEditItemClick(item)} 
-                                      size="small" 
+                                    <IconButton
+                                      color="primary"
+                                      onClick={() => handleEditItemClick(item)}
+                                      size="small"
                                       title="Edit item"
                                       sx={{ p: 0.5 }}
                                     >
                                       <EditIcon fontSize="small" />
                                     </IconButton>
-                                    <IconButton 
-                                      color="error" 
-                                      onClick={() => handleDeleteClick(item._id)} 
-                                      size="small" 
+                                    <IconButton
+                                      color="error"
+                                      onClick={() => handleDeleteClick(item._id)}
+                                      size="small"
                                       title="Delete item"
                                       sx={{ p: 0.5 }}
                                     >
@@ -1442,42 +1443,42 @@ const InventoryPage = ({ eventId, eventName }) => {
                                 <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5, fontSize: { xs: '0.95rem', sm: '1.1rem' }, lineHeight: 1.2 }}>
                                   {item.style || 'No Brand'}
                                 </Typography>
-                                
+
                                 {/* Product - Second Most Prominent */}
                                 {item.product && (
                                   <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5, fontSize: { xs: '0.8rem', sm: '0.9rem' }, color: 'text.primary', lineHeight: 1.3 }}>
                                     {item.product}
                                   </Typography>
                                 )}
-                                
+
                                 {/* Category - Less Prominent */}
                                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontSize: { xs: '0.65rem', sm: '0.7rem' }, opacity: 0.7 }}>
                                   {item.type || 'N/A'}
                                 </Typography>
-                                
+
                                 {/* Size, Gender, Color Chips */}
                                 <Box display="flex" flexWrap="wrap" gap={0.25} mt={0.5}>
                                   {item.size && (
                                     <Chip label={`Size: ${item.size}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
                                   )}
                                   {item.gender && item.gender !== 'N/A' && (
-                                    <Chip label={item.gender} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
+                                    <Chip label={`Gender: ${item.gender}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
                                   )}
                                   {item.color && (
-                                    <Chip label={item.color} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
+                                    <Chip label={`Color: ${item.color}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
                                   )}
                                 </Box>
                               </Box>
 
                               {/* Quantity Information */}
-                              <Box sx={{ 
+                              <Box sx={{
                                 borderTop: '1px solid',
                                 borderColor: 'divider',
                                 pt: { xs: 0.75, sm: 1 },
                                 mt: 'auto'
                               }}>
-                                <Grid container spacing={0.5}>
-                                  <Grid item xs={6}>
+                                <Grid container spacing={1}>
+                                  <Grid item size={isEditMode ? 12 : 6}>
                                     <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
                                       Qty Warehouse
                                     </Typography>
@@ -1501,7 +1502,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                                       {item.currentInventory || 0}
                                     </Typography>
                                   </Grid> */}
-                                  <Grid item xs={6}>
+                                  <Grid item size={isEditMode ? 12 : 6}>
                                     <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
                                       Qty Before Event
                                     </Typography>
@@ -1510,7 +1511,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                                         type="number"
                                         size="small"
                                         fullWidth
-                                        inputProps={{ min: 0, style: { padding: '2px 6px', fontSize: '0.8rem' } }}
+                                        inputProps={{ min: 0, style: { padding: '8px 10px', fontSize: '1rem' } }}
                                         value={editValuesMap[item._id]?.qtyBeforeEvent ?? (item.qtyBeforeEvent || item.qtyOnSite || 0)}
                                         onChange={e => handleEditValueChange(item._id, 'qtyBeforeEvent', e.target.value)}
                                         sx={{ mt: 0.25 }}
@@ -1521,7 +1522,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                                       </Typography>
                                     )}
                                   </Grid>
-                                  <Grid item xs={6}>
+                                  <Grid item size={isEditMode ? 12 : 6}>
                                     <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
                                       Post Event Count
                                     </Typography>
@@ -1530,7 +1531,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                                         type="number"
                                         size="small"
                                         fullWidth
-                                        inputProps={{ min: 0, style: { padding: '2px 6px', fontSize: '0.8rem' } }}
+                                        inputProps={{ min: 0, style: { padding: '8px 10px', fontSize: '1rem' } }}
                                         value={editValuesMap[item._id]?.postEventCount ?? (item.postEventCount || 0)}
                                         onChange={e => handleEditValueChange(item._id, 'postEventCount', e.target.value)}
                                         sx={{ mt: 0.25 }}
@@ -1546,7 +1547,7 @@ const InventoryPage = ({ eventId, eventName }) => {
 
                               {/* Allocated Events */}
                               {item.allocatedEvents && item.allocatedEvents.length > 0 && (
-                                <Box sx={{ 
+                                <Box sx={{
                                   borderTop: '1px solid',
                                   borderColor: 'divider',
                                   pt: { xs: 0.75, sm: 1 },
@@ -1566,13 +1567,13 @@ const InventoryPage = ({ eventId, eventName }) => {
                                       value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
                                       onChange={(_, newValue) => handleAllocationChange(item, newValue)}
                                       renderInput={params => (
-                                        <TextField 
-                                          {...params} 
-                                          variant="outlined" 
+                                        <TextField
+                                          {...params}
+                                          variant="outlined"
                                           size="small"
                                           placeholder="Select events..."
-                                          sx={{ 
-                                            '& .MuiInputBase-root': { 
+                                          sx={{
+                                            '& .MuiInputBase-root': {
                                               fontSize: { xs: '0.75rem', sm: '0.875rem' },
                                               padding: { xs: '4px 8px', sm: '8px 12px' }
                                             }
@@ -1581,9 +1582,9 @@ const InventoryPage = ({ eventId, eventName }) => {
                                       )}
                                       renderTags={(value, getTagProps) =>
                                         value.map((option, index) => (
-                                          <Chip 
-                                            label={option.eventName} 
-                                            {...getTagProps({ index })} 
+                                          <Chip
+                                            label={option.eventName}
+                                            {...getTagProps({ index })}
                                             key={option._id}
                                             size="small"
                                             sx={{ height: { xs: 20, sm: 24 }, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
@@ -1712,7 +1713,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                       filteredAndSortedInventory
                         .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                         .map(item => (
-                          <TableRow 
+                          <TableRow
                             key={item._id}
                             sx={{
                               '&:hover': {
@@ -1916,11 +1917,11 @@ const InventoryPage = ({ eventId, eventName }) => {
       >
         <DialogTitle>Add Inventory Item</DialogTitle>
         <DialogContent>
-          <Box sx={{ 
-            display: 'grid', 
-            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
-            gap: 2, 
-            mt: 2 
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+            gap: 2,
+            mt: 2
           }}>
             {/* Category Dropdown with Add New Option */}
             <FormControl fullWidth required>
@@ -2044,11 +2045,11 @@ const InventoryPage = ({ eventId, eventName }) => {
       >
         <DialogTitle>Edit Inventory Item</DialogTitle>
         <DialogContent>
-          <Box sx={{ 
-            display: 'grid', 
-            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
-            gap: 2, 
-            mt: 2 
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+            gap: 2,
+            mt: 2
           }}>
             {/* Category Dropdown with Add New Option */}
             <FormControl fullWidth required>
