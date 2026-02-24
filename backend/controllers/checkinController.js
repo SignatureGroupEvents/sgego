@@ -316,7 +316,7 @@ exports.singleEventCheckin = async (req, res) => {
           return res.status(404).json({ message: `Inventory item not found: ${gift.inventoryId}` });
         }
 
-        // No inventory restriction: allow check-in even if inventory is 0 or negative
+        // Inventory is for counts only; allow check-in even if inventory is 0 or negative
         await inventoryItem.updateInventory(
           inventoryItem.currentInventory - gift.quantity,
           'checkin_distributed',
