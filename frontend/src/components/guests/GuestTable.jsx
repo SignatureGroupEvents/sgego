@@ -521,8 +521,8 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
         return checkinEventId?.toString() === ev._id?.toString();
       });
       
-      // Count only events where the guest has at least one gift selected; no gift = not "picked up" for that event
-      if (checkin && checkin.giftsReceived?.length > 0) {
+      // Count as checked in when guest has a check-in record for this event (checkedIn is source of truth; gifts optional)
+      if (checkin && checkin.checkedIn) {
         checkedInEvents++;
       }
     });
@@ -568,8 +568,8 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
           }
           return checkinEventId?.toString() === ev._id?.toString();
         });
-        // Pending = no check-in for this event, or check-in with no gift selected
-        if (!checkin || !checkin.giftsReceived?.length) {
+        // Pending = no check-in for this event
+        if (!checkin || !checkin.checkedIn) {
           hasPendingCheckIns = true;
         }
       });
@@ -601,7 +601,7 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
         return checkinEventId?.toString() === event._id?.toString();
       });
 
-      if (!checkin || !checkin.giftsReceived?.length) {
+      if (!checkin || !checkin.checkedIn) {
         return {
           active: true,
           label: 'Pick Up',

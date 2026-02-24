@@ -479,20 +479,20 @@ export default function GuestDetailPage() {
                                     {guest.firstName} {guest.lastName}
                                 </Typography>
                                 {(() => {
-                                    // Match Guest Table logic: only count events where guest has at least one gift (no gift = not "picked up" for that event)
+                                    // Match Guest Table logic: count events where guest is checked in (checkedIn is source of truth)
                                     const hasSecondaryEvents = event?.secondaryEvents && event.secondaryEvents.length > 0;
                                     const eventsToCheck = hasSecondaryEvents ? event.secondaryEvents : (event ? [event] : []);
                                     const totalEvents = eventsToCheck.length;
-                                    let eventsWithGift = 0;
+                                    let eventsCheckedIn = 0;
                                     eventsToCheck.forEach(ev => {
                                         const checkin = guest.eventCheckins?.find(ec => {
                                             const id = ec.eventId && typeof ec.eventId === 'object' ? ec.eventId._id?.toString() : ec.eventId?.toString();
                                             return id === ev._id?.toString();
                                         });
-                                        if (checkin && checkin.giftsReceived?.length > 0) eventsWithGift++;
+                                        if (checkin && checkin.checkedIn) eventsCheckedIn++;
                                     });
-                                    const isFullyCheckedIn = totalEvents > 0 && eventsWithGift === totalEvents;
-                                    const isPartiallyCheckedIn = eventsWithGift > 0 && eventsWithGift < totalEvents;
+                                    const isFullyCheckedIn = totalEvents > 0 && eventsCheckedIn === totalEvents;
+                                    const isPartiallyCheckedIn = eventsCheckedIn > 0 && eventsCheckedIn < totalEvents;
 
                                     if (isFullyCheckedIn) {
                                         return (
@@ -850,10 +850,10 @@ export default function GuestDetailPage() {
                                     Gifts & Check-ins
                                 </Typography>
 
-                                {/* Gifts Table - only show check-ins where at least one gift was selected (match table/detail status logic) */}
+                                {/* Gifts & Check-ins: show all check-ins (match guest table; gifts optional) */}
                                 {(() => {
-                                    const checkinsWithGifts = (guest.eventCheckins || []).filter(ec => ec.giftsReceived?.length > 0);
-                                    if (checkinsWithGifts.length === 0) {
+                                    const checkinsToShow = (guest.eventCheckins || []).filter(ec => ec.checkedIn);
+                                    if (checkinsToShow.length === 0) {
                                         return (
                                             <Box sx={{ textAlign: 'center', py: 4 }}>
                                                 <Star sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
@@ -861,7 +861,7 @@ export default function GuestDetailPage() {
                                                     No Check-ins Yet
                                                 </Typography>
                                                 <Typography variant="body2" color="textSecondary">
-                                                    This guest hasn&apos;t been checked into any events with a gift selected
+                                                    This guest hasn&apos;t been checked into any events yet
                                                 </Typography>
                                             </Box>
                                         );
@@ -872,7 +872,7 @@ export default function GuestDetailPage() {
                                             Check-in Details
                                         </Typography>
                                         <Stack spacing={2}>
-                                            {checkinsWithGifts.map((checkin, index) => (
+                                            {checkinsToShow.map((checkin, index) => (
                                                 <Card key={index} variant="outlined" sx={{ p: 2 }}>
                                                     <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' }, alignItems: { md: 'center' } }}>
                                                         {/* Event Info */}
