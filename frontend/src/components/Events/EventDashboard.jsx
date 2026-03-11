@@ -48,6 +48,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   const [addGuestModalOpen, setAddGuestModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmValue, setDeleteConfirmValue] = useState('');
   const [mobileTab, setMobileTab] = useState(0); // 0: List, 1: Manage, 2: Stats
 
   // Update local guests when props change
@@ -171,6 +172,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
   };
 
   const handleDeleteEvent = () => {
+    setDeleteConfirmValue('');
     setDeleteDialogOpen(true);
   };
 
@@ -292,6 +294,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                   onClientPortal={() => navigate(`/events/${eventId}/client-portal`)}
                   canModify={canModifyEvents}
                   canManageTeam={canModifyEvents}
+                  clientPortalEnabled={!!(parentEvent || event)?.clientPortal?.enabled}
                 />
               </>
             )}
@@ -371,6 +374,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                 onClientPortal={() => navigate(`/events/${eventId}/client-portal`)}
                 canModify={canModifyEvents}
                 canManageTeam={canModifyEvents}
+                clientPortalEnabled={!!mainEvent?.clientPortal?.enabled}
               />
             )}
 
@@ -467,7 +471,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
           Delete Event
         </DialogTitle>
         <DialogContent>
-          <DialogContentText id="delete-event-dialog-description">
+          <DialogContentText id="delete-event-dialog-description" sx={{ mb: 2 }}>
             Are you sure you want to delete "{event?.eventName}"? This action cannot be undone.
             {event?.isMainEvent && secondaryEvents.length > 0 && (
               <Box sx={{ mt: 1, p: 1, bgcolor: 'warning.light', borderRadius: 1 }}>
@@ -477,6 +481,23 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
               </Box>
             )}
           </DialogContentText>
+          {event?.eventContractNumber && (
+            <Box sx={{ mt: 1 }}>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                To confirm, type the contract number{' '}
+                <strong>{event.eventContractNumber}</strong> below.
+              </Typography>
+              <TextField
+                fullWidth
+                autoFocus
+                label="Contract number"
+                variant="outlined"
+                value={deleteConfirmValue}
+                onChange={(e) => setDeleteConfirmValue(e.target.value)}
+                placeholder={event.eventContractNumber}
+              />
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button 
@@ -489,7 +510,9 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
             onClick={confirmDeleteEvent} 
             color="error" 
             variant="contained"
-            disabled={deleting}
+            disabled={
+              deleting || (event?.eventContractNumber ? deleteConfirmValue !== event.eventContractNumber : false)
+            }
           >
             {deleting ? 'Deleting...' : 'Delete Event'}
           </Button>

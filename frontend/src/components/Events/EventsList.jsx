@@ -363,7 +363,7 @@ const EventsList = () => {
                   <TableCell sx={{ fontWeight: 600 }}>Dates</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 600 }}>Created By</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 600 }}>Secondary Events</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600 }}>Additional Gift Stations</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -762,7 +762,7 @@ const EventsList = () => {
                   </TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 600 }}>Created By</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 600 }}>Secondary Events</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600 }}>Additional Gift Stations</TableCell>
                   {canManageEvents && (
                     <TableCell align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
                   )}
@@ -865,7 +865,7 @@ const EventsList = () => {
                         <TableCell align="center">
                           {hasSecondaryEvents ? (
                             <Chip
-                              label={`${secondaryEvents(event._id).length} events`}
+                              label={`${secondaryEvents(event._id).length} gift stations`}
                               size="small"
                               color="secondary"
                               sx={{ borderRadius: 1 }}
@@ -895,7 +895,7 @@ const EventsList = () => {
                           <TableCell colSpan={canManageEvents ? 8 : 7} sx={{ p: 0, border: 0 }}>
                             <Box sx={{ pl: 4, pr: 2, py: 2, bgcolor: 'grey.50' }}>
                               <Typography variant="subtitle2" fontWeight={600} mb={2}>
-                                Secondary Events:
+                                Additional Gift Stations:
                               </Typography>
                               <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
                                 {secondaryEvents(event._id).map((secondaryEvent) => (

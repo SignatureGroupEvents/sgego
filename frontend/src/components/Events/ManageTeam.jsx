@@ -49,6 +49,7 @@ import { getEventAssignedUsers, assignUsersToEvent, removeUserFromEvent, getAllU
 import { getEvent } from '../../services/events';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { getUserDisplayName } from '../../utils/userDisplay';
 import AvatarIcon from '../dashboard/AvatarIcon';
 import MainLayout from '../layout/MainLayout';
 import EventHeader from './EventHeader';
@@ -234,12 +235,6 @@ const ManageTeam = ({ eventId, eventName }) => {
     }
   };
 
-  const getUserDisplayName = (user) => {
-    if (user.username) return user.username;
-    if (user.firstName && user.lastName) return `${user.firstName} ${user.lastName}`;
-    return user.email || 'Unknown User';
-  };
-
   // Filter out already assigned users
   // A user can only be assigned once per event (either to main event or to a specific secondary event)
   const availableUsers = allUsers.filter(user => {
@@ -259,7 +254,7 @@ const ManageTeam = ({ eventId, eventName }) => {
   // Filter users based on search input
   const filteredAvailableUsers = availableUsers.filter(user => {
     if (!searchInput) return true;
-    const displayName = getUserDisplayName(user).toLowerCase();
+    const displayName = getUserDisplayName(user, '').toLowerCase();
     const email = (user.email || '').toLowerCase();
     const search = searchInput.toLowerCase();
     return displayName.includes(search) || email.includes(search);
@@ -363,7 +358,10 @@ const ManageTeam = ({ eventId, eventName }) => {
 
       {assignments.length === 0 ? (
         <Alert severity="info" sx={{ mb: 2 }}>
-          No team members assigned to this event yet. Click "Assign Team Members" to get started.
+          No team members assigned to this event yet. Click "Assign Team Members" to get started.<br/>
+          Please note that if staff are not found in the system, you must add them using the "Add Staff" button in the "User Management" section.
+          <br/>
+          <br/> <Button variant="contained" onClick={() => navigate('/account')}>View User Management Page</Button>
         </Alert>
       ) : isMobile ? (
         // Mobile Card View
@@ -610,7 +608,7 @@ const ManageTeam = ({ eventId, eventName }) => {
                 {selectedUsers.map((user) => (
                   <Chip
                     key={user._id || user.id}
-                    label={getUserDisplayName(user)}
+                    label={user.email ? `${getUserDisplayName(user, 'Unknown User')} · ${user.email}` : getUserDisplayName(user, 'Unknown User')}
                     onDelete={() => handleUserToggle(user)}
                     size="small"
                     color="primary"
@@ -663,8 +661,8 @@ const ManageTeam = ({ eventId, eventName }) => {
                           />
                         </ListItemIcon>
                         <ListItemText
-                          primary={getUserDisplayName(user)}
-                          secondary={user.email}
+                          primary={getUserDisplayName(user, 'Unknown User')}
+                          secondary={user.email || null}
                         />
                       </ListItem>
                     );

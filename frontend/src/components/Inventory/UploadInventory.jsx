@@ -78,7 +78,7 @@ const UploadInventory = () => {
     size: { required: false, label: 'SIZE', section: 'optional' },
     gender: { required: false, label: 'GENDER', section: 'optional' },
     color: { required: false, label: 'COLOR', section: 'optional' },
-    qtyWarehouse: { required: false, label: 'QTY WAREHOUSE', section: 'optional' },
+    qtyWarehouse: { required: false, label: 'QTY FROM FC OR ORDERED QUANTITY', section: 'optional' },
     qtyBeforeEvent: { required: false, label: 'QTY BEFORE EVENT', section: 'optional' },
     qtyOnSite: { required: false, label: 'QTY ON SITE', section: 'optional' },
     currentInventory: { required: false, label: 'CURRENT INVENTORY', section: 'optional' },
@@ -704,9 +704,15 @@ const UploadInventory = () => {
                   <Typography variant="h6" gutterBottom>
                     Step 2: Map Columns to Inventory Fields
                   </Typography>
-                  <Typography color="textSecondary" paragraph sx={{ mb: 4 }}>
-                    Select the column from your file that corresponds to each inventory field.
+                  <Typography color="textSecondary" paragraph sx={{ mb: 1.5 }}>
+                    On the <strong>left</strong> are the <strong>inventory fields</strong> used in the system.<br/>
+                    On the <strong>right</strong>, choose the <strong>column from your uploaded file</strong> that matches each field.
                   </Typography>
+                  {file && (
+                    <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 3 }}>
+                      Mapping columns from: <strong>{file.name}</strong>
+                    </Typography>
+                  )}
                   
                   {/* REQUIRED FIELDS Section */}
                   <Box sx={{ mb: 4 }}>
@@ -724,6 +730,19 @@ const UploadInventory = () => {
                       REQUIRED FIELDS
                     </Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {/* Row header to clarify left vs right */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 0.5 }}>
+                        <Box sx={{ minWidth: 200, flexShrink: 0 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Inventory field
+                          </Typography>
+                        </Box>
+                        <Box sx={{ minWidth: 320, maxWidth: 500 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            CSV column from your file
+                          </Typography>
+                        </Box>
+                      </Box>
                       {['type', 'style'].map((field) => {
                         const config = expectedColumns[field];
                         return (
@@ -786,8 +805,30 @@ const UploadInventory = () => {
                       OPTIONAL COLUMNS
                     </Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {/* Row header to clarify left vs right */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 0.5 }}>
+                        <Box sx={{ minWidth: 200, flexShrink: 0 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Inventory field (optional)
+                          </Typography>
+                        </Box>
+                        <Box sx={{ minWidth: 320, maxWidth: 500 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            CSV column from your file
+                          </Typography>
+                        </Box>
+                      </Box>
                       {Object.entries(expectedColumns)
-                        .filter(([field, config]) => config.section === 'optional')
+                        .filter(([field, config]) => {
+                          if (config.section !== 'optional') return false;
+                          // Hide quantity fields from the mapping step
+                          return ![
+                            'qtyBeforeEvent',
+                            'qtyOnSite',
+                            'currentInventory',
+                            'postEventCount'
+                          ].includes(field);
+                        })
                         .map(([field, config]) => {
                           return (
                             <Box key={field} sx={{ display: 'flex', alignItems: 'flex-start', gap: 3 }}>
@@ -933,7 +974,7 @@ const UploadInventory = () => {
                                 <TableCell sx={{ fontWeight: 600 }}>Color</TableCell>
                               )}
                               {columnMapping.qtyWarehouse && (
-                                <TableCell sx={{ fontWeight: 600 }}>Qty Warehouse</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>FC Received or Ordered Quantity</TableCell>
                               )}
                             </TableRow>
                           </TableHead>
