@@ -860,6 +860,7 @@ exports.addInventoryItem = async (req, res) => {
     const {
       type,
       style,
+      product,
       size,
       gender,
       color,
@@ -867,6 +868,17 @@ exports.addInventoryItem = async (req, res) => {
       qtyBeforeEvent,
       postEventCount
     } = req.body;
+
+    // Normalize gender to match Inventory model enum ['M', 'W', 'N/A'] (e.g. "Men's" -> "M")
+    const normalizeGenderForAdd = (genderValue) => {
+      if (!genderValue || typeof genderValue !== 'string') return 'N/A';
+      const lower = String(genderValue).trim().toLowerCase();
+      if (['mens', "men's", 'men', 'male', 'm'].includes(lower)) return 'M';
+      if (['womens', "women's", 'women', 'female', 'w'].includes(lower)) return 'W';
+      if (lower === 'n/a' || lower === 'na') return 'N/A';
+      if (['m', 'w'].includes(lower)) return lower.toUpperCase();
+      return 'N/A';
+    };
 
     // Validate required fields
     if (!type || !style) {
@@ -891,8 +903,9 @@ exports.addInventoryItem = async (req, res) => {
       eventId: mainEventId, // Always store under main event
       type: type.trim(),
       style: style.trim(),
+      product: product != null ? String(product).trim() : '',
       size: size ? size.trim() : '',
-      gender: gender || 'N/A',
+      gender: normalizeGenderForAdd(gender),
       color: color || '',
       qtyWarehouse: Number(qtyWarehouse) || 0,
       qtyOnSite: Number(qtyBeforeEvent) || 0, // Map qtyBeforeEvent to qtyOnSite
