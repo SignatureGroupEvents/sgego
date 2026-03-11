@@ -151,6 +151,18 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
     fetchAllData();
   }, [eventId, isPortalView]);
 
+  const refetchSecondaryEvents = React.useCallback(async () => {
+    if (isPortalView) return;
+    const mainId = event?.isMainEvent ? event?._id : (event?.parentEventId || eventId);
+    if (!mainId) return;
+    try {
+      const res = await api.get(`/events?parentEventId=${mainId}`);
+      setSecondaryEvents(res.data?.events || res.data || []);
+    } catch (e) {
+      // ignore
+    }
+  }, [isPortalView, eventId, event?._id, event?.isMainEvent, event?.parentEventId]);
+
   const handleUploadGuests = () => {
     navigate(`/events/${eventId}/upload`);
   };
@@ -431,11 +443,16 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         open={secondaryModalOpen}
         parentEventId={mainEvent._id}
         parentContractNumber={mainEvent.eventContractNumber}
+        parentEventStart={mainEvent.eventStart}
+        parentEventEnd={mainEvent.eventEnd}
         onClose={() => setSecondaryModalOpen(false)}
-        onEventAdded={(newEvent) => {
-          // Add the new secondary event to the list
-          setSecondaryEvents(prev => [...prev, newEvent]);
+        onEventAdded={(newEventData) => {
           setSecondaryModalOpen(false);
+          const eventToAdd = newEventData?.event ?? newEventData;
+          if (eventToAdd?._id) {
+            setSecondaryEvents(prev => [...prev, eventToAdd]);
+          }
+          refetchSecondaryEvents();
         }}
       />
 

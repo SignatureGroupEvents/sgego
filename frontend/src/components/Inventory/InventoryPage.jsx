@@ -24,8 +24,12 @@ import CSVColumnMapper from './CSVColumnMapper';
 // ✅ Use usePermissions only
 import { usePermissions } from '../../hooks/usePermissions';
 
-
-
+// Gender must match backend Inventory model enum: ['M', 'W', 'N/A']
+const GENDER_OPTIONS = [
+  { value: 'N/A', label: 'N/A' },
+  { value: 'M', label: "Men's" },
+  { value: 'W', label: "Women's" }
+];
 
 const InventoryPage = ({ eventId, eventName }) => {
   const navigate = useNavigate();
@@ -51,7 +55,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     style: '',
     product: '',
     size: '',
-    gender: '',
+    gender: 'N/A',
     color: '',
     qtyWarehouse: 0,
     qtyBeforeEvent: 0,
@@ -68,7 +72,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     style: '',
     product: '',
     size: '',
-    gender: '',
+    gender: 'N/A',
     color: '',
     qtyWarehouse: 0,
     qtyBeforeEvent: 0,
@@ -543,12 +547,13 @@ const InventoryPage = ({ eventId, eventName }) => {
   // Edit item handlers
   const handleEditItemClick = (item) => {
     setEditingItem(item);
+    const validGender = ['M', 'W', 'N/A'].includes(item.gender) ? item.gender : 'N/A';
     setEditItem({
       type: item.type || '',
       style: item.style || '',
       product: item.product || '',
       size: item.size || '',
-      gender: item.gender || 'N/A',
+      gender: validGender,
       color: item.color || '',
       qtyWarehouse: item.qtyWarehouse || 0,
       qtyBeforeEvent: item.qtyBeforeEvent || item.qtyOnSite || 0,
@@ -567,7 +572,7 @@ const InventoryPage = ({ eventId, eventName }) => {
       style: '',
       product: '',
       size: '',
-      gender: '',
+      gender: 'N/A',
       color: '',
       qtyWarehouse: 0,
       qtyBeforeEvent: 0,
@@ -727,7 +732,7 @@ const InventoryPage = ({ eventId, eventName }) => {
       style: '',
       product: '',
       size: '',
-      gender: '',
+      gender: 'N/A',
       color: '',
       qtyWarehouse: 0,
       qtyBeforeEvent: 0,
@@ -744,7 +749,7 @@ const InventoryPage = ({ eventId, eventName }) => {
       style: '',
       product: '',
       size: '',
-      gender: '',
+      gender: 'N/A',
       color: '',
       qtyWarehouse: 0,
       qtyBeforeEvent: 0,
@@ -1981,12 +1986,20 @@ const InventoryPage = ({ eventId, eventName }) => {
               onChange={(e) => handleNewItemChange('size', e.target.value)}
               fullWidth
             />
-            <TextField
-              label="Gender"
-              value={newItem.gender}
-              onChange={(e) => handleNewItemChange('gender', e.target.value)}
-              fullWidth
-            />
+            <FormControl fullWidth>
+              <InputLabel>Gender</InputLabel>
+              <Select
+                value={newItem.gender || 'N/A'}
+                onChange={(e) => handleNewItemChange('gender', e.target.value)}
+                label="Gender"
+              >
+                {GENDER_OPTIONS.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
               label="Color"
               value={newItem.color}
@@ -2109,12 +2122,20 @@ const InventoryPage = ({ eventId, eventName }) => {
               onChange={(e) => handleEditItemChange('size', e.target.value)}
               fullWidth
             />
-            <TextField
-              label="Gender"
-              value={editItem.gender}
-              onChange={(e) => handleEditItemChange('gender', e.target.value)}
-              fullWidth
-            />
+            <FormControl fullWidth>
+              <InputLabel>Gender</InputLabel>
+              <Select
+                value={['M', 'W', 'N/A'].includes(editItem.gender) ? editItem.gender : 'N/A'}
+                onChange={(e) => handleEditItemChange('gender', e.target.value)}
+                label="Gender"
+              >
+                {GENDER_OPTIONS.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
               label="Color"
               value={editItem.color}

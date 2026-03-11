@@ -16,18 +16,34 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 const validationSchema = Yup.object({
-  eventName: Yup.string().required('Event name is required'),
-  eventStart: Yup.string().required('Event start date is required'),
+  eventName: Yup.string().required('Station name or gift name is required'),
+  eventStart: Yup.string().required('Station start date is required'),
 });
 
-const AddSecondaryEventModal = ({ parentContractNumber,parentEventId, onClose, onEventAdded, open = true }) => {
+const AddSecondaryEventModal = ({
+  parentContractNumber,
+  parentEventId,
+  parentEventStart,
+  parentEventEnd,
+  onClose,
+  onEventAdded,
+  open = true
+}) => {
   const [loading, setLoading] = useState(false);
+
+  const formatDateForInput = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    // Guard against invalid dates
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  };
 
   const initialValues = {
     eventName: '',
     eventContractNumber: parentContractNumber || '',
-    eventStart: '',
-    eventEnd: '',
+    eventStart: formatDateForInput(parentEventStart),
+    eventEnd: formatDateForInput(parentEventEnd),
   };
 
   const handleSubmit = async (values) => {
@@ -41,7 +57,8 @@ const AddSecondaryEventModal = ({ parentContractNumber,parentEventId, onClose, o
       });
       
       toast.success('Secondary event created successfully');
-      onEventAdded(response.data);
+      const addedEvent = response.data?.event || response.data;
+      onEventAdded(addedEvent);
       onClose();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to create secondary event');
@@ -52,7 +69,7 @@ const AddSecondaryEventModal = ({ parentContractNumber,parentEventId, onClose, o
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Add Secondary Event</DialogTitle>
+      <DialogTitle>Add An Additional Gift</DialogTitle>
       <Formik
         initialValues={initialValues}
         validationSchema={validationSchema}
@@ -67,7 +84,7 @@ const AddSecondaryEventModal = ({ parentContractNumber,parentEventId, onClose, o
                     <TextField
                       {...field}
                       fullWidth
-                      label="Event Name"
+                      label="Station Name or Gift Name"
                       required
                       error={touched.eventName && !!errors.eventName}
                       helperText={touched.eventName && errors.eventName}
@@ -83,7 +100,7 @@ const AddSecondaryEventModal = ({ parentContractNumber,parentEventId, onClose, o
                       label="Contract Number"
                       required
                       disabled
-                      helperText="Secondary events share the same contract number as the main event"
+                      helperText="All gifts share the same contract number as the main event"
                       error={touched.eventContractNumber && !!errors.eventContractNumber}
                     />
                   )}
@@ -94,7 +111,7 @@ const AddSecondaryEventModal = ({ parentContractNumber,parentEventId, onClose, o
                     <TextField
                       {...field}
                       fullWidth
-                      label="Event Date"
+                      label="Event Start Date"
                       type="date"
                       required
                       InputLabelProps={{ shrink: true }}
@@ -109,7 +126,7 @@ const AddSecondaryEventModal = ({ parentContractNumber,parentEventId, onClose, o
                     <TextField
                       {...field}
                       fullWidth
-                      label="End Date (Optional)"
+                      label="Event End Date"
                       type="date"
                       InputLabelProps={{ shrink: true }}
                     />

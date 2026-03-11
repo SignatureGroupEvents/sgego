@@ -127,24 +127,32 @@ const DashboardEventCard = ({
   };
 
   const renderAllocatedTo = () => {
-    if (variant !== 'assigned') return null;
+    const hasAllocation = event.allocatedToSecondaryEvent != null;
+    const targetId = hasAllocation ? event.allocatedToSecondaryEvent._id : event._id;
+    const label = hasAllocation ? event.allocatedToSecondaryEvent.eventName : 'Main Event';
 
     return (
       <>
         <Divider />
         <Box>
           <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-            Allocated To
+            Assigned To
           </Typography>
-          {event.allocatedToSecondaryEvent ? (
-            <Typography variant="body2" color="primary.main" fontWeight={500}>
-              {event.allocatedToSecondaryEvent.eventName}
-            </Typography>
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              Main Event
-            </Typography>
-          )}
+          <Typography
+            variant="body2"
+            color="primary.main"
+            fontWeight={500}
+            sx={{
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              textDecorationThickness: '0.06em',
+              textUnderlineOffset: '0.12em',
+              '&:hover': { opacity: 0.85 }
+            }}
+            onClick={() => navigate(`/events/${targetId}`)}
+          >
+            {label}
+          </Typography>
         </Box>
       </>
     );

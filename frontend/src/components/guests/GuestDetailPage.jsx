@@ -42,7 +42,7 @@ import {
     LocalOffer
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
-import api, { undoCheckin, updateCheckinGifts, deleteGuest } from '../../services/api';
+import api, { undoCheckin, updateCheckinGifts, deleteGuest, getCheckinContext } from '../../services/api';
 import MainLayout from '../layout/MainLayout';
 import toast from 'react-hot-toast';
 import HierarchicalInventorySelector from './HierarchicalInventorySelector';
@@ -161,6 +161,7 @@ export default function GuestDetailPage() {
     const [selectedGiftModificationReason, setSelectedGiftModificationReason] = useState('');
     const [customGiftModificationReason, setCustomGiftModificationReason] = useState('');
     const [availableInventory, setAvailableInventory] = useState([]);
+    const [modifyDialogPickupPreferences, setModifyDialogPickupPreferences] = useState(null);
     const [modifiedGifts, setModifiedGifts] = useState([]);
     const [undoLoading, setUndoLoading] = useState(false);
     const [giftModificationLoading, setGiftModificationLoading] = useState(false);
@@ -340,6 +341,7 @@ export default function GuestDetailPage() {
             setCustomGiftModificationReason('');
             setSelectedCheckin(null);
             setModifiedGifts([]);
+            setModifyDialogPickupPreferences(null);
             setError(''); // Clear any previous errors
         } catch (err) {
             let errorMessage = 'Failed to update gifts';
@@ -369,33 +371,38 @@ export default function GuestDetailPage() {
         setGiftModificationReason('');
         setSelectedGiftModificationReason('');
         setCustomGiftModificationReason('');
-        
-        // Fetch available inventory for the event
+        setModifyDialogPickupPreferences(null);
+
+        const eventIdForCheckin = checkin.eventId?._id || checkin.eventId;
+        if (!eventIdForCheckin) {
+            setError('Cannot determine event for this check-in');
+            return;
+        }
+
         try {
-            const inventoryResponse = await api.get(`/events/${checkin.eventId._id || checkin.eventId}/inventory`);
-            
-            // Ensure we always have an array - show all items but indicate availability
-            let inventory = [];
-            if (Array.isArray(inventoryResponse.data)) {
-                inventory = inventoryResponse.data;
-            } else if (inventoryResponse.data && typeof inventoryResponse.data === 'object') {
-                // If it's an object, it might have inventory in a nested property
-                inventory = inventoryResponse.data.inventory || inventoryResponse.data.items || [];
-            }
-            
-            setAvailableInventory(inventory);
-            
-            // Initialize modified gifts with current gifts
-            const currentGifts = (checkin.giftsReceived || []).map(gift => ({
+            // Use same check-in context as the check-in modal: inventory filtered by allocation + main event pickup preferences
+            const contextResponse = await getCheckinContext(eventIdForCheckin);
+            const context = contextResponse.data;
+
+            const inventory = context.inventoryByEvent?.[eventIdForCheckin] ?? [];
+            setAvailableInventory(Array.isArray(inventory) ? inventory : []);
+
+            const mainEvent = context.availableEvents?.find((e) => e.isMainEvent) || context.availableEvents?.[0] || context.currentEvent;
+            const prefs = mainEvent?.pickupFieldPreferences && typeof mainEvent.pickupFieldPreferences === 'object'
+                ? mainEvent.pickupFieldPreferences
+                : null;
+            setModifyDialogPickupPreferences(prefs);
+
+            const currentGifts = (checkin.giftsReceived || []).map((gift) => ({
                 inventoryId: gift.inventoryId?._id || gift.inventoryId || '',
                 quantity: gift.quantity || 1,
                 notes: gift.notes || ''
             }));
             setModifiedGifts(currentGifts);
-            
+
             setGiftModificationDialogOpen(true);
         } catch (err) {
-            setError('Failed to fetch available inventory');
+            setError(err.response?.data?.message || 'Failed to load check-in context for gift modification');
         }
     };
 
@@ -1032,7 +1039,10 @@ export default function GuestDetailPage() {
                     {/* Gift Modification Dialog */}
                     <Dialog 
                         open={giftModificationDialogOpen} 
-                        onClose={() => setGiftModificationDialogOpen(false)} 
+                        onClose={() => {
+                            setGiftModificationDialogOpen(false);
+                            setModifyDialogPickupPreferences(null);
+                        }} 
                         maxWidth="md" 
                         fullWidth
                     >
@@ -1089,7 +1099,7 @@ export default function GuestDetailPage() {
                                                                     value={gift.inventoryId}
                                                                     onChange={(inventoryId) => updateGift(index, 'inventoryId', inventoryId)}
                                                                     eventName={selectedCheckin?.eventId?.eventName || 'Event'}
-                                                                    pickupFieldPreferences={selectedCheckin?.eventId?.pickupFieldPreferences || getDefaultPreferences()}
+                                                                    pickupFieldPreferences={modifyDialogPickupPreferences || getDefaultPreferences()}
                                                                 />
                                                             </Box>
                                                             <TextField

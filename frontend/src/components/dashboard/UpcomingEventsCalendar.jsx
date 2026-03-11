@@ -343,7 +343,7 @@ const UpcomingEventsCalendar = () => {
                 color="primary.main"
                 sx={{ fontSize: { xs: '0.875rem', sm: '1rem', md: '1.25rem' } }}
               >
-                My Upcoming Events
+                All Upcoming Events Calendar
               </Typography>
               {upcomingEvents.length === 0 ? (
                 <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>

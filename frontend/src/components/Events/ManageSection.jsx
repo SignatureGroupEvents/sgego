@@ -3,7 +3,7 @@ import { Box, Typography, Button } from '@mui/material';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import UploadIcon from '@mui/icons-material/Upload';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import EventIcon from '@mui/icons-material/Event';
+import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PeopleIcon from '@mui/icons-material/People';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -96,8 +96,8 @@ const ManageSection = ({
       </Button>
       {canModify && (
         <Button
-          variant="contained"
-          startIcon={<EventIcon />}
+          variant="outlined"
+          startIcon={<CardGiftcardIcon />}
           onClick={onAddEvent}
           sx={{
             borderRadius: 5,
@@ -105,16 +105,16 @@ const ManageSection = ({
             minWidth: { xs: '100%', sm: 300 },
             width: { xs: '100%', sm: 300 },
             height: 40,
-            color: 'white',
+            color: 'primary.main',
             '&:hover': {
-              color: 'white',
+              color: 'primary.dark',
             },
             '&:active': {
-              color: 'white',
+              color: 'primary.dark',
             },
           }}
         >
-          Add Additional Event
+          Add Additional Gift Station
         </Button>
       )}
       {canModify && (
