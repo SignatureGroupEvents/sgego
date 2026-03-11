@@ -8,9 +8,6 @@ import {
   TextField,
   Button,
   Box,
-  FormControlLabel,
-  Switch,
-  Chip,
   Alert,
   Stepper,
   Step,
@@ -19,19 +16,15 @@ import {
   CardContent,
   Grid,
   IconButton,
-  Divider,
   useTheme,
   useMediaQuery
 } from '@mui/material';
 import {
-  Add as AddIcon,
-  Delete as DeleteIcon,
   ArrowBack as ArrowBackIcon,
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import api from '../../services/api';
 import MainLayout from '../layout/MainLayout';
-import HomeIcon from '@mui/icons-material/Home';
 import EventIcon from '@mui/icons-material/Event';
 
 // Validation schema for each step
@@ -53,7 +46,6 @@ const stepValidationSchemas = [
       }),
     eventStart: Yup.string().required('Event start date is required'),
   }),
-  Yup.object({}), // Gift Settings step - no validation required
   Yup.object({})  // Confirmation step - no validation required
 ];
 
@@ -66,15 +58,13 @@ const CreateEvent = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  const steps = ['Basic Info', 'Gift Settings', 'Confirmation'];
+  const steps = ['Basic Info', 'Confirmation'];
 
   const initialValues = {
     eventName: '',
     eventContractNumber: '',
     eventStart: '',
     eventEnd: '',
-    includeStyles: false,
-    allowMultipleGifts: false,
   };
 
   const handleSubmit = async (values) => {
@@ -187,87 +177,6 @@ const CreateEvent = () => {
       case 1:
         return (
           <Box>
-            <Typography 
-              variant={isMobile ? 'subtitle1' : 'h6'} 
-              gutterBottom
-              sx={{ fontSize: { xs: '1rem', sm: '1.125rem', md: '1.25rem' } }}
-            >
-              Gift Selection Settings
-            </Typography>
-            <Grid container spacing={{ xs: 1.5, sm: 2 }}>
-              <Grid xs={12}>
-                <FormControlLabel
-                  control={
-                    <Field name="includeStyles">
-                      {({ field }) => (
-                        <Switch
-                          checked={field.value}
-                          onChange={field.onChange}
-                          name={field.name}
-                          size={isMobile ? 'small' : 'medium'}
-                        />
-                      )}
-                    </Field>
-                  }
-                  label={
-                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      Include style selection for gifts
-                    </Typography>
-                  }
-                  sx={{ mb: 1 }}
-                />
-                <Typography 
-                  variant="body2" 
-                  color="text.secondary"
-                  sx={{ 
-                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                    ml: { xs: 0, sm: 4 },
-                    pl: { xs: 0, sm: 0 }
-                  }}
-                >
-                  This allows your to staff to select all information for the gift, if not selected, the staff will only be able to select the gift type.
-                </Typography>
-              </Grid>
-              <Grid xs={12}>
-                <FormControlLabel
-                  control={
-                    <Field name="allowMultipleGifts">
-                      {({ field }) => (
-                        <Switch
-                          checked={field.value}
-                          onChange={field.onChange}
-                          name={field.name}
-                          size={isMobile ? 'small' : 'medium'}
-                        />
-                      )}
-                    </Field>
-                  }
-                  label={
-                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      Allow multiple gift selection
-                    </Typography>
-                  }
-                  sx={{ mb: 1 }}
-                />
-                <Typography 
-                  variant="body2" 
-                  color="text.secondary"
-                  sx={{ 
-                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                    ml: { xs: 0, sm: 4 },
-                    pl: { xs: 0, sm: 0 }
-                  }}
-                >
-                  This allows your to staff to select multiple gifts for the same guest.
-                </Typography>
-              </Grid>
-            </Grid>
-          </Box>
-        );
-
-      case 2:
-        return (
-          <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, mb: { xs: 2, sm: 3 } }}>
               <CheckCircleIcon 
                 color="success" 
@@ -371,68 +280,6 @@ const CreateEvent = () => {
                 </Grid>
               </CardContent>
             </Card>
-
-            {/* Gift Settings */}
-            <Card>
-              <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
-                <Typography 
-                  variant={isMobile ? 'subtitle2' : 'h6'} 
-                  gutterBottom 
-                  color="primary"
-                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem', md: '1.25rem' } }}
-                >
-                  Gift Settings
-                </Typography>
-                <Grid container spacing={{ xs: 1.5, sm: 2 }}>
-                  <Grid xs={12}>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 1,
-                      flexWrap: { xs: 'wrap', sm: 'nowrap' }
-                    }}>
-                      <Typography 
-                        variant="body2" 
-                        color="text.secondary"
-                        sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
-                      >
-                        Include Style Selection:
-                      </Typography>
-                      <Typography 
-                        variant="body1" 
-                        fontWeight={500}
-                        sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
-                      >
-                        {values.includeStyles ? 'Yes' : 'No'}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid xs={12}>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 1,
-                      flexWrap: { xs: 'wrap', sm: 'nowrap' }
-                    }}>
-                      <Typography 
-                        variant="body2" 
-                        color="text.secondary"
-                        sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
-                      >
-                        Allow Multiple Gifts:
-                      </Typography>
-                      <Typography 
-                        variant="body1" 
-                        fontWeight={500}
-                        sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
-                      >
-                        {values.allowMultipleGifts ? 'Yes' : 'No'}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
           </Box>
         );
 
@@ -521,9 +368,7 @@ const CreateEvent = () => {
                   switch (activeStep) {
                     case 0: // Basic Info
                       return ['eventName', 'eventContractNumber', 'eventStart'].includes(key);
-                    case 1: // Gift Settings
-                      return false; // No validation required
-                    case 2: // Confirmation
+                    case 1: // Confirmation
                       return false; // No validation required
                     default:
                       return false;
