@@ -95,6 +95,29 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [pickupFieldPreferences, setPickupFieldPreferences] = useState(getDefaultPreferences());
   const [savingPreferences, setSavingPreferences] = useState(false);
 
+  const hasUnsavedPickupChanges = React.useMemo(() => {
+    if (!event) return false;
+    const baseline = event.pickupFieldPreferences
+      ? { ...getDefaultPreferences(), ...event.pickupFieldPreferences }
+      : getDefaultPreferences();
+    return Object.keys(baseline).some(
+      (key) => baseline[key] !== pickupFieldPreferences[key]
+    );
+  }, [event, pickupFieldPreferences]);
+
+  // Warn user if navigating away with unsaved pick-up modal settings
+  React.useEffect(() => {
+    if (!hasUnsavedPickupChanges) return;
+
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedPickupChanges]);
+
   // Load preferences from event when event is fetched
   React.useEffect(() => {
     if (event?.pickupFieldPreferences) {
@@ -888,17 +911,6 @@ const InventoryPage = ({ eventId, eventName }) => {
               Add Item
             </Button>
           </Box>
-          {canModifyInventory && selectedItems.length > 0 && (
-            <Button
-              variant="contained"
-              color="error"
-              startIcon={<DeleteIcon />}
-              onClick={handleBulkDelete}
-              disabled={bulkDeleting}
-            >
-              {bulkDeleting ? 'Deleting...' : `Delete ${selectedItems.length} Item(s)`}
-            </Button>
-          )}
         </Box>
       )}
 
@@ -967,7 +979,12 @@ const InventoryPage = ({ eventId, eventName }) => {
                 <Typography>Size</Typography>
               </Box>
             </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 3, gap: 2 }}>
+              {hasUnsavedPickupChanges && (
+                <Typography variant="caption" color="warning.main">
+                  You have unsaved changes. Click <strong>Save Settings</strong> to apply them.
+                </Typography>
+              )}
               <Button
                 variant="contained"
                 color="primary"
@@ -1310,6 +1327,7 @@ const InventoryPage = ({ eventId, eventName }) => {
             </Box>
 
             <Box display="flex" justifyContent="flex-end" mb={1}>
+              {/* Edit Mode Buttons */}
               {canUpdateInventoryCounts && (
                 isEditMode ? (
                   <Box display="flex" gap={1}>
@@ -1341,7 +1359,21 @@ const InventoryPage = ({ eventId, eventName }) => {
                     Update Counts
                   </Button>
                 )
+              )} {/* End of Edit Mode Buttons */}
+              {/* Bulk Delete Button */}
+              {canModifyInventory && selectedItems.length > 0 && (
+                <Button
+                  variant="contained"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleting}
+                  sx={{ ml: 2 }}
+                >
+                  {bulkDeleting ? 'Deleting...' : `Delete ${selectedItems.length} Item(s)`}
+                </Button>
               )}
+              {/* End of Bulk Delete Button */}
             </Box>
 
             {/* Mobile Card Layout */}
@@ -1622,6 +1654,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                     <TableRow>
                       {canModifyInventory && (
                         <TableCell padding="checkbox">
+                          <Tooltip title="Select all items">
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <Checkbox
                             indeterminate={
                               filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
@@ -1634,7 +1668,9 @@ const InventoryPage = ({ eventId, eventName }) => {
                             }
                             onChange={handleSelectAll}
                             inputProps={{ 'aria-label': 'select all items' }}
-                          />
+                            />
+                            </Box>
+                            </Tooltip>
                         </TableCell>
                       )}
                       <TableCell>
