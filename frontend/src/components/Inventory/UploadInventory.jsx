@@ -78,7 +78,7 @@ const UploadInventory = () => {
     size: { required: false, label: 'SIZE', section: 'optional' },
     gender: { required: false, label: 'GENDER', section: 'optional' },
     color: { required: false, label: 'COLOR', section: 'optional' },
-    qtyWarehouse: { required: false, label: 'QTY WAREHOUSE', section: 'optional' },
+    qtyWarehouse: { required: false, label: 'QTY FROM FC OR ORDERED QUANTITY', section: 'optional' },
     qtyBeforeEvent: { required: false, label: 'QTY BEFORE EVENT', section: 'optional' },
     qtyOnSite: { required: false, label: 'QTY ON SITE', section: 'optional' },
     currentInventory: { required: false, label: 'CURRENT INVENTORY', section: 'optional' },
@@ -819,7 +819,16 @@ const UploadInventory = () => {
                         </Box>
                       </Box>
                       {Object.entries(expectedColumns)
-                        .filter(([field, config]) => config.section === 'optional')
+                        .filter(([field, config]) => {
+                          if (config.section !== 'optional') return false;
+                          // Hide quantity fields from the mapping step
+                          return ![
+                            'qtyBeforeEvent',
+                            'qtyOnSite',
+                            'currentInventory',
+                            'postEventCount'
+                          ].includes(field);
+                        })
                         .map(([field, config]) => {
                           return (
                             <Box key={field} sx={{ display: 'flex', alignItems: 'flex-start', gap: 3 }}>
@@ -965,7 +974,7 @@ const UploadInventory = () => {
                                 <TableCell sx={{ fontWeight: 600 }}>Color</TableCell>
                               )}
                               {columnMapping.qtyWarehouse && (
-                                <TableCell sx={{ fontWeight: 600 }}>Qty Warehouse</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>FC Received or Ordered Quantity</TableCell>
                               )}
                             </TableRow>
                           </TableHead>
