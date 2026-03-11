@@ -134,12 +134,23 @@ const DashboardEventCard = ({
         <Divider />
         <Box>
           <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-            Allocated To
+            Assigned To
           </Typography>
           {event.allocatedToSecondaryEvent ? (
-            <Typography variant="body2" color="primary.main" fontWeight={500}>
-              {event.allocatedToSecondaryEvent.eventName}
-            </Typography>
+  	        <Typography
+  	          variant="body2"
+  	          color="primary.main"
+  	          fontWeight={500}
+  	          sx={{
+  	            cursor: 'pointer',
+  	            textDecoration: 'underline',
+  	            textDecorationThickness: '0.06em',
+  	            textUnderlineOffset: '0.12em'
+  	          }}
+  	          onClick={() => navigate(`/events/${event.allocatedToSecondaryEvent._id}`)}
+  	        >
+  	          {event.allocatedToSecondaryEvent.eventName}
+  	        </Typography>
           ) : (
             <Typography variant="body2" color="text.secondary">
               Main Event

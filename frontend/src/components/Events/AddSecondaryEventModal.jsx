@@ -16,8 +16,8 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 const validationSchema = Yup.object({
-  eventName: Yup.string().required('Event name is required'),
-  eventStart: Yup.string().required('Event start date is required'),
+  eventName: Yup.string().required('Station name or gift name is required'),
+  eventStart: Yup.string().required('Station start date is required'),
 });
 
 const AddSecondaryEventModal = ({
@@ -68,7 +68,7 @@ const AddSecondaryEventModal = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Add Secondary Event</DialogTitle>
+      <DialogTitle>Add An Additional Gift</DialogTitle>
       <Formik
         initialValues={initialValues}
         validationSchema={validationSchema}
@@ -83,7 +83,7 @@ const AddSecondaryEventModal = ({
                     <TextField
                       {...field}
                       fullWidth
-                      label="Event Name"
+                      label="Station Name or Gift Name"
                       required
                       error={touched.eventName && !!errors.eventName}
                       helperText={touched.eventName && errors.eventName}
@@ -99,7 +99,7 @@ const AddSecondaryEventModal = ({
                       label="Contract Number"
                       required
                       disabled
-                      helperText="Secondary events share the same contract number as the main event"
+                      helperText="All gifts share the same contract number as the main event"
                       error={touched.eventContractNumber && !!errors.eventContractNumber}
                     />
                   )}
@@ -110,7 +110,7 @@ const AddSecondaryEventModal = ({
                     <TextField
                       {...field}
                       fullWidth
-                      label="Event Date"
+                      label="Event Start Date"
                       type="date"
                       required
                       InputLabelProps={{ shrink: true }}
@@ -125,7 +125,7 @@ const AddSecondaryEventModal = ({
                     <TextField
                       {...field}
                       fullWidth
-                      label="End Date (Optional)"
+                      label="Event End Date"
                       type="date"
                       InputLabelProps={{ shrink: true }}
                     />

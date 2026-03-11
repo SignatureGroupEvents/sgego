@@ -96,7 +96,7 @@ const ManageSection = ({
       </Button>
       {canModify && (
         <Button
-          variant="contained"
+          variant="outlined"
           startIcon={<CardGiftcardIcon />}
           onClick={onAddEvent}
           sx={{
@@ -105,16 +105,16 @@ const ManageSection = ({
             minWidth: { xs: '100%', sm: 300 },
             width: { xs: '100%', sm: 300 },
             height: 40,
-            color: 'white',
+            color: 'primary.main',
             '&:hover': {
-              color: 'white',
+              color: 'primary.dark',
             },
             '&:active': {
-              color: 'white',
+              color: 'primary.dark',
             },
           }}
         >
-          Add Additional Gift
+          Add Additional Gift Station
         </Button>
       )}
       {canModify && (
