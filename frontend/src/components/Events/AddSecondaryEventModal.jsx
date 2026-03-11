@@ -57,7 +57,8 @@ const AddSecondaryEventModal = ({
       });
       
       toast.success('Secondary event created successfully');
-      onEventAdded(response.data);
+      const addedEvent = response.data?.event || response.data;
+      onEventAdded(addedEvent);
       onClose();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to create secondary event');
