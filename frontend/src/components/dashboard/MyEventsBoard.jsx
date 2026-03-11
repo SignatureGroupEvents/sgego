@@ -721,7 +721,7 @@ const MyEventsBoard = () => {
             disabled={isStaff}
           />
           <Tab 
-            label={`Assigned Events (${myAssignedEvents.length})`}
+            label={`Assigned Events (${myAssignedEvents.filter((ev) => isEventActive(ev)).length})`}
             sx={{ minWidth: { xs: 'auto', sm: 160 } }}
           />
           <Tab 
@@ -825,7 +825,7 @@ const MyEventsBoard = () => {
                           <TableCell sx={{ fontWeight: 600 }}>Start Date</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>End Date</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Allocated To</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>Created By</TableCell>
                         </TableRow>
                       </TableHead>
@@ -895,15 +895,18 @@ const MyEventsBoard = () => {
                                 </Box>
                               </TableCell>
                               <TableCell>
-                                {event.allocatedToSecondaryEvent ? (
-                                  <Typography variant="body2" color="primary.main" fontWeight={500}>
-                                    {event.allocatedToSecondaryEvent.eventName}
+                                  <Typography variant="body2" color="primary.main" fontWeight={500}
+                                    sx={{
+                                      cursor: 'pointer',
+                                      textDecoration: 'underline',
+                                      textDecorationThickness: '0.06em',
+                                      textUnderlineOffset: '0.12em',
+                                      '&:hover': { opacity: 0.85 }
+                                    }}
+                                    onClick={() => navigate(`/events/${event.allocatedToSecondaryEvent._id}`)}
+                                  >
+                                    {event.allocatedToSecondaryEvent ? event.allocatedToSecondaryEvent.eventName : 'Main Event'}
                                   </Typography>
-                                ) : (
-                                  <Typography variant="body2" color="text.secondary">
-                                    Main Event
-                                  </Typography>
-                                )}
                               </TableCell>
                               <TableCell>
                                 <Box sx={{ display: 'flex', gap: 0.5 }}>

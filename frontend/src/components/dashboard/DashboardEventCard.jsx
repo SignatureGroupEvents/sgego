@@ -127,7 +127,9 @@ const DashboardEventCard = ({
   };
 
   const renderAllocatedTo = () => {
-    if (variant !== 'assigned') return null;
+    const hasAllocation = event.allocatedToSecondaryEvent != null;
+    const targetId = hasAllocation ? event.allocatedToSecondaryEvent._id : event._id;
+    const label = hasAllocation ? event.allocatedToSecondaryEvent.eventName : 'Main Event';
 
     return (
       <>
@@ -136,26 +138,21 @@ const DashboardEventCard = ({
           <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
             Assigned To
           </Typography>
-          {event.allocatedToSecondaryEvent ? (
-  	        <Typography
-  	          variant="body2"
-  	          color="primary.main"
-  	          fontWeight={500}
-  	          sx={{
-  	            cursor: 'pointer',
-  	            textDecoration: 'underline',
-  	            textDecorationThickness: '0.06em',
-  	            textUnderlineOffset: '0.12em'
-  	          }}
-  	          onClick={() => navigate(`/events/${event.allocatedToSecondaryEvent._id}`)}
-  	        >
-  	          {event.allocatedToSecondaryEvent.eventName}
-  	        </Typography>
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              Main Event
-            </Typography>
-          )}
+          <Typography
+            variant="body2"
+            color="primary.main"
+            fontWeight={500}
+            sx={{
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              textDecorationThickness: '0.06em',
+              textUnderlineOffset: '0.12em',
+              '&:hover': { opacity: 0.85 }
+            }}
+            onClick={() => navigate(`/events/${targetId}`)}
+          >
+            {label}
+          </Typography>
         </Box>
       </>
     );
