@@ -36,9 +36,43 @@ const ManageSection = ({
       boxShadow: 0,
     }}
   >
-    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2, ml: 1 }}>
-      Manage Your Event
-    </Typography>
+    <Box
+      sx={{
+        width: '100%',
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        alignItems: { xs: 'stretch', sm: 'center' },
+        justifyContent: { xs: 'center', sm: 'flex-start' },
+        gap: { xs: 2, sm: 120 },
+        mb: 2,
+      }}
+    >
+      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+        Manage Your Event
+      </Typography>
+      {canModify && (
+        <Button
+          variant="outlined"
+          startIcon={<DeleteIcon />}
+          onClick={onDeleteEvent}
+          sx={{
+            borderRadius: 5,
+            fontWeight: 600,
+            minWidth: { xs: '100%', sm: 260 },
+            height: 40,
+            color: 'error.main',
+            borderColor: 'error.main',
+            '&:hover': {
+              borderColor: 'error.dark',
+              backgroundColor: 'error.light',
+              color: 'error.contrastText',
+            },
+          }}
+        >
+          Delete Event
+        </Button>
+      )}
+    </Box>
     <Box
       sx={{
         display: 'flex',
@@ -115,29 +149,6 @@ const ManageSection = ({
           }}
         >
           Add Additional Gift Station
-        </Button>
-      )}
-      {canModify && (
-        <Button
-          variant="outlined"
-          startIcon={<DeleteIcon />}
-          onClick={onDeleteEvent}
-          sx={{
-            borderRadius: 5,
-            fontWeight: 600,
-            minWidth: BUTTON_SIZE,
-            width: BUTTON_SIZE,
-            height: 40,
-            color: 'error.main',
-            borderColor: 'error.main',
-            '&:hover': {
-              borderColor: 'error.dark',
-              backgroundColor: 'error.light',
-              color: 'error.contrastText',
-            },
-          }}
-        >
-          Delete Event
         </Button>
       )}
       {canManageTeam && (
