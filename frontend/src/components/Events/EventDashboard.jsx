@@ -431,6 +431,8 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
         open={secondaryModalOpen}
         parentEventId={mainEvent._id}
         parentContractNumber={mainEvent.eventContractNumber}
+        parentEventStart={mainEvent.eventStart}
+        parentEventEnd={mainEvent.eventEnd}
         onClose={() => setSecondaryModalOpen(false)}
         onEventAdded={(newEvent) => {
           // Add the new secondary event to the list

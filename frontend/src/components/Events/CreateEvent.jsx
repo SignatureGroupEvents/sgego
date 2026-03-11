@@ -60,10 +60,12 @@ const CreateEvent = () => {
 
   const steps = ['Basic Info', 'Confirmation'];
 
+  const getTodayDateString = () => new Date().toISOString().split('T')[0];
+
   const initialValues = {
     eventName: '',
     eventContractNumber: '',
-    eventStart: '',
+    eventStart: getTodayDateString(),
     eventEnd: '',
   };
 
@@ -146,7 +148,7 @@ const CreateEvent = () => {
                       fullWidth
                       label={
                         <span>
-                          Event Date <span style={{ color: 'red' }}>*</span>
+                          Event Start Date <span style={{ color: 'red' }}>*</span>
                         </span>
                       }
                       type="date"
@@ -163,7 +165,11 @@ const CreateEvent = () => {
                     <TextField
                       {...field}
                       fullWidth
-                      label="End Date (Optional)"
+                      label={
+                        <span>
+                          Event End Date <span style={{ color: 'red' }}>*</span>
+                        </span>
+                      }
                       type="date"
                       InputLabelProps={{ shrink: true }}
                     />

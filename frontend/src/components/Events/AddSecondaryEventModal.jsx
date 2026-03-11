@@ -20,14 +20,30 @@ const validationSchema = Yup.object({
   eventStart: Yup.string().required('Event start date is required'),
 });
 
-const AddSecondaryEventModal = ({ parentContractNumber,parentEventId, onClose, onEventAdded, open = true }) => {
+const AddSecondaryEventModal = ({
+  parentContractNumber,
+  parentEventId,
+  parentEventStart,
+  parentEventEnd,
+  onClose,
+  onEventAdded,
+  open = true
+}) => {
   const [loading, setLoading] = useState(false);
+
+  const formatDateForInput = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    // Guard against invalid dates
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  };
 
   const initialValues = {
     eventName: '',
     eventContractNumber: parentContractNumber || '',
-    eventStart: '',
-    eventEnd: '',
+    eventStart: formatDateForInput(parentEventStart),
+    eventEnd: formatDateForInput(parentEventEnd),
   };
 
   const handleSubmit = async (values) => {
