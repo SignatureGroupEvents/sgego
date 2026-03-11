@@ -19,7 +19,8 @@ const ManageSection = ({
   onManageTeam,
   onClientPortal,
   canModify,
-  canManageTeam
+  canManageTeam,
+  clientPortalEnabled = false
 }) => (
   <Box
     sx={{
@@ -178,9 +179,26 @@ const ManageSection = ({
             minWidth: BUTTON_SIZE,
             width: BUTTON_SIZE,
             height: 40,
+            ...(clientPortalEnabled
+              ? {
+                  color: 'text.secondary',
+                  borderColor: 'divider',
+                  '&:hover': {
+                    borderColor: 'text.secondary',
+                    backgroundColor: 'action.hover'
+                  }
+                }
+              : {
+                  color: 'primary.main',
+                  borderColor: 'primary.main',
+                  '&:hover': {
+                    borderColor: 'primary.dark',
+                    backgroundColor: 'primary.light'
+                  }
+                })
           }}
         >
-          Client Portal
+          {clientPortalEnabled ? 'Edit Client Portal' : 'Activate Client Portal'}
         </Button>
       )}
     </Box>

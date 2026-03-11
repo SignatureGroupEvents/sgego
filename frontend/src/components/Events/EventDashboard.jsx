@@ -294,6 +294,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                   onClientPortal={() => navigate(`/events/${eventId}/client-portal`)}
                   canModify={canModifyEvents}
                   canManageTeam={canModifyEvents}
+                  clientPortalEnabled={!!(parentEvent || event)?.clientPortal?.enabled}
                 />
               </>
             )}
@@ -373,6 +374,7 @@ const EventDashboard = ({ eventId, inventory = [], inventoryLoading = false, inv
                 onClientPortal={() => navigate(`/events/${eventId}/client-portal`)}
                 canModify={canModifyEvents}
                 canManageTeam={canModifyEvents}
+                clientPortalEnabled={!!mainEvent?.clientPortal?.enabled}
               />
             )}
 
