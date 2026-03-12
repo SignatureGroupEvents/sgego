@@ -907,8 +907,13 @@ const UploadGuest = () => {
                                     backgroundColor: 'background.paper',
                                     height: '40px',
                                     '& .MuiSelect-select': {
-                                      color: columnMapping[field] ? 'text.primary' : '#999',
-                                      padding: '8px 14px'
+                                      color: columnMapping[field] === 'ignore'
+                                        ? 'text.secondary'
+                                        : columnMapping[field]
+                                        ? 'text.primary'
+                                        : '#999',
+                                      padding: '8px 14px',
+                                      fontStyle: columnMapping[field] === 'ignore' ? 'italic' : 'normal'
                                     },
                                     '& .MuiOutlinedInput-notchedOutline': {
                                       borderColor: '#ddd'
@@ -924,6 +929,9 @@ const UploadGuest = () => {
                                 >
                                   <MenuItem value="" disabled>
                                     <em style={{ color: '#999', fontStyle: 'normal' }}>Select Column</em>
+                                  </MenuItem>
+                                  <MenuItem value="ignore" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
+                                    Don't import this column
                                   </MenuItem>
                                   {parsedData.headers.map((header) => (
                                     <MenuItem key={header} value={header}>
