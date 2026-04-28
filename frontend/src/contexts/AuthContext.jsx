@@ -19,9 +19,13 @@ export const AuthProvider = ({ children }) => {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       api.get('/auth/profile')
         .then(response => setUser(response.data.user))
-        .catch(() => {
-          localStorage.removeItem('token');
-          delete api.defaults.headers.common['Authorization'];
+        .catch((error) => {
+          console.error('Error fetching profile:', error);
+          // Only clear the token when the server rejects it (401). Network errors and 5xx leave storage intact.
+          if (error.response?.status === 401) {
+            localStorage.removeItem('token');
+            delete api.defaults.headers.common['Authorization'];
+          }
         })
         .finally(() => setLoading(false));
     } else {
