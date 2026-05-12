@@ -23,10 +23,14 @@ export const AuthProvider = ({ children }) => {
     return api
       .get('/auth/profile')
       .then((response) => setUser(response.data.user))
-      .catch(() => {
-        localStorage.removeItem('token');
-        delete api.defaults.headers.common['Authorization'];
-        setUser(null);
+      .catch((err) => {
+        const status = err?.response?.status;
+        // Only drop the token on explicit unauthorized — not CORS/network/5xx
+        if (status === 401) {
+          localStorage.removeItem('token');
+          delete api.defaults.headers.common['Authorization'];
+          setUser(null);
+        }
       });
   }, []);
 

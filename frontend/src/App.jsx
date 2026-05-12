@@ -1,8 +1,18 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useParams,
+  useSearchParams,
+  useNavigate,
+} from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { AuthProvider } from './contexts/AuthContext';
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
 import theme from './styles/theme';
 
@@ -49,6 +59,61 @@ function ResetPasswordTokenRedirect() {
   return <Navigate to={`/auth?view=reset-password&token=${token}`} replace />;
 }
 
+/** Root `/`: send restored sessions to the app; otherwise to login. */
+function RootRedirect() {
+  const { user, loading } = useAuth();
+  const hasToken = typeof localStorage !== 'undefined' && !!localStorage.getItem('token');
+
+  if (loading && hasToken) {
+    return (
+      <Box minHeight="100vh" display="flex" alignItems="center" justifyContent="center" bgcolor="#fef8f4">
+        <CircularProgress />
+      </Box>
+    );
+  }
+  if (!loading && user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Navigate to="/auth?view=login" replace />;
+}
+
+/**
+ * `/auth`: if internal user is already restored, skip the login screen (handled in App per routing).
+ */
+function InternalAuthRoute() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { user, loading } = useAuth();
+  const view = searchParams.get('view') || 'login';
+  const inviteToken = searchParams.get('token');
+  const shouldShowRegister = view === 'register' && inviteToken;
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) return;
+    if (shouldShowRegister) return;
+    if (view !== 'login') return;
+    navigate('/dashboard', { replace: true });
+  }, [loading, user, view, shouldShowRegister, navigate]);
+
+  const restoringSession =
+    loading &&
+    view === 'login' &&
+    !shouldShowRegister &&
+    typeof localStorage !== 'undefined' &&
+    !!localStorage.getItem('token');
+
+  if (restoringSession) {
+    return (
+      <Box minHeight="100vh" display="flex" alignItems="center" justifyContent="center" bgcolor="#fef8f4">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return <AuthPage />;
+}
+
 function App() {
   return (
     <ThemeProvider theme={theme}>
@@ -56,9 +121,9 @@ function App() {
       <AuthProvider>
         <Router>
           <Routes>
-            <Route path="/" element={<Navigate to="/auth?view=login" replace />} />
+            <Route path="/" element={<RootRedirect />} />
             {/* Auth routes */}
-            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/auth" element={<InternalAuthRoute />} />
             <Route path="/login" element={<Navigate to="/auth?view=login" replace />} />
             <Route path="/invite/:token" element={<InviteRedirect />} />
             <Route path="/reset-password" element={<Navigate to="/auth?view=forgot-password" replace />} />
