@@ -14,7 +14,6 @@ const required = {
   'PORT': process.env.PORT,
   'MONGODB_URI': process.env.MONGODB_URI,
   'JWT_SECRET': process.env.JWT_SECRET,
-  'JWT_EXPIRE': process.env.JWT_EXPIRE,
   'CLIENT_URL': process.env.CLIENT_URL,
   'FRONTEND_URL': process.env.FRONTEND_URL,
   'CORS_ORIGIN': process.env.CORS_ORIGIN,
@@ -76,5 +75,6 @@ console.log('  - Ensure CLIENT_URL matches your frontend URL');
 console.log('  - Update EMAIL_USER to admin@signaturegroupevents.com');
 console.log('  - Use App Password (not regular password) for EMAIL_PASS');
 console.log('  - See ENV_CONFIGURATION.md for detailed setup instructions');
+console.log('  - Internal staff JWT: set JWT_EXPIRE_INTERNAL (e.g. 30d) or default 30d; portal tokens use a separate expiry');
 console.log('');
 

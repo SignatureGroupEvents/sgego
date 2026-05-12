@@ -24,8 +24,11 @@ MONGODB_URI=mongodb://localhost:27017/sevent    # Database connection
 ### 2. JWT/Authentication
 ```env
 JWT_SECRET=your_super_secret_jwt_key_for_development_12345
-JWT_EXPIRE=7d                 # Token expiration (7 days)
+JWT_EXPIRE_INTERNAL=30d
 ```
+
+- **`JWT_SECRET`** (required) — signing key for internal staff JWTs.
+- **`JWT_EXPIRE_INTERNAL`** (optional) — `expiresIn` string for internal staff tokens (login, register, accept-invite), e.g. `30d`, `12h`. Parsed by `jsonwebtoken`. If omitted, the server uses **`30d`**. The client portal uses a **separate** token and expiry in `portalController.js` — it is **not** controlled by this variable.
 
 ### 3. Frontend URL Configuration
 ```env
@@ -189,7 +192,7 @@ MONGODB_URI=mongodb://localhost:27017/sevent
 
 # Authentication
 JWT_SECRET=your_super_secret_jwt_key_change_in_production
-JWT_EXPIRE=7d
+JWT_EXPIRE_INTERNAL=30d
 
 # Frontend URLs
 CLIENT_URL=http://localhost:3000

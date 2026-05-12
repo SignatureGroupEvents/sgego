@@ -33,7 +33,6 @@ MONGODB_URI=mongodb://localhost:27017/sevent
 
 # Authentication
 JWT_SECRET=your_super_secret_jwt_key_for_development_12345
-JWT_EXPIRE=7d
 
 # Frontend URLs (UPDATE THESE!)
 CLIENT_URL=http://localhost:3000              # Local development

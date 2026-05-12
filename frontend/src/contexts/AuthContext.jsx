@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
 const AuthContext = createContext();
@@ -13,32 +13,58 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const loadUserFromToken = useCallback((token) => {
+    if (!token) {
+      delete api.defaults.headers.common['Authorization'];
+      setUser(null);
+      return Promise.resolve();
+    }
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    return api
+      .get('/auth/profile')
+      .then((response) => setUser(response.data.user))
+      .catch(() => {
+        localStorage.removeItem('token');
+        delete api.defaults.headers.common['Authorization'];
+        setUser(null);
+      });
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      api.get('/auth/profile')
-        .then(response => setUser(response.data.user))
-        .catch(() => {
-          localStorage.removeItem('token');
-          delete api.defaults.headers.common['Authorization'];
-        })
-        .finally(() => setLoading(false));
+      loadUserFromToken(token).finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
-  }, []);
+  }, [loadUserFromToken]);
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.storageArea !== localStorage) return;
+      if (e.key !== 'token' && e.key !== null) return;
+      if (e.key === null) {
+        if (!localStorage.getItem('token')) {
+          loadUserFromToken(null).finally(() => setLoading(false));
+        }
+        return;
+      }
+      loadUserFromToken(e.newValue).finally(() => setLoading(false));
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [loadUserFromToken]);
 
   const login = async (credentials) => {
     try {
       const response = await api.post('/auth/login', credentials);
-      const { token, user } = response.data;
+      const { token, user: userData } = response.data;
 
       localStorage.setItem('token', token);
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      setUser(user);
+      setUser(userData);
 
-      return { success: true, user };
+      return { success: true, user: userData };
     } catch (error) {
       return {
         success: false,
