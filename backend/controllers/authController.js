@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const sendEmail = require('../utils/sendEmail');
 
 // Internal staff JWT only (login / register / accept-invite). Client portal uses separate signing in portalController.
-const INTERNAL_JWT_EXPIRES_IN = '30d';
+const INTERNAL_JWT_EXPIRES_IN = process.env.JWT_EXPIRE_INTERNAL || '30d';
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {

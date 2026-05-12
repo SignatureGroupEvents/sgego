@@ -75,6 +75,6 @@ console.log('  - Ensure CLIENT_URL matches your frontend URL');
 console.log('  - Update EMAIL_USER to admin@signaturegroupevents.com');
 console.log('  - Use App Password (not regular password) for EMAIL_PASS');
 console.log('  - See ENV_CONFIGURATION.md for detailed setup instructions');
-console.log('  - Internal staff JWT lifetime is 30 days (code); portal tokens use a separate expiry');
+console.log('  - Internal staff JWT: set JWT_EXPIRE_INTERNAL (e.g. 30d) or default 30d; portal tokens use a separate expiry');
 console.log('');
 
