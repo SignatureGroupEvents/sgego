@@ -8,7 +8,6 @@ const envContent = `NODE_ENV=development
 PORT=3001
 MONGODB_URI=mongodb://localhost:27017/sevent
 JWT_SECRET=your_super_secret_jwt_key_for_development_12345
-JWT_EXPIRE=7d
 CORS_ORIGIN=http://localhost:3000
 CLIENT_URL=http://localhost:3000
 FRONTEND_URL=http://localhost:3000
