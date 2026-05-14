@@ -20,7 +20,10 @@ import {
   DialogTitle,
   DialogContent,
   DialogContentText,
-  DialogActions
+  DialogActions,
+  TablePagination,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
@@ -29,6 +32,9 @@ import toast from 'react-hot-toast';
 import { getEventActivityFeed } from '../../../services/api';
 import { getUserDisplayName } from '../../../utils/userDisplay';
 import AvatarIcon from '../AvatarIcon';
+
+/** Rows requested from the API each load (no backend cap; raise if events exceed this). */
+const ACTIVITY_FETCH_LIMIT = 5000;
 
 /** Action phrase only (no name): "Updated inventory", "Checked in Miranda Lambert", etc. */
 const getActionLine = (log) => {
@@ -119,16 +125,34 @@ const getGuestActionPrefix = (type) => {
 
 const ActivityFeed = ({ refreshKey = 0 } = {}) => {
   const { eventId } = useParams();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [limit, setLimit] = useState(50);
   const [searchQuery, setSearchQuery] = useState('');
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [confirmExportOpen, setConfirmExportOpen] = useState(false);
   const [confirmExportFormat, setConfirmExportFormat] = useState(null); // 'csv' | 'xlsx'
+
+  // Pagination state - default to 100 for mobile, 10 for desktop (GuestTable pattern)
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(isMobile ? 100 : 10);
+
+  // Update rowsPerPage when mobile state changes
+  React.useEffect(() => {
+    if (isMobile) {
+      setRowsPerPage(100);
+    } else {
+      // Only reset to 10 if it was 100 (to avoid resetting user's desktop preference)
+      if (rowsPerPage === 100) {
+        setRowsPerPage(10);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
 
   useEffect(() => {
     const fetchActivityFeed = async () => {
@@ -141,7 +165,7 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
       setLoading(true);
       setError('');
       try {
-        const filters = { limit };
+        const filters = { limit: ACTIVITY_FETCH_LIMIT };
         if (filterType !== 'all') filters.type = filterType;
         const response = await getEventActivityFeed(eventId, filters);
         setLogs(response.data?.logs || []);
@@ -155,7 +179,20 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
     };
 
     fetchActivityFeed();
-  }, [eventId, filterType, limit, refreshKey]);
+  }, [eventId, filterType, refreshKey]);
+
+  React.useEffect(() => {
+    setPage(0);
+  }, [filterType, refreshKey]);
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
 
   const formatDateTime = (timestamp) => {
     if (!timestamp) return '—';
@@ -182,6 +219,20 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
       );
     });
   }, [logs, searchQuery]);
+
+  const paginatedLogs = useMemo(
+    () => filteredLogs.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filteredLogs, page, rowsPerPage]
+  );
+
+  React.useEffect(() => {
+    if (filteredLogs.length === 0) {
+      if (page !== 0) setPage(0);
+      return;
+    }
+    const lastPage = Math.ceil(filteredLogs.length / rowsPerPage) - 1;
+    if (page > lastPage) setPage(Math.max(0, lastPage));
+  }, [filteredLogs.length, rowsPerPage, page]);
 
   const exportActivityToCSV = () => {
     if (!filteredLogs.length) {
@@ -273,6 +324,7 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
   };
 
   return (
+    <>
     <Card sx={{ mb: 4 }}>
       <CardContent>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}>
@@ -320,15 +372,6 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
                 <MenuItem value="event_archive">Event archived</MenuItem>
                 <MenuItem value="event_unarchive">Event unarchived</MenuItem>
                 <MenuItem value="other">Other</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 100 }}>
-              <InputLabel>Limit</InputLabel>
-              <Select value={limit} onChange={(e) => setLimit(Number(e.target.value))} label="Limit">
-                <MenuItem value={25}>25</MenuItem>
-                <MenuItem value={50}>50</MenuItem>
-                <MenuItem value={100}>100</MenuItem>
-                <MenuItem value={200}>200</MenuItem>
               </Select>
             </FormControl>
             <Button
@@ -411,7 +454,7 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
           </Box>
         ) : (
           <Box sx={{ maxHeight: 560, overflowY: 'auto' }}>
-            {filteredLogs.map((log, index) => {
+            {paginatedLogs.map((log, index) => {
               const displayName = getUserDisplayName(log.performedBy, 'Someone');
               const actionLine = getActionLine(log);
               const notes = getNotes(log);
@@ -474,6 +517,52 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
         )}
       </CardContent>
     </Card>
+
+    {!loading && !error && (
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+        <TablePagination
+          component="div"
+          count={filteredLogs.length}
+          page={page}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          rowsPerPageOptions={isMobile ? [100] : [10, 25, 50, 100]}
+          labelRowsPerPage={isMobile ? '' : 'Activities per page'}
+          sx={{
+            '& .MuiTablePagination-toolbar': {
+              flexWrap: 'wrap',
+              gap: { xs: 1, sm: 0 },
+              justifyContent: 'center',
+              paddingLeft: { xs: '8px', sm: '16px' },
+              paddingRight: { xs: '8px', sm: '16px' }
+            },
+            '& .MuiTablePagination-selectLabel': {
+              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+              display: { xs: 'none', sm: 'block' }
+            },
+            '& .MuiTablePagination-select': {
+              display: { xs: 'none', sm: 'block' }
+            },
+            '& .MuiTablePagination-displayedRows': {
+              fontSize: { xs: '0.875rem', sm: '0.875rem' },
+              fontWeight: { xs: 500, sm: 400 }
+            },
+            '& .MuiTablePagination-spacer': {
+              display: 'none'
+            },
+            '& .MuiIconButton-root': {
+              padding: { xs: '12px', sm: '8px' },
+              fontSize: { xs: '1.5rem', sm: '1.25rem' }
+            },
+            '& .MuiSvgIcon-root': {
+              fontSize: { xs: '2rem', sm: '1.5rem' }
+            }
+          }}
+        />
+      </Box>
+    )}
+    </>
   );
 };
 
