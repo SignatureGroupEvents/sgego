@@ -36,13 +36,47 @@ import AvatarIcon from '../AvatarIcon';
 /** Rows requested from the API each load (no backend cap; raise if events exceed this). */
 const ACTIVITY_FETCH_LIMIT = 5000;
 
+/** Gift line for check-in logs (giftsReceivedSummary or populated legacy giftsDistributed). */
+const getCheckinGiftReceivedLabel = (log) => {
+  const summary = log.details?.giftsReceivedSummary;
+  if (Array.isArray(summary) && summary.length > 0) {
+    return summary
+      .map((s) => {
+        const name = (s.displayName || '').trim() || 'Gift';
+        const q = Number(s.quantity) > 1 ? Number(s.quantity) : null;
+        return q ? `${name} (×${q})` : name;
+      })
+      .join(', ');
+  }
+  const legacy = log.details?.giftsDistributed;
+  if (Array.isArray(legacy) && legacy.length > 0) {
+    const parts = legacy
+      .map((g) => {
+        const inv = g.inventoryId;
+        if (inv && typeof inv === 'object' && (inv.product || inv.type || inv.style)) {
+          const name = [inv.type, inv.style, inv.product].filter(Boolean).join(' ').trim() || 'Gift';
+          const q = Number(g.quantity) > 1 ? ` (×${g.quantity})` : '';
+          return `${name}${q}`;
+        }
+        return null;
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join(', ') : '';
+  }
+  return '';
+};
+
 /** Action phrase only (no name): "Updated inventory", "Checked in Miranda Lambert", etc. */
 const getActionLine = (log) => {
   const guestName = log.details?.guestName;
   const msg = log.details?.message || log.details?.description;
   switch (log.type) {
-    case 'checkin':
-      return guestName ? `Checked in ${guestName}` : 'Checked in a guest';
+    case 'checkin': {
+      const station = log.details?.checkinEventName;
+      const gifts = getCheckinGiftReceivedLabel(log);
+      const base = guestName ? `Checked in ${guestName}` : 'Checked in a guest';
+      return [base, station, gifts].filter((x) => x && String(x).trim()).join(' ');
+    }
     case 'undo_checkin':
       return guestName ? `Undid check-in for ${guestName}` : 'Undid a check-in';
     case 'update_gifts':
@@ -53,6 +87,10 @@ const getActionLine = (log) => {
     }
     case 'guest_list_uploaded':
       return 'Uploaded Guest List';
+    case 'main_event_fully_picked_up': {
+      const n = log.details?.guestName;
+      return n ? `Fully Picked Up — ${n}` : 'Fully Picked Up';
+    }
     case 'inventory_update':
       return msg || 'Updated inventory';
     case 'inventory_add':
@@ -91,6 +129,8 @@ const getTypeColor = (type) => {
     case 'guest_added':
     case 'guest_list_uploaded':
       return 'primary';
+    case 'main_event_fully_picked_up':
+      return 'success';
     case 'inventory_update':
     case 'inventory_add':
     case 'allocation_update':
@@ -114,21 +154,21 @@ const getNotes = (log) => {
   return typeof notes === 'string' && notes.trim() ? notes.trim() : null;
 };
 
-/** Whether this log has a guest we can link to (check-in, undo, update gifts) */
+/** Whether this log has a guest we can link to (check-in uses custom layout; undo, update gifts, etc.) */
 const hasGuestLink = (log) => {
   const guestId = log.details?.guestId;
   const guestName = log.details?.guestName;
-  const linkable = ['checkin', 'undo_checkin', 'update_gifts', 'guest_added'].includes(log.type);
+  const linkable = ['undo_checkin', 'update_gifts', 'guest_added', 'main_event_fully_picked_up'].includes(log.type);
   return linkable && guestId && guestName;
 };
 
 /** Prefix text before guest name for linkable actions */
 const getGuestActionPrefix = (type) => {
   switch (type) {
-    case 'checkin': return 'Checked in ';
     case 'undo_checkin': return 'Undid check-in for ';
     case 'update_gifts': return 'Updated gifts for ';
     case 'guest_added': return 'Added Guest — ';
+    case 'main_event_fully_picked_up': return 'Fully Picked Up — ';
     default: return '';
   }
 };
@@ -220,11 +260,13 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
       const displayName = getUserDisplayName(log.performedBy, '');
       const actionLine = getActionLine(log);
       const guestName = (log.details?.guestName || '').toLowerCase();
+      const stationName = (log.details?.checkinEventName || '').toLowerCase();
       const notes = (getNotes(log) || '').toLowerCase();
       return (
         displayName.toLowerCase().includes(q) ||
         actionLine.toLowerCase().includes(q) ||
         guestName.includes(q) ||
+        stationName.includes(q) ||
         notes.includes(q)
       );
     });
@@ -374,6 +416,7 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
                 <MenuItem value="update_gifts">Gift update</MenuItem>
                 <MenuItem value="guest_added">Guest added</MenuItem>
                 <MenuItem value="guest_list_uploaded">Guest list uploaded</MenuItem>
+                <MenuItem value="main_event_fully_picked_up">Fully picked up (main program)</MenuItem>
                 <MenuItem value="inventory_update">Inventory update</MenuItem>
                 <MenuItem value="inventory_add">Inventory add</MenuItem>
                 <MenuItem value="allocation_update">Allocation update</MenuItem>
@@ -470,6 +513,7 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
               const displayName = getUserDisplayName(log.performedBy, 'Someone');
               const actionLine = getActionLine(log);
               const notes = getNotes(log);
+              const checkinGiftLine = log.type === 'checkin' ? getCheckinGiftReceivedLabel(log) : '';
               return (
                 <Box key={log._id || index}>
                   {index > 0 && <Divider sx={{ my: 1.5 }} />}
@@ -486,15 +530,15 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
                       <Typography variant="body2" component="span" fontWeight={600}>
                         {displayName}
                       </Typography>
-                      <Typography
-                        variant="body2"
-                        component="span"
-                        color={getTypeColor(log.type)}
-                        sx={{ ml: 0.5, fontWeight: 500 }}
-                      >
-                        {hasGuestLink(log) && eventId ? (
-                          <>
-                            {getGuestActionPrefix(log.type)}
+                      {log.type === 'checkin' && eventId && log.details?.guestId ? (
+                        <>
+                          <Typography
+                            variant="body2"
+                            component="span"
+                            color={getTypeColor(log.type)}
+                            sx={{ ml: 0.5, fontWeight: 500, display: 'block' }}
+                          >
+                            Checked in{' '}
                             <Link
                               component={RouterLink}
                               to={`/events/${eventId}/guests/${log.details.guestId}`}
@@ -507,14 +551,50 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
                             >
                               {log.details.guestName}
                             </Link>
-                          </>
-                        ) : (
-                          actionLine
-                        )}
-                      </Typography>
-                      <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.25 }}>
-                        {formatDateTime(log.timestamp)}
-                      </Typography>
+                            {log.details.checkinEventName ? ` - ${log.details.checkinEventName}` : ''}
+                          </Typography>
+                          {checkinGiftLine ? (
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                              Gift Received: {checkinGiftLine}
+                            </Typography>
+                          ) : null}
+                          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.25 }}>
+                            {formatDateTime(log.timestamp)}
+                          </Typography>
+                        </>
+                      ) : (
+                        <>
+                          <Typography
+                            variant="body2"
+                            component="span"
+                            color={getTypeColor(log.type)}
+                            sx={{ ml: 0.5, fontWeight: 500 }}
+                          >
+                            {hasGuestLink(log) && eventId ? (
+                              <>
+                                {getGuestActionPrefix(log.type)}
+                                <Link
+                                  component={RouterLink}
+                                  to={`/events/${eventId}/guests/${log.details.guestId}`}
+                                  sx={{
+                                    color: 'inherit',
+                                    fontWeight: 600,
+                                    textDecoration: 'underline',
+                                    '&:hover': { textDecoration: 'underline' }
+                                  }}
+                                >
+                                  {log.details.guestName}
+                                </Link>
+                              </>
+                            ) : (
+                              actionLine
+                            )}
+                          </Typography>
+                          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.25 }}>
+                            {formatDateTime(log.timestamp)}
+                          </Typography>
+                        </>
+                      )}
                       {notes && (
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, fontStyle: 'italic' }}>
                           {notes}

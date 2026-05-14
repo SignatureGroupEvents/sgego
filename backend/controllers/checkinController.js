@@ -20,6 +20,106 @@ const emitAnalyticsUpdate = (eventId) => {
   }
 };
 
+/** Event ids where pickup must be complete (matches GuestTable: secondaries only if any, else main). */
+async function getPickupStationEventIdStrings(mainEventId) {
+  if (!mainEventId) return [];
+  const secondaries = await Event.find({ parentEventId: mainEventId, isActive: true }).select('_id').lean();
+  if (secondaries.length > 0) {
+    return secondaries.map((s) => s._id.toString());
+  }
+  return [mainEventId.toString()];
+}
+
+function guestHasCheckedInForStation(guest, stationIdStr) {
+  const ecs = guest.eventCheckins || [];
+  for (const ec of ecs) {
+    const cid = ec.eventId?._id?.toString() || ec.eventId?.toString();
+    if (cid === stationIdStr && ec.checkedIn === true) return true;
+  }
+  return false;
+}
+
+/** True if guest has checkedIn for every pickup station under the main program (GuestTable "Fully Picked Up"). */
+async function guestFullyPickedUpOnMainProgram(guest, mainEventId) {
+  if (!guest || !mainEventId) return false;
+  const stations = await getPickupStationEventIdStrings(mainEventId);
+  if (stations.length === 0) return false;
+  return stations.every((sid) => guestHasCheckedInForStation(guest, sid));
+}
+
+function resolveMainProgramIdFromEventDoc(eventDoc) {
+  if (!eventDoc) return null;
+  if (eventDoc.isMainEvent) return eventDoc._id;
+  return eventDoc.parentEventId || eventDoc._id;
+}
+
+function buildInventoryDisplayName(inv) {
+  if (!inv) return 'Gift';
+  const parts = [inv.type, inv.style, inv.product].filter((p) => p && String(p).trim());
+  if (inv.color) parts.push(inv.color);
+  if (inv.size) parts.push(inv.size);
+  if (inv.gender && inv.gender !== 'N/A') parts.push(inv.gender);
+  const s = parts.join(' ').replace(/\s+/g, ' ').trim();
+  return s || 'Gift';
+}
+
+/** Batch-load inventory rows and build [{ displayName, quantity }] for activity logs. */
+async function buildGiftsReceivedSummaryFromDistributed(giftsDistributed) {
+  console.log('[checkin-activity-log] buildGiftsReceivedSummaryFromDistributed INPUT', {
+    length: giftsDistributed?.length ?? 0,
+    raw: giftsDistributed
+  });
+  if (!giftsDistributed || !giftsDistributed.length) {
+    console.log('[checkin-activity-log] early exit: empty or missing giftsDistributed');
+    return [];
+  }
+  const idStrings = [
+    ...new Set(
+      giftsDistributed
+        .map((g) => {
+          const id = g.inventoryId?._id ?? g.inventoryId;
+          return isValidInventoryId(id) ? id.toString() : null;
+        })
+        .filter(Boolean)
+    )
+  ];
+  console.log('[checkin-activity-log] collected inventory idStrings for Inventory.find', idStrings);
+  if (idStrings.length === 0) {
+    console.log('[checkin-activity-log] early exit: no valid inventory ids after extraction');
+    return [];
+  }
+
+  const objectIds = idStrings.map((s) => new mongoose.Types.ObjectId(s));
+  const items = await Inventory.find({ _id: { $in: objectIds } })
+    .select('type style product size gender color')
+    .lean();
+  console.log('[checkin-activity-log] Inventory.find result', {
+    queryCount: objectIds.length,
+    matchedCount: items.length,
+    items: items.map((i) => ({
+      _id: i._id?.toString(),
+      type: i.type,
+      style: i.style,
+      product: i.product
+    }))
+  });
+
+  const byId = new Map(items.map((i) => [i._id.toString(), i]));
+
+  const summary = [];
+  for (const g of giftsDistributed) {
+    const id = g.inventoryId?._id ?? g.inventoryId;
+    if (!isValidInventoryId(id)) continue;
+    const inv = byId.get(id.toString());
+    summary.push({
+      displayName: buildInventoryDisplayName(inv),
+      quantity: g.quantity && Number(g.quantity) > 0 ? Number(g.quantity) : 1
+    });
+  }
+  console.log('[checkin-activity-log] final giftsReceivedSummary (before ActivityLog.create)', summary);
+  return summary;
+}
+
 exports.getCheckinContext = async (req, res) => {
   try {
     const { eventId } = req.params;
@@ -75,6 +175,19 @@ exports.multiEventCheckin = async (req, res) => {
     const guest = await Guest.findById(guestId);
     if (!guest) {
       return res.status(404).json({ message: 'Guest not found' });
+    }
+
+    let mainIdForPickup = null;
+    let wasFullyPickedUpOnMain = false;
+    if (Array.isArray(checkins) && checkins.length > 0) {
+      const firstEntry = checkins.find((c) => c && c.eventId);
+      if (firstEntry) {
+        const anchorEv = await Event.findById(firstEntry.eventId);
+        if (anchorEv) {
+          mainIdForPickup = resolveMainProgramIdFromEventDoc(anchorEv);
+          wasFullyPickedUpOnMain = await guestFullyPickedUpOnMainProgram(guest, mainIdForPickup);
+        }
+      }
     }
 
     const results = [];
@@ -232,6 +345,26 @@ exports.multiEventCheckin = async (req, res) => {
     // Save guest - hasCheckedIn will be automatically derived from eventCheckins via pre-save hook
     await guest.save();
 
+    if (mainIdForPickup) {
+      const nowFullyPickedUpOnMain = await guestFullyPickedUpOnMainProgram(guest, mainIdForPickup);
+      if (!wasFullyPickedUpOnMain && nowFullyPickedUpOnMain) {
+        try {
+          await ActivityLog.create({
+            eventId: mainIdForPickup,
+            type: 'main_event_fully_picked_up',
+            performedBy: req.user.id,
+            details: {
+              guestId: guest._id,
+              guestName: `${guest.firstName} ${guest.lastName}`.trim()
+            },
+            timestamp: new Date()
+          });
+        } catch (logErr) {
+          console.error('Failed to log main_event_fully_picked_up:', logErr);
+        }
+      }
+    }
+
     // Populate the updated guest with eventCheckins for frontend
     await guest.populate([
       { path: 'eventId', select: 'eventName isMainEvent' },
@@ -254,18 +387,40 @@ exports.multiEventCheckin = async (req, res) => {
 
     // After guest and inventory are updated, log activity for each event check-in
     for (const record of checkinRecords) {
-      await ActivityLog.create({
-        eventId: record.eventId,
-        type: 'checkin',
-        performedBy: req.user.id,
-        details: {
-          guestId: guest._id,
-          guestName: `${guest.firstName} ${guest.lastName}`,
-          giftsDistributed: record.giftsDistributed,
-          notes: notes || '',
-        },
-        timestamp: new Date()
-      });
+      try {
+        console.log('[checkin-activity-log] multiEventCheckin before ActivityLog.create', {
+          recordEventId: record.eventId?._id || record.eventId,
+          giftsDistributedLength: record.giftsDistributed?.length,
+          giftsDistributed: record.giftsDistributed
+        });
+        let giftsReceivedSummary = [];
+        try {
+          giftsReceivedSummary = await buildGiftsReceivedSummaryFromDistributed(record.giftsDistributed);
+        } catch (sumErr) {
+          console.error('Failed to build giftsReceivedSummary for activity log:', sumErr);
+        }
+        const checkinEventName = record.eventId?.eventName || '';
+        console.log('[checkin-activity-log] multiEventCheckin saving ActivityLog with', {
+          checkinEventName,
+          giftsReceivedSummary
+        });
+        await ActivityLog.create({
+          eventId: record.eventId,
+          type: 'checkin',
+          performedBy: req.user.id,
+          details: {
+            guestId: guest._id,
+            guestName: `${guest.firstName} ${guest.lastName}`,
+            giftsDistributed: record.giftsDistributed,
+            notes: notes || '',
+            checkinEventName,
+            giftsReceivedSummary
+          },
+          timestamp: new Date()
+        });
+      } catch (logErr) {
+        console.error('Failed to log check-in activity:', logErr);
+      }
     }
 
     // Emit WebSocket updates for all updated events
@@ -304,6 +459,9 @@ exports.singleEventCheckin = async (req, res) => {
     if (guest.isCheckedIntoEvent(eventId)) {
       return res.status(400).json({ message: 'Guest already checked into this event' });
     }
+
+    const mainIdForPickup = resolveMainProgramIdFromEventDoc(event);
+    const wasFullyPickedUpOnMain = await guestFullyPickedUpOnMainProgram(guest, mainIdForPickup);
 
     const giftsDistributed = [];
 
@@ -399,6 +557,26 @@ exports.singleEventCheckin = async (req, res) => {
     // Save guest - hasCheckedIn will be automatically derived from eventCheckins via pre-save hook
     await guest.save();
 
+    if (mainIdForPickup) {
+      const nowFullyPickedUpOnMain = await guestFullyPickedUpOnMainProgram(guest, mainIdForPickup);
+      if (!wasFullyPickedUpOnMain && nowFullyPickedUpOnMain) {
+        try {
+          await ActivityLog.create({
+            eventId: mainIdForPickup,
+            type: 'main_event_fully_picked_up',
+            performedBy: req.user.id,
+            details: {
+              guestId: guest._id,
+              guestName: `${guest.firstName} ${guest.lastName}`.trim()
+            },
+            timestamp: new Date()
+          });
+        } catch (logErr) {
+          console.error('Failed to log main_event_fully_picked_up:', logErr);
+        }
+      }
+    }
+
     // Recalculate current inventory for each inventory item
     for (const gift of giftsDistributed) {
       if (isValidInventoryId(gift.inventoryId)) await Inventory.recalculateCurrentInventory(gift.inventoryId);
@@ -419,18 +597,39 @@ exports.singleEventCheckin = async (req, res) => {
     ]);
 
     // After guest and inventory are updated, log activity for each event check-in
-    await ActivityLog.create({
-      eventId: event._id,
-      type: 'checkin',
-      performedBy: req.user.id,
-      details: {
-        guestId: guest._id,
-        guestName: `${guest.firstName} ${guest.lastName}`,
-        giftsDistributed: giftsDistributed,
-        notes: notes || '',
-      },
-      timestamp: new Date()
-    });
+    try {
+      console.log('[checkin-activity-log] singleEventCheckin before ActivityLog.create', {
+        eventId: event._id,
+        giftsDistributedLength: giftsDistributed?.length,
+        giftsDistributed
+      });
+      let giftsReceivedSummary = [];
+      try {
+        giftsReceivedSummary = await buildGiftsReceivedSummaryFromDistributed(giftsDistributed);
+      } catch (sumErr) {
+        console.error('Failed to build giftsReceivedSummary for activity log:', sumErr);
+      }
+      console.log('[checkin-activity-log] singleEventCheckin saving ActivityLog with', {
+        checkinEventName: event.eventName || '',
+        giftsReceivedSummary
+      });
+      await ActivityLog.create({
+        eventId: event._id,
+        type: 'checkin',
+        performedBy: req.user.id,
+        details: {
+          guestId: guest._id,
+          guestName: `${guest.firstName} ${guest.lastName}`,
+          giftsDistributed: giftsDistributed,
+          notes: notes || '',
+          checkinEventName: event.eventName || '',
+          giftsReceivedSummary
+        },
+        timestamp: new Date()
+      });
+    } catch (logErr) {
+      console.error('Failed to log check-in activity:', logErr);
+    }
 
     // Emit WebSocket update for analytics
     emitAnalyticsUpdate(eventId);
