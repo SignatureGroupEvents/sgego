@@ -47,6 +47,12 @@ const getActionLine = (log) => {
       return guestName ? `Undid check-in for ${guestName}` : 'Undid a check-in';
     case 'update_gifts':
       return guestName ? `Updated gifts for ${guestName}` : 'Updated gift selection';
+    case 'guest_added': {
+      const addedName = log.details?.guestName;
+      return addedName ? `Added Guest — ${addedName}` : 'Added Guest';
+    }
+    case 'guest_list_uploaded':
+      return 'Uploaded Guest List';
     case 'inventory_update':
       return msg || 'Updated inventory';
     case 'inventory_add':
@@ -82,6 +88,9 @@ const getTypeColor = (type) => {
       return 'warning';
     case 'update_gifts':
       return 'primary';
+    case 'guest_added':
+    case 'guest_list_uploaded':
+      return 'primary';
     case 'inventory_update':
     case 'inventory_add':
     case 'allocation_update':
@@ -109,7 +118,7 @@ const getNotes = (log) => {
 const hasGuestLink = (log) => {
   const guestId = log.details?.guestId;
   const guestName = log.details?.guestName;
-  const linkable = ['checkin', 'undo_checkin', 'update_gifts'].includes(log.type);
+  const linkable = ['checkin', 'undo_checkin', 'update_gifts', 'guest_added'].includes(log.type);
   return linkable && guestId && guestName;
 };
 
@@ -119,6 +128,7 @@ const getGuestActionPrefix = (type) => {
     case 'checkin': return 'Checked in ';
     case 'undo_checkin': return 'Undid check-in for ';
     case 'update_gifts': return 'Updated gifts for ';
+    case 'guest_added': return 'Added Guest — ';
     default: return '';
   }
 };
@@ -362,6 +372,8 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
                 <MenuItem value="checkin">Check-ins</MenuItem>
                 <MenuItem value="undo_checkin">Undo check-in</MenuItem>
                 <MenuItem value="update_gifts">Gift update</MenuItem>
+                <MenuItem value="guest_added">Guest added</MenuItem>
+                <MenuItem value="guest_list_uploaded">Guest list uploaded</MenuItem>
                 <MenuItem value="inventory_update">Inventory update</MenuItem>
                 <MenuItem value="inventory_add">Inventory add</MenuItem>
                 <MenuItem value="allocation_update">Allocation update</MenuItem>

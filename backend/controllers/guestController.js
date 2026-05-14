@@ -1,5 +1,6 @@
 const Guest = require('../models/Guest');
 const Event = require('../models/Event');
+const ActivityLog = require('../models/ActivityLog');
 const { v4: uuidv4 } = require('uuid');
 
 exports.getGuests = async (req, res) => {
@@ -152,6 +153,21 @@ exports.createGuest = async (req, res) => {
       { path: 'eventCheckins.giftsReceived.inventoryId', select: 'type style product size gender color' }
     ]);
 
+    try {
+      await ActivityLog.create({
+        eventId,
+        type: 'guest_added',
+        performedBy: req.user.id,
+        details: {
+          guestId: guest._id,
+          guestName: `${guest.firstName} ${guest.lastName}`.trim()
+        },
+        timestamp: new Date()
+      });
+    } catch (logErr) {
+      console.error('Failed to log guest_added activity:', logErr);
+    }
+
     res.status(201).json({
       success: true,
       guest
@@ -279,6 +295,24 @@ exports.bulkAddGuests = async (req, res) => {
           error: error.message
         });
       }
+    }
+
+    try {
+      await ActivityLog.create({
+        eventId,
+        type: 'guest_list_uploaded',
+        performedBy: req.user.id,
+        details: {
+          message: 'Uploaded guest list',
+          rowsInFile: Array.isArray(guests) ? guests.length : 0,
+          addedCount: results.added.length,
+          duplicateCount: results.duplicates.length,
+          errorCount: results.errors.length
+        },
+        timestamp: new Date()
+      });
+    } catch (logErr) {
+      console.error('Failed to log guest_list_uploaded activity:', logErr);
     }
 
     res.json({
