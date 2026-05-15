@@ -20,7 +20,10 @@ import {
   DialogTitle,
   DialogContent,
   DialogContentText,
-  DialogActions
+  DialogActions,
+  TablePagination,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
@@ -30,17 +33,64 @@ import { getEventActivityFeed } from '../../../services/api';
 import { getUserDisplayName } from '../../../utils/userDisplay';
 import AvatarIcon from '../AvatarIcon';
 
+/** Rows requested from the API each load (no backend cap; raise if events exceed this). */
+const ACTIVITY_FETCH_LIMIT = 5000;
+
+/** Gift line for check-in logs (giftsReceivedSummary or populated legacy giftsDistributed). */
+const getCheckinGiftReceivedLabel = (log) => {
+  const summary = log.details?.giftsReceivedSummary;
+  if (Array.isArray(summary) && summary.length > 0) {
+    return summary
+      .map((s) => {
+        const name = (s.displayName || '').trim() || 'Gift';
+        const q = Number(s.quantity) > 1 ? Number(s.quantity) : null;
+        return q ? `${name} (×${q})` : name;
+      })
+      .join(', ');
+  }
+  const legacy = log.details?.giftsDistributed;
+  if (Array.isArray(legacy) && legacy.length > 0) {
+    const parts = legacy
+      .map((g) => {
+        const inv = g.inventoryId;
+        if (inv && typeof inv === 'object' && (inv.product || inv.type || inv.style)) {
+          const name = [inv.type, inv.style, inv.product].filter(Boolean).join(' ').trim() || 'Gift';
+          const q = Number(g.quantity) > 1 ? ` (×${g.quantity})` : '';
+          return `${name}${q}`;
+        }
+        return null;
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join(', ') : '';
+  }
+  return '';
+};
+
 /** Action phrase only (no name): "Updated inventory", "Checked in Miranda Lambert", etc. */
 const getActionLine = (log) => {
   const guestName = log.details?.guestName;
   const msg = log.details?.message || log.details?.description;
   switch (log.type) {
-    case 'checkin':
-      return guestName ? `Checked in ${guestName}` : 'Checked in a guest';
+    case 'checkin': {
+      const station = log.details?.checkinEventName;
+      const gifts = getCheckinGiftReceivedLabel(log);
+      const base = guestName ? `Checked in ${guestName}` : 'Checked in a guest';
+      return [base, station, gifts].filter((x) => x && String(x).trim()).join(' ');
+    }
     case 'undo_checkin':
       return guestName ? `Undid check-in for ${guestName}` : 'Undid a check-in';
     case 'update_gifts':
       return guestName ? `Updated gifts for ${guestName}` : 'Updated gift selection';
+    case 'guest_added': {
+      const addedName = log.details?.guestName;
+      return addedName ? `Added Guest — ${addedName}` : 'Added Guest';
+    }
+    case 'guest_list_uploaded':
+      return 'Uploaded Guest List';
+    case 'main_event_fully_picked_up': {
+      const n = log.details?.guestName;
+      return n ? `Fully Picked Up — ${n}` : 'Fully Picked Up';
+    }
     case 'inventory_update':
       return msg || 'Updated inventory';
     case 'inventory_add':
@@ -76,6 +126,11 @@ const getTypeColor = (type) => {
       return 'warning';
     case 'update_gifts':
       return 'primary';
+    case 'guest_added':
+    case 'guest_list_uploaded':
+      return 'primary';
+    case 'main_event_fully_picked_up':
+      return 'success';
     case 'inventory_update':
     case 'inventory_add':
     case 'allocation_update':
@@ -99,36 +154,55 @@ const getNotes = (log) => {
   return typeof notes === 'string' && notes.trim() ? notes.trim() : null;
 };
 
-/** Whether this log has a guest we can link to (check-in, undo, update gifts) */
+/** Whether this log has a guest we can link to (check-in uses custom layout; undo, update gifts, etc.) */
 const hasGuestLink = (log) => {
   const guestId = log.details?.guestId;
   const guestName = log.details?.guestName;
-  const linkable = ['checkin', 'undo_checkin', 'update_gifts'].includes(log.type);
+  const linkable = ['undo_checkin', 'update_gifts', 'guest_added', 'main_event_fully_picked_up'].includes(log.type);
   return linkable && guestId && guestName;
 };
 
 /** Prefix text before guest name for linkable actions */
 const getGuestActionPrefix = (type) => {
   switch (type) {
-    case 'checkin': return 'Checked in ';
     case 'undo_checkin': return 'Undid check-in for ';
     case 'update_gifts': return 'Updated gifts for ';
+    case 'guest_added': return 'Added Guest — ';
+    case 'main_event_fully_picked_up': return 'Fully Picked Up — ';
     default: return '';
   }
 };
 
 const ActivityFeed = ({ refreshKey = 0 } = {}) => {
   const { eventId } = useParams();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [limit, setLimit] = useState(50);
   const [searchQuery, setSearchQuery] = useState('');
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [confirmExportOpen, setConfirmExportOpen] = useState(false);
   const [confirmExportFormat, setConfirmExportFormat] = useState(null); // 'csv' | 'xlsx'
+
+  // Pagination state - default to 100 for mobile, 10 for desktop (GuestTable pattern)
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(isMobile ? 100 : 10);
+
+  // Update rowsPerPage when mobile state changes
+  React.useEffect(() => {
+    if (isMobile) {
+      setRowsPerPage(100);
+    } else {
+      // Only reset to 10 if it was 100 (to avoid resetting user's desktop preference)
+      if (rowsPerPage === 100) {
+        setRowsPerPage(10);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
 
   useEffect(() => {
     const fetchActivityFeed = async () => {
@@ -141,7 +215,7 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
       setLoading(true);
       setError('');
       try {
-        const filters = { limit };
+        const filters = { limit: ACTIVITY_FETCH_LIMIT };
         if (filterType !== 'all') filters.type = filterType;
         const response = await getEventActivityFeed(eventId, filters);
         setLogs(response.data?.logs || []);
@@ -155,7 +229,20 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
     };
 
     fetchActivityFeed();
-  }, [eventId, filterType, limit, refreshKey]);
+  }, [eventId, filterType, refreshKey]);
+
+  React.useEffect(() => {
+    setPage(0);
+  }, [filterType, refreshKey]);
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
 
   const formatDateTime = (timestamp) => {
     if (!timestamp) return '—';
@@ -173,15 +260,31 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
       const displayName = getUserDisplayName(log.performedBy, '');
       const actionLine = getActionLine(log);
       const guestName = (log.details?.guestName || '').toLowerCase();
+      const stationName = (log.details?.checkinEventName || '').toLowerCase();
       const notes = (getNotes(log) || '').toLowerCase();
       return (
         displayName.toLowerCase().includes(q) ||
         actionLine.toLowerCase().includes(q) ||
         guestName.includes(q) ||
+        stationName.includes(q) ||
         notes.includes(q)
       );
     });
   }, [logs, searchQuery]);
+
+  const paginatedLogs = useMemo(
+    () => filteredLogs.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filteredLogs, page, rowsPerPage]
+  );
+
+  React.useEffect(() => {
+    if (filteredLogs.length === 0) {
+      if (page !== 0) setPage(0);
+      return;
+    }
+    const lastPage = Math.ceil(filteredLogs.length / rowsPerPage) - 1;
+    if (page > lastPage) setPage(Math.max(0, lastPage));
+  }, [filteredLogs.length, rowsPerPage, page]);
 
   const exportActivityToCSV = () => {
     if (!filteredLogs.length) {
@@ -273,6 +376,7 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
   };
 
   return (
+    <>
     <Card sx={{ mb: 4 }}>
       <CardContent>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}>
@@ -310,6 +414,9 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
                 <MenuItem value="checkin">Check-ins</MenuItem>
                 <MenuItem value="undo_checkin">Undo check-in</MenuItem>
                 <MenuItem value="update_gifts">Gift update</MenuItem>
+                <MenuItem value="guest_added">Guest added</MenuItem>
+                <MenuItem value="guest_list_uploaded">Guest list uploaded</MenuItem>
+                <MenuItem value="main_event_fully_picked_up">Fully picked up (main program)</MenuItem>
                 <MenuItem value="inventory_update">Inventory update</MenuItem>
                 <MenuItem value="inventory_add">Inventory add</MenuItem>
                 <MenuItem value="allocation_update">Allocation update</MenuItem>
@@ -320,15 +427,6 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
                 <MenuItem value="event_archive">Event archived</MenuItem>
                 <MenuItem value="event_unarchive">Event unarchived</MenuItem>
                 <MenuItem value="other">Other</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 100 }}>
-              <InputLabel>Limit</InputLabel>
-              <Select value={limit} onChange={(e) => setLimit(Number(e.target.value))} label="Limit">
-                <MenuItem value={25}>25</MenuItem>
-                <MenuItem value={50}>50</MenuItem>
-                <MenuItem value={100}>100</MenuItem>
-                <MenuItem value={200}>200</MenuItem>
               </Select>
             </FormControl>
             <Button
@@ -411,10 +509,11 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
           </Box>
         ) : (
           <Box sx={{ maxHeight: 560, overflowY: 'auto' }}>
-            {filteredLogs.map((log, index) => {
+            {paginatedLogs.map((log, index) => {
               const displayName = getUserDisplayName(log.performedBy, 'Someone');
               const actionLine = getActionLine(log);
               const notes = getNotes(log);
+              const checkinGiftLine = log.type === 'checkin' ? getCheckinGiftReceivedLabel(log) : '';
               return (
                 <Box key={log._id || index}>
                   {index > 0 && <Divider sx={{ my: 1.5 }} />}
@@ -431,15 +530,15 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
                       <Typography variant="body2" component="span" fontWeight={600}>
                         {displayName}
                       </Typography>
-                      <Typography
-                        variant="body2"
-                        component="span"
-                        color={getTypeColor(log.type)}
-                        sx={{ ml: 0.5, fontWeight: 500 }}
-                      >
-                        {hasGuestLink(log) && eventId ? (
-                          <>
-                            {getGuestActionPrefix(log.type)}
+                      {log.type === 'checkin' && eventId && log.details?.guestId ? (
+                        <>
+                          <Typography
+                            variant="body2"
+                            component="span"
+                            color={getTypeColor(log.type)}
+                            sx={{ ml: 0.5, fontWeight: 500, display: 'block' }}
+                          >
+                            Checked in{' '}
                             <Link
                               component={RouterLink}
                               to={`/events/${eventId}/guests/${log.details.guestId}`}
@@ -452,14 +551,50 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
                             >
                               {log.details.guestName}
                             </Link>
-                          </>
-                        ) : (
-                          actionLine
-                        )}
-                      </Typography>
-                      <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.25 }}>
-                        {formatDateTime(log.timestamp)}
-                      </Typography>
+                            {log.details.checkinEventName ? ` - ${log.details.checkinEventName}` : ''}
+                          </Typography>
+                          {checkinGiftLine ? (
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                              Gift Received: {checkinGiftLine}
+                            </Typography>
+                          ) : null}
+                          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.25 }}>
+                            {formatDateTime(log.timestamp)}
+                          </Typography>
+                        </>
+                      ) : (
+                        <>
+                          <Typography
+                            variant="body2"
+                            component="span"
+                            color={getTypeColor(log.type)}
+                            sx={{ ml: 0.5, fontWeight: 500 }}
+                          >
+                            {hasGuestLink(log) && eventId ? (
+                              <>
+                                {getGuestActionPrefix(log.type)}
+                                <Link
+                                  component={RouterLink}
+                                  to={`/events/${eventId}/guests/${log.details.guestId}`}
+                                  sx={{
+                                    color: 'inherit',
+                                    fontWeight: 600,
+                                    textDecoration: 'underline',
+                                    '&:hover': { textDecoration: 'underline' }
+                                  }}
+                                >
+                                  {log.details.guestName}
+                                </Link>
+                              </>
+                            ) : (
+                              actionLine
+                            )}
+                          </Typography>
+                          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.25 }}>
+                            {formatDateTime(log.timestamp)}
+                          </Typography>
+                        </>
+                      )}
                       {notes && (
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, fontStyle: 'italic' }}>
                           {notes}
@@ -474,6 +609,52 @@ const ActivityFeed = ({ refreshKey = 0 } = {}) => {
         )}
       </CardContent>
     </Card>
+
+    {!loading && !error && (
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+        <TablePagination
+          component="div"
+          count={filteredLogs.length}
+          page={page}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          rowsPerPageOptions={isMobile ? [100] : [10, 25, 50, 100]}
+          labelRowsPerPage={isMobile ? '' : 'Activities per page'}
+          sx={{
+            '& .MuiTablePagination-toolbar': {
+              flexWrap: 'wrap',
+              gap: { xs: 1, sm: 0 },
+              justifyContent: 'center',
+              paddingLeft: { xs: '8px', sm: '16px' },
+              paddingRight: { xs: '8px', sm: '16px' }
+            },
+            '& .MuiTablePagination-selectLabel': {
+              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+              display: { xs: 'none', sm: 'block' }
+            },
+            '& .MuiTablePagination-select': {
+              display: { xs: 'none', sm: 'block' }
+            },
+            '& .MuiTablePagination-displayedRows': {
+              fontSize: { xs: '0.875rem', sm: '0.875rem' },
+              fontWeight: { xs: 500, sm: 400 }
+            },
+            '& .MuiTablePagination-spacer': {
+              display: 'none'
+            },
+            '& .MuiIconButton-root': {
+              padding: { xs: '12px', sm: '8px' },
+              fontSize: { xs: '1.5rem', sm: '1.25rem' }
+            },
+            '& .MuiSvgIcon-root': {
+              fontSize: { xs: '2rem', sm: '1.5rem' }
+            }
+          }}
+        />
+      </Box>
+    )}
+    </>
   );
 };
 
