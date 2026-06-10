@@ -700,7 +700,15 @@ const InventoryPage = ({ eventId, eventName }) => {
       handleCloseEditItemModal();
       loadInventory();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update inventory item.');
+      const data = err.response?.data;
+      let message = data?.message || 'Failed to update inventory item.';
+      if (data?.conflictingItem?.summary) {
+        message += ` Conflicting row: ${data.conflictingItem.summary}.`;
+      }
+      if (data?.hint === 'legacy_index_possible') {
+        message += ' Ask your admin to run: node backend/scripts/fixInventoryIndex.js';
+      }
+      setError(message);
     }
   };
 
@@ -865,7 +873,15 @@ const InventoryPage = ({ eventId, eventName }) => {
       handleCloseAddItemModal();
       loadInventory();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to add inventory item.');
+      const data = err.response?.data;
+      let message = data?.message || 'Failed to add inventory item.';
+      if (data?.conflictingItem?.summary) {
+        message += ` Conflicting row: ${data.conflictingItem.summary}.`;
+      }
+      if (data?.hint === 'legacy_index_possible') {
+        message += ' Ask your admin to run: node backend/scripts/fixInventoryIndex.js';
+      }
+      setError(message);
     }
   };
 

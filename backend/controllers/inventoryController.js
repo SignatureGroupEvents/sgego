@@ -5,6 +5,14 @@ const csv = require('csv-parser');
 const fs = require('fs');
 const path = require('path');
 const { Parser } = require('json2csv');
+const {
+  normalizeInventoryGender,
+  normalizeInventoryFields,
+  buildInventoryUniqueKey,
+  formatInventoryItemSummary,
+  findInventoryDuplicateContext,
+  buildDuplicateInventoryResponse
+} = require('../utils/inventoryUtils');
 
 // Helper function to emit analytics update
 const emitAnalyticsUpdate = (eventId) => {
@@ -236,20 +244,6 @@ exports.uploadInventory = async (req, res) => {
             return isNaN(parsed) ? defaultValue : parsed;
           };
 
-          // NEW: Helper function to normalize gender values
-          const normalizeGender = (genderValue) => {
-            if (!genderValue) return 'N/A';
-
-            const lower = genderValue.toLowerCase();
-            if (['mens', 'men', 'male', 'm'].includes(lower)) {
-              return 'M';
-            } else if (['womens', 'women', 'female', 'w'].includes(lower)) {
-              return 'W';
-            } else {
-              return 'N/A';
-            }
-          };
-
           // Get the main event ID - all inventory is stored under the main event
           const getMainEventId = (event) => {
             return event.isMainEvent ? event._id : event.parentEventId;
@@ -276,7 +270,7 @@ exports.uploadInventory = async (req, res) => {
                 color: getValueFromRow(row, 'color', ['Color', 'color', 'COLOR']),
 
                 // Gender with normalization
-                gender: normalizeGender(
+                gender: normalizeInventoryGender(
                   getValueFromRow(row, 'gender', ['Gender', 'gender', 'GENDER'])
                 ),
 
@@ -379,9 +373,7 @@ exports.uploadInventory = async (req, res) => {
           // Create a set of existing item keys for quick lookup
           // All fields (Type, Brand, Product, Gender, Size, Color) are included in uniqueness check
           const existingKeys = new Set(
-            existingItems.map(item =>
-              `${item.type}-${item.style}-${item.product || ''}-${item.gender}-${item.size}-${item.color}`
-            )
+            existingItems.map(item => buildInventoryUniqueKey(item))
           );
 
           // Filter out items that already exist
@@ -391,12 +383,12 @@ exports.uploadInventory = async (req, res) => {
           // First pass: Check against existing items
           // All fields (Type, Brand, Product, Gender, Size, Color) must match for a duplicate
           inventoryItems.forEach((item, index) => {
-            const itemKey = `${item.type}-${item.style}-${item.product || ''}-${item.gender}-${item.size}-${item.color}`;
+            const itemKey = buildInventoryUniqueKey(item);
 
             if (existingKeys.has(itemKey)) {
               skippedItems.push({
                 row: index + 1,
-                item: `${item.type} - ${item.style}${item.product ? ` - ${item.product}` : ''} (${item.size || 'N/A'}, ${item.gender || 'N/A'}, ${item.color})`,
+                item: formatInventoryItemSummary(item),
                 reason: 'Already exists in database'
               });
             } else {
@@ -413,7 +405,7 @@ exports.uploadInventory = async (req, res) => {
           // Build a map of item keys to their original row numbers
           // All fields (Type, Brand, Product, Gender, Size, Color) are included in uniqueness check
           inventoryItems.forEach((item, index) => {
-            const itemKey = `${item.type}-${item.style}-${item.product || ''}-${item.gender}-${item.size}-${item.color}`;
+            const itemKey = buildInventoryUniqueKey(item);
             if (!existingKeys.has(itemKey)) {
               // Only track items that are in newItems
               if (!itemToRowMap.has(itemKey)) {
@@ -425,7 +417,7 @@ exports.uploadInventory = async (req, res) => {
           // Now check newItems for duplicates
           // All fields (Type, Brand, Product, Gender, Size, Color) must match for a duplicate
           newItems.forEach((item) => {
-            const itemKey = `${item.type}-${item.style}-${item.product || ''}-${item.gender}-${item.size}-${item.color}`;
+            const itemKey = buildInventoryUniqueKey(item);
             const rowNumber = itemToRowMap.get(itemKey);
 
             if (seenKeys.has(itemKey)) {
@@ -433,7 +425,7 @@ exports.uploadInventory = async (req, res) => {
               const firstRow = seenKeys.get(itemKey);
               fileDuplicates.push({
                 row: rowNumber,
-                item: `${item.type} - ${item.style}${item.product ? ` - ${item.product}` : ''} (${item.size || 'N/A'}, ${item.gender || 'N/A'}, ${item.color})`,
+                item: formatInventoryItemSummary(item),
                 reason: `Duplicate of row ${firstRow}`
               });
             } else {
@@ -446,7 +438,7 @@ exports.uploadInventory = async (req, res) => {
           const uniqueNewItems = [];
           const seenUniqueKeys = new Set();
           newItems.forEach((item) => {
-            const itemKey = `${item.type}-${item.style}-${item.product || ''}-${item.gender}-${item.size}-${item.color}`;
+            const itemKey = buildInventoryUniqueKey(item);
             if (!seenUniqueKeys.has(itemKey)) {
               seenUniqueKeys.add(itemKey);
               uniqueNewItems.push(item);
@@ -514,12 +506,12 @@ exports.uploadInventory = async (req, res) => {
 
           // Handle duplicate key errors specifically
           if (error.code === 11000) {
-            // Try to extract duplicate information from the error
             const duplicateInfo = error.message.match(/dup key: \{ ([^}]+) \}/);
             return res.status(400).json({
-              message: 'Duplicate inventory items found. Each combination of Type, Brand, Product, Gender, Size, and Color must be unique.',
+              message: 'Duplicate inventory items found. Each combination of Category, Brand, Product, Gender, Size, and Color must be unique. Men\'s (M) and Women\'s (W) are separate rows. If you are adding a different gender and still see this error, run: node backend/scripts/fixInventoryIndex.js',
               error: error.message,
-              duplicateInfo: duplicateInfo ? duplicateInfo[1] : null
+              duplicateInfo: duplicateInfo ? duplicateInfo[1] : null,
+              hint: 'legacy_index_possible'
             });
           }
 
@@ -546,6 +538,7 @@ exports.uploadInventory = async (req, res) => {
 };
 
 exports.updateInventoryCount = async (req, res) => {
+  let inventoryItem = null;
   try {
     const { inventoryId } = req.params;
     const { 
@@ -565,7 +558,7 @@ exports.updateInventoryCount = async (req, res) => {
       color
     } = req.body;
 
-    const inventoryItem = await Inventory.findById(inventoryId);
+    inventoryItem = await Inventory.findById(inventoryId);
     if (!inventoryItem) {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
@@ -587,13 +580,7 @@ exports.updateInventoryCount = async (req, res) => {
     if (typeof product !== 'undefined') inventoryItem.product = product ? product.trim() : '';
     if (typeof size !== 'undefined') inventoryItem.size = size ? size.trim() : '';
     if (typeof gender !== 'undefined') {
-      // Normalize gender value
-      const normalizedGender = gender ? gender.trim().toUpperCase() : 'N/A';
-      if (['M', 'W', 'N/A'].includes(normalizedGender)) {
-        inventoryItem.gender = normalizedGender;
-      } else {
-        inventoryItem.gender = 'N/A';
-      }
+      inventoryItem.gender = normalizeInventoryGender(gender);
     }
     if (typeof color !== 'undefined') inventoryItem.color = color ? color.trim() : '';
 
@@ -667,6 +654,15 @@ exports.updateInventoryCount = async (req, res) => {
       inventoryItem
     });
   } catch (error) {
+    if (error.code === 11000 && inventoryItem) {
+      const context = await findInventoryDuplicateContext(
+        Inventory,
+        inventoryItem.eventId,
+        inventoryItem,
+        inventoryItem._id
+      );
+      return res.status(400).json(buildDuplicateInventoryResponse(context));
+    }
     res.status(400).json({ message: error.message });
   }
 };
@@ -869,17 +865,6 @@ exports.addInventoryItem = async (req, res) => {
       postEventCount
     } = req.body;
 
-    // Normalize gender to match Inventory model enum ['M', 'W', 'N/A'] (e.g. "Men's" -> "M")
-    const normalizeGenderForAdd = (genderValue) => {
-      if (!genderValue || typeof genderValue !== 'string') return 'N/A';
-      const lower = String(genderValue).trim().toLowerCase();
-      if (['mens', "men's", 'men', 'male', 'm'].includes(lower)) return 'M';
-      if (['womens', "women's", 'women', 'female', 'w'].includes(lower)) return 'W';
-      if (lower === 'n/a' || lower === 'na') return 'N/A';
-      if (['m', 'w'].includes(lower)) return lower.toUpperCase();
-      return 'N/A';
-    };
-
     // Validate required fields
     if (!type || !style) {
       return res.status(400).json({ message: 'Type and Style are required fields' });
@@ -898,15 +883,21 @@ exports.addInventoryItem = async (req, res) => {
 
     const mainEventId = getMainEventId(event);
 
+    const normalizedFields = normalizeInventoryFields({ type, style, product, size, gender, color });
+    const duplicateContext = await findInventoryDuplicateContext(Inventory, mainEventId, normalizedFields);
+    if (duplicateContext.exactMatch) {
+      return res.status(400).json(buildDuplicateInventoryResponse(duplicateContext));
+    }
+
     // Create new inventory item under the main event
     const inventoryItem = new Inventory({
       eventId: mainEventId, // Always store under main event
-      type: type.trim(),
-      style: style.trim(),
-      product: product != null ? String(product).trim() : '',
-      size: size ? size.trim() : '',
-      gender: normalizeGenderForAdd(gender),
-      color: color || '',
+      type: normalizedFields.type,
+      style: normalizedFields.style,
+      product: normalizedFields.product,
+      size: normalizedFields.size,
+      gender: normalizedFields.gender,
+      color: normalizedFields.color,
       qtyWarehouse: Number(qtyWarehouse) || 0,
       qtyOnSite: Number(qtyBeforeEvent) || 0, // Map qtyBeforeEvent to qtyOnSite
       currentInventory: Number(qtyBeforeEvent) || 0, // Initial current inventory
@@ -953,10 +944,14 @@ exports.addInventoryItem = async (req, res) => {
 
   } catch (error) {
     if (error.code === 11000) {
-      // Duplicate key error (type, style, product, gender, size, color combination already exists)
-      return res.status(400).json({
-        message: 'An inventory item with this type, brand, product, gender, size, and color combination already exists for this event'
-      });
+      const event = await Event.findById(req.params.eventId);
+      const mainEventId = event
+        ? (event.isMainEvent ? event._id : event.parentEventId)
+        : null;
+      const context = mainEventId
+        ? await findInventoryDuplicateContext(Inventory, mainEventId, req.body)
+        : { exactMatch: null, similarItems: [], fields: normalizeInventoryFields(req.body) };
+      return res.status(400).json(buildDuplicateInventoryResponse(context));
     }
     res.status(400).json({ message: error.message });
   }

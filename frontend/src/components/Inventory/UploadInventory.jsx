@@ -44,6 +44,11 @@ import { uploadInventoryCSV, fetchInventory } from '../../services/api';
 import MainLayout from '../layout/MainLayout';
 import { getEvent } from '../../services/events';
 import EventHeader from '../Events/EventHeader';
+import {
+  buildInventoryUniqueKey,
+  formatGenderLabel,
+  normalizeInventoryFields
+} from '../../utils/inventoryUtils';
 
 const UploadInventory = () => {
   const { eventId } = useParams();
@@ -346,7 +351,7 @@ const UploadInventory = () => {
               (field === 'brand' && (lowerHeader.includes('brand'))) ||
               (field === 'product' && (lowerHeader.includes('product') || lowerHeader.includes('product name'))) ||
               (field === 'size' && lowerHeader.includes('size')) ||
-              (field === 'gender' && (lowerHeader.includes('gender') || lowerHeader.includes('sex') || lowerHeader.includes('style'))) ||
+              (field === 'gender' && (lowerHeader.includes('gender') || lowerHeader.includes('sex'))) ||
               (field === 'color' && (lowerHeader.includes('color') || lowerHeader.includes('colour'))) ||
               (field === 'qtyWarehouse' && (lowerHeader.includes('warehouse') || lowerHeader.includes('qtywh'))) ||
               (field === 'qtyBeforeEvent' && lowerHeader.includes('before')) ||
@@ -393,20 +398,20 @@ const UploadInventory = () => {
         };
       });
 
-      // Check each mapped item against existing inventory
-      // All fields (Category, Brand, Product, Gender, Size, Color) must match for a duplicate
+      // Check each mapped item against existing inventory (gender normalized: M/W/N/A)
       mappedItems.forEach((item) => {
-        const itemKey = `${item.type || ''}-${item.style || ''}-${item.product || ''}-${item.gender || ''}-${item.size || ''}-${item.color || ''}`;
-        
-        const isDuplicate = existing.some(existingItem => {
-          const existingKey = `${existingItem.type || ''}-${existingItem.style || ''}-${existingItem.product || ''}-${existingItem.gender || ''}-${existingItem.size || ''}-${existingItem.color || ''}`;
+        const normalizedItem = normalizeInventoryFields(item);
+        const itemKey = buildInventoryUniqueKey(normalizedItem);
+
+        const isDuplicate = existing.some((existingItem) => {
+          const existingKey = buildInventoryUniqueKey(existingItem);
           return existingKey === itemKey;
         });
 
         if (isDuplicate) {
           duplicates.push({
             rowIndex: item._rowIndex,
-            item: `${item.type || ''} - ${item.style || ''}${item.product ? ` - ${item.product}` : ''} (${item.size || 'N/A'}, ${item.gender || 'N/A'}, ${item.color || 'N/A'})`,
+            item: `${normalizedItem.type} / ${normalizedItem.style}${normalizedItem.product ? ` / ${normalizedItem.product}` : ''} — Size: ${normalizedItem.size || 'N/A'}, Gender: ${formatGenderLabel(normalizedItem.gender)}, Color: ${normalizedItem.color || 'N/A'}`,
             reason: 'Item already exists',
             rowData: item._originalRow
           });
