@@ -4,6 +4,7 @@ const Guest = require('../models/Guest');
 const Event = require('../models/Event');
 const Inventory = require('../models/Inventory');
 const ActivityLog = require('../models/ActivityLog');
+const { sortInventoryItems } = require('../utils/sizeSort');
 
 // Skip invalid/empty inventory IDs to avoid "Cast to ObjectId failed" (e.g. when multiple items share category/brand and UI sends '')
 const isValidInventoryId = (id) => id && mongoose.Types.ObjectId.isValid(id);
@@ -144,10 +145,10 @@ exports.getCheckinContext = async (req, res) => {
 
     // Get available inventory for all events (shared inventory pool)
     const mainEventId = event.isMainEvent ? eventId : event.parentEventId;
-    let inventory = await Inventory.find({
+    let inventory = sortInventoryItems(await Inventory.find({
       eventId: mainEventId,
       isActive: true
-    }).sort({ type: 1, style: 1, size: 1 });
+    }));
 
     // Filter inventory by allocatedEvents for each event
     const inventoryByEvent = {};

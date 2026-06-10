@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import {
   Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
-  Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon,
+  Cancel as CancelIcon, FileDownload as FileDownloadIcon,
   Search as SearchIcon, FilterList as FilterIcon, Clear as ClearIcon, AccountTree as InheritIcon,
   KeyboardArrowLeft, KeyboardArrowRight, ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material';
@@ -16,10 +16,17 @@ import { fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryI
 import { useParams, useNavigate } from 'react-router-dom';
 import MainLayout from '../layout/MainLayout';
 import { getEvent, updatePickupFieldPreferences } from '../../services/events';
+import { compareSizes } from '../../utils/sizeSort';
 import api from '../../services/api';
 import EventIcon from '@mui/icons-material/Event';
 import EventHeader from '../Events/EventHeader';
 import CSVColumnMapper from './CSVColumnMapper';
+import PickupSettingsPanel from './PickupSettingsPanel';
+import {
+  getDefaultPickupFieldPreferences,
+  mergePickupFieldPreferences,
+  getEnabledPickupFieldLabels,
+} from '../../utils/pickupFieldPreferences';
 
 // ✅ Use usePermissions only
 import { usePermissions } from '../../hooks/usePermissions';
@@ -82,73 +89,69 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [showEditTypeInput, setShowEditTypeInput] = useState(false);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
-  // Pick-up modal field display preferences (stored in backend)
-  const getDefaultPreferences = () => ({
-    type: false,
-    brand: false,
-    product: false,
-    size: false,
-    gender: false,
-    color: false
-  });
-
-  const [pickupFieldPreferences, setPickupFieldPreferences] = useState(getDefaultPreferences());
+  const [pickupFieldPreferences, setPickupFieldPreferences] = useState(getDefaultPickupFieldPreferences());
   const [savingPreferences, setSavingPreferences] = useState(false);
+  const [stationPrefs, setStationPrefs] = useState({});
+  const [stationSavingId, setStationSavingId] = useState(null);
+  const [expandedStationId, setExpandedStationId] = useState(false);
+
+  const secondaryStations = React.useMemo(() => {
+    if (!event?.isMainEvent) return [];
+    return (event.secondaryEvents || []).filter((ev) => !ev.isMainEvent);
+  }, [event]);
+
+  const hasMultiGiftStations = secondaryStations.length > 0;
+  const pickupSettingsEventId = event?.isMainEvent && !hasMultiGiftStations ? eventId : (!event?.isMainEvent ? eventId : null);
 
   const hasUnsavedPickupChanges = React.useMemo(() => {
-    if (!event) return false;
-    const baseline = event.pickupFieldPreferences
-      ? { ...getDefaultPreferences(), ...event.pickupFieldPreferences }
-      : getDefaultPreferences();
-    return Object.keys(baseline).some(
-      (key) => baseline[key] !== pickupFieldPreferences[key]
-    );
-  }, [event, pickupFieldPreferences]);
+    if (!event || !pickupSettingsEventId) return false;
+    const baseline = mergePickupFieldPreferences(event.pickupFieldPreferences);
+    return Object.keys(baseline).some((key) => baseline[key] !== pickupFieldPreferences[key]);
+  }, [event, pickupFieldPreferences, pickupSettingsEventId]);
 
-  // Warn user if navigating away with unsaved pick-up modal settings
   React.useEffect(() => {
     if (!hasUnsavedPickupChanges) return;
-
     const handleBeforeUnload = (e) => {
       e.preventDefault();
       e.returnValue = '';
     };
-
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedPickupChanges]);
 
-  // Load preferences from event when event is fetched
   React.useEffect(() => {
-    if (event?.pickupFieldPreferences) {
-      // Merge with defaults to ensure all fields are present
-      const prefs = { ...getDefaultPreferences(), ...event.pickupFieldPreferences };
-      setPickupFieldPreferences(prefs);
-    } else if (event) {
-      // Event exists but no preferences set, use defaults
-      setPickupFieldPreferences(getDefaultPreferences());
+    if (!event) return;
+    if (pickupSettingsEventId) {
+      setPickupFieldPreferences(mergePickupFieldPreferences(event.pickupFieldPreferences));
     }
-  }, [event]);
+    if (hasMultiGiftStations) {
+      const next = {};
+      secondaryStations.forEach((station) => {
+        next[station._id] = mergePickupFieldPreferences(station.pickupFieldPreferences);
+      });
+      setStationPrefs(next);
+    }
+  }, [event, pickupSettingsEventId, hasMultiGiftStations, secondaryStations]);
 
-  const handlePickupFieldToggle = (field) => {
-    const updated = { ...pickupFieldPreferences, [field]: !pickupFieldPreferences[field] };
-    setPickupFieldPreferences(updated);
-  };
-
-  const handleSavePickupFieldPreferences = async () => {
-    if (!eventId) {
+  const handleSavePickupFieldPreferences = async (targetEventId = pickupSettingsEventId, prefs = pickupFieldPreferences) => {
+    if (!targetEventId) {
       setError('Event ID is required to save preferences.');
       return;
     }
 
-    setSavingPreferences(true);
+    const isStationSave = targetEventId !== pickupSettingsEventId;
+    if (isStationSave) setStationSavingId(targetEventId);
+    else setSavingPreferences(true);
+
     setError('');
     try {
-      await updatePickupFieldPreferences(eventId, pickupFieldPreferences);
+      await updatePickupFieldPreferences(targetEventId, prefs);
       setSuccess('Pick-up modal display settings saved successfully!');
-      // Reload event to get updated preferences
       const updatedEvent = await getEvent(eventId);
       setEvent(updatedEvent);
+      if (event?.parentEventId && !event?.isMainEvent) {
+        getEvent(event.parentEventId).then(setParentEvent);
+      }
     } catch (err) {
       if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
         setError('Unable to connect to server. Please ensure the backend server is running.');
@@ -157,7 +160,15 @@ const InventoryPage = ({ eventId, eventName }) => {
       }
     } finally {
       setSavingPreferences(false);
+      setStationSavingId(null);
     }
+  };
+
+  const isStationDirty = (station) => {
+    const baseline = mergePickupFieldPreferences(station.pickupFieldPreferences);
+    const current = stationPrefs[station._id];
+    if (!current) return false;
+    return Object.keys(baseline).some((key) => baseline[key] !== current[key]);
   };
 
   // Predefined types in alphabetical order
@@ -312,10 +323,10 @@ const InventoryPage = ({ eventId, eventName }) => {
           aValue = (a.product || '').toLowerCase();
           bValue = (b.product || '').toLowerCase();
           break;
-        case 'size':
-          aValue = (a.size || '').toLowerCase();
-          bValue = (b.size || '').toLowerCase();
-          break;
+        case 'size': {
+          const sizeCmp = compareSizes(a.size, b.size);
+          return sortOrder === 'asc' ? sizeCmp : -sizeCmp;
+        }
         case 'gender':
           aValue = (a.gender || '').toLowerCase();
           bValue = (b.gender || '').toLowerCase();
@@ -935,102 +946,84 @@ const InventoryPage = ({ eventId, eventName }) => {
         <Alert onClose={() => setSuccess('')} severity="success" sx={{ width: '100%' }}>{success}</Alert>
       </Snackbar>}
 
-      {/* Pick-up Modal Field Preferences: only on main event; nested events use main event's settings */}
-      {canModifyInventory && event?.isMainEvent && (
+      {/* Pick-up modal settings: per gifting station when multi-station, otherwise single event */}
+      {canModifyInventory && event && (pickupSettingsEventId || hasMultiGiftStations) && (
         <Card sx={{ mb: 3 }}>
           <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Pick-up Modal Display Settings
-            </Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              Select which fields should appear in the guest pick-up modal for this event and all nested events:
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
-                  checked={pickupFieldPreferences.type}
-                  onChange={() => handlePickupFieldToggle('type')}
-                  inputProps={{ 'aria-label': 'Show Category in pick-up modal' }}
-                />
-                <Typography>Category</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
-                  checked={pickupFieldPreferences.brand}
-                  onChange={() => handlePickupFieldToggle('brand')}
-                  inputProps={{ 'aria-label': 'Show Brand in pick-up modal' }}
-                />
-                <Typography>Brand</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
-                  checked={pickupFieldPreferences.product}
-                  onChange={() => handlePickupFieldToggle('product')}
-                  inputProps={{ 'aria-label': 'Show Product in pick-up modal' }}
-                />
-                <Typography>Product</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
-                  checked={pickupFieldPreferences.gender}
-                  onChange={() => handlePickupFieldToggle('gender')}
-                  inputProps={{ 'aria-label': 'Show Gender in pick-up modal' }}
-                />
-                <Typography>Gender</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
-                  checked={pickupFieldPreferences.color}
-                  onChange={() => handlePickupFieldToggle('color')}
-                  inputProps={{ 'aria-label': 'Show Color in pick-up modal' }}
-                />
-                <Typography>Color</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
-                  checked={pickupFieldPreferences.size}
-                  onChange={() => handlePickupFieldToggle('size')}
-                  inputProps={{ 'aria-label': 'Show Size in pick-up modal' }}
-                />
-                <Typography>Size</Typography>
-              </Box>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 3, gap: 2 }}>
-              {hasUnsavedPickupChanges && (
-                <Typography variant="caption" color="warning.main">
-                  You have unsaved changes. Click <strong>Save Settings</strong> to apply them.
+            {hasMultiGiftStations ? (
+              <>
+                <Typography variant="h6" gutterBottom>
+                  Gifting Station Pickup Settings
                 </Typography>
-              )}
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleSavePickupFieldPreferences}
-                startIcon={savingPreferences ? <CircularProgress size={20} /> : <SaveIcon />}
-                disabled={savingPreferences}
-              >
-                {savingPreferences ? 'Saving...' : 'Save Settings'}
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
-      )}
-      {canModifyInventory && event && !event.isMainEvent && (
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Pick-up Modal Display Settings
-            </Typography>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Pick-up modal settings are managed by the main event and apply to all nested events. Configure them from the main event&apos;s Inventory page.
-            </Alert>
-            <Button
-              variant="outlined"
-              color="primary"
-              startIcon={<HomeIcon />}
-              onClick={() => navigate(`/events/${event.parentEventId}/inventory`)}
-            >
-              Open main event Inventory
-            </Button>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Configure which fields appear in the check-in modal for each gifting station. Sunglasses and Sandals tables can use different selections.
+                </Typography>
+                {secondaryStations.map((station) => {
+                  const stationPref = stationPrefs[station._id] || getDefaultPickupFieldPreferences();
+                  const enabledLabels = getEnabledPickupFieldLabels(stationPref);
+                  return (
+                    <Accordion
+                      key={station._id}
+                      expanded={expandedStationId === station._id}
+                      onChange={(_, isExpanded) => setExpandedStationId(isExpanded ? station._id : false)}
+                      sx={{ mb: 1, '&:before': { display: 'none' } }}
+                    >
+                      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, width: '100%', pr: 1 }}>
+                          <Typography fontWeight={600}>
+                            {station.eventName} Pickup Settings
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {enabledLabels.length > 0 ? (
+                              enabledLabels.map((label) => (
+                                <Chip key={label} label={label} size="small" variant="outlined" />
+                              ))
+                            ) : (
+                              <Chip label="No fields selected" size="small" variant="outlined" />
+                            )}
+                            {isStationDirty(station) && (
+                              <Chip label="Unsaved changes" size="small" color="warning" />
+                            )}
+                          </Box>
+                        </Box>
+                      </AccordionSummary>
+                      <AccordionDetails>
+                        <PickupSettingsPanel
+                          subtitle="Choose which inventory fields staff see when checking in guests at this station."
+                          preferences={stationPref}
+                          onPreferencesChange={(updated) =>
+                            setStationPrefs((prev) => ({ ...prev, [station._id]: updated }))
+                          }
+                          onSave={() => handleSavePickupFieldPreferences(station._id, stationPrefs[station._id])}
+                          saving={stationSavingId === station._id}
+                        />
+                      </AccordionDetails>
+                    </Accordion>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                <PickupSettingsPanel
+                  title={event.isMainEvent
+                    ? 'Pickup Modal Display Settings'
+                    : `${event.eventName} Pickup Settings`}
+                  subtitle={event.isMainEvent
+                    ? 'Select which fields should appear in the guest pick-up modal for this event.'
+                    : 'Configure which fields appear in the check-in modal for this gifting station.'}
+                  preferences={pickupFieldPreferences}
+                  onPreferencesChange={setPickupFieldPreferences}
+                  onSave={() => handleSavePickupFieldPreferences()}
+                  saving={savingPreferences}
+                  showSummaryChips
+                />
+                {hasUnsavedPickupChanges && (
+                  <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1 }}>
+                    You have unsaved changes. Click <strong>Save Settings</strong> to apply them.
+                  </Typography>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
       )}

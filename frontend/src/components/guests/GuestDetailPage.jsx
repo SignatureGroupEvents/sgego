@@ -387,9 +387,11 @@ export default function GuestDetailPage() {
             const inventory = context.inventoryByEvent?.[eventIdForCheckin] ?? [];
             setAvailableInventory(Array.isArray(inventory) ? inventory : []);
 
-            const mainEvent = context.availableEvents?.find((e) => e.isMainEvent) || context.availableEvents?.[0] || context.currentEvent;
-            const prefs = mainEvent?.pickupFieldPreferences && typeof mainEvent.pickupFieldPreferences === 'object'
-                ? mainEvent.pickupFieldPreferences
+            const stationEvent = context.availableEvents?.find(
+                (e) => String(e._id) === String(eventIdForCheckin)
+            ) || context.currentEvent;
+            const prefs = stationEvent?.pickupFieldPreferences && typeof stationEvent.pickupFieldPreferences === 'object'
+                ? stationEvent.pickupFieldPreferences
                 : null;
             setModifyDialogPickupPreferences(prefs);
 

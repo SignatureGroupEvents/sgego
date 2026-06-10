@@ -73,6 +73,10 @@ exports.createEvent = async (req, res) => {
       eventData.isMainEvent = false;
       // Secondary events use the same contract number as parent
       eventData.eventContractNumber = parentEvent.eventContractNumber;
+      // New gifting stations inherit parent's pickup modal field settings as a starting point
+      if (parentEvent.pickupFieldPreferences) {
+        eventData.pickupFieldPreferences = parentEvent.pickupFieldPreferences;
+      }
     } else {
       // For main events, check if contract number is already in use
       const existingEvent = await Event.findOne({ 
@@ -740,10 +744,11 @@ exports.getEventInventory = async (req, res) => {
     // Get inventory items that are:
     // 1. Active (isActive: true)
     // 2. Linked to this specific event (eventId matches)
-    const inventory = await Inventory.find({ 
+    const { sortInventoryItems } = require('../utils/sizeSort');
+    const inventory = sortInventoryItems(await Inventory.find({
       eventId: eventId,
-      isActive: true 
-    }).sort({ type: 1, style: 1, size: 1 });
+      isActive: true
+    }));
 
     res.json({
       success: true,
@@ -928,7 +933,7 @@ exports.updateEventStatus = async (req, res) => {
   }
 };
 
-// Update pickup field preferences for an event
+// Update pickup field preferences for an event (main event or individual gifting station)
 exports.updatePickupFieldPreferences = async (req, res) => {
   try {
     const { pickupFieldPreferences } = req.body;

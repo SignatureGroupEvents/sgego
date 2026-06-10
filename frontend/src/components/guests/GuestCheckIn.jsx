@@ -15,6 +15,10 @@ import {
 import { CheckCircleOutline as CheckCircleIcon } from '@mui/icons-material';
 import HomeIcon from '@mui/icons-material/Home';
 import HierarchicalInventorySelector from './HierarchicalInventorySelector';
+import {
+  mergePickupFieldPreferences,
+  hasPickupGiftSelectionFields,
+} from '../../utils/pickupFieldPreferences';
 
 const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSuccess, onInventoryChange }) => {
   const [qrData, setQrData] = useState('');
@@ -26,31 +30,15 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
   const [error, setError] = useState('');
   const [isCheckedIn, setIsCheckedIn] = useState(false);
 
-  // Get pick-up modal field display preferences from event or use defaults
-  const getDefaultPreferences = () => ({
-    type: false,
-    brand: true,
-    product: false,
-    size: false,
-    gender: false,
-    color: false
-  });
+  const getPickupFieldPreferences = (eventObj) =>
+    mergePickupFieldPreferences(eventObj?.pickupFieldPreferences);
 
-  // Use main event's pickup settings for all events (main + nested) so one config applies everywhere
-  const getPickupFieldPreferences = (eventObj = null) => {
-    const eventToUse = mainEvent || eventObj || event;
-    return eventToUse?.pickupFieldPreferences || getDefaultPreferences();
-  };
-
-  // Check if any fields are selected for gift selection
-  const hasGiftSelectionFields = () => {
-    const prefs = getPickupFieldPreferences();
-    return prefs.type || prefs.brand || prefs.product || prefs.gender || prefs.size || prefs.color;
-  };
+  const eventHasGiftSelectionFields = (eventObj) =>
+    hasPickupGiftSelectionFields(eventObj?.pickupFieldPreferences);
 
   // Format inventory item display based on preferences
-  const formatInventoryItemDisplay = (item) => {
-    const prefs = getPickupFieldPreferences();
+  const formatInventoryItemDisplay = (item, eventObj = event) => {
+    const prefs = getPickupFieldPreferences(eventObj);
     const parts = [];
 
     if (prefs.type && item.type) {
@@ -245,8 +233,9 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
           return !checkin || !checkin.checkedIn;
         });
       }
-      if (hasGiftSelectionFields() && eventsToCheckIn.length > 0) {
-        const missing = eventsToCheckIn.filter(ev => !giftSelections[ev._id]?.inventoryId);
+      const eventsRequiringGifts = eventsToCheckIn.filter((ev) => eventHasGiftSelectionFields(ev));
+      if (eventsRequiringGifts.length > 0) {
+        const missing = eventsRequiringGifts.filter((ev) => !giftSelections[ev._id]?.inventoryId);
         if (missing.length > 0) {
           setError('Please select a gift for each event before checking in.');
           setLoading(false);
@@ -266,7 +255,7 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
         const checkins = eventsToCheckIn.map(ev => ({
           eventId: ev._id,
           selectedGifts: giftSelections[ev._id] ? [giftSelections[ev._id]] : [],
-          pickupFieldPreferences: mainEvent?.pickupFieldPreferences ?? getPickupFieldPreferences(ev)
+          pickupFieldPreferences: getPickupFieldPreferences(ev)
         }));
         response = await multiEventCheckin(guest._id, checkins);
       } else {
@@ -393,8 +382,9 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
             return !checkin || !checkin.checkedIn;
           });
         }
-        const giftSelectionRequired = hasGiftSelectionFields() && eventsToShow.length > 0;
-        const allGiftsSelected = !giftSelectionRequired || eventsToShow.every(ev => !!(giftSelections[ev._id]?.inventoryId));
+        const eventsRequiringGifts = eventsToShow.filter((ev) => eventHasGiftSelectionFields(ev));
+        const giftSelectionRequired = eventsRequiringGifts.length > 0;
+        const allGiftsSelected = !giftSelectionRequired || eventsRequiringGifts.every((ev) => !!(giftSelections[ev._id]?.inventoryId));
         const canSubmit = !loading && allGiftsSelected;
 
         return (
@@ -410,25 +400,34 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
           </Typography>
           
           {/* When pickup fields are configured, require a gift selection for each event shown */}
-          {hasGiftSelectionFields() && eventsToShow.length > 0 && (
+          {eventsToShow.length > 0 && (
             <Box sx={{ mt: 3 }}>
-              <Typography variant="subtitle1" gutterBottom>
-                Select Gifts: <Typography component="span" variant="body2" color="primary.main" fontWeight={600}>(required)</Typography>
-              </Typography>
-              {eventsToShow.map(ev => {
+              {eventsRequiringGifts.length > 0 && (
+                <Typography variant="subtitle1" gutterBottom>
+                  Select Gifts: <Typography component="span" variant="body2" color="primary.main" fontWeight={600}>(required)</Typography>
+                </Typography>
+              )}
+              {eventsToShow.map((ev) => {
                 const currentSelection = giftSelections[ev._id]?.inventoryId || '';
+                const requiresGift = eventHasGiftSelectionFields(ev);
                 return (
                   <Box key={ev._id} sx={{ mb: 3 }}>
                     <Typography variant="body2" fontWeight={500} gutterBottom>
-                      {ev.eventName} Gift:
+                      {ev.eventName} Gift{requiresGift ? '' : ' (optional)'}:
                     </Typography>
-                    <HierarchicalInventorySelector
-                      inventory={context.inventoryByEvent?.[ev._id] || []}
-                      value={currentSelection}
-                      onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
-                      eventName={ev.eventName}
-                      pickupFieldPreferences={getPickupFieldPreferences(ev)}
-                    />
+                    {requiresGift ? (
+                      <HierarchicalInventorySelector
+                        inventory={context.inventoryByEvent?.[ev._id] || []}
+                        value={currentSelection}
+                        onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
+                        eventName={ev.eventName}
+                        pickupFieldPreferences={getPickupFieldPreferences(ev)}
+                      />
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No pick-up fields configured for this station.
+                      </Typography>
+                    )}
                   </Box>
                 );
               })}

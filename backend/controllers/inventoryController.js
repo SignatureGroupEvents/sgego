@@ -13,6 +13,7 @@ const {
   findInventoryDuplicateContext,
   buildDuplicateInventoryResponse
 } = require('../utils/inventoryUtils');
+const { sortInventoryItems } = require('../utils/sizeSort');
 
 // Helper function to emit analytics update
 const emitAnalyticsUpdate = (eventId) => {
@@ -47,9 +48,7 @@ exports.getInventory = async (req, res) => {
     let inventory = await Inventory.find({
       eventId: mainEventId,
       isActive: true
-    })
-      .populate('eventId', 'eventName isMainEvent')
-      .sort({ type: 1, style: 1, size: 1 });
+    }).populate('eventId', 'eventName isMainEvent');
 
     // Filter inventory based on event type
     if (!event.isMainEvent) {
@@ -60,6 +59,8 @@ exports.getInventory = async (req, res) => {
       );
     }
     // For main events, show all inventory (no filtering needed)
+
+    inventory = sortInventoryItems(inventory);
 
     // Add inheritance flags for display purposes
     const inventoryWithInheritance = inventory.map(item => {
@@ -974,9 +975,8 @@ exports.exportInventoryCSV = async (req, res) => {
 
     const mainEventId = getMainEventId(event);
 
-    const inventory = await Inventory.find({ eventId: mainEventId, isActive: true })
-      .populate('allocatedEvents', 'eventName eventContractNumber')
-      .sort({ type: 1, style: 1, size: 1 });
+    const inventory = sortInventoryItems(await Inventory.find({ eventId: mainEventId, isActive: true })
+      .populate('allocatedEvents', 'eventName eventContractNumber'));
 
     if (inventory.length === 0) {
       return res.status(404).json({ message: 'No inventory found for this event' });
@@ -1048,9 +1048,8 @@ exports.exportInventoryExcel = async (req, res) => {
 
     const mainEventId = getMainEventId(event);
 
-    const inventory = await Inventory.find({ eventId: mainEventId, isActive: true })
-      .populate('allocatedEvents', 'eventName eventContractNumber')
-      .sort({ type: 1, style: 1, size: 1 });
+    const inventory = sortInventoryItems(await Inventory.find({ eventId: mainEventId, isActive: true })
+      .populate('allocatedEvents', 'eventName eventContractNumber'));
 
     if (inventory.length === 0) {
       return res.status(404).json({ message: 'No inventory found for this event' });
