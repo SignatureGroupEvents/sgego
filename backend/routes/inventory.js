@@ -11,6 +11,7 @@ const {
   deactivateInventoryItem,
   bulkDeleteInventory,
   updateInventoryAllocation,
+  bulkUpdateInventoryAllocation,
   exportInventoryCSV,
   exportInventoryExcel,
   addInventoryItem
@@ -139,6 +140,7 @@ router.put('/:inventoryId', updateInventoryCount);
 router.put('/:inventoryId/deactivate', requireOperationsOrAdmin, deactivateInventoryItem);
 router.delete('/:inventoryId', requireOperationsOrAdmin, deleteInventoryItem);
 router.delete('/bulk/:eventId', requireOperationsOrAdmin, bulkDeleteInventory);
+router.put('/bulk-allocation/:eventId', requireOperationsOrAdmin, bulkUpdateInventoryAllocation);
 router.put('/:inventoryId/allocation', requireOperationsOrAdmin, updateInventoryAllocation);
 
 module.exports = router;

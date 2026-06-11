@@ -53,8 +53,11 @@ export const getUserAssignedEvents = async () => {
   return res.data.assignedEvents;
 };
 
-export const updatePickupFieldPreferences = async (eventId, preferences) => {
-  const res = await api.put(`/events/${eventId}/pickup-field-preferences`, { pickupFieldPreferences: preferences });
+export const updatePickupFieldPreferences = async (eventId, preferences, pickupSettingsMode) => {
+  const res = await api.put(`/events/${eventId}/pickup-field-preferences`, {
+    pickupFieldPreferences: preferences,
+    ...(pickupSettingsMode ? { pickupSettingsMode } : {}),
+  });
   return res.data;
 };
 

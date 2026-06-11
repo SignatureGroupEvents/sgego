@@ -4,7 +4,8 @@ import {
   TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete,
   TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
   DialogContent, DialogActions, TablePagination, Grid, InputAdornment, TableSortLabel, Tooltip, Checkbox,
-  useMediaQuery, useTheme, Accordion, AccordionSummary, AccordionDetails
+  useMediaQuery, useTheme, Accordion, AccordionSummary, AccordionDetails,
+  ToggleButton, ToggleButtonGroup
 } from '@mui/material';
 import {
   Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
@@ -12,7 +13,17 @@ import {
   Search as SearchIcon, FilterList as FilterIcon, Clear as ClearIcon, AccountTree as InheritIcon,
   KeyboardArrowLeft, KeyboardArrowRight, ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material';
-import { fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, bulkDeleteInventory, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
+import {
+  fetchInventory,
+  updateInventoryItem,
+  addInventoryItem,
+  deleteInventoryItem,
+  bulkDeleteInventory,
+  updateInventoryAllocation,
+  bulkUpdateInventoryAllocation,
+  exportInventoryCSV,
+  exportInventoryExcel
+} from '../../services/api';
 import { useParams, useNavigate } from 'react-router-dom';
 import MainLayout from '../layout/MainLayout';
 import { getEvent, updatePickupFieldPreferences } from '../../services/events';
@@ -30,6 +41,11 @@ import {
 
 // ✅ Use usePermissions only
 import { usePermissions } from '../../hooks/usePermissions';
+
+const toEventIdString = (id) => (id?._id ?? id)?.toString();
+
+const getItemAllocatedIds = (item) =>
+  (item?.allocatedEvents || []).map(toEventIdString);
 
 // Gender must match backend Inventory model enum: ['M', 'W', 'N/A']
 const GENDER_OPTIONS = [
@@ -72,6 +88,8 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [showTypeInput, setShowTypeInput] = useState(false);
   const [selectedItems, setSelectedItems] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkAllocating, setBulkAllocating] = useState(false);
+  const [bulkAllocationMode, setBulkAllocationMode] = useState('add');
   const [editItemModalOpen, setEditItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [editItem, setEditItem] = useState({
@@ -90,8 +108,10 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   const [pickupFieldPreferences, setPickupFieldPreferences] = useState(getDefaultPickupFieldPreferences());
+  const [pickupSettingsMode, setPickupSettingsMode] = useState('product');
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [stationPrefs, setStationPrefs] = useState({});
+  const [stationModes, setStationModes] = useState({});
   const [stationSavingId, setStationSavingId] = useState(null);
   const [expandedStationId, setExpandedStationId] = useState(false);
 
@@ -106,8 +126,12 @@ const InventoryPage = ({ eventId, eventName }) => {
   const hasUnsavedPickupChanges = React.useMemo(() => {
     if (!event || !pickupSettingsEventId) return false;
     const baseline = mergePickupFieldPreferences(event.pickupFieldPreferences);
-    return Object.keys(baseline).some((key) => baseline[key] !== pickupFieldPreferences[key]);
-  }, [event, pickupFieldPreferences, pickupSettingsEventId]);
+    const baselineMode = event.pickupSettingsMode === 'station' ? 'station' : 'product';
+    return (
+      Object.keys(baseline).some((key) => baseline[key] !== pickupFieldPreferences[key]) ||
+      baselineMode !== pickupSettingsMode
+    );
+  }, [event, pickupFieldPreferences, pickupSettingsMode, pickupSettingsEventId]);
 
   React.useEffect(() => {
     if (!hasUnsavedPickupChanges) return;
@@ -123,13 +147,17 @@ const InventoryPage = ({ eventId, eventName }) => {
     if (!event) return;
     if (pickupSettingsEventId) {
       setPickupFieldPreferences(mergePickupFieldPreferences(event.pickupFieldPreferences));
+      setPickupSettingsMode(event.pickupSettingsMode === 'station' ? 'station' : 'product');
     }
     if (hasMultiGiftStations) {
       const next = {};
+      const nextModes = {};
       secondaryStations.forEach((station) => {
         next[station._id] = mergePickupFieldPreferences(station.pickupFieldPreferences);
+        nextModes[station._id] = station.pickupSettingsMode === 'station' ? 'station' : 'product';
       });
       setStationPrefs(next);
+      setStationModes(nextModes);
     }
   }, [event, pickupSettingsEventId, hasMultiGiftStations, secondaryStations]);
 
@@ -143,9 +171,11 @@ const InventoryPage = ({ eventId, eventName }) => {
     if (isStationSave) setStationSavingId(targetEventId);
     else setSavingPreferences(true);
 
+    const mode = isStationSave ? (stationModes[targetEventId] || 'product') : pickupSettingsMode;
+
     setError('');
     try {
-      await updatePickupFieldPreferences(targetEventId, prefs);
+      await updatePickupFieldPreferences(targetEventId, prefs, mode);
       setSuccess('Pick-up modal display settings saved successfully!');
       const updatedEvent = await getEvent(eventId);
       setEvent(updatedEvent);
@@ -723,13 +753,50 @@ const InventoryPage = ({ eventId, eventName }) => {
     }
   };
 
+  const getAllocatedEventsForItem = (item) =>
+    filteredEvents.filter((ev) => getItemAllocatedIds(item).includes(ev._id.toString()));
+
+  const applyInventoryAllocationUpdates = (updatedItems) => {
+    const byId = new Map(updatedItems.map((item) => [toEventIdString(item._id), item]));
+    setInventory((prev) =>
+      prev.map((item) => {
+        const updated = byId.get(toEventIdString(item._id));
+        if (!updated) return item;
+        return { ...item, allocatedEvents: updated.allocatedEvents };
+      })
+    );
+  };
+
   const handleAllocationChange = async (item, newAllocatedEvents) => {
     try {
-      await updateInventoryAllocation(item._id, newAllocatedEvents.map(ev => ev._id));
+      const res = await updateInventoryAllocation(
+        item._id,
+        newAllocatedEvents.map((ev) => ev._id)
+      );
+      applyInventoryAllocationUpdates([res.data.inventoryItem]);
       setSuccess('Inventory allocation updated!');
-      loadInventory();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update allocation.');
+    }
+  };
+
+  const handleBulkAllocate = async (stationEventIds) => {
+    if (selectedItems.length === 0) return;
+
+    setBulkAllocating(true);
+    setError('');
+    try {
+      const res = await bulkUpdateInventoryAllocation(eventId, {
+        inventoryIds: selectedItems,
+        allocatedEventIds: stationEventIds,
+        mode: bulkAllocationMode
+      });
+      applyInventoryAllocationUpdates(res.data.inventoryItems || []);
+      setSuccess(`Updated allocation for ${res.data.updatedCount || selectedItems.length} item(s).`);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to bulk update allocation.');
+    } finally {
+      setBulkAllocating(false);
     }
   };
 
@@ -1385,6 +1452,64 @@ const InventoryPage = ({ eventId, eventName }) => {
               {/* End of Bulk Delete Button */}
             </Box>
 
+            {canModifyInventory && event?.isMainEvent && selectedItems.length > 0 && filteredEvents.length > 0 && (
+              <Card sx={{ mb: 2, border: '1px solid', borderColor: 'primary.light', bgcolor: 'background.paper' }}>
+                <CardContent sx={{ py: 2, '&:last-child': { pb: 2 } }}>
+                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                    Bulk allocate {selectedItems.length} selected item(s)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Assign many gifts to a station in one step — no page refresh.
+                  </Typography>
+                  {selectedItems.length < filteredAndSortedInventory.length && (
+                    <Button
+                      size="small"
+                      variant="text"
+                      sx={{ mb: 1, px: 0 }}
+                      onClick={() => setSelectedItems(filteredAndSortedInventory.map((item) => item._id))}
+                    >
+                      Select all {filteredAndSortedInventory.length} filtered items
+                    </Button>
+                  )}
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mb: 2 }}>
+                    <ToggleButtonGroup
+                      size="small"
+                      exclusive
+                      value={bulkAllocationMode}
+                      onChange={(_, value) => value && setBulkAllocationMode(value)}
+                    >
+                      <ToggleButton value="add">Add to station</ToggleButton>
+                      <ToggleButton value="set">Set station only</ToggleButton>
+                    </ToggleButtonGroup>
+                    <Typography variant="caption" color="text.secondary">
+                      {bulkAllocationMode === 'add'
+                        ? 'Keeps existing stations and adds the one you pick'
+                        : 'Replaces allocation with only the station you pick'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {filteredEvents.map((ev) => (
+                      <Button
+                        key={ev._id}
+                        variant="outlined"
+                        size="small"
+                        disabled={bulkAllocating}
+                        onClick={() => handleBulkAllocate([ev._id])}
+                      >
+                        {bulkAllocationMode === 'add' ? 'Add to' : 'Set to'} {ev.eventName}
+                      </Button>
+                    ))}
+                  </Box>
+                  {bulkAllocating && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1.5 }}>
+                      <CircularProgress size={16} />
+                      <Typography variant="caption">Updating allocation...</Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Mobile Card Layout */}
             {isMobile ? (
               <>
@@ -1592,7 +1717,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                               </Box>
 
                               {/* Allocated Events */}
-                              {item.allocatedEvents && item.allocatedEvents.length > 0 && (
+                              {event?.isMainEvent && (
                                 <Box sx={{
                                   borderTop: '1px solid',
                                   borderColor: 'divider',
@@ -1610,7 +1735,7 @@ const InventoryPage = ({ eventId, eventName }) => {
                                       size="small"
                                       options={filteredEvents}
                                       getOptionLabel={option => option.eventName}
-                                      value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
+                                      value={getAllocatedEventsForItem(item)}
                                       onChange={(_, newValue) => handleAllocationChange(item, newValue)}
                                       renderInput={params => (
                                         <TextField
@@ -1641,9 +1766,13 @@ const InventoryPage = ({ eventId, eventName }) => {
                                     />
                                   ) : (
                                     <Box display="flex" flexWrap="wrap" gap={0.25}>
-                                      {filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id)).map(ev => (
-                                        <Chip key={ev._id} label={ev.eventName} size="small" sx={{ height: { xs: 20, sm: 24 }, fontSize: { xs: '0.65rem', sm: '0.75rem' } }} />
-                                      ))}
+                                      {getAllocatedEventsForItem(item).length > 0 ? (
+                                        getAllocatedEventsForItem(item).map((ev) => (
+                                          <Chip key={ev._id} label={ev.eventName} size="small" sx={{ height: { xs: 20, sm: 24 }, fontSize: { xs: '0.65rem', sm: '0.75rem' } }} />
+                                        ))
+                                      ) : (
+                                        <Typography variant="caption" color="text.secondary">Not allocated</Typography>
+                                      )}
                                     </Box>
                                   )}
                                 </Box>
@@ -1819,28 +1948,40 @@ const InventoryPage = ({ eventId, eventName }) => {
                               )}
                             </TableCell>
                             <TableCell>
-                              {eventsLoading ? (
-                                <CircularProgress size={20} />
-                              ) : (canModifyInventory) ? (
-                                <Autocomplete
-                                  multiple
-                                  size="small"
-                                  options={filteredEvents}
-                                  getOptionLabel={option => option.eventName}
-                                  value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
-                                  onChange={(_, newValue) => handleAllocationChange(item, newValue)}
-                                  renderInput={params => <TextField {...params} variant="outlined" label="Allocated Events" />}
-                                  renderTags={(value, getTagProps) =>
-                                    value.map((option, index) => (
-                                      <Chip label={option.eventName} {...getTagProps({ index })} key={option._id} />
-                                    ))
-                                  }
-                                  disableCloseOnSelect
-                                  sx={{ minWidth: 200 }}
-                                />
+                              {event?.isMainEvent ? (
+                                eventsLoading ? (
+                                  <CircularProgress size={20} />
+                                ) : canModifyInventory ? (
+                                  <Autocomplete
+                                    multiple
+                                    size="small"
+                                    options={filteredEvents}
+                                    getOptionLabel={option => option.eventName}
+                                    value={getAllocatedEventsForItem(item)}
+                                    onChange={(_, newValue) => handleAllocationChange(item, newValue)}
+                                    renderInput={params => <TextField {...params} variant="outlined" label="Allocated Events" />}
+                                    renderTags={(value, getTagProps) =>
+                                      value.map((option, index) => (
+                                        <Chip label={option.eventName} {...getTagProps({ index })} key={option._id} />
+                                      ))
+                                    }
+                                    disableCloseOnSelect
+                                    sx={{ minWidth: 200 }}
+                                  />
+                                ) : (
+                                  <Box display="flex" flexWrap="wrap" gap={0.5}>
+                                    {getAllocatedEventsForItem(item).length > 0 ? (
+                                      getAllocatedEventsForItem(item).map((ev) => (
+                                        <Chip key={ev._id} label={ev.eventName} size="small" />
+                                      ))
+                                    ) : (
+                                      <Typography variant="caption" color="text.secondary">Not allocated</Typography>
+                                    )}
+                                  </Box>
+                                )
                               ) : (
                                 <Box display="flex" flexWrap="wrap" gap={0.5}>
-                                  {filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id)).map(ev => (
+                                  {getAllocatedEventsForItem(item).map((ev) => (
                                     <Chip key={ev._id} label={ev.eventName} size="small" />
                                   ))}
                                 </Box>
