@@ -17,7 +17,8 @@ import HomeIcon from '@mui/icons-material/Home';
 import HierarchicalInventorySelector from './HierarchicalInventorySelector';
 import {
   mergePickupFieldPreferences,
-  hasPickupGiftSelectionFields,
+  stationHasPickupFields,
+  resolvePickupPrefs,
 } from '../../utils/pickupFieldPreferences';
 
 const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSuccess, onInventoryChange }) => {
@@ -33,8 +34,17 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
   const getPickupFieldPreferences = (eventObj) =>
     mergePickupFieldPreferences(eventObj?.pickupFieldPreferences);
 
-  const eventHasGiftSelectionFields = (eventObj) =>
-    hasPickupGiftSelectionFields(eventObj?.pickupFieldPreferences);
+  const eventHasGiftSelectionFields = (eventObj) => stationHasPickupFields(eventObj);
+
+  // Resolve the pickup field preferences to snapshot at check-in time, based on the
+  // gift selected for this event (per-product overrides take precedence).
+  const getCheckinPickupFieldPreferences = (eventObj) => {
+    const inventoryId = giftSelections[eventObj._id]?.inventoryId;
+    const selectedItem = (context?.inventoryByEvent?.[eventObj._id] || []).find(
+      (item) => item._id === inventoryId
+    );
+    return resolvePickupPrefs(selectedItem, eventObj);
+  };
 
   // Format inventory item display based on preferences
   const formatInventoryItemDisplay = (item, eventObj = event) => {
@@ -211,6 +221,23 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
 
 
 
+  const getPendingCheckinEvents = (availableEvents, guestObj) => {
+    const hasSecondaryEvents = availableEvents?.some((ev) => !ev.isMainEvent);
+    let pending = hasSecondaryEvents
+      ? availableEvents.filter((ev) => !ev.isMainEvent)
+      : availableEvents;
+    if (hasSecondaryEvents && guestObj?.eventCheckins && pending.length > 1) {
+      pending = pending.filter((ev) => {
+        const checkin = guestObj.eventCheckins.find((ec) => {
+          const id = ec.eventId && typeof ec.eventId === 'object' ? ec.eventId._id?.toString() : ec.eventId?.toString();
+          return id === ev._id?.toString();
+        });
+        return !checkin || !checkin.checkedIn;
+      });
+    }
+    return pending;
+  };
+
   const handleCheckIn = async () => {
     setLoading(true);
     setError('');
@@ -219,71 +246,55 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
       if (!guest) return;
       if (!context) return;
 
-      // When pickup/gift fields are enabled, require a selection for each event being checked in
-      const hasSecondaryEvents = context.availableEvents?.some(ev => !ev.isMainEvent);
-      let eventsToCheckIn = hasSecondaryEvents
-        ? context.availableEvents.filter(ev => !ev.isMainEvent)
-        : context.availableEvents;
-      if (hasSecondaryEvents && guest?.eventCheckins && eventsToCheckIn.length > 1) {
-        eventsToCheckIn = eventsToCheckIn.filter(ev => {
-          const checkin = guest.eventCheckins.find(ec => {
-            const id = ec.eventId && typeof ec.eventId === 'object' ? ec.eventId._id?.toString() : ec.eventId?.toString();
-            return id === ev._id?.toString();
-          });
-          return !checkin || !checkin.checkedIn;
-        });
-      }
-      const eventsRequiringGifts = eventsToCheckIn.filter((ev) => eventHasGiftSelectionFields(ev));
-      if (eventsRequiringGifts.length > 0) {
-        const missing = eventsRequiringGifts.filter((ev) => !giftSelections[ev._id]?.inventoryId);
-        if (missing.length > 0) {
-          setError('Please select a gift for each event before checking in.');
-          setLoading(false);
-          return;
-        }
+      const eventsToCheckIn = getPendingCheckinEvents(context.availableEvents, guest);
+      const stationsWithGiftSelections = eventsToCheckIn.filter(
+        (ev) => giftSelections[ev._id]?.inventoryId
+      );
+
+      if (stationsWithGiftSelections.length === 0) {
+        setError('Please select at least one gift to check in.');
+        setLoading(false);
+        return;
       }
 
       let response;
-      
+
       if (context.checkinMode === 'multi') {
-        // Multi-event check-in - filter out main events if secondary events exist
-        const hasSecondaryEvents = context.availableEvents.some(ev => !ev.isMainEvent);
-        const eventsToCheckIn = hasSecondaryEvents 
-          ? context.availableEvents.filter(ev => !ev.isMainEvent)
-          : context.availableEvents;
-          
-        const checkins = eventsToCheckIn.map(ev => ({
+        const checkins = stationsWithGiftSelections.map((ev) => ({
           eventId: ev._id,
-          selectedGifts: giftSelections[ev._id] ? [giftSelections[ev._id]] : [],
-          pickupFieldPreferences: getPickupFieldPreferences(ev)
+          selectedGifts: [giftSelections[ev._id]],
+          pickupFieldPreferences: getCheckinPickupFieldPreferences(ev),
         }));
         response = await multiEventCheckin(guest._id, checkins);
       } else {
-        // Single event check-in
         const selectedGifts = giftSelections[event._id] ? [giftSelections[event._id]] : [];
-        const pickupFieldPreferences = getPickupFieldPreferences(event);
+        const pickupFieldPreferences = getCheckinPickupFieldPreferences(event);
         response = await singleEventCheckin(guest._id, event._id, selectedGifts, '', pickupFieldPreferences);
       }
-      
-      // Update local state to show success
-      setIsCheckedIn(true);
-      setSuccess('Guest checked in successfully!');
-      setGiftSelections({});
-      
-      // Use the updated guest data from the response
-      // eventCheckins is the source of truth, hasCheckedIn is derived automatically
+
       const updatedGuest = response.data.guest || guest;
       setGuest(updatedGuest);
-      
-      // Call callbacks to update parent components
+      setGiftSelections({});
+
       if (onCheckinSuccess) onCheckinSuccess(updatedGuest);
       if (onInventoryChange) onInventoryChange();
-      
-      // Auto-close after a short delay
-      setTimeout(() => {
-        if (onClose) onClose();
-      }, 2000);
-      
+
+      const stillPending = canGuestBeCheckedIn(updatedGuest, event);
+      const checkedInNames = stationsWithGiftSelections.map((ev) => ev.eventName).join(', ');
+
+      if (stillPending) {
+        setSuccess(
+          stationsWithGiftSelections.length === 1
+            ? `Checked in for ${checkedInNames}. Guest can pick up remaining gifts when ready.`
+            : `Checked in for ${checkedInNames}. Guest can pick up remaining gifts when ready.`
+        );
+      } else {
+        setIsCheckedIn(true);
+        setSuccess('Guest checked in successfully!');
+        setTimeout(() => {
+          if (onClose) onClose();
+        }, 2000);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Check-in failed.');
     } finally {
@@ -369,23 +380,12 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
 
       
       {guest && context && (() => {
-        const hasSecondaryEvents = context.availableEvents.some(ev => !ev.isMainEvent);
-        let eventsToShow = hasSecondaryEvents
-          ? context.availableEvents.filter(ev => !ev.isMainEvent)
-          : context.availableEvents;
-        if (hasSecondaryEvents && guest?.eventCheckins && eventsToShow.length > 1) {
-          eventsToShow = eventsToShow.filter(ev => {
-            const checkin = guest.eventCheckins.find(ec => {
-              const id = ec.eventId && typeof ec.eventId === 'object' ? ec.eventId._id?.toString() : ec.eventId?.toString();
-              return id === ev._id?.toString();
-            });
-            return !checkin || !checkin.checkedIn;
-          });
-        }
+        const eventsToShow = getPendingCheckinEvents(context.availableEvents, guest);
         const eventsRequiringGifts = eventsToShow.filter((ev) => eventHasGiftSelectionFields(ev));
-        const giftSelectionRequired = eventsRequiringGifts.length > 0;
-        const allGiftsSelected = !giftSelectionRequired || eventsRequiringGifts.every((ev) => !!(giftSelections[ev._id]?.inventoryId));
-        const canSubmit = !loading && allGiftsSelected;
+        const stationsWithSelections = eventsToShow.filter(
+          (ev) => giftSelections[ev._id]?.inventoryId
+        );
+        const canSubmit = !loading && stationsWithSelections.length > 0;
 
         return (
         <Box sx={{ mt: 3 }}>
@@ -399,12 +399,16 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
             Type: {guest.type || 'General'}
           </Typography>
           
-          {/* When pickup fields are configured, require a gift selection for each event shown */}
           {eventsToShow.length > 0 && (
             <Box sx={{ mt: 3 }}>
               {eventsRequiringGifts.length > 0 && (
                 <Typography variant="subtitle1" gutterBottom>
-                  Select Gifts: <Typography component="span" variant="body2" color="primary.main" fontWeight={600}>(required)</Typography>
+                  Select Gifts
+                  {eventsToShow.length > 1 && (
+                    <Typography component="span" variant="body2" color="text.secondary" fontWeight={400}>
+                      {' '}— pick one or more stations; you can check in one gift at a time
+                    </Typography>
+                  )}
                 </Typography>
               )}
               {eventsToShow.map((ev) => {
@@ -413,7 +417,7 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
                 return (
                   <Box key={ev._id} sx={{ mb: 3 }}>
                     <Typography variant="body2" fontWeight={500} gutterBottom>
-                      {ev.eventName} Gift{requiresGift ? '' : ' (optional)'}:
+                      {ev.eventName} Gift{requiresGift && eventsToShow.length > 1 ? ' (optional this visit)' : ''}{!requiresGift ? ' (optional)' : ''}:
                     </Typography>
                     {requiresGift ? (
                       <HierarchicalInventorySelector
@@ -421,7 +425,7 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
                         value={currentSelection}
                         onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
                         eventName={ev.eventName}
-                        pickupFieldPreferences={getPickupFieldPreferences(ev)}
+                        stationPrefs={ev}
                       />
                     ) : (
                       <Typography variant="body2" color="text.secondary">
@@ -431,9 +435,9 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
                   </Box>
                 );
               })}
-              {giftSelectionRequired && !allGiftsSelected && (
+              {eventsRequiringGifts.length > 0 && stationsWithSelections.length === 0 && (
                 <Alert severity="info" sx={{ mt: 1 }}>
-                  Please select a gift for each event before checking in.
+                  Select a gift for at least one station to check in.
                 </Alert>
               )}
             </Box>

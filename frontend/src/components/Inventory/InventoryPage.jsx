@@ -11,7 +11,7 @@ import {
   Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
   Cancel as CancelIcon, FileDownload as FileDownloadIcon,
   Search as SearchIcon, FilterList as FilterIcon, Clear as ClearIcon, AccountTree as InheritIcon,
-  KeyboardArrowLeft, KeyboardArrowRight, ExpandMore as ExpandMoreIcon
+  KeyboardArrowLeft, KeyboardArrowRight, ExpandMore as ExpandMoreIcon, Lock as LockIcon
 } from '@mui/icons-material';
 import {
   fetchInventory,
@@ -46,6 +46,15 @@ const toEventIdString = (id) => (id?._id ?? id)?.toString();
 
 const getItemAllocatedIds = (item) =>
   (item?.allocatedEvents || []).map(toEventIdString);
+
+// Normalize a productPickupOverrides map for equality comparison, regardless of key order
+// or whether each entry has been merged with defaults yet.
+const normalizeOverridesForCompare = (overrides) => {
+  const entries = Object.entries(overrides || {})
+    .map(([product, prefs]) => [product, mergePickupFieldPreferences(prefs)])
+    .sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify(entries);
+};
 
 // Gender must match backend Inventory model enum: ['M', 'W', 'N/A']
 const GENDER_OPTIONS = [
@@ -106,11 +115,19 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [editTypeInputValue, setEditTypeInputValue] = useState('');
   const [showEditTypeInput, setShowEditTypeInput] = useState(false);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [mobileEditPhase, setMobileEditPhase] = useState(null);
+  const [mobileStationFilter, setMobileStationFilter] = useState('all');
+
+  React.useEffect(() => {
+    if (!isEditMode) setMobileEditPhase(null);
+  }, [isEditMode]);
 
   const [pickupFieldPreferences, setPickupFieldPreferences] = useState(getDefaultPickupFieldPreferences());
+  const [productOverrides, setProductOverrides] = useState({});
   const [pickupSettingsMode, setPickupSettingsMode] = useState('product');
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [stationPrefs, setStationPrefs] = useState({});
+  const [stationOverrides, setStationOverrides] = useState({});
   const [stationModes, setStationModes] = useState({});
   const [stationSavingId, setStationSavingId] = useState(null);
   const [expandedStationId, setExpandedStationId] = useState(false);
@@ -129,9 +146,10 @@ const InventoryPage = ({ eventId, eventName }) => {
     const baselineMode = event.pickupSettingsMode === 'station' ? 'station' : 'product';
     return (
       Object.keys(baseline).some((key) => baseline[key] !== pickupFieldPreferences[key]) ||
-      baselineMode !== pickupSettingsMode
+      baselineMode !== pickupSettingsMode ||
+      normalizeOverridesForCompare(event.productPickupOverrides) !== normalizeOverridesForCompare(productOverrides)
     );
-  }, [event, pickupFieldPreferences, pickupSettingsMode, pickupSettingsEventId]);
+  }, [event, pickupFieldPreferences, pickupSettingsMode, productOverrides, pickupSettingsEventId]);
 
   React.useEffect(() => {
     if (!hasUnsavedPickupChanges) return;
@@ -148,20 +166,28 @@ const InventoryPage = ({ eventId, eventName }) => {
     if (pickupSettingsEventId) {
       setPickupFieldPreferences(mergePickupFieldPreferences(event.pickupFieldPreferences));
       setPickupSettingsMode(event.pickupSettingsMode === 'station' ? 'station' : 'product');
+      setProductOverrides(event.productPickupOverrides || {});
     }
     if (hasMultiGiftStations) {
       const next = {};
       const nextModes = {};
+      const nextOverrides = {};
       secondaryStations.forEach((station) => {
         next[station._id] = mergePickupFieldPreferences(station.pickupFieldPreferences);
         nextModes[station._id] = station.pickupSettingsMode === 'station' ? 'station' : 'product';
+        nextOverrides[station._id] = station.productPickupOverrides || {};
       });
       setStationPrefs(next);
       setStationModes(nextModes);
+      setStationOverrides(nextOverrides);
     }
   }, [event, pickupSettingsEventId, hasMultiGiftStations, secondaryStations]);
 
-  const handleSavePickupFieldPreferences = async (targetEventId = pickupSettingsEventId, prefs = pickupFieldPreferences) => {
+  const handleSavePickupFieldPreferences = async (
+    targetEventId = pickupSettingsEventId,
+    prefs = pickupFieldPreferences,
+    overrides = productOverrides
+  ) => {
     if (!targetEventId) {
       setError('Event ID is required to save preferences.');
       return;
@@ -175,7 +201,7 @@ const InventoryPage = ({ eventId, eventName }) => {
 
     setError('');
     try {
-      await updatePickupFieldPreferences(targetEventId, prefs, mode);
+      await updatePickupFieldPreferences(targetEventId, prefs, mode, overrides);
       setSuccess('Pick-up modal display settings saved successfully!');
       const updatedEvent = await getEvent(eventId);
       setEvent(updatedEvent);
@@ -198,8 +224,14 @@ const InventoryPage = ({ eventId, eventName }) => {
     const baseline = mergePickupFieldPreferences(station.pickupFieldPreferences);
     const current = stationPrefs[station._id];
     if (!current) return false;
-    return Object.keys(baseline).some((key) => baseline[key] !== current[key]);
+    return (
+      Object.keys(baseline).some((key) => baseline[key] !== current[key]) ||
+      normalizeOverridesForCompare(station.productPickupOverrides) !== normalizeOverridesForCompare(stationOverrides[station._id])
+    );
   };
+
+  const getStationInventoryItems = (station) =>
+    inventory.filter((item) => getItemAllocatedIds(item).includes(toEventIdString(station._id)));
 
   // Predefined types in alphabetical order
   const predefinedTypes = ['Accessories', 'Apparel', 'Bags', 'Electronics', 'Hats', 'Sandals', 'Sneakers', 'Sunglasses'];
@@ -383,6 +415,102 @@ const InventoryPage = ({ eventId, eventName }) => {
 
     return filtered;
   }, [inventory, searchQuery, typeFilter, styleFilter, genderFilter, sortBy, sortOrder]);
+
+  const formatMobileGenderLabel = (gender) => {
+    const option = GENDER_OPTIONS.find((g) => g.value === gender);
+    return option ? option.label : gender;
+  };
+
+  const getMobileItemSubtitle = (item) => {
+    const parts = [
+      item.style || null,
+      item.gender && item.gender !== 'N/A' ? formatMobileGenderLabel(item.gender) : null,
+      item.size || null,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : '—';
+  };
+
+  const displayMobilePostEventCount = (item) => {
+    const val = item.postEventCount;
+    if (val === null || val === undefined || val === 0) return '—';
+    return val;
+  };
+
+  const mobileStationPillOptions = React.useMemo(() => {
+    if (!event?.isMainEvent) return [];
+    const stationIds = new Set();
+    filteredAndSortedInventory.forEach((item) => {
+      getItemAllocatedIds(item).forEach((id) => stationIds.add(id));
+    });
+    return filteredEvents.filter((ev) => stationIds.has(toEventIdString(ev._id)));
+  }, [event, filteredAndSortedInventory, filteredEvents]);
+
+  const mobileDisplayInventory = React.useMemo(() => {
+    let items = filteredAndSortedInventory;
+    if (event && !event.isMainEvent) {
+      const stationId = toEventIdString(event._id);
+      items = items.filter((item) => getItemAllocatedIds(item).includes(stationId));
+    } else if (mobileStationFilter !== 'all') {
+      items = items.filter((item) => getItemAllocatedIds(item).includes(mobileStationFilter));
+    }
+    return items;
+  }, [filteredAndSortedInventory, event, mobileStationFilter]);
+
+  const mobileGroupedInventory = React.useMemo(() => {
+    const paged = mobileDisplayInventory.slice(
+      page * rowsPerPage,
+      page * rowsPerPage + rowsPerPage
+    );
+    const groups = new Map();
+    paged.forEach((item) => {
+      const category = item.type || 'Uncategorized';
+      if (!groups.has(category)) groups.set(category, []);
+      groups.get(category).push(item);
+    });
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [mobileDisplayInventory, page, rowsPerPage]);
+
+  const handleMobileEnterBeforeEdit = () => {
+    handleEnterEditMode();
+    setMobileEditPhase('before');
+  };
+
+  const handleMobileEnterPostEdit = () => {
+    handleEnterEditMode();
+    setMobileEditPhase('post');
+  };
+
+  const handleMobileExitEditMode = () => {
+    handleExitEditMode();
+    setMobileEditPhase(null);
+  };
+
+  const mobileCountBoxBaseSx = {
+    flex: 1,
+    minWidth: 0,
+    border: '1px solid',
+    borderRadius: 1,
+    px: 1,
+    py: 0.75,
+  };
+
+  const mobileWarehouseBoxSx = {
+    ...mobileCountBoxBaseSx,
+    borderColor: 'grey.300',
+    bgcolor: 'grey.100',
+  };
+
+  const mobileBeforeBoxSx = {
+    ...mobileCountBoxBaseSx,
+    borderColor: 'primary.light',
+    bgcolor: 'rgba(25, 118, 210, 0.1)',
+  };
+
+  const mobilePostBoxSx = {
+    ...mobileCountBoxBaseSx,
+    borderColor: '#81c784',
+    bgcolor: 'rgba(0, 137, 123, 0.1)',
+  };
 
   const loadInventory = async () => {
     setLoading(true);
@@ -1061,8 +1189,13 @@ const InventoryPage = ({ eventId, eventName }) => {
                           onPreferencesChange={(updated) =>
                             setStationPrefs((prev) => ({ ...prev, [station._id]: updated }))
                           }
-                          onSave={() => handleSavePickupFieldPreferences(station._id, stationPrefs[station._id])}
+                          onSave={() => handleSavePickupFieldPreferences(station._id, stationPrefs[station._id], stationOverrides[station._id])}
                           saving={stationSavingId === station._id}
+                          inventoryItems={getStationInventoryItems(station)}
+                          overrides={stationOverrides[station._id] || {}}
+                          onOverridesChange={(updated) =>
+                            setStationOverrides((prev) => ({ ...prev, [station._id]: updated }))
+                          }
                         />
                       </AccordionDetails>
                     </Accordion>
@@ -1083,7 +1216,15 @@ const InventoryPage = ({ eventId, eventName }) => {
                   onSave={() => handleSavePickupFieldPreferences()}
                   saving={savingPreferences}
                   showSummaryChips
+                  inventoryItems={inventory}
+                  overrides={productOverrides}
+                  onOverridesChange={setProductOverrides}
                 />
+                {!event.isMainEvent && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                    Changes apply to this station only.
+                  </Typography>
+                )}
                 {hasUnsavedPickupChanges && (
                   <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1 }}>
                     You have unsaved changes. Click <strong>Save Settings</strong> to apply them.
@@ -1403,8 +1544,8 @@ const InventoryPage = ({ eventId, eventName }) => {
             </Box>
 
             <Box display="flex" justifyContent="flex-end" mb={1}>
-              {/* Edit Mode Buttons */}
-              {canUpdateInventoryCounts && (
+              {/* Edit Mode Buttons (desktop only — mobile uses phase buttons in card layout) */}
+              {canUpdateInventoryCounts && !isMobile && (
                 isEditMode ? (
                   <Box display="flex" gap={1}>
                     <Button
@@ -1512,30 +1653,124 @@ const InventoryPage = ({ eventId, eventName }) => {
 
             {/* Mobile Card Layout */}
             {isMobile ? (
-              <>
-                {canModifyInventory && filteredAndSortedInventory.length > 0 && (
-                  <Box display="flex" alignItems="center" gap={1} mb={2}>
-                    <Checkbox
-                      indeterminate={
-                        filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
-                        selectedItems.length > 0 &&
-                        selectedItems.length < filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length
-                      }
-                      checked={
-                        filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
-                        selectedItems.length === filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length
-                      }
-                      onChange={handleSelectAll}
-                      inputProps={{ 'aria-label': 'select all items' }}
-                    />
-                    <Typography variant="body2" color="text.secondary">
-                      Select All
-                    </Typography>
+              <Box sx={{ pb: isEditMode && mobileEditPhase ? 10 : 0 }}>
+                {/* Station pills + phase edit buttons */}
+                {!isEditMode && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                    {event?.isMainEvent && (
+                      <Box sx={{ width: '100%', textAlign: 'center' }}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ display: 'block', mb: 0.75, fontWeight: 600, letterSpacing: 0.3 }}
+                        >
+                          Filter by station
+                        </Typography>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 0.75,
+                            justifyContent: 'center',
+                          }}
+                        >
+                        <Chip
+                          label="All"
+                          size="small"
+                          clickable
+                          color={mobileStationFilter === 'all' ? 'primary' : 'default'}
+                          variant={mobileStationFilter === 'all' ? 'filled' : 'outlined'}
+                          onClick={() => setMobileStationFilter('all')}
+                        />
+                        {mobileStationPillOptions.map((station) => (
+                          <Chip
+                            key={station._id}
+                            label={station.eventName}
+                            size="small"
+                            clickable
+                            color={mobileStationFilter === toEventIdString(station._id) ? 'primary' : 'default'}
+                            variant={mobileStationFilter === toEventIdString(station._id) ? 'filled' : 'outlined'}
+                            onClick={() => setMobileStationFilter(toEventIdString(station._id))}
+                          />
+                        ))}
+                        </Box>
+                      </Box>
+                    )}
+                    {canUpdateInventoryCounts && (
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: 1,
+                          justifyContent: 'center',
+                          width: '100%',
+                        }}
+                      >
+                        <Button
+                          variant="outlined"
+                          size="medium"
+                          onClick={handleMobileEnterBeforeEdit}
+                          sx={{
+                            color: 'primary.main',
+                            borderColor: 'primary.light',
+                            bgcolor: 'rgba(25, 118, 210, 0.06)',
+                            textTransform: 'none',
+                            fontSize: '0.95rem',
+                            fontWeight: 500,
+                            px: 2,
+                          }}
+                        >
+                          Edit before event
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          size="medium"
+                          onClick={handleMobileEnterPostEdit}
+                          sx={{
+                            color: '#00897b',
+                            borderColor: '#4db6ac',
+                            bgcolor: 'rgba(0, 137, 123, 0.06)',
+                            textTransform: 'none',
+                            fontSize: '0.95rem',
+                            fontWeight: 500,
+                            px: 2,
+                          }}
+                        >
+                          Edit post event
+                        </Button>
+                      </Box>
+                    )}
                   </Box>
                 )}
 
-                {filteredAndSortedInventory.length === 0 ? (
-                  <Box size={{ textAlign: 'center', py: 6 }}>
+                {/* Phase badge */}
+                {isEditMode && mobileEditPhase === 'before' && (
+                  <Chip
+                    label="Editing before event counts"
+                    size="small"
+                    sx={{
+                      mb: 2,
+                      bgcolor: 'rgba(25, 118, 210, 0.12)',
+                      color: 'primary.main',
+                      fontWeight: 600,
+                    }}
+                  />
+                )}
+                {isEditMode && mobileEditPhase === 'post' && (
+                  <Chip
+                    label="Editing post event counts"
+                    size="small"
+                    sx={{
+                      mb: 2,
+                      bgcolor: 'rgba(0, 137, 123, 0.12)',
+                      color: '#00897b',
+                      fontWeight: 600,
+                    }}
+                  />
+                )}
+
+                {mobileDisplayInventory.length === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 6 }}>
                     <FilterIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
                     <Typography variant="h6" color="text.secondary">
                       {inventory.length === 0 ? 'No inventory found.' : 'No inventory matches your filters.'}
@@ -1552,238 +1787,173 @@ const InventoryPage = ({ eventId, eventName }) => {
                     )}
                   </Box>
                 ) : (
-                  <Grid container spacing={1} sx={{ width: '100%' }}>
-                    {filteredAndSortedInventory
-                      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                      .map(item => (
-                        <Grid item xs={12} key={item._id} sx={{ width: '100%', minWidth: 0 }}>
-                          <Card
-                            elevation={1}
-                            sx={{
-                              width: '100%',
-                              height: '100%',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              position: 'relative',
-                              ...(item.isInherited && {
-                                border: '1px solid',
-                                borderColor: 'primary.main',
-                                backgroundColor: 'rgba(25, 118, 210, 0.02)'
-                              })
-                            }}
-                          >
-                            <CardContent sx={{ flexGrow: 1, p: { xs: 1, sm: 1.5, md: 2 } }}>
-                              {/* Checkbox and Actions Header */}
-                              <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={0.75}>
-                                {canModifyInventory && (
-                                  <Checkbox
-                                    checked={selectedItems.includes(item._id)}
-                                    onChange={() => handleSelectItem(item._id)}
-                                    inputProps={{ 'aria-label': `select ${item.type} ${item.style}` }}
-                                    size="small"
-                                    sx={{ p: 0.5 }}
-                                  />
-                                )}
-                                {canModifyInventory && !isEditMode && (
-                                  <Box sx={{ display: 'flex', gap: 0.25 }}>
-                                    <IconButton
-                                      color="primary"
-                                      onClick={() => handleEditItemClick(item)}
-                                      size="small"
-                                      title="Edit item"
-                                      sx={{ p: 0.5 }}
-                                    >
-                                      <EditIcon fontSize="small" />
-                                    </IconButton>
-                                    <IconButton
-                                      color="error"
-                                      onClick={() => handleDeleteClick(item._id)}
-                                      size="small"
-                                      title="Delete item"
-                                      sx={{ p: 0.5 }}
-                                    >
-                                      <DeleteIcon fontSize="small" />
-                                    </IconButton>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {mobileGroupedInventory.map(([category, items]) => (
+                      <Box key={category}>
+                        <Typography
+                          variant="subtitle2"
+                          sx={{ fontWeight: 700, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}
+                        >
+                          {category} · {items.length}
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          {items.map((item) => (
+                            <Card
+                              key={item._id}
+                              elevation={1}
+                              sx={{
+                                ...(item.isInherited && {
+                                  border: '1px solid',
+                                  borderColor: 'primary.main',
+                                  bgcolor: 'rgba(25, 118, 210, 0.02)',
+                                }),
+                              }}
+                            >
+                              <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.25, mb: 0.25 }}>
+                                  {item.product || item.style || 'Unnamed item'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25, fontSize: '0.95rem', lineHeight: 1.4 }}>
+                                  {getMobileItemSubtitle(item)}
+                                </Typography>
+
+                                {/* Read state */}
+                                {!isEditMode && (
+                                  <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <Box sx={mobileWarehouseBoxSx}>
+                                      <Typography variant="caption" color="text.secondary" display="block">
+                                        Warehouse
+                                      </Typography>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        {item.qtyWarehouse ?? 0}
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={mobileBeforeBoxSx}>
+                                      <Typography variant="caption" color="text.secondary" display="block">
+                                        Before event
+                                      </Typography>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        {item.qtyBeforeEvent ?? item.qtyOnSite ?? 0}
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={mobilePostBoxSx}>
+                                      <Typography variant="caption" color="text.secondary" display="block">
+                                        Post event
+                                      </Typography>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        {displayMobilePostEventCount(item)}
+                                      </Typography>
+                                    </Box>
                                   </Box>
                                 )}
-                              </Box>
 
-                              {/* Product Information */}
-                              <Box mb={1}>
-                                {/* Brand - Most Prominent */}
-                                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5, fontSize: { xs: '0.95rem', sm: '1.1rem' }, lineHeight: 1.2 }}>
-                                  {item.style || 'No Brand'}
-                                </Typography>
-
-                                {/* Product - Second Most Prominent */}
-                                {item.product && (
-                                  <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5, fontSize: { xs: '0.8rem', sm: '0.9rem' }, color: 'text.primary', lineHeight: 1.3 }}>
-                                    {item.product}
-                                  </Typography>
+                                {/* Before event edit */}
+                                {isEditMode && mobileEditPhase === 'before' && (
+                                  <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <Box sx={mobileWarehouseBoxSx}>
+                                      <Typography variant="caption" color="text.secondary" display="block">
+                                        Warehouse
+                                      </Typography>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        {item.qtyWarehouse ?? 0}
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={{ ...mobileBeforeBoxSx, flex: 1.2 }}>
+                                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                                        Before event
+                                      </Typography>
+                                      <TextField
+                                        type="number"
+                                        size="small"
+                                        fullWidth
+                                        inputMode="numeric"
+                                        inputProps={{ min: 0 }}
+                                        value={editValuesMap[item._id]?.qtyBeforeEvent ?? (item.qtyBeforeEvent || item.qtyOnSite || 0)}
+                                        onChange={(e) => handleEditValueChange(item._id, 'qtyBeforeEvent', e.target.value)}
+                                        sx={{ bgcolor: 'background.paper' }}
+                                      />
+                                    </Box>
+                                  </Box>
                                 )}
 
-                                {/* Category - Less Prominent */}
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontSize: { xs: '0.65rem', sm: '0.7rem' }, opacity: 0.7 }}>
-                                  {item.type || 'N/A'}
-                                </Typography>
-
-                                {/* Size, Gender, Color Chips */}
-                                <Box display="flex" flexWrap="wrap" gap={0.25} mt={0.5}>
-                                  {item.size && (
-                                    <Chip label={`Size: ${item.size}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
-                                  )}
-                                  {item.gender && item.gender !== 'N/A' && (
-                                    <Chip label={`Gender: ${item.gender}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
-                                  )}
-                                  {item.color && (
-                                    <Chip label={`Color: ${item.color}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
-                                  )}
-                                </Box>
-                              </Box>
-
-                              {/* Quantity Information */}
-                              <Box sx={{
-                                borderTop: '1px solid',
-                                borderColor: 'divider',
-                                pt: { xs: 0.75, sm: 1 },
-                                mt: 'auto'
-                              }}>
-                                <Grid container spacing={1}>
-                                  <Grid item size={isEditMode ? 12 : 6}>
-                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                                      Qty Warehouse
-                                    </Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                                      {item.qtyWarehouse || 0}
-                                    </Typography>
-                                  </Grid>
-                                  {/* Hidden - Current Inventory calculated field that's confusing to staff */}
-                                  {/* <Grid item xs={6}>
-                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                                      Current Inventory
-                                    </Typography>
-                                    <Typography
-                                      variant="body2"
-                                      sx={{
-                                        fontWeight: 600,
-                                        fontSize: { xs: '0.8rem', sm: '0.875rem' },
-                                        color: (item.currentInventory || 0) <= 10 ? 'error.main' : 'success.main'
-                                      }}
-                                    >
-                                      {item.currentInventory || 0}
-                                    </Typography>
-                                  </Grid> */}
-                                  <Grid item size={isEditMode ? 12 : 6}>
-                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                                      Qty Before Event
-                                    </Typography>
-                                    {isEditMode ? (
-                                      <TextField
-                                        type="number"
-                                        size="small"
-                                        fullWidth
-                                        inputProps={{ min: 0, style: { padding: '8px 10px', fontSize: '1rem' } }}
-                                        value={editValuesMap[item._id]?.qtyBeforeEvent ?? (item.qtyBeforeEvent || item.qtyOnSite || 0)}
-                                        onChange={e => handleEditValueChange(item._id, 'qtyBeforeEvent', e.target.value)}
-                                        sx={{ mt: 0.25 }}
-                                      />
-                                    ) : (
-                                      <Typography variant="body2" sx={{ fontWeight: 600, fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                                        {item.qtyBeforeEvent || item.qtyOnSite || 0}
+                                {/* Post event edit */}
+                                {isEditMode && mobileEditPhase === 'post' && (
+                                  <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <Box sx={mobileWarehouseBoxSx}>
+                                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.25 }}>
+                                        Before event
                                       </Typography>
-                                    )}
-                                  </Grid>
-                                  <Grid item size={isEditMode ? 12 : 6}>
-                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                                      Post Event Count
-                                    </Typography>
-                                    {isEditMode ? (
-                                      <TextField
-                                        type="number"
-                                        size="small"
-                                        fullWidth
-                                        inputProps={{ min: 0, style: { padding: '8px 10px', fontSize: '1rem' } }}
-                                        value={editValuesMap[item._id]?.postEventCount ?? (item.postEventCount || 0)}
-                                        onChange={e => handleEditValueChange(item._id, 'postEventCount', e.target.value)}
-                                        sx={{ mt: 0.25 }}
-                                      />
-                                    ) : (
-                                      <Typography variant="body2" sx={{ fontWeight: 600, fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                                        {item.postEventCount || 0}
-                                      </Typography>
-                                    )}
-                                  </Grid>
-                                </Grid>
-                              </Box>
-
-                              {/* Allocated Events */}
-                              {event?.isMainEvent && (
-                                <Box sx={{
-                                  borderTop: '1px solid',
-                                  borderColor: 'divider',
-                                  pt: { xs: 0.75, sm: 1 },
-                                  mt: { xs: 0.75, sm: 1 }
-                                }}>
-                                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.25, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                                    Allocated Events
-                                  </Typography>
-                                  {eventsLoading ? (
-                                    <CircularProgress size={14} />
-                                  ) : canModifyInventory ? (
-                                    <Autocomplete
-                                      multiple
-                                      size="small"
-                                      options={filteredEvents}
-                                      getOptionLabel={option => option.eventName}
-                                      value={getAllocatedEventsForItem(item)}
-                                      onChange={(_, newValue) => handleAllocationChange(item, newValue)}
-                                      renderInput={params => (
-                                        <TextField
-                                          {...params}
-                                          variant="outlined"
-                                          size="small"
-                                          placeholder="Select events..."
-                                          sx={{
-                                            '& .MuiInputBase-root': {
-                                              fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                              padding: { xs: '4px 8px', sm: '8px 12px' }
-                                            }
-                                          }}
-                                        />
-                                      )}
-                                      renderTags={(value, getTagProps) =>
-                                        value.map((option, index) => (
-                                          <Chip
-                                            label={option.eventName}
-                                            {...getTagProps({ index })}
-                                            key={option._id}
-                                            size="small"
-                                            sx={{ height: { xs: 20, sm: 24 }, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
-                                          />
-                                        ))
-                                      }
-                                      disableCloseOnSelect
-                                    />
-                                  ) : (
-                                    <Box display="flex" flexWrap="wrap" gap={0.25}>
-                                      {getAllocatedEventsForItem(item).length > 0 ? (
-                                        getAllocatedEventsForItem(item).map((ev) => (
-                                          <Chip key={ev._id} label={ev.eventName} size="small" sx={{ height: { xs: 20, sm: 24 }, fontSize: { xs: '0.65rem', sm: '0.75rem' } }} />
-                                        ))
-                                      ) : (
-                                        <Typography variant="caption" color="text.secondary">Not allocated</Typography>
-                                      )}
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <LockIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+                                        <Typography variant="body2" color="text.disabled" fontWeight={500}>
+                                          {item.qtyBeforeEvent ?? item.qtyOnSite ?? 0}
+                                        </Typography>
+                                      </Box>
                                     </Box>
-                                  )}
-                                </Box>
-                              )}
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                      ))}
-                  </Grid>
+                                    <Box sx={{ ...mobilePostBoxSx, flex: 1.2 }}>
+                                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                                        Post event
+                                      </Typography>
+                                      <TextField
+                                        type="number"
+                                        size="small"
+                                        fullWidth
+                                        inputMode="numeric"
+                                        inputProps={{ min: 0 }}
+                                        value={editValuesMap[item._id]?.postEventCount ?? (item.postEventCount || 0)}
+                                        onChange={(e) => handleEditValueChange(item._id, 'postEventCount', e.target.value)}
+                                        sx={{ bgcolor: 'background.paper' }}
+                                      />
+                                    </Box>
+                                  </Box>
+                                )}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
                 )}
-              </>
+
+                {/* Sticky save bar */}
+                {isEditMode && mobileEditPhase && (
+                  <Box
+                    sx={{
+                      position: 'fixed',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      zIndex: (t) => t.zIndex.appBar + 1,
+                      display: 'flex',
+                      gap: 1,
+                      p: 1.5,
+                      bgcolor: 'background.paper',
+                      borderTop: '1px solid',
+                      borderColor: 'divider',
+                      boxShadow: '0 -4px 12px rgba(0,0,0,0.08)',
+                    }}
+                  >
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      onClick={handleMobileExitEditMode}
+                      startIcon={<CancelIcon />}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="success"
+                      fullWidth
+                      onClick={handleSaveAllChanges}
+                      startIcon={<SaveIcon />}
+                    >
+                      Save counts
+                    </Button>
+                  </Box>
+                )}
+              </Box>
             ) : (
               /* Desktop Table Layout */
               <TableContainer component={Paper}>

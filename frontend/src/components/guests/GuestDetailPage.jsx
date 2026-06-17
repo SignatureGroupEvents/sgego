@@ -390,10 +390,7 @@ export default function GuestDetailPage() {
             const stationEvent = context.availableEvents?.find(
                 (e) => String(e._id) === String(eventIdForCheckin)
             ) || context.currentEvent;
-            const prefs = stationEvent?.pickupFieldPreferences && typeof stationEvent.pickupFieldPreferences === 'object'
-                ? stationEvent.pickupFieldPreferences
-                : null;
-            setModifyDialogPickupPreferences(prefs);
+            setModifyDialogPickupPreferences(stationEvent || null);
 
             const currentGifts = (checkin.giftsReceived || []).map((gift) => ({
                 inventoryId: gift.inventoryId?._id || gift.inventoryId || '',
@@ -1101,7 +1098,8 @@ export default function GuestDetailPage() {
                                                                     value={gift.inventoryId}
                                                                     onChange={(inventoryId) => updateGift(index, 'inventoryId', inventoryId)}
                                                                     eventName={selectedCheckin?.eventId?.eventName || 'Event'}
-                                                                    pickupFieldPreferences={modifyDialogPickupPreferences || getDefaultPreferences()}
+                                                                    stationPrefs={modifyDialogPickupPreferences || { pickupFieldPreferences: getDefaultPreferences() }}
+                                                                    requireRemoveToChange
                                                                 />
                                                             </Box>
                                                             <TextField

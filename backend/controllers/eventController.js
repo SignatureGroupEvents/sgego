@@ -131,7 +131,7 @@ exports.getEvent = async (req, res) => {
     const eventObj = event.toObject ? event.toObject() : event;
     if (event.isMainEvent) {
       eventObj.secondaryEvents = await Event.find({ parentEventId: req.params.id, isActive: true })
-        .select('_id eventName eventContractNumber isMainEvent parentEventId pickupFieldPreferences')
+        .select('_id eventName eventContractNumber isMainEvent parentEventId pickupFieldPreferences productPickupOverrides')
         .lean();
     }
 
@@ -936,7 +936,7 @@ exports.updateEventStatus = async (req, res) => {
 // Update pickup field preferences for an event (main event or individual gifting station)
 exports.updatePickupFieldPreferences = async (req, res) => {
   try {
-    const { pickupFieldPreferences } = req.body;
+    const { pickupFieldPreferences, productPickupOverrides } = req.body;
     const event = await Event.findById(req.params.id);
 
     if (!event) {
@@ -961,16 +961,38 @@ exports.updatePickupFieldPreferences = async (req, res) => {
       }
     });
 
+    // Validate product pickup overrides structure
+    let overrides;
+    if (productPickupOverrides && typeof productPickupOverrides === 'object') {
+      overrides = {};
+      Object.entries(productPickupOverrides).forEach(([product, fieldPrefs]) => {
+        if (!product || typeof fieldPrefs !== 'object' || fieldPrefs === null) return;
+        const overridePrefs = {};
+        validFields.forEach(field => {
+          if (typeof fieldPrefs[field] === 'boolean') {
+            overridePrefs[field] = fieldPrefs[field];
+          }
+        });
+        overrides[product] = overridePrefs;
+      });
+    }
+
+    const update = { pickupFieldPreferences: preferences };
+    if (overrides) {
+      update.productPickupOverrides = overrides;
+    }
+
     const updatedEvent = await Event.findByIdAndUpdate(
       req.params.id,
-      { pickupFieldPreferences: preferences },
+      update,
       { new: true, runValidators: true }
     );
 
-    res.json({ 
+    res.json({
       success: true,
       event: updatedEvent,
-      pickupFieldPreferences: updatedEvent.pickupFieldPreferences
+      pickupFieldPreferences: updatedEvent.pickupFieldPreferences,
+      productPickupOverrides: updatedEvent.productPickupOverrides
     });
 
   } catch (error) {

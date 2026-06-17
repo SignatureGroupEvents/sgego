@@ -195,8 +195,11 @@ exports.multiEventCheckin = async (req, res) => {
     const inventoryUpdates = new Map(); // Track total inventory changes
     const updatedEventIds = new Set(); // Track which events were updated
 
-    // Process each event checkin
+    // Process each event checkin (skip entries with no gift — supports one-station-at-a-time check-in)
     for (const checkin of checkins) {
+      const hasGifts = checkin.selectedGifts?.some((g) => isValidInventoryId(g?.inventoryId));
+      if (!hasGifts) continue;
+
       const event = await Event.findById(checkin.eventId);
       if (!event) {
         results.push({
@@ -248,6 +251,10 @@ exports.multiEventCheckin = async (req, res) => {
       });
 
       updatedEventIds.add(checkin.eventId);
+    }
+
+    if (results.filter((r) => r.success).length === 0) {
+      return res.status(400).json({ message: 'No gifts selected to check in.' });
     }
 
     // Validate total inventory requirements
