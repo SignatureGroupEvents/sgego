@@ -3,14 +3,14 @@ import {
   Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete,
   TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
-  DialogContent, DialogActions, TablePagination, Grid, InputAdornment, TableSortLabel, Tooltip, Checkbox,
+  DialogContent, DialogActions, TablePagination, Grid, TableSortLabel, Tooltip, Checkbox,
   useMediaQuery, useTheme, Accordion, AccordionSummary, AccordionDetails,
   ToggleButton, ToggleButtonGroup
 } from '@mui/material';
 import {
   Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
   Cancel as CancelIcon, FileDownload as FileDownloadIcon,
-  Search as SearchIcon, FilterList as FilterIcon, Clear as ClearIcon, AccountTree as InheritIcon,
+  FilterList as FilterIcon, AccountTree as InheritIcon,
   KeyboardArrowLeft, KeyboardArrowRight, ExpandMore as ExpandMoreIcon, Lock as LockIcon
 } from '@mui/icons-material';
 import {
@@ -27,12 +27,18 @@ import {
 import { useParams, useNavigate } from 'react-router-dom';
 import MainLayout from '../layout/MainLayout';
 import { getEvent, updatePickupFieldPreferences } from '../../services/events';
-import { compareSizes } from '../../utils/sizeSort';
 import api from '../../services/api';
 import EventIcon from '@mui/icons-material/Event';
 import EventHeader from '../Events/EventHeader';
 import CSVColumnMapper from './CSVColumnMapper';
 import PickupSettingsPanel from './PickupSettingsPanel';
+import InventoryFilterBar from './InventoryFilterBar';
+import {
+  EMPTY_COLUMN_FILTERS,
+  DEFAULT_SORT_LEVELS,
+  filterAndSortInventory,
+  toggleHeaderSort,
+} from '../../utils/inventoryFilters';
 import {
   getDefaultPickupFieldPreferences,
   mergePickupFieldPreferences,
@@ -249,13 +255,15 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Search and filter state
+  // Search, compound filter, and multi-level sort state
   const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [styleFilter, setStyleFilter] = useState('all');
-  const [genderFilter, setGenderFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('type');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [columnFilters, setColumnFilters] = useState(() => ({ ...EMPTY_COLUMN_FILTERS }));
+  const [sortLevels, setSortLevels] = useState(() => [...DEFAULT_SORT_LEVELS]);
+
+  const genderLabelMap = React.useMemo(
+    () => Object.fromEntries(GENDER_OPTIONS.map((option) => [option.value, option.label])),
+    []
+  );
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -291,130 +299,36 @@ const InventoryPage = ({ eventId, eventName }) => {
     }
   };
 
-  // Get all unique values for filter dropdowns
-  const allTypes = React.useMemo(() => {
-    const typeSet = new Set();
-    inventory.forEach(item => {
-      if (item.type) typeSet.add(item.type);
-    });
-    return Array.from(typeSet).sort();
-  }, [inventory]);
-
-  const allStyles = React.useMemo(() => {
-    const styleSet = new Set();
-    inventory.forEach(item => {
-      if (item.style) styleSet.add(item.style);
-    });
-    return Array.from(styleSet).sort();
-  }, [inventory]);
-
-  const allGenders = React.useMemo(() => {
-    const genderSet = new Set();
-    inventory.forEach(item => {
-      if (item.gender) genderSet.add(item.gender);
-    });
-    return Array.from(genderSet).sort();
-  }, [inventory]);
-
   const handleSort = (column) => {
-    const isAsc = sortBy === column && sortOrder === 'asc';
-    setSortOrder(isAsc ? 'desc' : 'asc');
-    setSortBy(column);
+    setSortLevels((prev) => toggleHeaderSort(prev, column));
+    setPage(0);
   };
 
   const clearAllFilters = () => {
     setSearchQuery('');
-    setTypeFilter('all');
-    setStyleFilter('all');
-    setGenderFilter('all');
-    setSortBy('type');
-    setSortOrder('asc');
+    setColumnFilters({ ...EMPTY_COLUMN_FILTERS });
+    setSortLevels([...DEFAULT_SORT_LEVELS]);
     setPage(0);
     setSelectedItems([]);
   };
 
-  // Count active filters for mobile display
-  const activeFiltersCount = React.useMemo(() => {
-    let count = 0;
-    if (searchQuery) count++;
-    if (typeFilter !== 'all') count++;
-    if (styleFilter !== 'all') count++;
-    if (genderFilter !== 'all') count++;
-    if (sortBy !== 'type') count++;
-    if (sortOrder !== 'asc') count++;
-    return count;
-  }, [searchQuery, typeFilter, styleFilter, genderFilter, sortBy, sortOrder]);
+  const filteredAndSortedInventory = React.useMemo(
+    () => filterAndSortInventory(inventory, { searchQuery, columnFilters, sortLevels }),
+    [inventory, searchQuery, columnFilters, sortLevels]
+  );
 
-  // Filter and sort inventory
-  const filteredAndSortedInventory = React.useMemo(() => {
-    let filtered = inventory.filter(item => {
-      // Search filter
-      const searchMatch = searchQuery === '' ||
-        item.type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.style?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.size?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.color?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.gender?.toLowerCase().includes(searchQuery.toLowerCase());
+  React.useEffect(() => {
+    setPage(0);
+    setSelectedItems([]);
+  }, [searchQuery, columnFilters, sortLevels]);
 
-      // Type filter
-      const typeMatch = typeFilter === 'all' || item.type === typeFilter;
-
-      // Style filter
-      const styleMatch = styleFilter === 'all' || item.style === styleFilter;
-
-      // Gender filter
-      const genderMatch = genderFilter === 'all' || item.gender === genderFilter;
-
-      return searchMatch && typeMatch && styleMatch && genderMatch;
-    });
-
-    // Sort inventory
-    filtered.sort((a, b) => {
-      let aValue, bValue;
-
-      switch (sortBy) {
-        case 'type':
-          aValue = (a.type || '').toLowerCase();
-          bValue = (b.type || '').toLowerCase();
-          break;
-        case 'style':
-          aValue = (a.style || '').toLowerCase();
-          bValue = (b.style || '').toLowerCase();
-          break;
-        case 'product':
-          aValue = (a.product || '').toLowerCase();
-          bValue = (b.product || '').toLowerCase();
-          break;
-        case 'size': {
-          const sizeCmp = compareSizes(a.size, b.size);
-          return sortOrder === 'asc' ? sizeCmp : -sizeCmp;
-        }
-        case 'gender':
-          aValue = (a.gender || '').toLowerCase();
-          bValue = (b.gender || '').toLowerCase();
-          break;
-        case 'color':
-          aValue = (a.color || '').toLowerCase();
-          bValue = (b.color || '').toLowerCase();
-          break;
-        case 'qtyWarehouse':
-          aValue = Number(a.qtyWarehouse) || 0;
-          bValue = Number(b.qtyWarehouse) || 0;
-          break;
-        default:
-          aValue = a[sortBy] || '';
-          bValue = b[sortBy] || '';
-      }
-
-      if (sortOrder === 'asc') {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-      }
-    });
-
-    return filtered;
-  }, [inventory, searchQuery, typeFilter, styleFilter, genderFilter, sortBy, sortOrder]);
+  const getColumnSortState = (column) => {
+    const index = sortLevels.findIndex((level) => level.field === column);
+    return {
+      active: index !== -1,
+      direction: index === 0 ? sortLevels[0].direction : 'asc',
+    };
+  };
 
   const formatMobileGenderLabel = (gender) => {
     const option = GENDER_OPTIONS.find((g) => g.value === gender);
@@ -1241,307 +1155,20 @@ const InventoryPage = ({ eventId, eventName }) => {
         <Card>
           <CardContent>
             {/* Search and Filter Controls */}
-            <Box mb={3}>
-              {/* Mobile: Collapsible Filters */}
-              {isMobile ? (
-                <Box>
-                  {/* Search Bar - Always visible on mobile */}
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Search inventory..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    sx={{ mb: 2 }}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon color="action" />
-                        </InputAdornment>
-                      ),
-                      endAdornment: searchQuery && (
-                        <InputAdornment position="end">
-                          <Button
-                            size="small"
-                            onClick={() => setSearchQuery('')}
-                            sx={{ minWidth: 'auto', p: 0.5 }}
-                          >
-                            <ClearIcon fontSize="small" />
-                          </Button>
-                        </InputAdornment>
-                      )
-                    }}
-                  />
-
-                  {/* Collapsible Filters Accordion */}
-                  <Accordion
-                    expanded={filtersExpanded}
-                    onChange={() => setFiltersExpanded(!filtersExpanded)}
-                    sx={{ boxShadow: 1 }}
-                  >
-                    <AccordionSummary
-                      expandIcon={<ExpandMoreIcon />}
-                      sx={{
-                        minHeight: 48,
-                        '&.Mui-expanded': { minHeight: 48 }
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                        <FilterIcon />
-                        <Typography sx={{ flex: 1, fontWeight: 600 }}>
-                          Filters
-                        </Typography>
-                        {activeFiltersCount > 0 && (
-                          <Chip
-                            label={activeFiltersCount}
-                            size="small"
-                            color="primary"
-                            sx={{ height: 20, minWidth: 20 }}
-                          />
-                        )}
-                      </Box>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <Grid container spacing={2}>
-                        {/* Category Filter */}
-                        <Grid size={{ xs: 12 }}>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Category</InputLabel>
-                            <Select
-                              value={typeFilter}
-                              onChange={(e) => setTypeFilter(e.target.value)}
-                              label="Category"
-                            >
-                              <MenuItem value="all">All Categories</MenuItem>
-                              {allTypes.map(type => (
-                                <MenuItem key={type} value={type}>{type}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                        </Grid>
-
-                        {/* Brand Filter */}
-                        <Grid size={{ xs: 12 }}>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Brand</InputLabel>
-                            <Select
-                              value={styleFilter}
-                              onChange={(e) => setStyleFilter(e.target.value)}
-                              label="Brand"
-                            >
-                              <MenuItem value="all">All Brands</MenuItem>
-                              {allStyles.map(style => (
-                                <MenuItem key={style} value={style}>{style}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                        </Grid>
-
-                        {/* Gender Filter */}
-                        <Grid size={{ xs: 12 }}>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Gender</InputLabel>
-                            <Select
-                              value={genderFilter}
-                              onChange={(e) => setGenderFilter(e.target.value)}
-                              label="Gender"
-                            >
-                              <MenuItem value="all">All Genders</MenuItem>
-                              {allGenders.map(gender => (
-                                <MenuItem key={gender} value={gender}>{gender}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                        </Grid>
-
-                        {/* Sort By */}
-                        <Grid size={{ xs: 6 }}>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Sort By</InputLabel>
-                            <Select
-                              value={sortBy}
-                              onChange={(e) => setSortBy(e.target.value)}
-                              label="Sort By"
-                            >
-                              <MenuItem value="type">Category</MenuItem>
-                              <MenuItem value="style">Brand</MenuItem>
-                              <MenuItem value="product">Product</MenuItem>
-                              <MenuItem value="size">Size</MenuItem>
-                              <MenuItem value="gender">Gender</MenuItem>
-                              <MenuItem value="color">Color</MenuItem>
-                              <MenuItem value="qtyWarehouse">Qty Warehouse</MenuItem>
-                            </Select>
-                          </FormControl>
-                        </Grid>
-
-                        {/* Sort Order */}
-                        <Grid size={{ xs: 6 }}>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Order</InputLabel>
-                            <Select
-                              value={sortOrder}
-                              onChange={(e) => setSortOrder(e.target.value)}
-                              label="Order"
-                            >
-                              <MenuItem value="asc">Asc</MenuItem>
-                              <MenuItem value="desc">Desc</MenuItem>
-                            </Select>
-                          </FormControl>
-                        </Grid>
-
-                        {/* Clear Filters */}
-                        <Grid size={{ xs: 12 }}>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={clearAllFilters}
-                            startIcon={<ClearIcon />}
-                            fullWidth
-                          >
-                            Clear All Filters
-                          </Button>
-                        </Grid>
-                      </Grid>
-                    </AccordionDetails>
-                  </Accordion>
-                </Box>
-              ) : (
-                /* Desktop: Full Filters Always Visible */
-                <Grid container spacing={2} alignItems="flex-start">
-                  {/* Search Bar */}
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      placeholder="Search inventory..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <SearchIcon color="action" />
-                          </InputAdornment>
-                        ),
-                        endAdornment: searchQuery && (
-                          <InputAdornment position="end">
-                            <Button
-                              size="small"
-                              onClick={() => setSearchQuery('')}
-                              sx={{ minWidth: 'auto', p: 0.5 }}
-                            >
-                              <ClearIcon fontSize="small" />
-                            </Button>
-                          </InputAdornment>
-                        )
-                      }}
-                    />
-                  </Grid>
-
-                  {/* Category Filter */}
-                  <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Category</InputLabel>
-                      <Select
-                        value={typeFilter}
-                        onChange={(e) => setTypeFilter(e.target.value)}
-                        label="Category"
-                      >
-                        <MenuItem value="all">All Categories</MenuItem>
-                        {allTypes.map(type => (
-                          <MenuItem key={type} value={type}>{type}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  {/* Brand Filter */}
-                  <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Brand</InputLabel>
-                      <Select
-                        value={styleFilter}
-                        onChange={(e) => setStyleFilter(e.target.value)}
-                        label="Brand"
-                      >
-                        <MenuItem value="all">All Brands</MenuItem>
-                        {allStyles.map(style => (
-                          <MenuItem key={style} value={style}>{style}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  {/* Gender Filter */}
-                  <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Gender</InputLabel>
-                      <Select
-                        value={genderFilter}
-                        onChange={(e) => setGenderFilter(e.target.value)}
-                        label="Gender"
-                      >
-                        <MenuItem value="all">All Genders</MenuItem>
-                        {allGenders.map(gender => (
-                          <MenuItem key={gender} value={gender}>{gender}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  {/* Sort By */}
-                  <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Sort By</InputLabel>
-                      <Select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value)}
-                        label="Sort By"
-                      >
-                        <MenuItem value="type">Category</MenuItem>
-                        <MenuItem value="style">Brand</MenuItem>
-                        <MenuItem value="product">Product</MenuItem>
-                        <MenuItem value="size">Size</MenuItem>
-                        <MenuItem value="gender">Gender</MenuItem>
-                        <MenuItem value="color">Color</MenuItem>
-                        <MenuItem value="qtyWarehouse">Qty Warehouse</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  {/* Sort Order */}
-                  <Grid size={{ xs: 12, sm: 6, md: 1 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Order</InputLabel>
-                      <Select
-                        value={sortOrder}
-                        onChange={(e) => setSortOrder(e.target.value)}
-                        label="Order"
-                      >
-                        <MenuItem value="asc">Asc</MenuItem>
-                        <MenuItem value="desc">Desc</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  {/* Clear Filters */}
-                  <Grid size={{ xs: 12, sm: 6, md: 1 }}>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={clearAllFilters}
-                      startIcon={<ClearIcon />}
-                      sx={{
-                        minWidth: 'auto',
-                        height: '40px',
-                        mt: 0.5
-                      }}
-                    >
-                      Clear
-                    </Button>
-                  </Grid>
-                </Grid>
-              )}
-            </Box>
+            <InventoryFilterBar
+              inventory={inventory}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              columnFilters={columnFilters}
+              onColumnFiltersChange={setColumnFilters}
+              sortLevels={sortLevels}
+              onSortLevelsChange={setSortLevels}
+              onClearAll={clearAllFilters}
+              isMobile={isMobile}
+              filtersExpanded={filtersExpanded}
+              onFiltersExpandedChange={setFiltersExpanded}
+              genderLabels={genderLabelMap}
+            />
 
             <Box display="flex" justifyContent="flex-end" mb={1}>
               {/* Edit Mode Buttons (desktop only — mobile uses phase buttons in card layout) */}
@@ -1983,8 +1610,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       )}
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'type'}
-                          direction={sortBy === 'type' ? sortOrder : 'asc'}
+                          active={getColumnSortState('type').active}
+                          direction={getColumnSortState('type').direction}
                           onClick={() => handleSort('type')}
                         >
                           Category
@@ -1992,8 +1619,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       </TableCell>
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'style'}
-                          direction={sortBy === 'style' ? sortOrder : 'asc'}
+                          active={getColumnSortState('style').active}
+                          direction={getColumnSortState('style').direction}
                           onClick={() => handleSort('style')}
                         >
                           Brand
@@ -2001,8 +1628,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       </TableCell>
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'product'}
-                          direction={sortBy === 'product' ? sortOrder : 'asc'}
+                          active={getColumnSortState('product').active}
+                          direction={getColumnSortState('product').direction}
                           onClick={() => handleSort('product')}
                         >
                           Product
@@ -2010,8 +1637,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       </TableCell>
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'size'}
-                          direction={sortBy === 'size' ? sortOrder : 'asc'}
+                          active={getColumnSortState('size').active}
+                          direction={getColumnSortState('size').direction}
                           onClick={() => handleSort('size')}
                         >
                           Size
@@ -2019,8 +1646,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       </TableCell>
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'gender'}
-                          direction={sortBy === 'gender' ? sortOrder : 'asc'}
+                          active={getColumnSortState('gender').active}
+                          direction={getColumnSortState('gender').direction}
                           onClick={() => handleSort('gender')}
                         >
                           Gender
@@ -2028,8 +1655,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       </TableCell>
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'color'}
-                          direction={sortBy === 'color' ? sortOrder : 'asc'}
+                          active={getColumnSortState('color').active}
+                          direction={getColumnSortState('color').direction}
                           onClick={() => handleSort('color')}
                         >
                           Color
@@ -2037,8 +1664,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       </TableCell>
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'qtyWarehouse'}
-                          direction={sortBy === 'qtyWarehouse' ? sortOrder : 'asc'}
+                          active={getColumnSortState('qtyWarehouse').active}
+                          direction={getColumnSortState('qtyWarehouse').direction}
                           onClick={() => handleSort('qtyWarehouse')}
                         >
                           Qty Warehouse
