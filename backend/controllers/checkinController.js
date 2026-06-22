@@ -153,7 +153,7 @@ exports.getCheckinContext = async (req, res) => {
     // Filter inventory by allocatedEvents for each event
     const inventoryByEvent = {};
     for (const ev of availableEvents) {
-      inventoryByEvent[ev._id] = inventory.filter(item => (item.allocatedEvents || []).map(id => id.toString()).includes(ev._id.toString()));
+      inventoryByEvent[ev._id.toString()] = inventory.filter(item => (item.allocatedEvents || []).map(id => id.toString()).includes(ev._id.toString()));
     }
 
     res.json({
@@ -887,22 +887,44 @@ exports.updateCheckinGifts = async (req, res) => {
       }));
     await checkin.save();
 
-    // Update guest record
+    // Update guest record — consolidate duplicate subdocs for the same station if present
     const guest = checkin.guestId;
-    const guestCheckin = guest.eventCheckins.find(ec =>
-      ec.eventId.toString() === checkin.eventId.toString()
+    const eventIdStr = checkin.eventId.toString();
+    const matchingGuestCheckins = guest.eventCheckins.filter(
+      (ec) => ec.eventId.toString() === eventIdStr
     );
 
-    if (guestCheckin) {
-      guestCheckin.giftsReceived = newGifts
-        .filter(g => isValidInventoryId(g.inventoryId))
-        .map(gift => ({
-          inventoryId: gift.inventoryId,
-          quantity: gift.quantity,
-          distributedAt: new Date()
-        }));
-      await guest.save();
+    const updatedGifts = newGifts
+      .filter((g) => isValidInventoryId(g.inventoryId))
+      .map((gift) => ({
+        inventoryId: gift.inventoryId,
+        quantity: gift.quantity,
+        distributedAt: new Date(),
+      }));
+
+    if (matchingGuestCheckins.length > 0) {
+      const primaryCheckin = matchingGuestCheckins[0];
+
+      if (matchingGuestCheckins.length > 1) {
+        guest.eventCheckins = guest.eventCheckins.filter(
+          (ec) => ec.eventId.toString() !== eventIdStr
+        );
+        guest.eventCheckins.push({
+          eventId: primaryCheckin.eventId,
+          checkedIn: primaryCheckin.checkedIn,
+          checkedInAt: primaryCheckin.checkedInAt,
+          checkedInBy: primaryCheckin.checkedInBy,
+          giftsReceived: updatedGifts,
+          ...(primaryCheckin.pickupFieldPreferencesAtCheckin != null && {
+            pickupFieldPreferencesAtCheckin: primaryCheckin.pickupFieldPreferencesAtCheckin,
+          }),
+        });
+      } else {
+        primaryCheckin.giftsReceived = updatedGifts;
+      }
     }
+
+    await guest.save();
 
     // Recalculate current inventory for affected items
     for (const [inventoryId] of inventoryChanges) {

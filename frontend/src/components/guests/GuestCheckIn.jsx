@@ -421,11 +421,10 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
                     </Typography>
                     {requiresGift ? (
                       <HierarchicalInventorySelector
-                        inventory={context.inventoryByEvent?.[ev._id] || []}
+                        inventory={context.inventoryByEvent?.[String(ev._id)] || context.inventoryByEvent?.[ev._id] || []}
                         value={currentSelection}
                         onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
-                        eventName={ev.eventName}
-                        stationPrefs={ev}
+                        pickupFieldPreferences={getPickupFieldPreferences(ev)}
                       />
                     ) : (
                       <Typography variant="body2" color="text.secondary">

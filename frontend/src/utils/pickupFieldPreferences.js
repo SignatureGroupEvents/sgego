@@ -239,3 +239,41 @@ export const buildPickupFieldOrder = (
 
 export const PICKUP_VARIANT_FIELDS = VARIANT_FIELDS;
 export const PICKUP_IDENTIFIER_FIELDS = IDENTIFIER_FIELDS;
+
+const formatGenderDisplay = (gender) => {
+  if (gender === 'M') return "Men's";
+  if (gender === 'W') return "Women's";
+  if (gender === 'N/A' || !gender) return null;
+  return gender;
+};
+
+// Build a human-readable gift label using per-product pickup prefs for the station.
+export const formatGiftDisplayLabel = (item, stationPrefs, quantity = 1) => {
+  if (!item) return `Unknown gift${quantity > 1 ? ` x${quantity}` : ''}`;
+
+  const prefs = resolvePickupPrefs(item, stationPrefs);
+  const parts = [];
+  if (prefs.type && item.type) parts.push(item.type);
+  if (prefs.brand && item.style) parts.push(item.style);
+  if (prefs.product && item.product) parts.push(item.product);
+  const genderLabel = formatGenderDisplay(item.gender);
+  if (prefs.gender && genderLabel) parts.push(genderLabel);
+  if (prefs.color && item.color) parts.push(item.color);
+  if (prefs.size && item.size) parts.push(`Size ${item.size}`);
+
+  const qtySuffix = quantity > 1 ? ` x${quantity}` : '';
+
+  if (parts.length === 0) {
+    const fallback = [
+      item.product,
+      item.style,
+      genderLabel,
+      item.color,
+      item.size ? `Size ${item.size}` : null,
+    ].filter(Boolean);
+    if (fallback.length > 0) return `${fallback.join(' · ')}${qtySuffix}`;
+    return `${item.type || 'Gift'}${qtySuffix}`;
+  }
+
+  return `${parts.join(' - ')}${qtySuffix}`;
+};
