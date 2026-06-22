@@ -74,7 +74,56 @@ const readExplicitPrefs = (preferences) => {
   return result;
 };
 
-// Union enabled fields across product overrides (OR logic).
+// Product override map keys: "Shoes" when gender is N/A, or "M:Shoes" / "W:Shoes" when gender-specific.
+export const getProductOverrideKey = (product, gender = null) => {
+  if (!product) return '';
+  if (gender === 'M' || gender === 'W') return `${gender}:${product}`;
+  return product;
+};
+
+export const parseProductOverrideKey = (key) => {
+  if (!key) return { product: '', gender: null };
+  const match = /^([MW]):(.+)$/.exec(key);
+  if (match) return { gender: match[1], product: match[2] };
+  return { product: key, gender: null };
+};
+
+const formatGenderPrefixForProduct = (gender) => {
+  if (gender === 'M') return "Men's";
+  if (gender === 'W') return "Women's";
+  return null;
+};
+
+export const formatProductOverrideLabel = (key) => {
+  const { product, gender } = parseProductOverrideKey(key);
+  const prefix = formatGenderPrefixForProduct(gender);
+  return prefix ? `${prefix} ${product}` : product;
+};
+
+export const buildProductOverrideOptions = (inventoryItems = [], existingOverrideKeys = []) => {
+  const existing = new Set(existingOverrideKeys);
+  const seen = new Set();
+  const options = [];
+
+  inventoryItems.forEach((item) => {
+    if (!item.product) return;
+    const gender = item.gender === 'M' || item.gender === 'W' ? item.gender : null;
+    const key = getProductOverrideKey(item.product, gender);
+    if (seen.has(key) || existing.has(key)) return;
+    seen.add(key);
+    options.push({
+      key,
+      label: formatProductOverrideLabel(key),
+      product: item.product,
+      gender,
+    });
+  });
+
+  return options.sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+  );
+};
+
 export const unionOverridePrefs = (stationPrefs, productNames) => {
   const overrides = normalizeProductPickupOverrides(stationPrefs?.productPickupOverrides);
   const union = readExplicitPrefs(null);
@@ -89,28 +138,38 @@ export const unionOverridePrefs = (stationPrefs, productNames) => {
 };
 
 // Effective prefs for a product line: per-product override, else station defaults.
-export const getEffectivePrefsForProduct = (stationPrefs, productName) => {
+export const getEffectivePrefsForProduct = (stationPrefs, productName, gender = null) => {
   const overrides = normalizeProductPickupOverrides(stationPrefs?.productPickupOverrides);
   const stationDefaults = readExplicitPrefs(stationPrefs?.pickupFieldPreferences);
-  if (productName && overrides[productName]) {
+  if (!productName) return stationDefaults;
+
+  const genderKey = getProductOverrideKey(productName, gender);
+  if (gender && (gender === 'M' || gender === 'W') && overrides[genderKey]) {
+    return readExplicitPrefs(overrides[genderKey]);
+  }
+  if (overrides[productName]) {
     return readExplicitPrefs(overrides[productName]);
   }
   return stationDefaults;
 };
 
 export const getEffectivePrefsForItem = (stationPrefs, item) =>
-  getEffectivePrefsForProduct(stationPrefs, item?.product);
+  getEffectivePrefsForProduct(stationPrefs, item?.product, item?.gender);
 
 const itemNeedsField = (stationPrefs, item, field) =>
   getEffectivePrefsForItem(stationPrefs, item)[field];
 
 // Show a field only when remaining inventory rows need it — overrides can suppress
 // color/size for one product while another still needs those fields.
-const shouldShowField = (stationPrefs, field, candidateItems, lockedProduct) => {
+const shouldShowField = (stationPrefs, field, candidateItems, lockedProduct, selections = {}) => {
   if (!candidateItems?.length) return false;
 
   if (lockedProduct) {
-    return getEffectivePrefsForProduct(stationPrefs, lockedProduct)[field];
+    return getEffectivePrefsForProduct(
+      stationPrefs,
+      lockedProduct,
+      selections?.gender || null
+    )[field];
   }
 
   const needing = candidateItems.filter((item) => itemNeedsField(stationPrefs, item, field));
@@ -149,16 +208,34 @@ export const getLockedProduct = (candidateItems, selections) => {
   return products.length === 1 ? products[0] : null;
 };
 
+// Identifier fields to keep visible when a locked product hides all configured fields,
+// so staff can still switch between product lines at the same station.
+const buildIdentifierFallbackFieldOrder = (inventory) => {
+  if (!inventory?.length) return [];
+
+  return PICKUP_CANONICAL_FIELD_ORDER.filter((field) => {
+    if (!IDENTIFIER_FIELDS.includes(field)) return false;
+    const itemKey = field === 'brand' ? 'style' : field;
+    const values = new Set(inventory.map((i) => i[itemKey]).filter(Boolean));
+    return values.size > 1;
+  });
+};
+
 // Build which fields to show in the pickup modal.
 // Only fields explicitly enabled in settings appear — never force product when unchecked.
 // Canonical order: type → brand → gender → product → color → size.
 export const buildPickupFieldOrder = (
   stationPrefs,
-  { lockedProduct, candidateItems = [] }
-) =>
-  PICKUP_CANONICAL_FIELD_ORDER.filter((field) =>
-    shouldShowField(stationPrefs, field, candidateItems, lockedProduct)
+  { lockedProduct, candidateItems = [], inventory = [], selections = {} }
+) => {
+  const fromPrefs = PICKUP_CANONICAL_FIELD_ORDER.filter((field) =>
+    shouldShowField(stationPrefs, field, candidateItems, lockedProduct, selections)
   );
+  if (fromPrefs.length > 0) return fromPrefs;
+
+  const items = inventory.length ? inventory : candidateItems;
+  return buildIdentifierFallbackFieldOrder(items);
+};
 
 export const PICKUP_VARIANT_FIELDS = VARIANT_FIELDS;
 export const PICKUP_IDENTIFIER_FIELDS = IDENTIFIER_FIELDS;

@@ -24,6 +24,8 @@ import {
   PICKUP_FIELD_LABELS,
   getEnabledPickupFieldLabels,
   mergePickupFieldPreferences,
+  buildProductOverrideOptions,
+  formatProductOverrideLabel,
 } from '../../utils/pickupFieldPreferences';
 
 const PickupSettingsPanel = ({
@@ -51,15 +53,10 @@ const PickupSettingsPanel = ({
 
   const overrideProducts = Object.keys(overrides || {});
 
-  const availableProducts = React.useMemo(() => {
-    const productSet = new Set();
-    inventoryItems.forEach((item) => {
-      if (item.product) productSet.add(item.product);
-    });
-    return Array.from(productSet)
-      .filter((product) => !overrideProducts.includes(product))
-      .sort();
-  }, [inventoryItems, overrideProducts]);
+  const availableProductOptions = React.useMemo(
+    () => buildProductOverrideOptions(inventoryItems, overrideProducts),
+    [inventoryItems, overrideProducts]
+  );
 
   const handleOverrideToggle = (product, field) => {
     if (readOnly || !onOverridesChange) return;
@@ -81,7 +78,7 @@ const PickupSettingsPanel = ({
     if (readOnly || !onOverridesChange || !addProductValue) return;
     onOverridesChange({
       ...overrides,
-      [addProductValue]: { ...prefs },
+      [addProductValue.key]: { ...prefs },
     });
     setAddProductValue(null);
   };
@@ -142,19 +139,20 @@ const PickupSettingsPanel = ({
                 No product overrides configured.
               </Typography>
             ) : (
-              overrideProducts.map((product, index) => {
-                const overridePrefs = mergePickupFieldPreferences(overrides[product]);
+              overrideProducts.map((productKey, index) => {
+                const overridePrefs = mergePickupFieldPreferences(overrides[productKey]);
+                const productLabel = formatProductOverrideLabel(productKey);
                 return (
-                  <Box key={product}>
+                  <Box key={productKey}>
                     {index > 0 && <Divider sx={{ my: 1.5 }} />}
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography fontWeight={600}>{product}</Typography>
+                      <Typography fontWeight={600}>{productLabel}</Typography>
                       {!readOnly && (
                         <IconButton
                           size="small"
                           color="error"
-                          onClick={() => handleRemoveOverride(product)}
-                          aria-label={`Remove override for ${product}`}
+                          onClick={() => handleRemoveOverride(productKey)}
+                          aria-label={`Remove override for ${productLabel}`}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
@@ -165,9 +163,9 @@ const PickupSettingsPanel = ({
                         <Box key={field} sx={{ display: 'flex', alignItems: 'center' }}>
                           <Checkbox
                             checked={!!overridePrefs[field]}
-                            onChange={() => handleOverrideToggle(product, field)}
+                            onChange={() => handleOverrideToggle(productKey, field)}
                             disabled={readOnly}
-                            inputProps={{ 'aria-label': `Show ${label} in pick-up modal for ${product}` }}
+                            inputProps={{ 'aria-label': `Show ${label} in pick-up modal for ${productLabel}` }}
                           />
                           <Typography>{label}</Typography>
                         </Box>
@@ -181,14 +179,16 @@ const PickupSettingsPanel = ({
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
                 <Autocomplete
                   size="small"
-                  options={availableProducts}
+                  options={availableProductOptions}
+                  getOptionLabel={(option) => option.label}
+                  isOptionEqualToValue={(option, value) => option.key === value.key}
                   value={addProductValue}
                   onChange={(_, value) => setAddProductValue(value)}
                   renderInput={(params) => (
                     <TextField {...params} label="Product" placeholder="Select a product" />
                   )}
-                  sx={{ minWidth: 240 }}
-                  disabled={availableProducts.length === 0}
+                  sx={{ minWidth: 280 }}
+                  disabled={availableProductOptions.length === 0}
                 />
                 <Button
                   variant="outlined"
@@ -200,7 +200,7 @@ const PickupSettingsPanel = ({
                 </Button>
               </Box>
             )}
-            {!readOnly && availableProducts.length === 0 && overrideProducts.length === 0 && (
+            {!readOnly && availableProductOptions.length === 0 && overrideProducts.length === 0 && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
                 No products available for this station.
               </Typography>

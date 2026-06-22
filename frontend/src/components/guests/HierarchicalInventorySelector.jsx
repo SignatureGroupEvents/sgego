@@ -140,8 +140,10 @@ const HierarchicalInventorySelector = ({
     () => buildPickupFieldOrder(stationPrefs, {
       lockedProduct,
       candidateItems,
+      inventory,
+      selections,
     }),
-    [stationPrefs, lockedProduct, candidateItems]
+    [stationPrefs, lockedProduct, candidateItems, inventory, selections]
   );
 
   // Only clear variant fields when overrides change which fields are shown.
@@ -372,53 +374,37 @@ const HierarchicalInventorySelector = ({
     );
   }
 
-  const renderGiftButtons = () => (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-      {inventory.map((item) => {
-        const selected = value === item._id;
-        const label = `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''}`;
-        return (
-          <Button
-            key={item._id}
-            variant="outlined"
-            onClick={() => onChange && onChange(item._id)}
-            sx={pillButtonSx(selected)}
-          >
-            {label}
-          </Button>
-        );
-      })}
+  const renderCommittedSelection = (selectedItem, { showChangeButton = true } = {}) => (
+    <Box
+      sx={{
+        border: '1px solid',
+        borderColor: value ? 'primary.light' : 'divider',
+        borderRadius: 1,
+        p: 1.5,
+        mb: fieldOrder.length > 0 ? 2 : 0,
+        bgcolor: value ? 'rgba(25, 118, 210, 0.06)' : 'grey.50',
+      }}
+    >
+      <Typography variant="body2" fontWeight={600} sx={{ mb: 0.5 }}>
+        {value ? 'Selected gift' : 'Confirming gift'}
+      </Typography>
+      <Typography variant="body2" sx={{ mb: showChangeButton ? 1.5 : 0 }}>
+        {formatSelectedGiftLabel(selectedItem)}
+      </Typography>
+      {showChangeButton && (
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={handleClearCommittedSelection}
+          sx={{ textTransform: 'none' }}
+        >
+          Change gift
+        </Button>
+      )}
     </Box>
   );
 
-  if (fieldOrder.length === 0) {
-    if (inventory.length === 0) {
-      return (
-        <Typography variant="body2" color="text.secondary">
-          No inventory available
-        </Typography>
-      );
-    }
-    if (candidateItems.length === 1) {
-      const item = candidateItems[0];
-      const label = [item.product, item.style, item.color].filter(Boolean).join(' — ');
-      return (
-        <Typography variant="body2" color="text.secondary">
-          {value ? `Selected: ${label}` : `Confirming: ${label}`}
-        </Typography>
-      );
-    }
-    return (
-      <Box>
-        <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
-          Select a gift
-        </Typography>
-        {renderGiftButtons()}
-      </Box>
-    );
-  }
-
-  return (
+  const renderFieldPills = () => (
     <Box>
       {fieldOrder.map((field, level) => {
         const fieldLabel = FIELD_LABELS[field] || field;
@@ -450,6 +436,67 @@ const HierarchicalInventorySelector = ({
           </Box>
         );
       })}
+    </Box>
+  );
+
+  const renderGiftButtons = () => (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+      {inventory.map((item) => {
+        const selected = value === item._id;
+        const label = `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''}`;
+        return (
+          <Button
+            key={item._id}
+            variant="outlined"
+            onClick={() => onChange && onChange(item._id)}
+            sx={pillButtonSx(selected)}
+          >
+            {label}
+          </Button>
+        );
+      })}
+    </Box>
+  );
+
+  if (fieldOrder.length === 0) {
+    if (inventory.length === 0) {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          No inventory available
+        </Typography>
+      );
+    }
+
+    if (candidateItems.length === 1) {
+      const item = candidateItems[0];
+      return renderCommittedSelection(item);
+    }
+
+    return (
+      <Box>
+        <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
+          Select a gift
+        </Typography>
+        {renderGiftButtons()}
+      </Box>
+    );
+  }
+
+  const selectedItem = value ? inventory.find((item) => item._id === value) : null;
+
+  return (
+    <Box>
+      {renderFieldPills()}
+      {selectedItem && (
+        <Button
+          variant="text"
+          size="small"
+          onClick={handleClearCommittedSelection}
+          sx={{ textTransform: 'none', mt: 0.5, px: 0 }}
+        >
+          Change gift
+        </Button>
+      )}
     </Box>
   );
 };

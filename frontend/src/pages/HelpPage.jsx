@@ -1,7 +1,95 @@
 import React from 'react';
-import { Typography, Box, Card, CardContent, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
+import {
+  Typography,
+  Box,
+  Card,
+  CardContent,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  List,
+  ListItem,
+  ListItemText,
+} from '@mui/material';
 import { ExpandMore as ExpandMoreIcon, Help as HelpIcon } from '@mui/icons-material';
 import MainLayout from '../components/layout/MainLayout';
+
+const PickupSettingsMixedProductsAnswer = () => (
+  <Box sx={{ color: 'text.secondary', '& .MuiTypography-root': { fontSize: '0.875rem' } }}>
+    <Typography variant="body2" paragraph sx={{ mb: 2 }}>
+      Use <strong>station defaults</strong> for the baseline, then add <strong>product overrides</strong> for
+      products that need fewer (or different) fields. The check-in modal only shows a field when it is
+      actually needed for the product the guest is picking.
+    </Typography>
+
+    <Typography variant="body2" fontWeight={600} gutterBottom>
+      Example: Headphones (one black option) and a Throw Blanket (two colors) at the same station
+    </Typography>
+
+    <Typography variant="body2" fontWeight={600} sx={{ mt: 2, mb: 0.5 }}>
+      Station defaults
+    </Typography>
+    <List dense disablePadding sx={{ mb: 1 }}>
+      <ListItem disablePadding sx={{ display: 'list-item', listStyleType: 'disc', ml: 2.5, py: 0.25 }}>
+        <ListItemText primary="Brand — ON if brands help staff choose (e.g. Beats vs. blanket brand)" />
+      </ListItem>
+      <ListItem disablePadding sx={{ display: 'list-item', listStyleType: 'disc', ml: 2.5, py: 0.25 }}>
+        <ListItemText primary="Product — ON when multiple product lines share a station" />
+      </ListItem>
+      <ListItem disablePadding sx={{ display: 'list-item', listStyleType: 'disc', ml: 2.5, py: 0.25 }}>
+        <ListItemText primary="Color — ON so the blanket can offer a color choice" />
+      </ListItem>
+      <ListItem disablePadding sx={{ display: 'list-item', listStyleType: 'disc', ml: 2.5, py: 0.25 }}>
+        <ListItemText primary="Gender, Size, Type — only if those fields actually vary" />
+      </ListItem>
+    </List>
+
+    <Typography variant="body2" fontWeight={600} sx={{ mt: 2, mb: 0.5 }}>
+      Product override — Headphones
+    </Typography>
+    <Typography variant="body2" paragraph>
+      In the Inventory page, open <strong>Product overrides</strong>, add <strong>Headphones</strong> (must
+      match the product name in inventory exactly), and turn <strong>Color OFF</strong>. Turn off other fields
+      that do not vary. If every field is off and there is only one matching SKU, the gift auto-selects when
+      Headphones is chosen.
+    </Typography>
+
+    <Typography variant="body2" fontWeight={600} sx={{ mb: 0.5 }}>
+      Throw Blanket
+    </Typography>
+    <Typography variant="body2" paragraph>
+      No override is required if it should inherit station defaults (Color ON). You can add an explicit
+      override with Color ON if you prefer.
+    </Typography>
+
+    <Typography variant="body2" fontWeight={600} sx={{ mb: 0.5 }}>
+      What staff see at check-in
+    </Typography>
+    <List dense disablePadding sx={{ mb: 1 }}>
+      <ListItem disablePadding sx={{ display: 'list-item', listStyleType: 'disc', ml: 2.5, py: 0.25 }}>
+        <ListItemText primary="Headphones: pick brand/product → no color step → black unit auto-selects" />
+      </ListItem>
+      <ListItem disablePadding sx={{ display: 'list-item', listStyleType: 'disc', ml: 2.5, py: 0.25 }}>
+        <ListItemText primary="Blanket: pick brand/product → color step appears → guest picks a color" />
+      </ListItem>
+    </List>
+
+    <Typography variant="body2" fontWeight={600} sx={{ mt: 2, mb: 0.5 }}>
+      Tips
+    </Typography>
+    <List dense disablePadding>
+      <ListItem disablePadding sx={{ display: 'list-item', listStyleType: 'disc', ml: 2.5, py: 0.25 }}>
+        <ListItemText primary="Override product names must match inventory product names exactly." />
+      </ListItem>
+      <ListItem disablePadding sx={{ display: 'list-item', listStyleType: 'disc', ml: 2.5, py: 0.25 }}>
+        <ListItemText primary="Use overrides for the exception — set station defaults for the product that needs more fields." />
+      </ListItem>
+      <ListItem disablePadding sx={{ display: 'list-item', listStyleType: 'disc', ml: 2.5, py: 0.25 }}>
+        <ListItemText primary="Click Save Settings on the Inventory page after making changes." />
+      </ListItem>
+    </List>
+  </Box>
+);
 
 const HelpPage = () => {
   const faqItems = [
@@ -28,7 +116,15 @@ const HelpPage = () => {
     {
       question: "How do I export data?",
       answer: "Most pages have export functionality. Look for 'Export CSV' or 'Export Excel' buttons in the top action bar of each page."
-    }
+    },
+    {
+      question: "How do I configure pickup modal display settings?",
+      answer: "On the Inventory page, open the Pickup Settings section for your event or gift station. Check the fields you want staff to see when checking in guests (Brand, Product, Color, Size, etc.). Station defaults apply to every product unless you add a product-specific override. Click Save Settings when you are done."
+    },
+    {
+      question: "How do I set up pickup settings when products at a station need different fields?",
+      answer: <PickupSettingsMixedProductsAnswer />,
+    },
   ];
 
   return (
@@ -71,9 +167,13 @@ const HelpPage = () => {
             {item.question}
           </AccordionSummary>
           <AccordionDetails>
-            <Typography variant="body2" color="text.secondary">
-              {item.answer}
-            </Typography>
+            {typeof item.answer === 'string' ? (
+              <Typography variant="body2" color="text.secondary">
+                {item.answer}
+              </Typography>
+            ) : (
+              item.answer
+            )}
           </AccordionDetails>
         </Accordion>
       ))}
