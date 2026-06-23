@@ -896,11 +896,15 @@ exports.updateEventStatus = async (req, res) => {
       return res.status(400).json({ message: 'Status must be either "active" or "closed"' });
     }
 
-    const updatedEvent = await Event.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true, runValidators: true }
-    ).populate('createdBy', 'username email profileColor firstName lastName');
+    // Closing/reopening a main program cascades to all gift stations (matches archive behavior)
+    const statusQuery = event.isMainEvent
+      ? { $or: [{ _id: req.params.id }, { parentEventId: req.params.id }] }
+      : { _id: req.params.id };
+
+    await Event.updateMany(statusQuery, { status }, { runValidators: true });
+
+    const updatedEvent = await Event.findById(req.params.id)
+      .populate('createdBy', 'username email profileColor firstName lastName');
 
     console.log('UpdateEventStatus - Event updated successfully:', updatedEvent);
 
@@ -915,6 +919,7 @@ exports.updateEventStatus = async (req, res) => {
           eventContractNumber: event.eventContractNumber,
           oldStatus: event.status,
           newStatus: status,
+          cascadedToSecondaryEvents: event.isMainEvent,
           changedAt: new Date()
         },
         timestamp: new Date()
