@@ -128,8 +128,8 @@ guestSchema.methods.isCheckedIntoEvent = function(eventId) {
   const checkin = this.eventCheckins.find(ec => 
     ec.eventId.toString() === eventId.toString()
   );
-  // A guest is considered checked in only if they have received gifts
-  return checkin ? (checkin.checkedIn && checkin.giftsReceived && checkin.giftsReceived.length > 0) : false;
+  // checkedIn flag is source of truth; gifts are optional (attendance-only stations)
+  return checkin ? checkin.checkedIn === true : false;
 };
 
 // Virtual getter: hasCheckedIn derived from eventCheckins (source of truth)
