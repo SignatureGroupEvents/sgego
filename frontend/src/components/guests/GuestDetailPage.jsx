@@ -124,7 +124,7 @@ export default function GuestDetailPage() {
     // Get pick-up modal field display preferences from event or use defaults
     const getDefaultPreferences = () => ({
         type: false,
-        brand: true,
+        brand: false,
         product: false,
         size: false,
         gender: false,

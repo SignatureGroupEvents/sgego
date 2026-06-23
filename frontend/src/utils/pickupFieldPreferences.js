@@ -9,7 +9,7 @@ export const PICKUP_FIELD_LABELS = {
 
 export const getDefaultPickupFieldPreferences = () => ({
   type: false,
-  brand: true,
+  brand: false,
   product: false,
   size: false,
   gender: false,

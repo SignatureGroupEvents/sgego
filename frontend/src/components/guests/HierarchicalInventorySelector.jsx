@@ -77,7 +77,7 @@ const sortFieldValues = (field, values) => {
 const HierarchicalInventorySelector = ({ inventory, value, onChange, pickupFieldPreferences, stationPrefs }) => {
   const getDefaultPreferences = () => ({
     type: false,
-    brand: true,
+    brand: false,
     product: false,
     size: false,
     gender: false,
