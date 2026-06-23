@@ -40,6 +40,17 @@ function guestHasCheckedInForStation(guest, stationIdStr) {
   return false;
 }
 
+/** Block duplicate check-in; allow upgrading attendance-only record with gifts. */
+function guestCheckinBlocksNewCheckin(guest, eventId, addingGifts) {
+  const existingEc = guest.eventCheckins.find(
+    (ec) => ec.eventId.toString() === eventId.toString()
+  );
+  if (!existingEc?.checkedIn) return false;
+  const hasExistingGifts = existingEc.giftsReceived?.length > 0;
+  if (hasExistingGifts) return true;
+  return !addingGifts;
+}
+
 /** True if guest has checkedIn for every pickup station under the main program (GuestTable "Fully Picked Up"). */
 async function guestFullyPickedUpOnMainProgram(guest, mainEventId) {
   if (!guest || !mainEventId) return false;
@@ -195,10 +206,9 @@ exports.multiEventCheckin = async (req, res) => {
     const inventoryUpdates = new Map(); // Track total inventory changes
     const updatedEventIds = new Set(); // Track which events were updated
 
-    // Process each event checkin (skip entries with no gift — supports one-station-at-a-time check-in)
+    // Process each event checkin (gifts optional — attendance-only when no inventory/pickup fields)
     for (const checkin of checkins) {
-      const hasGifts = checkin.selectedGifts?.some((g) => isValidInventoryId(g?.inventoryId));
-      if (!hasGifts) continue;
+      if (!checkin?.eventId) continue;
 
       const event = await Event.findById(checkin.eventId);
       if (!event) {
@@ -210,8 +220,10 @@ exports.multiEventCheckin = async (req, res) => {
         continue;
       }
 
-      // Check if already checked into this event
-      if (guest.isCheckedIntoEvent(checkin.eventId)) {
+      const giftsDistributed = [];
+      const hasGifts = checkin.selectedGifts?.some((g) => isValidInventoryId(g?.inventoryId));
+
+      if (guestCheckinBlocksNewCheckin(guest, checkin.eventId, hasGifts)) {
         results.push({
           eventId: checkin.eventId,
           eventName: event.eventName,
@@ -221,10 +233,8 @@ exports.multiEventCheckin = async (req, res) => {
         continue;
       }
 
-      const giftsDistributed = [];
-
       // Process gift selections for this event (skip invalid/empty inventoryId to avoid Cast to ObjectId errors)
-      if (checkin.selectedGifts && checkin.selectedGifts.length > 0) {
+      if (hasGifts && checkin.selectedGifts && checkin.selectedGifts.length > 0) {
         for (const gift of checkin.selectedGifts) {
           const inventoryId = gift.inventoryId;
           if (!isValidInventoryId(inventoryId)) continue;
@@ -254,7 +264,7 @@ exports.multiEventCheckin = async (req, res) => {
     }
 
     if (results.filter((r) => r.success).length === 0) {
-      return res.status(400).json({ message: 'No gifts selected to check in.' });
+      return res.status(400).json({ message: 'No stations available to check in.' });
     }
 
     // Validate total inventory requirements
@@ -463,8 +473,9 @@ exports.singleEventCheckin = async (req, res) => {
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    // Check if already checked into this event
-    if (guest.isCheckedIntoEvent(eventId)) {
+    const hasGifts = selectedGifts?.some((g) => isValidInventoryId(g?.inventoryId));
+
+    if (guestCheckinBlocksNewCheckin(guest, eventId, hasGifts)) {
       return res.status(400).json({ message: 'Guest already checked into this event' });
     }
 

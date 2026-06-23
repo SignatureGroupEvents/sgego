@@ -36,6 +36,15 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
 
   const eventHasGiftSelectionFields = (eventObj) => stationHasPickupFields(eventObj);
 
+  const getEventInventory = (eventObj) =>
+    context?.inventoryByEvent?.[String(eventObj._id)] ||
+    context?.inventoryByEvent?.[eventObj._id] ||
+    [];
+
+  // Gift selection required only when pickup fields are configured AND inventory is allocated
+  const eventRequiresGiftSelection = (eventObj) =>
+    eventHasGiftSelectionFields(eventObj) && getEventInventory(eventObj).length > 0;
+
   // Resolve the pickup field preferences to snapshot at check-in time, based on the
   // gift selected for this event (per-product overrides take precedence).
   const getCheckinPickupFieldPreferences = (eventObj) => {
@@ -247,22 +256,33 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
       if (!context) return;
 
       const eventsToCheckIn = getPendingCheckinEvents(context.availableEvents, guest);
+      const attendanceOnlyEvents = eventsToCheckIn.filter((ev) => !eventRequiresGiftSelection(ev));
       const stationsWithGiftSelections = eventsToCheckIn.filter(
         (ev) => giftSelections[ev._id]?.inventoryId
       );
 
-      if (stationsWithGiftSelections.length === 0) {
-        setError('Please select at least one gift to check in.');
+      if (attendanceOnlyEvents.length === 0 && stationsWithGiftSelections.length === 0) {
+        const eventsRequiringGifts = eventsToCheckIn.filter((ev) => eventRequiresGiftSelection(ev));
+        setError(
+          eventsRequiringGifts.length > 0
+            ? 'Please select at least one gift to check in.'
+            : 'No pending stations to check in.'
+        );
         setLoading(false);
         return;
       }
 
+      const eventsBeingCheckedIn = [
+        ...attendanceOnlyEvents,
+        ...stationsWithGiftSelections.filter((ev) => eventRequiresGiftSelection(ev)),
+      ];
+
       let response;
 
       if (context.checkinMode === 'multi') {
-        const checkins = stationsWithGiftSelections.map((ev) => ({
+        const checkins = eventsBeingCheckedIn.map((ev) => ({
           eventId: ev._id,
-          selectedGifts: [giftSelections[ev._id]],
+          selectedGifts: giftSelections[ev._id] ? [giftSelections[ev._id]] : [],
           pickupFieldPreferences: getCheckinPickupFieldPreferences(ev),
         }));
         response = await multiEventCheckin(guest._id, checkins);
@@ -280,11 +300,11 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
       if (onInventoryChange) onInventoryChange();
 
       const stillPending = canGuestBeCheckedIn(updatedGuest, event);
-      const checkedInNames = stationsWithGiftSelections.map((ev) => ev.eventName).join(', ');
+      const checkedInNames = eventsBeingCheckedIn.map((ev) => ev.eventName).join(', ');
 
       if (stillPending) {
         setSuccess(
-          stationsWithGiftSelections.length === 1
+          eventsBeingCheckedIn.length === 1
             ? `Checked in for ${checkedInNames}. Guest can pick up remaining gifts when ready.`
             : `Checked in for ${checkedInNames}. Guest can pick up remaining gifts when ready.`
         );
@@ -381,11 +401,13 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
       
       {guest && context && (() => {
         const eventsToShow = getPendingCheckinEvents(context.availableEvents, guest);
-        const eventsRequiringGifts = eventsToShow.filter((ev) => eventHasGiftSelectionFields(ev));
+        const eventsRequiringGifts = eventsToShow.filter((ev) => eventRequiresGiftSelection(ev));
+        const attendanceOnlyEvents = eventsToShow.filter((ev) => !eventRequiresGiftSelection(ev));
         const stationsWithSelections = eventsToShow.filter(
           (ev) => giftSelections[ev._id]?.inventoryId
         );
-        const canSubmit = !loading && stationsWithSelections.length > 0;
+        const canSubmit =
+          !loading && (attendanceOnlyEvents.length > 0 || stationsWithSelections.length > 0);
 
         return (
         <Box sx={{ mt: 3 }}>
@@ -413,7 +435,8 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
               )}
               {eventsToShow.map((ev) => {
                 const currentSelection = giftSelections[ev._id]?.inventoryId || '';
-                const requiresGift = eventHasGiftSelectionFields(ev);
+                const requiresGift = eventRequiresGiftSelection(ev);
+                const hasPickupFields = eventHasGiftSelectionFields(ev);
                 return (
                   <Box key={ev._id} sx={{ mb: 3 }}>
                     <Typography variant="body2" fontWeight={500} gutterBottom>
@@ -421,20 +444,24 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
                     </Typography>
                     {requiresGift ? (
                       <HierarchicalInventorySelector
-                        inventory={context.inventoryByEvent?.[String(ev._id)] || context.inventoryByEvent?.[ev._id] || []}
+                        inventory={getEventInventory(ev)}
                         value={currentSelection}
                         onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
                         pickupFieldPreferences={getPickupFieldPreferences(ev)}
                       />
                     ) : (
                       <Typography variant="body2" color="text.secondary">
-                        No pick-up fields configured for this station.
+                        {hasPickupFields
+                          ? 'No inventory allocated to this station — attendance check-in only.'
+                          : 'Attendance only — no gift selection required.'}
                       </Typography>
                     )}
                   </Box>
                 );
               })}
-              {eventsRequiringGifts.length > 0 && stationsWithSelections.length === 0 && (
+              {eventsRequiringGifts.length > 0 &&
+                stationsWithSelections.length === 0 &&
+                attendanceOnlyEvents.length === 0 && (
                 <Alert severity="info" sx={{ mt: 1 }}>
                   Select a gift for at least one station to check in.
                 </Alert>

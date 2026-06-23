@@ -50,7 +50,7 @@ const eventSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: {
       type: false,
-      brand: true,
+      brand: false,
       product: false,
       size: false,
       gender: false,
