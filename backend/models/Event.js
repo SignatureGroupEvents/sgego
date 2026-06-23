@@ -57,6 +57,18 @@ const eventSchema = new mongoose.Schema({
       color: false
     }
   },
+  productPickupOverrides: {
+    type: Map,
+    of: new mongoose.Schema({
+      type: { type: Boolean },
+      brand: { type: Boolean },
+      product: { type: Boolean },
+      size: { type: Boolean },
+      gender: { type: Boolean },
+      color: { type: Boolean }
+    }, { _id: false }),
+    default: {}
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

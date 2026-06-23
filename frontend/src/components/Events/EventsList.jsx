@@ -311,8 +311,9 @@ const EventsList = () => {
 
     try {
       await updateEventStatus(selectedEventForMenu._id, newStatus);
-      // Refresh events based on the new status
-      const res = await getEvents(newStatus);
+      // Refresh the current tab's event list (not the status we just set)
+      const tabStatus = activeTab === 0 ? 'active' : 'closed';
+      const res = await getEvents(tabStatus);
       setEvents(res.events || res);
       handleMenuClose();
     } catch (error) {

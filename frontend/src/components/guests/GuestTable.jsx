@@ -619,7 +619,6 @@ const GuestTable = ({ guests, onUploadGuests, event, onInventoryChange, onCheckI
     }
   };
 
-  // Main event: pickup modal settings apply to all nested events; use for getPickupFieldPreferences in check-in modal
   const mainEvent = event?.isMainEvent ? event : event?.parentEvent;
 
   // Determine which events to show based on current view

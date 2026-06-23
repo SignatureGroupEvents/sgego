@@ -3,16 +3,27 @@ import {
   Box, Typography, Button, Card, CardContent, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Alert, CircularProgress, Snackbar, IconButton, Autocomplete,
   TextField, Chip, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
-  DialogContent, DialogActions, TablePagination, Grid, InputAdornment, TableSortLabel, Tooltip, Checkbox,
-  useMediaQuery, useTheme, Accordion, AccordionSummary, AccordionDetails
+  DialogContent, DialogActions, TablePagination, Grid, TableSortLabel, Tooltip, Checkbox,
+  useMediaQuery, useTheme, Accordion, AccordionSummary, AccordionDetails,
+  ToggleButton, ToggleButtonGroup
 } from '@mui/material';
 import {
   Upload as UploadIcon, Edit as EditIcon, Delete as DeleteIcon, Save as SaveIcon,
-  Cancel as CancelIcon, FileDownload as FileDownloadIcon, Home as HomeIcon,
-  Search as SearchIcon, FilterList as FilterIcon, Clear as ClearIcon, AccountTree as InheritIcon,
-  KeyboardArrowLeft, KeyboardArrowRight, ExpandMore as ExpandMoreIcon
+  Cancel as CancelIcon, FileDownload as FileDownloadIcon,
+  FilterList as FilterIcon, AccountTree as InheritIcon,
+  KeyboardArrowLeft, KeyboardArrowRight, ExpandMore as ExpandMoreIcon, Lock as LockIcon
 } from '@mui/icons-material';
-import { fetchInventory, updateInventoryItem, addInventoryItem, deleteInventoryItem, bulkDeleteInventory, updateInventoryAllocation, exportInventoryCSV, exportInventoryExcel } from '../../services/api';
+import {
+  fetchInventory,
+  updateInventoryItem,
+  addInventoryItem,
+  deleteInventoryItem,
+  bulkDeleteInventory,
+  updateInventoryAllocation,
+  bulkUpdateInventoryAllocation,
+  exportInventoryCSV,
+  exportInventoryExcel
+} from '../../services/api';
 import { useParams, useNavigate } from 'react-router-dom';
 import MainLayout from '../layout/MainLayout';
 import { getEvent, updatePickupFieldPreferences } from '../../services/events';
@@ -20,9 +31,36 @@ import api from '../../services/api';
 import EventIcon from '@mui/icons-material/Event';
 import EventHeader from '../Events/EventHeader';
 import CSVColumnMapper from './CSVColumnMapper';
+import PickupSettingsPanel from './PickupSettingsPanel';
+import InventoryFilterBar from './InventoryFilterBar';
+import {
+  EMPTY_COLUMN_FILTERS,
+  DEFAULT_SORT_LEVELS,
+  filterAndSortInventory,
+  toggleHeaderSort,
+} from '../../utils/inventoryFilters';
+import {
+  getDefaultPickupFieldPreferences,
+  mergePickupFieldPreferences,
+  getEnabledPickupFieldLabels,
+} from '../../utils/pickupFieldPreferences';
 
 // ✅ Use usePermissions only
 import { usePermissions } from '../../hooks/usePermissions';
+
+const toEventIdString = (id) => (id?._id ?? id)?.toString();
+
+const getItemAllocatedIds = (item) =>
+  (item?.allocatedEvents || []).map(toEventIdString);
+
+// Normalize a productPickupOverrides map for equality comparison, regardless of key order
+// or whether each entry has been merged with defaults yet.
+const normalizeOverridesForCompare = (overrides) => {
+  const entries = Object.entries(overrides || {})
+    .map(([product, prefs]) => [product, mergePickupFieldPreferences(prefs)])
+    .sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify(entries);
+};
 
 // Gender must match backend Inventory model enum: ['M', 'W', 'N/A']
 const GENDER_OPTIONS = [
@@ -65,6 +103,8 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [showTypeInput, setShowTypeInput] = useState(false);
   const [selectedItems, setSelectedItems] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkAllocating, setBulkAllocating] = useState(false);
+  const [bulkAllocationMode, setBulkAllocationMode] = useState('add');
   const [editItemModalOpen, setEditItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [editItem, setEditItem] = useState({
@@ -81,74 +121,99 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [editTypeInputValue, setEditTypeInputValue] = useState('');
   const [showEditTypeInput, setShowEditTypeInput] = useState(false);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [mobileEditPhase, setMobileEditPhase] = useState(null);
+  const [mobileStationFilter, setMobileStationFilter] = useState('all');
 
-  // Pick-up modal field display preferences (stored in backend)
-  const getDefaultPreferences = () => ({
-    type: false,
-    brand: false,
-    product: false,
-    size: false,
-    gender: false,
-    color: false
-  });
+  React.useEffect(() => {
+    if (!isEditMode) setMobileEditPhase(null);
+  }, [isEditMode]);
 
-  const [pickupFieldPreferences, setPickupFieldPreferences] = useState(getDefaultPreferences());
+  const [pickupFieldPreferences, setPickupFieldPreferences] = useState(getDefaultPickupFieldPreferences());
+  const [productOverrides, setProductOverrides] = useState({});
+  const [pickupSettingsMode, setPickupSettingsMode] = useState('product');
   const [savingPreferences, setSavingPreferences] = useState(false);
+  const [stationPrefs, setStationPrefs] = useState({});
+  const [stationOverrides, setStationOverrides] = useState({});
+  const [stationModes, setStationModes] = useState({});
+  const [stationSavingId, setStationSavingId] = useState(null);
+  const [expandedStationId, setExpandedStationId] = useState(false);
+
+  const secondaryStations = React.useMemo(() => {
+    if (!event?.isMainEvent) return [];
+    return (event.secondaryEvents || []).filter((ev) => !ev.isMainEvent);
+  }, [event]);
+
+  const hasMultiGiftStations = secondaryStations.length > 0;
+  const pickupSettingsEventId = event?.isMainEvent && !hasMultiGiftStations ? eventId : (!event?.isMainEvent ? eventId : null);
 
   const hasUnsavedPickupChanges = React.useMemo(() => {
-    if (!event) return false;
-    const baseline = event.pickupFieldPreferences
-      ? { ...getDefaultPreferences(), ...event.pickupFieldPreferences }
-      : getDefaultPreferences();
-    return Object.keys(baseline).some(
-      (key) => baseline[key] !== pickupFieldPreferences[key]
+    if (!event || !pickupSettingsEventId) return false;
+    const baseline = mergePickupFieldPreferences(event.pickupFieldPreferences);
+    const baselineMode = event.pickupSettingsMode === 'station' ? 'station' : 'product';
+    return (
+      Object.keys(baseline).some((key) => baseline[key] !== pickupFieldPreferences[key]) ||
+      baselineMode !== pickupSettingsMode ||
+      normalizeOverridesForCompare(event.productPickupOverrides) !== normalizeOverridesForCompare(productOverrides)
     );
-  }, [event, pickupFieldPreferences]);
+  }, [event, pickupFieldPreferences, pickupSettingsMode, productOverrides, pickupSettingsEventId]);
 
-  // Warn user if navigating away with unsaved pick-up modal settings
   React.useEffect(() => {
     if (!hasUnsavedPickupChanges) return;
-
     const handleBeforeUnload = (e) => {
       e.preventDefault();
       e.returnValue = '';
     };
-
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedPickupChanges]);
 
-  // Load preferences from event when event is fetched
   React.useEffect(() => {
-    if (event?.pickupFieldPreferences) {
-      // Merge with defaults to ensure all fields are present
-      const prefs = { ...getDefaultPreferences(), ...event.pickupFieldPreferences };
-      setPickupFieldPreferences(prefs);
-    } else if (event) {
-      // Event exists but no preferences set, use defaults
-      setPickupFieldPreferences(getDefaultPreferences());
+    if (!event) return;
+    if (pickupSettingsEventId) {
+      setPickupFieldPreferences(mergePickupFieldPreferences(event.pickupFieldPreferences));
+      setPickupSettingsMode(event.pickupSettingsMode === 'station' ? 'station' : 'product');
+      setProductOverrides(event.productPickupOverrides || {});
     }
-  }, [event]);
+    if (hasMultiGiftStations) {
+      const next = {};
+      const nextModes = {};
+      const nextOverrides = {};
+      secondaryStations.forEach((station) => {
+        next[station._id] = mergePickupFieldPreferences(station.pickupFieldPreferences);
+        nextModes[station._id] = station.pickupSettingsMode === 'station' ? 'station' : 'product';
+        nextOverrides[station._id] = station.productPickupOverrides || {};
+      });
+      setStationPrefs(next);
+      setStationModes(nextModes);
+      setStationOverrides(nextOverrides);
+    }
+  }, [event, pickupSettingsEventId, hasMultiGiftStations, secondaryStations]);
 
-  const handlePickupFieldToggle = (field) => {
-    const updated = { ...pickupFieldPreferences, [field]: !pickupFieldPreferences[field] };
-    setPickupFieldPreferences(updated);
-  };
-
-  const handleSavePickupFieldPreferences = async () => {
-    if (!eventId) {
+  const handleSavePickupFieldPreferences = async (
+    targetEventId = pickupSettingsEventId,
+    prefs = pickupFieldPreferences,
+    overrides = productOverrides
+  ) => {
+    if (!targetEventId) {
       setError('Event ID is required to save preferences.');
       return;
     }
 
-    setSavingPreferences(true);
+    const isStationSave = targetEventId !== pickupSettingsEventId;
+    if (isStationSave) setStationSavingId(targetEventId);
+    else setSavingPreferences(true);
+
+    const mode = isStationSave ? (stationModes[targetEventId] || 'product') : pickupSettingsMode;
+
     setError('');
     try {
-      await updatePickupFieldPreferences(eventId, pickupFieldPreferences);
+      await updatePickupFieldPreferences(targetEventId, prefs, mode, overrides);
       setSuccess('Pick-up modal display settings saved successfully!');
-      // Reload event to get updated preferences
       const updatedEvent = await getEvent(eventId);
       setEvent(updatedEvent);
+      if (event?.parentEventId && !event?.isMainEvent) {
+        getEvent(event.parentEventId).then(setParentEvent);
+      }
     } catch (err) {
       if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
         setError('Unable to connect to server. Please ensure the backend server is running.');
@@ -157,8 +222,22 @@ const InventoryPage = ({ eventId, eventName }) => {
       }
     } finally {
       setSavingPreferences(false);
+      setStationSavingId(null);
     }
   };
+
+  const isStationDirty = (station) => {
+    const baseline = mergePickupFieldPreferences(station.pickupFieldPreferences);
+    const current = stationPrefs[station._id];
+    if (!current) return false;
+    return (
+      Object.keys(baseline).some((key) => baseline[key] !== current[key]) ||
+      normalizeOverridesForCompare(station.productPickupOverrides) !== normalizeOverridesForCompare(stationOverrides[station._id])
+    );
+  };
+
+  const getStationInventoryItems = (station) =>
+    inventory.filter((item) => getItemAllocatedIds(item).includes(toEventIdString(station._id)));
 
   // Predefined types in alphabetical order
   const predefinedTypes = ['Accessories', 'Apparel', 'Bags', 'Electronics', 'Hats', 'Sandals', 'Sneakers', 'Sunglasses'];
@@ -176,13 +255,15 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Search and filter state
+  // Search, compound filter, and multi-level sort state
   const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [styleFilter, setStyleFilter] = useState('all');
-  const [genderFilter, setGenderFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('type');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [columnFilters, setColumnFilters] = useState(() => ({ ...EMPTY_COLUMN_FILTERS }));
+  const [sortLevels, setSortLevels] = useState(() => [...DEFAULT_SORT_LEVELS]);
+
+  const genderLabelMap = React.useMemo(
+    () => Object.fromEntries(GENDER_OPTIONS.map((option) => [option.value, option.label])),
+    []
+  );
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -218,130 +299,132 @@ const InventoryPage = ({ eventId, eventName }) => {
     }
   };
 
-  // Get all unique values for filter dropdowns
-  const allTypes = React.useMemo(() => {
-    const typeSet = new Set();
-    inventory.forEach(item => {
-      if (item.type) typeSet.add(item.type);
-    });
-    return Array.from(typeSet).sort();
-  }, [inventory]);
-
-  const allStyles = React.useMemo(() => {
-    const styleSet = new Set();
-    inventory.forEach(item => {
-      if (item.style) styleSet.add(item.style);
-    });
-    return Array.from(styleSet).sort();
-  }, [inventory]);
-
-  const allGenders = React.useMemo(() => {
-    const genderSet = new Set();
-    inventory.forEach(item => {
-      if (item.gender) genderSet.add(item.gender);
-    });
-    return Array.from(genderSet).sort();
-  }, [inventory]);
-
   const handleSort = (column) => {
-    const isAsc = sortBy === column && sortOrder === 'asc';
-    setSortOrder(isAsc ? 'desc' : 'asc');
-    setSortBy(column);
+    setSortLevels((prev) => toggleHeaderSort(prev, column));
+    setPage(0);
   };
 
   const clearAllFilters = () => {
     setSearchQuery('');
-    setTypeFilter('all');
-    setStyleFilter('all');
-    setGenderFilter('all');
-    setSortBy('type');
-    setSortOrder('asc');
+    setColumnFilters({ ...EMPTY_COLUMN_FILTERS });
+    setSortLevels([...DEFAULT_SORT_LEVELS]);
     setPage(0);
     setSelectedItems([]);
   };
 
-  // Count active filters for mobile display
-  const activeFiltersCount = React.useMemo(() => {
-    let count = 0;
-    if (searchQuery) count++;
-    if (typeFilter !== 'all') count++;
-    if (styleFilter !== 'all') count++;
-    if (genderFilter !== 'all') count++;
-    if (sortBy !== 'type') count++;
-    if (sortOrder !== 'asc') count++;
-    return count;
-  }, [searchQuery, typeFilter, styleFilter, genderFilter, sortBy, sortOrder]);
+  const filteredAndSortedInventory = React.useMemo(
+    () => filterAndSortInventory(inventory, { searchQuery, columnFilters, sortLevels }),
+    [inventory, searchQuery, columnFilters, sortLevels]
+  );
 
-  // Filter and sort inventory
-  const filteredAndSortedInventory = React.useMemo(() => {
-    let filtered = inventory.filter(item => {
-      // Search filter
-      const searchMatch = searchQuery === '' ||
-        item.type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.style?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.size?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.color?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.gender?.toLowerCase().includes(searchQuery.toLowerCase());
+  React.useEffect(() => {
+    setPage(0);
+    setSelectedItems([]);
+  }, [searchQuery, columnFilters, sortLevels]);
 
-      // Type filter
-      const typeMatch = typeFilter === 'all' || item.type === typeFilter;
+  const getColumnSortState = (column) => {
+    const index = sortLevels.findIndex((level) => level.field === column);
+    return {
+      active: index !== -1,
+      direction: index === 0 ? sortLevels[0].direction : 'asc',
+    };
+  };
 
-      // Style filter
-      const styleMatch = styleFilter === 'all' || item.style === styleFilter;
+  const formatMobileGenderLabel = (gender) => {
+    const option = GENDER_OPTIONS.find((g) => g.value === gender);
+    return option ? option.label : gender;
+  };
 
-      // Gender filter
-      const genderMatch = genderFilter === 'all' || item.gender === genderFilter;
+  const getMobileItemSubtitle = (item) => {
+    const parts = [
+      item.style || null,
+      item.gender && item.gender !== 'N/A' ? formatMobileGenderLabel(item.gender) : null,
+      item.size || null,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : '—';
+  };
 
-      return searchMatch && typeMatch && styleMatch && genderMatch;
+  const displayMobilePostEventCount = (item) => {
+    const val = item.postEventCount;
+    if (val === null || val === undefined || val === 0) return '—';
+    return val;
+  };
+
+  const mobileStationPillOptions = React.useMemo(() => {
+    if (!event?.isMainEvent) return [];
+    const stationIds = new Set();
+    filteredAndSortedInventory.forEach((item) => {
+      getItemAllocatedIds(item).forEach((id) => stationIds.add(id));
     });
+    return filteredEvents.filter((ev) => stationIds.has(toEventIdString(ev._id)));
+  }, [event, filteredAndSortedInventory, filteredEvents]);
 
-    // Sort inventory
-    filtered.sort((a, b) => {
-      let aValue, bValue;
+  const mobileDisplayInventory = React.useMemo(() => {
+    let items = filteredAndSortedInventory;
+    if (event && !event.isMainEvent) {
+      const stationId = toEventIdString(event._id);
+      items = items.filter((item) => getItemAllocatedIds(item).includes(stationId));
+    } else if (mobileStationFilter !== 'all') {
+      items = items.filter((item) => getItemAllocatedIds(item).includes(mobileStationFilter));
+    }
+    return items;
+  }, [filteredAndSortedInventory, event, mobileStationFilter]);
 
-      switch (sortBy) {
-        case 'type':
-          aValue = (a.type || '').toLowerCase();
-          bValue = (b.type || '').toLowerCase();
-          break;
-        case 'style':
-          aValue = (a.style || '').toLowerCase();
-          bValue = (b.style || '').toLowerCase();
-          break;
-        case 'product':
-          aValue = (a.product || '').toLowerCase();
-          bValue = (b.product || '').toLowerCase();
-          break;
-        case 'size':
-          aValue = (a.size || '').toLowerCase();
-          bValue = (b.size || '').toLowerCase();
-          break;
-        case 'gender':
-          aValue = (a.gender || '').toLowerCase();
-          bValue = (b.gender || '').toLowerCase();
-          break;
-        case 'color':
-          aValue = (a.color || '').toLowerCase();
-          bValue = (b.color || '').toLowerCase();
-          break;
-        case 'qtyWarehouse':
-          aValue = Number(a.qtyWarehouse) || 0;
-          bValue = Number(b.qtyWarehouse) || 0;
-          break;
-        default:
-          aValue = a[sortBy] || '';
-          bValue = b[sortBy] || '';
-      }
-
-      if (sortOrder === 'asc') {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-      }
+  const mobileGroupedInventory = React.useMemo(() => {
+    const paged = mobileDisplayInventory.slice(
+      page * rowsPerPage,
+      page * rowsPerPage + rowsPerPage
+    );
+    const groups = new Map();
+    paged.forEach((item) => {
+      const category = item.type || 'Uncategorized';
+      if (!groups.has(category)) groups.set(category, []);
+      groups.get(category).push(item);
     });
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [mobileDisplayInventory, page, rowsPerPage]);
 
-    return filtered;
-  }, [inventory, searchQuery, typeFilter, styleFilter, genderFilter, sortBy, sortOrder]);
+  const handleMobileEnterBeforeEdit = () => {
+    handleEnterEditMode();
+    setMobileEditPhase('before');
+  };
+
+  const handleMobileEnterPostEdit = () => {
+    handleEnterEditMode();
+    setMobileEditPhase('post');
+  };
+
+  const handleMobileExitEditMode = () => {
+    handleExitEditMode();
+    setMobileEditPhase(null);
+  };
+
+  const mobileCountBoxBaseSx = {
+    flex: 1,
+    minWidth: 0,
+    border: '1px solid',
+    borderRadius: 1,
+    px: 1,
+    py: 0.75,
+  };
+
+  const mobileWarehouseBoxSx = {
+    ...mobileCountBoxBaseSx,
+    borderColor: 'grey.300',
+    bgcolor: 'grey.100',
+  };
+
+  const mobileBeforeBoxSx = {
+    ...mobileCountBoxBaseSx,
+    borderColor: 'primary.light',
+    bgcolor: 'rgba(25, 118, 210, 0.1)',
+  };
+
+  const mobilePostBoxSx = {
+    ...mobileCountBoxBaseSx,
+    borderColor: '#81c784',
+    bgcolor: 'rgba(0, 137, 123, 0.1)',
+  };
 
   const loadInventory = async () => {
     setLoading(true);
@@ -700,17 +783,62 @@ const InventoryPage = ({ eventId, eventName }) => {
       handleCloseEditItemModal();
       loadInventory();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update inventory item.');
+      const data = err.response?.data;
+      let message = data?.message || 'Failed to update inventory item.';
+      if (data?.conflictingItem?.summary) {
+        message += ` Conflicting row: ${data.conflictingItem.summary}.`;
+      }
+      if (data?.hint === 'legacy_index_possible') {
+        message += ' Ask your admin to run: node backend/scripts/fixInventoryIndex.js';
+      }
+      setError(message);
     }
+  };
+
+  const getAllocatedEventsForItem = (item) =>
+    filteredEvents.filter((ev) => getItemAllocatedIds(item).includes(ev._id.toString()));
+
+  const applyInventoryAllocationUpdates = (updatedItems) => {
+    const byId = new Map(updatedItems.map((item) => [toEventIdString(item._id), item]));
+    setInventory((prev) =>
+      prev.map((item) => {
+        const updated = byId.get(toEventIdString(item._id));
+        if (!updated) return item;
+        return { ...item, allocatedEvents: updated.allocatedEvents };
+      })
+    );
   };
 
   const handleAllocationChange = async (item, newAllocatedEvents) => {
     try {
-      await updateInventoryAllocation(item._id, newAllocatedEvents.map(ev => ev._id));
+      const res = await updateInventoryAllocation(
+        item._id,
+        newAllocatedEvents.map((ev) => ev._id)
+      );
+      applyInventoryAllocationUpdates([res.data.inventoryItem]);
       setSuccess('Inventory allocation updated!');
-      loadInventory();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update allocation.');
+    }
+  };
+
+  const handleBulkAllocate = async (stationEventIds) => {
+    if (selectedItems.length === 0) return;
+
+    setBulkAllocating(true);
+    setError('');
+    try {
+      const res = await bulkUpdateInventoryAllocation(eventId, {
+        inventoryIds: selectedItems,
+        allocatedEventIds: stationEventIds,
+        mode: bulkAllocationMode
+      });
+      applyInventoryAllocationUpdates(res.data.inventoryItems || []);
+      setSuccess(`Updated allocation for ${res.data.updatedCount || selectedItems.length} item(s).`);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to bulk update allocation.');
+    } finally {
+      setBulkAllocating(false);
     }
   };
 
@@ -865,7 +993,15 @@ const InventoryPage = ({ eventId, eventName }) => {
       handleCloseAddItemModal();
       loadInventory();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to add inventory item.');
+      const data = err.response?.data;
+      let message = data?.message || 'Failed to add inventory item.';
+      if (data?.conflictingItem?.summary) {
+        message += ` Conflicting row: ${data.conflictingItem.summary}.`;
+      }
+      if (data?.hint === 'legacy_index_possible') {
+        message += ' Ask your admin to run: node backend/scripts/fixInventoryIndex.js';
+      }
+      setError(message);
     }
   };
 
@@ -919,102 +1055,97 @@ const InventoryPage = ({ eventId, eventName }) => {
         <Alert onClose={() => setSuccess('')} severity="success" sx={{ width: '100%' }}>{success}</Alert>
       </Snackbar>}
 
-      {/* Pick-up Modal Field Preferences: only on main event; nested events use main event's settings */}
-      {canModifyInventory && event?.isMainEvent && (
+      {/* Pick-up modal settings: per gifting station when multi-station, otherwise single event */}
+      {canModifyInventory && event && (pickupSettingsEventId || hasMultiGiftStations) && (
         <Card sx={{ mb: 3 }}>
           <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Pick-up Modal Display Settings
-            </Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              Select which fields should appear in the guest pick-up modal for this event and all nested events:
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
-                  checked={pickupFieldPreferences.type}
-                  onChange={() => handlePickupFieldToggle('type')}
-                  inputProps={{ 'aria-label': 'Show Category in pick-up modal' }}
-                />
-                <Typography>Category</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
-                  checked={pickupFieldPreferences.brand}
-                  onChange={() => handlePickupFieldToggle('brand')}
-                  inputProps={{ 'aria-label': 'Show Brand in pick-up modal' }}
-                />
-                <Typography>Brand</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
-                  checked={pickupFieldPreferences.product}
-                  onChange={() => handlePickupFieldToggle('product')}
-                  inputProps={{ 'aria-label': 'Show Product in pick-up modal' }}
-                />
-                <Typography>Product</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
-                  checked={pickupFieldPreferences.gender}
-                  onChange={() => handlePickupFieldToggle('gender')}
-                  inputProps={{ 'aria-label': 'Show Gender in pick-up modal' }}
-                />
-                <Typography>Gender</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
-                  checked={pickupFieldPreferences.color}
-                  onChange={() => handlePickupFieldToggle('color')}
-                  inputProps={{ 'aria-label': 'Show Color in pick-up modal' }}
-                />
-                <Typography>Color</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Checkbox
-                  checked={pickupFieldPreferences.size}
-                  onChange={() => handlePickupFieldToggle('size')}
-                  inputProps={{ 'aria-label': 'Show Size in pick-up modal' }}
-                />
-                <Typography>Size</Typography>
-              </Box>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 3, gap: 2 }}>
-              {hasUnsavedPickupChanges && (
-                <Typography variant="caption" color="warning.main">
-                  You have unsaved changes. Click <strong>Save Settings</strong> to apply them.
+            {hasMultiGiftStations ? (
+              <>
+                <Typography variant="h6" gutterBottom>
+                  Gifting Station Pickup Settings
                 </Typography>
-              )}
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleSavePickupFieldPreferences}
-                startIcon={savingPreferences ? <CircularProgress size={20} /> : <SaveIcon />}
-                disabled={savingPreferences}
-              >
-                {savingPreferences ? 'Saving...' : 'Save Settings'}
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
-      )}
-      {canModifyInventory && event && !event.isMainEvent && (
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Pick-up Modal Display Settings
-            </Typography>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Pick-up modal settings are managed by the main event and apply to all nested events. Configure them from the main event&apos;s Inventory page.
-            </Alert>
-            <Button
-              variant="outlined"
-              color="primary"
-              startIcon={<HomeIcon />}
-              onClick={() => navigate(`/events/${event.parentEventId}/inventory`)}
-            >
-              Open main event Inventory
-            </Button>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Configure which fields appear in the check-in modal for each gifting station. Sunglasses and Sandals tables can use different selections.
+                </Typography>
+                {secondaryStations.map((station) => {
+                  const stationPref = stationPrefs[station._id] || getDefaultPickupFieldPreferences();
+                  const enabledLabels = getEnabledPickupFieldLabels(stationPref);
+                  return (
+                    <Accordion
+                      key={station._id}
+                      expanded={expandedStationId === station._id}
+                      onChange={(_, isExpanded) => setExpandedStationId(isExpanded ? station._id : false)}
+                      sx={{ mb: 1, '&:before': { display: 'none' } }}
+                    >
+                      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, width: '100%', pr: 1 }}>
+                          <Typography fontWeight={600}>
+                            {station.eventName} Pickup Settings
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {enabledLabels.length > 0 ? (
+                              enabledLabels.map((label) => (
+                                <Chip key={label} label={label} size="small" variant="outlined" />
+                              ))
+                            ) : (
+                              <Chip label="No fields selected" size="small" variant="outlined" />
+                            )}
+                            {isStationDirty(station) && (
+                              <Chip label="Unsaved changes" size="small" color="warning" />
+                            )}
+                          </Box>
+                        </Box>
+                      </AccordionSummary>
+                      <AccordionDetails>
+                        <PickupSettingsPanel
+                          subtitle="Choose which inventory fields staff see when checking in guests at this station."
+                          preferences={stationPref}
+                          onPreferencesChange={(updated) =>
+                            setStationPrefs((prev) => ({ ...prev, [station._id]: updated }))
+                          }
+                          onSave={() => handleSavePickupFieldPreferences(station._id, stationPrefs[station._id], stationOverrides[station._id])}
+                          saving={stationSavingId === station._id}
+                          inventoryItems={getStationInventoryItems(station)}
+                          overrides={stationOverrides[station._id] || {}}
+                          onOverridesChange={(updated) =>
+                            setStationOverrides((prev) => ({ ...prev, [station._id]: updated }))
+                          }
+                        />
+                      </AccordionDetails>
+                    </Accordion>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                <PickupSettingsPanel
+                  title={event.isMainEvent
+                    ? 'Pickup Modal Display Settings'
+                    : `${event.eventName} Pickup Settings`}
+                  subtitle={event.isMainEvent
+                    ? 'Select which fields should appear in the guest pick-up modal for this event.'
+                    : 'Configure which fields appear in the check-in modal for this gifting station.'}
+                  preferences={pickupFieldPreferences}
+                  onPreferencesChange={setPickupFieldPreferences}
+                  onSave={() => handleSavePickupFieldPreferences()}
+                  saving={savingPreferences}
+                  showSummaryChips
+                  inventoryItems={inventory}
+                  overrides={productOverrides}
+                  onOverridesChange={setProductOverrides}
+                />
+                {!event.isMainEvent && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                    Changes apply to this station only.
+                  </Typography>
+                )}
+                {hasUnsavedPickupChanges && (
+                  <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1 }}>
+                    You have unsaved changes. Click <strong>Save Settings</strong> to apply them.
+                  </Typography>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
       )}
@@ -1024,311 +1155,24 @@ const InventoryPage = ({ eventId, eventName }) => {
         <Card>
           <CardContent>
             {/* Search and Filter Controls */}
-            <Box mb={3}>
-              {/* Mobile: Collapsible Filters */}
-              {isMobile ? (
-                <Box>
-                  {/* Search Bar - Always visible on mobile */}
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Search inventory..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    sx={{ mb: 2 }}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon color="action" />
-                        </InputAdornment>
-                      ),
-                      endAdornment: searchQuery && (
-                        <InputAdornment position="end">
-                          <Button
-                            size="small"
-                            onClick={() => setSearchQuery('')}
-                            sx={{ minWidth: 'auto', p: 0.5 }}
-                          >
-                            <ClearIcon fontSize="small" />
-                          </Button>
-                        </InputAdornment>
-                      )
-                    }}
-                  />
-
-                  {/* Collapsible Filters Accordion */}
-                  <Accordion
-                    expanded={filtersExpanded}
-                    onChange={() => setFiltersExpanded(!filtersExpanded)}
-                    sx={{ boxShadow: 1 }}
-                  >
-                    <AccordionSummary
-                      expandIcon={<ExpandMoreIcon />}
-                      sx={{
-                        minHeight: 48,
-                        '&.Mui-expanded': { minHeight: 48 }
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                        <FilterIcon />
-                        <Typography sx={{ flex: 1, fontWeight: 600 }}>
-                          Filters
-                        </Typography>
-                        {activeFiltersCount > 0 && (
-                          <Chip
-                            label={activeFiltersCount}
-                            size="small"
-                            color="primary"
-                            sx={{ height: 20, minWidth: 20 }}
-                          />
-                        )}
-                      </Box>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <Grid container spacing={2}>
-                        {/* Category Filter */}
-                        <Grid size={{ xs: 12 }}>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Category</InputLabel>
-                            <Select
-                              value={typeFilter}
-                              onChange={(e) => setTypeFilter(e.target.value)}
-                              label="Category"
-                            >
-                              <MenuItem value="all">All Categories</MenuItem>
-                              {allTypes.map(type => (
-                                <MenuItem key={type} value={type}>{type}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                        </Grid>
-
-                        {/* Brand Filter */}
-                        <Grid size={{ xs: 12 }}>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Brand</InputLabel>
-                            <Select
-                              value={styleFilter}
-                              onChange={(e) => setStyleFilter(e.target.value)}
-                              label="Brand"
-                            >
-                              <MenuItem value="all">All Brands</MenuItem>
-                              {allStyles.map(style => (
-                                <MenuItem key={style} value={style}>{style}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                        </Grid>
-
-                        {/* Gender Filter */}
-                        <Grid size={{ xs: 12 }}>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Gender</InputLabel>
-                            <Select
-                              value={genderFilter}
-                              onChange={(e) => setGenderFilter(e.target.value)}
-                              label="Gender"
-                            >
-                              <MenuItem value="all">All Genders</MenuItem>
-                              {allGenders.map(gender => (
-                                <MenuItem key={gender} value={gender}>{gender}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                        </Grid>
-
-                        {/* Sort By */}
-                        <Grid size={{ xs: 6 }}>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Sort By</InputLabel>
-                            <Select
-                              value={sortBy}
-                              onChange={(e) => setSortBy(e.target.value)}
-                              label="Sort By"
-                            >
-                              <MenuItem value="type">Category</MenuItem>
-                              <MenuItem value="style">Brand</MenuItem>
-                              <MenuItem value="product">Product</MenuItem>
-                              <MenuItem value="size">Size</MenuItem>
-                              <MenuItem value="gender">Gender</MenuItem>
-                              <MenuItem value="color">Color</MenuItem>
-                              <MenuItem value="qtyWarehouse">Qty Warehouse</MenuItem>
-                            </Select>
-                          </FormControl>
-                        </Grid>
-
-                        {/* Sort Order */}
-                        <Grid size={{ xs: 6 }}>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Order</InputLabel>
-                            <Select
-                              value={sortOrder}
-                              onChange={(e) => setSortOrder(e.target.value)}
-                              label="Order"
-                            >
-                              <MenuItem value="asc">Asc</MenuItem>
-                              <MenuItem value="desc">Desc</MenuItem>
-                            </Select>
-                          </FormControl>
-                        </Grid>
-
-                        {/* Clear Filters */}
-                        <Grid size={{ xs: 12 }}>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={clearAllFilters}
-                            startIcon={<ClearIcon />}
-                            fullWidth
-                          >
-                            Clear All Filters
-                          </Button>
-                        </Grid>
-                      </Grid>
-                    </AccordionDetails>
-                  </Accordion>
-                </Box>
-              ) : (
-                /* Desktop: Full Filters Always Visible */
-                <Grid container spacing={2} alignItems="flex-start">
-                  {/* Search Bar */}
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      placeholder="Search inventory..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <SearchIcon color="action" />
-                          </InputAdornment>
-                        ),
-                        endAdornment: searchQuery && (
-                          <InputAdornment position="end">
-                            <Button
-                              size="small"
-                              onClick={() => setSearchQuery('')}
-                              sx={{ minWidth: 'auto', p: 0.5 }}
-                            >
-                              <ClearIcon fontSize="small" />
-                            </Button>
-                          </InputAdornment>
-                        )
-                      }}
-                    />
-                  </Grid>
-
-                  {/* Category Filter */}
-                  <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Category</InputLabel>
-                      <Select
-                        value={typeFilter}
-                        onChange={(e) => setTypeFilter(e.target.value)}
-                        label="Category"
-                      >
-                        <MenuItem value="all">All Categories</MenuItem>
-                        {allTypes.map(type => (
-                          <MenuItem key={type} value={type}>{type}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  {/* Brand Filter */}
-                  <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Brand</InputLabel>
-                      <Select
-                        value={styleFilter}
-                        onChange={(e) => setStyleFilter(e.target.value)}
-                        label="Brand"
-                      >
-                        <MenuItem value="all">All Brands</MenuItem>
-                        {allStyles.map(style => (
-                          <MenuItem key={style} value={style}>{style}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  {/* Gender Filter */}
-                  <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Gender</InputLabel>
-                      <Select
-                        value={genderFilter}
-                        onChange={(e) => setGenderFilter(e.target.value)}
-                        label="Gender"
-                      >
-                        <MenuItem value="all">All Genders</MenuItem>
-                        {allGenders.map(gender => (
-                          <MenuItem key={gender} value={gender}>{gender}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  {/* Sort By */}
-                  <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Sort By</InputLabel>
-                      <Select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value)}
-                        label="Sort By"
-                      >
-                        <MenuItem value="type">Category</MenuItem>
-                        <MenuItem value="style">Brand</MenuItem>
-                        <MenuItem value="product">Product</MenuItem>
-                        <MenuItem value="size">Size</MenuItem>
-                        <MenuItem value="gender">Gender</MenuItem>
-                        <MenuItem value="color">Color</MenuItem>
-                        <MenuItem value="qtyWarehouse">Qty Warehouse</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  {/* Sort Order */}
-                  <Grid size={{ xs: 12, sm: 6, md: 1 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Order</InputLabel>
-                      <Select
-                        value={sortOrder}
-                        onChange={(e) => setSortOrder(e.target.value)}
-                        label="Order"
-                      >
-                        <MenuItem value="asc">Asc</MenuItem>
-                        <MenuItem value="desc">Desc</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  {/* Clear Filters */}
-                  <Grid size={{ xs: 12, sm: 6, md: 1 }}>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={clearAllFilters}
-                      startIcon={<ClearIcon />}
-                      sx={{
-                        minWidth: 'auto',
-                        height: '40px',
-                        mt: 0.5
-                      }}
-                    >
-                      Clear
-                    </Button>
-                  </Grid>
-                </Grid>
-              )}
-            </Box>
+            <InventoryFilterBar
+              inventory={inventory}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              columnFilters={columnFilters}
+              onColumnFiltersChange={setColumnFilters}
+              sortLevels={sortLevels}
+              onSortLevelsChange={setSortLevels}
+              onClearAll={clearAllFilters}
+              isMobile={isMobile}
+              filtersExpanded={filtersExpanded}
+              onFiltersExpandedChange={setFiltersExpanded}
+              genderLabels={genderLabelMap}
+            />
 
             <Box display="flex" justifyContent="flex-end" mb={1}>
-              {/* Edit Mode Buttons */}
-              {canUpdateInventoryCounts && (
+              {/* Edit Mode Buttons (desktop only — mobile uses phase buttons in card layout) */}
+              {canUpdateInventoryCounts && !isMobile && (
                 isEditMode ? (
                   <Box display="flex" gap={1}>
                     <Button
@@ -1376,32 +1220,184 @@ const InventoryPage = ({ eventId, eventName }) => {
               {/* End of Bulk Delete Button */}
             </Box>
 
+            {canModifyInventory && event?.isMainEvent && selectedItems.length > 0 && filteredEvents.length > 0 && (
+              <Card sx={{ mb: 2, border: '1px solid', borderColor: 'primary.light', bgcolor: 'background.paper' }}>
+                <CardContent sx={{ py: 2, '&:last-child': { pb: 2 } }}>
+                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                    Bulk allocate {selectedItems.length} selected item(s)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Assign many gifts to a station in one step — no page refresh.
+                  </Typography>
+                  {selectedItems.length < filteredAndSortedInventory.length && (
+                    <Button
+                      size="small"
+                      variant="text"
+                      sx={{ mb: 1, px: 0 }}
+                      onClick={() => setSelectedItems(filteredAndSortedInventory.map((item) => item._id))}
+                    >
+                      Select all {filteredAndSortedInventory.length} filtered items
+                    </Button>
+                  )}
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mb: 2 }}>
+                    <ToggleButtonGroup
+                      size="small"
+                      exclusive
+                      value={bulkAllocationMode}
+                      onChange={(_, value) => value && setBulkAllocationMode(value)}
+                    >
+                      <ToggleButton value="add">Add to station</ToggleButton>
+                      <ToggleButton value="set">Set station only</ToggleButton>
+                    </ToggleButtonGroup>
+                    <Typography variant="caption" color="text.secondary">
+                      {bulkAllocationMode === 'add'
+                        ? 'Keeps existing stations and adds the one you pick'
+                        : 'Replaces allocation with only the station you pick'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {filteredEvents.map((ev) => (
+                      <Button
+                        key={ev._id}
+                        variant="outlined"
+                        size="small"
+                        disabled={bulkAllocating}
+                        onClick={() => handleBulkAllocate([ev._id])}
+                      >
+                        {bulkAllocationMode === 'add' ? 'Add to' : 'Set to'} {ev.eventName}
+                      </Button>
+                    ))}
+                  </Box>
+                  {bulkAllocating && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1.5 }}>
+                      <CircularProgress size={16} />
+                      <Typography variant="caption">Updating allocation...</Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Mobile Card Layout */}
             {isMobile ? (
-              <>
-                {canModifyInventory && filteredAndSortedInventory.length > 0 && (
-                  <Box display="flex" alignItems="center" gap={1} mb={2}>
-                    <Checkbox
-                      indeterminate={
-                        filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
-                        selectedItems.length > 0 &&
-                        selectedItems.length < filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length
-                      }
-                      checked={
-                        filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length > 0 &&
-                        selectedItems.length === filteredAndSortedInventory.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length
-                      }
-                      onChange={handleSelectAll}
-                      inputProps={{ 'aria-label': 'select all items' }}
-                    />
-                    <Typography variant="body2" color="text.secondary">
-                      Select All
-                    </Typography>
+              <Box sx={{ pb: isEditMode && mobileEditPhase ? 10 : 0 }}>
+                {/* Station pills + phase edit buttons */}
+                {!isEditMode && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                    {event?.isMainEvent && (
+                      <Box sx={{ width: '100%', textAlign: 'center' }}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ display: 'block', mb: 0.75, fontWeight: 600, letterSpacing: 0.3 }}
+                        >
+                          Filter by station
+                        </Typography>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 0.75,
+                            justifyContent: 'center',
+                          }}
+                        >
+                        <Chip
+                          label="All"
+                          size="small"
+                          clickable
+                          color={mobileStationFilter === 'all' ? 'primary' : 'default'}
+                          variant={mobileStationFilter === 'all' ? 'filled' : 'outlined'}
+                          onClick={() => setMobileStationFilter('all')}
+                        />
+                        {mobileStationPillOptions.map((station) => (
+                          <Chip
+                            key={station._id}
+                            label={station.eventName}
+                            size="small"
+                            clickable
+                            color={mobileStationFilter === toEventIdString(station._id) ? 'primary' : 'default'}
+                            variant={mobileStationFilter === toEventIdString(station._id) ? 'filled' : 'outlined'}
+                            onClick={() => setMobileStationFilter(toEventIdString(station._id))}
+                          />
+                        ))}
+                        </Box>
+                      </Box>
+                    )}
+                    {canUpdateInventoryCounts && (
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: 1,
+                          justifyContent: 'center',
+                          width: '100%',
+                        }}
+                      >
+                        <Button
+                          variant="outlined"
+                          size="medium"
+                          onClick={handleMobileEnterBeforeEdit}
+                          sx={{
+                            color: 'primary.main',
+                            borderColor: 'primary.light',
+                            bgcolor: 'rgba(25, 118, 210, 0.06)',
+                            textTransform: 'none',
+                            fontSize: '0.95rem',
+                            fontWeight: 500,
+                            px: 2,
+                          }}
+                        >
+                          Edit before event
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          size="medium"
+                          onClick={handleMobileEnterPostEdit}
+                          sx={{
+                            color: '#00897b',
+                            borderColor: '#4db6ac',
+                            bgcolor: 'rgba(0, 137, 123, 0.06)',
+                            textTransform: 'none',
+                            fontSize: '0.95rem',
+                            fontWeight: 500,
+                            px: 2,
+                          }}
+                        >
+                          Edit post event
+                        </Button>
+                      </Box>
+                    )}
                   </Box>
                 )}
 
-                {filteredAndSortedInventory.length === 0 ? (
-                  <Box size={{ textAlign: 'center', py: 6 }}>
+                {/* Phase badge */}
+                {isEditMode && mobileEditPhase === 'before' && (
+                  <Chip
+                    label="Editing before event counts"
+                    size="small"
+                    sx={{
+                      mb: 2,
+                      bgcolor: 'rgba(25, 118, 210, 0.12)',
+                      color: 'primary.main',
+                      fontWeight: 600,
+                    }}
+                  />
+                )}
+                {isEditMode && mobileEditPhase === 'post' && (
+                  <Chip
+                    label="Editing post event counts"
+                    size="small"
+                    sx={{
+                      mb: 2,
+                      bgcolor: 'rgba(0, 137, 123, 0.12)',
+                      color: '#00897b',
+                      fontWeight: 600,
+                    }}
+                  />
+                )}
+
+                {mobileDisplayInventory.length === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 6 }}>
                     <FilterIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
                     <Typography variant="h6" color="text.secondary">
                       {inventory.length === 0 ? 'No inventory found.' : 'No inventory matches your filters.'}
@@ -1418,234 +1414,173 @@ const InventoryPage = ({ eventId, eventName }) => {
                     )}
                   </Box>
                 ) : (
-                  <Grid container spacing={1} sx={{ width: '100%' }}>
-                    {filteredAndSortedInventory
-                      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                      .map(item => (
-                        <Grid item xs={12} key={item._id} sx={{ width: '100%', minWidth: 0 }}>
-                          <Card
-                            elevation={1}
-                            sx={{
-                              width: '100%',
-                              height: '100%',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              position: 'relative',
-                              ...(item.isInherited && {
-                                border: '1px solid',
-                                borderColor: 'primary.main',
-                                backgroundColor: 'rgba(25, 118, 210, 0.02)'
-                              })
-                            }}
-                          >
-                            <CardContent sx={{ flexGrow: 1, p: { xs: 1, sm: 1.5, md: 2 } }}>
-                              {/* Checkbox and Actions Header */}
-                              <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={0.75}>
-                                {canModifyInventory && (
-                                  <Checkbox
-                                    checked={selectedItems.includes(item._id)}
-                                    onChange={() => handleSelectItem(item._id)}
-                                    inputProps={{ 'aria-label': `select ${item.type} ${item.style}` }}
-                                    size="small"
-                                    sx={{ p: 0.5 }}
-                                  />
-                                )}
-                                {canModifyInventory && !isEditMode && (
-                                  <Box sx={{ display: 'flex', gap: 0.25 }}>
-                                    <IconButton
-                                      color="primary"
-                                      onClick={() => handleEditItemClick(item)}
-                                      size="small"
-                                      title="Edit item"
-                                      sx={{ p: 0.5 }}
-                                    >
-                                      <EditIcon fontSize="small" />
-                                    </IconButton>
-                                    <IconButton
-                                      color="error"
-                                      onClick={() => handleDeleteClick(item._id)}
-                                      size="small"
-                                      title="Delete item"
-                                      sx={{ p: 0.5 }}
-                                    >
-                                      <DeleteIcon fontSize="small" />
-                                    </IconButton>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {mobileGroupedInventory.map(([category, items]) => (
+                      <Box key={category}>
+                        <Typography
+                          variant="subtitle2"
+                          sx={{ fontWeight: 700, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}
+                        >
+                          {category} · {items.length}
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          {items.map((item) => (
+                            <Card
+                              key={item._id}
+                              elevation={1}
+                              sx={{
+                                ...(item.isInherited && {
+                                  border: '1px solid',
+                                  borderColor: 'primary.main',
+                                  bgcolor: 'rgba(25, 118, 210, 0.02)',
+                                }),
+                              }}
+                            >
+                              <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.25, mb: 0.25 }}>
+                                  {item.product || item.style || 'Unnamed item'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25, fontSize: '0.95rem', lineHeight: 1.4 }}>
+                                  {getMobileItemSubtitle(item)}
+                                </Typography>
+
+                                {/* Read state */}
+                                {!isEditMode && (
+                                  <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <Box sx={mobileWarehouseBoxSx}>
+                                      <Typography variant="caption" color="text.secondary" display="block">
+                                        Warehouse
+                                      </Typography>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        {item.qtyWarehouse ?? 0}
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={mobileBeforeBoxSx}>
+                                      <Typography variant="caption" color="text.secondary" display="block">
+                                        Before event
+                                      </Typography>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        {item.qtyBeforeEvent ?? item.qtyOnSite ?? 0}
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={mobilePostBoxSx}>
+                                      <Typography variant="caption" color="text.secondary" display="block">
+                                        Post event
+                                      </Typography>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        {displayMobilePostEventCount(item)}
+                                      </Typography>
+                                    </Box>
                                   </Box>
                                 )}
-                              </Box>
 
-                              {/* Product Information */}
-                              <Box mb={1}>
-                                {/* Brand - Most Prominent */}
-                                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5, fontSize: { xs: '0.95rem', sm: '1.1rem' }, lineHeight: 1.2 }}>
-                                  {item.style || 'No Brand'}
-                                </Typography>
-
-                                {/* Product - Second Most Prominent */}
-                                {item.product && (
-                                  <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5, fontSize: { xs: '0.8rem', sm: '0.9rem' }, color: 'text.primary', lineHeight: 1.3 }}>
-                                    {item.product}
-                                  </Typography>
+                                {/* Before event edit */}
+                                {isEditMode && mobileEditPhase === 'before' && (
+                                  <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <Box sx={mobileWarehouseBoxSx}>
+                                      <Typography variant="caption" color="text.secondary" display="block">
+                                        Warehouse
+                                      </Typography>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        {item.qtyWarehouse ?? 0}
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={{ ...mobileBeforeBoxSx, flex: 1.2 }}>
+                                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                                        Before event
+                                      </Typography>
+                                      <TextField
+                                        type="number"
+                                        size="small"
+                                        fullWidth
+                                        inputMode="numeric"
+                                        inputProps={{ min: 0 }}
+                                        value={editValuesMap[item._id]?.qtyBeforeEvent ?? (item.qtyBeforeEvent || item.qtyOnSite || 0)}
+                                        onChange={(e) => handleEditValueChange(item._id, 'qtyBeforeEvent', e.target.value)}
+                                        sx={{ bgcolor: 'background.paper' }}
+                                      />
+                                    </Box>
+                                  </Box>
                                 )}
 
-                                {/* Category - Less Prominent */}
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontSize: { xs: '0.65rem', sm: '0.7rem' }, opacity: 0.7 }}>
-                                  {item.type || 'N/A'}
-                                </Typography>
-
-                                {/* Size, Gender, Color Chips */}
-                                <Box display="flex" flexWrap="wrap" gap={0.25} mt={0.5}>
-                                  {item.size && (
-                                    <Chip label={`Size: ${item.size}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
-                                  )}
-                                  {item.gender && item.gender !== 'N/A' && (
-                                    <Chip label={`Gender: ${item.gender}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
-                                  )}
-                                  {item.color && (
-                                    <Chip label={`Color: ${item.color}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
-                                  )}
-                                </Box>
-                              </Box>
-
-                              {/* Quantity Information */}
-                              <Box sx={{
-                                borderTop: '1px solid',
-                                borderColor: 'divider',
-                                pt: { xs: 0.75, sm: 1 },
-                                mt: 'auto'
-                              }}>
-                                <Grid container spacing={1}>
-                                  <Grid item size={isEditMode ? 12 : 6}>
-                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                                      Qty Warehouse
-                                    </Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                                      {item.qtyWarehouse || 0}
-                                    </Typography>
-                                  </Grid>
-                                  {/* Hidden - Current Inventory calculated field that's confusing to staff */}
-                                  {/* <Grid item xs={6}>
-                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                                      Current Inventory
-                                    </Typography>
-                                    <Typography
-                                      variant="body2"
-                                      sx={{
-                                        fontWeight: 600,
-                                        fontSize: { xs: '0.8rem', sm: '0.875rem' },
-                                        color: (item.currentInventory || 0) <= 10 ? 'error.main' : 'success.main'
-                                      }}
-                                    >
-                                      {item.currentInventory || 0}
-                                    </Typography>
-                                  </Grid> */}
-                                  <Grid item size={isEditMode ? 12 : 6}>
-                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                                      Qty Before Event
-                                    </Typography>
-                                    {isEditMode ? (
-                                      <TextField
-                                        type="number"
-                                        size="small"
-                                        fullWidth
-                                        inputProps={{ min: 0, style: { padding: '8px 10px', fontSize: '1rem' } }}
-                                        value={editValuesMap[item._id]?.qtyBeforeEvent ?? (item.qtyBeforeEvent || item.qtyOnSite || 0)}
-                                        onChange={e => handleEditValueChange(item._id, 'qtyBeforeEvent', e.target.value)}
-                                        sx={{ mt: 0.25 }}
-                                      />
-                                    ) : (
-                                      <Typography variant="body2" sx={{ fontWeight: 600, fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                                        {item.qtyBeforeEvent || item.qtyOnSite || 0}
+                                {/* Post event edit */}
+                                {isEditMode && mobileEditPhase === 'post' && (
+                                  <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <Box sx={mobileWarehouseBoxSx}>
+                                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.25 }}>
+                                        Before event
                                       </Typography>
-                                    )}
-                                  </Grid>
-                                  <Grid item size={isEditMode ? 12 : 6}>
-                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                                      Post Event Count
-                                    </Typography>
-                                    {isEditMode ? (
-                                      <TextField
-                                        type="number"
-                                        size="small"
-                                        fullWidth
-                                        inputProps={{ min: 0, style: { padding: '8px 10px', fontSize: '1rem' } }}
-                                        value={editValuesMap[item._id]?.postEventCount ?? (item.postEventCount || 0)}
-                                        onChange={e => handleEditValueChange(item._id, 'postEventCount', e.target.value)}
-                                        sx={{ mt: 0.25 }}
-                                      />
-                                    ) : (
-                                      <Typography variant="body2" sx={{ fontWeight: 600, fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                                        {item.postEventCount || 0}
-                                      </Typography>
-                                    )}
-                                  </Grid>
-                                </Grid>
-                              </Box>
-
-                              {/* Allocated Events */}
-                              {item.allocatedEvents && item.allocatedEvents.length > 0 && (
-                                <Box sx={{
-                                  borderTop: '1px solid',
-                                  borderColor: 'divider',
-                                  pt: { xs: 0.75, sm: 1 },
-                                  mt: { xs: 0.75, sm: 1 }
-                                }}>
-                                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.25, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                                    Allocated Events
-                                  </Typography>
-                                  {eventsLoading ? (
-                                    <CircularProgress size={14} />
-                                  ) : canModifyInventory ? (
-                                    <Autocomplete
-                                      multiple
-                                      size="small"
-                                      options={filteredEvents}
-                                      getOptionLabel={option => option.eventName}
-                                      value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
-                                      onChange={(_, newValue) => handleAllocationChange(item, newValue)}
-                                      renderInput={params => (
-                                        <TextField
-                                          {...params}
-                                          variant="outlined"
-                                          size="small"
-                                          placeholder="Select events..."
-                                          sx={{
-                                            '& .MuiInputBase-root': {
-                                              fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                              padding: { xs: '4px 8px', sm: '8px 12px' }
-                                            }
-                                          }}
-                                        />
-                                      )}
-                                      renderTags={(value, getTagProps) =>
-                                        value.map((option, index) => (
-                                          <Chip
-                                            label={option.eventName}
-                                            {...getTagProps({ index })}
-                                            key={option._id}
-                                            size="small"
-                                            sx={{ height: { xs: 20, sm: 24 }, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
-                                          />
-                                        ))
-                                      }
-                                      disableCloseOnSelect
-                                    />
-                                  ) : (
-                                    <Box display="flex" flexWrap="wrap" gap={0.25}>
-                                      {filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id)).map(ev => (
-                                        <Chip key={ev._id} label={ev.eventName} size="small" sx={{ height: { xs: 20, sm: 24 }, fontSize: { xs: '0.65rem', sm: '0.75rem' } }} />
-                                      ))}
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <LockIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+                                        <Typography variant="body2" color="text.disabled" fontWeight={500}>
+                                          {item.qtyBeforeEvent ?? item.qtyOnSite ?? 0}
+                                        </Typography>
+                                      </Box>
                                     </Box>
-                                  )}
-                                </Box>
-                              )}
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                      ))}
-                  </Grid>
+                                    <Box sx={{ ...mobilePostBoxSx, flex: 1.2 }}>
+                                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                                        Post event
+                                      </Typography>
+                                      <TextField
+                                        type="number"
+                                        size="small"
+                                        fullWidth
+                                        inputMode="numeric"
+                                        inputProps={{ min: 0 }}
+                                        value={editValuesMap[item._id]?.postEventCount ?? (item.postEventCount || 0)}
+                                        onChange={(e) => handleEditValueChange(item._id, 'postEventCount', e.target.value)}
+                                        sx={{ bgcolor: 'background.paper' }}
+                                      />
+                                    </Box>
+                                  </Box>
+                                )}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
                 )}
-              </>
+
+                {/* Sticky save bar */}
+                {isEditMode && mobileEditPhase && (
+                  <Box
+                    sx={{
+                      position: 'fixed',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      zIndex: (t) => t.zIndex.appBar + 1,
+                      display: 'flex',
+                      gap: 1,
+                      p: 1.5,
+                      bgcolor: 'background.paper',
+                      borderTop: '1px solid',
+                      borderColor: 'divider',
+                      boxShadow: '0 -4px 12px rgba(0,0,0,0.08)',
+                    }}
+                  >
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      onClick={handleMobileExitEditMode}
+                      startIcon={<CancelIcon />}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="success"
+                      fullWidth
+                      onClick={handleSaveAllChanges}
+                      startIcon={<SaveIcon />}
+                    >
+                      Save counts
+                    </Button>
+                  </Box>
+                )}
+              </Box>
             ) : (
               /* Desktop Table Layout */
               <TableContainer component={Paper}>
@@ -1675,8 +1610,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       )}
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'type'}
-                          direction={sortBy === 'type' ? sortOrder : 'asc'}
+                          active={getColumnSortState('type').active}
+                          direction={getColumnSortState('type').direction}
                           onClick={() => handleSort('type')}
                         >
                           Category
@@ -1684,8 +1619,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       </TableCell>
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'style'}
-                          direction={sortBy === 'style' ? sortOrder : 'asc'}
+                          active={getColumnSortState('style').active}
+                          direction={getColumnSortState('style').direction}
                           onClick={() => handleSort('style')}
                         >
                           Brand
@@ -1693,8 +1628,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       </TableCell>
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'product'}
-                          direction={sortBy === 'product' ? sortOrder : 'asc'}
+                          active={getColumnSortState('product').active}
+                          direction={getColumnSortState('product').direction}
                           onClick={() => handleSort('product')}
                         >
                           Product
@@ -1702,8 +1637,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       </TableCell>
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'size'}
-                          direction={sortBy === 'size' ? sortOrder : 'asc'}
+                          active={getColumnSortState('size').active}
+                          direction={getColumnSortState('size').direction}
                           onClick={() => handleSort('size')}
                         >
                           Size
@@ -1711,8 +1646,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       </TableCell>
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'gender'}
-                          direction={sortBy === 'gender' ? sortOrder : 'asc'}
+                          active={getColumnSortState('gender').active}
+                          direction={getColumnSortState('gender').direction}
                           onClick={() => handleSort('gender')}
                         >
                           Gender
@@ -1720,8 +1655,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       </TableCell>
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'color'}
-                          direction={sortBy === 'color' ? sortOrder : 'asc'}
+                          active={getColumnSortState('color').active}
+                          direction={getColumnSortState('color').direction}
                           onClick={() => handleSort('color')}
                         >
                           Color
@@ -1729,8 +1664,8 @@ const InventoryPage = ({ eventId, eventName }) => {
                       </TableCell>
                       <TableCell>
                         <TableSortLabel
-                          active={sortBy === 'qtyWarehouse'}
-                          direction={sortBy === 'qtyWarehouse' ? sortOrder : 'asc'}
+                          active={getColumnSortState('qtyWarehouse').active}
+                          direction={getColumnSortState('qtyWarehouse').direction}
                           onClick={() => handleSort('qtyWarehouse')}
                         >
                           Qty Warehouse
@@ -1810,28 +1745,40 @@ const InventoryPage = ({ eventId, eventName }) => {
                               )}
                             </TableCell>
                             <TableCell>
-                              {eventsLoading ? (
-                                <CircularProgress size={20} />
-                              ) : (canModifyInventory) ? (
-                                <Autocomplete
-                                  multiple
-                                  size="small"
-                                  options={filteredEvents}
-                                  getOptionLabel={option => option.eventName}
-                                  value={filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id))}
-                                  onChange={(_, newValue) => handleAllocationChange(item, newValue)}
-                                  renderInput={params => <TextField {...params} variant="outlined" label="Allocated Events" />}
-                                  renderTags={(value, getTagProps) =>
-                                    value.map((option, index) => (
-                                      <Chip label={option.eventName} {...getTagProps({ index })} key={option._id} />
-                                    ))
-                                  }
-                                  disableCloseOnSelect
-                                  sx={{ minWidth: 200 }}
-                                />
+                              {event?.isMainEvent ? (
+                                eventsLoading ? (
+                                  <CircularProgress size={20} />
+                                ) : canModifyInventory ? (
+                                  <Autocomplete
+                                    multiple
+                                    size="small"
+                                    options={filteredEvents}
+                                    getOptionLabel={option => option.eventName}
+                                    value={getAllocatedEventsForItem(item)}
+                                    onChange={(_, newValue) => handleAllocationChange(item, newValue)}
+                                    renderInput={params => <TextField {...params} variant="outlined" label="Allocated Events" />}
+                                    renderTags={(value, getTagProps) =>
+                                      value.map((option, index) => (
+                                        <Chip label={option.eventName} {...getTagProps({ index })} key={option._id} />
+                                      ))
+                                    }
+                                    disableCloseOnSelect
+                                    sx={{ minWidth: 200 }}
+                                  />
+                                ) : (
+                                  <Box display="flex" flexWrap="wrap" gap={0.5}>
+                                    {getAllocatedEventsForItem(item).length > 0 ? (
+                                      getAllocatedEventsForItem(item).map((ev) => (
+                                        <Chip key={ev._id} label={ev.eventName} size="small" />
+                                      ))
+                                    ) : (
+                                      <Typography variant="caption" color="text.secondary">Not allocated</Typography>
+                                    )}
+                                  </Box>
+                                )
                               ) : (
                                 <Box display="flex" flexWrap="wrap" gap={0.5}>
-                                  {filteredEvents.filter(ev => item.allocatedEvents?.includes(ev._id)).map(ev => (
+                                  {getAllocatedEventsForItem(item).map((ev) => (
                                     <Chip key={ev._id} label={ev.eventName} size="small" />
                                   ))}
                                 </Box>

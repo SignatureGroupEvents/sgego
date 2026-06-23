@@ -122,6 +122,14 @@ export const updateInventoryAllocation = (inventoryId, allocatedEvents) => {
   return api.put(`/inventory/${inventoryId}/allocation`, { allocatedEvents });
 };
 
+export const bulkUpdateInventoryAllocation = (eventId, { inventoryIds, allocatedEventIds, mode = 'add' }) => {
+  return api.put(`/inventory/bulk-allocation/${eventId}`, {
+    inventoryIds,
+    allocatedEventIds,
+    mode
+  });
+};
+
 export const exportInventoryCSV = (eventId) => {
   return api.get(`/inventory/${eventId}/export/csv`, {
     responseType: 'blob'

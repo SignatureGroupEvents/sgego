@@ -73,6 +73,10 @@ exports.createEvent = async (req, res) => {
       eventData.isMainEvent = false;
       // Secondary events use the same contract number as parent
       eventData.eventContractNumber = parentEvent.eventContractNumber;
+      // New gifting stations inherit parent's pickup modal field settings as a starting point
+      if (parentEvent.pickupFieldPreferences) {
+        eventData.pickupFieldPreferences = parentEvent.pickupFieldPreferences;
+      }
     } else {
       // For main events, check if contract number is already in use
       const existingEvent = await Event.findOne({ 
@@ -127,7 +131,7 @@ exports.getEvent = async (req, res) => {
     const eventObj = event.toObject ? event.toObject() : event;
     if (event.isMainEvent) {
       eventObj.secondaryEvents = await Event.find({ parentEventId: req.params.id, isActive: true })
-        .select('_id eventName eventContractNumber isMainEvent parentEventId pickupFieldPreferences')
+        .select('_id eventName eventContractNumber isMainEvent parentEventId pickupFieldPreferences productPickupOverrides')
         .lean();
     }
 
@@ -740,10 +744,11 @@ exports.getEventInventory = async (req, res) => {
     // Get inventory items that are:
     // 1. Active (isActive: true)
     // 2. Linked to this specific event (eventId matches)
-    const inventory = await Inventory.find({ 
+    const { sortInventoryItems } = require('../utils/sizeSort');
+    const inventory = sortInventoryItems(await Inventory.find({
       eventId: eventId,
-      isActive: true 
-    }).sort({ type: 1, style: 1, size: 1 });
+      isActive: true
+    }));
 
     res.json({
       success: true,
@@ -891,11 +896,15 @@ exports.updateEventStatus = async (req, res) => {
       return res.status(400).json({ message: 'Status must be either "active" or "closed"' });
     }
 
-    const updatedEvent = await Event.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true, runValidators: true }
-    ).populate('createdBy', 'username email profileColor firstName lastName');
+    // Closing/reopening a main program cascades to all gift stations (matches archive behavior)
+    const statusQuery = event.isMainEvent
+      ? { $or: [{ _id: req.params.id }, { parentEventId: req.params.id }] }
+      : { _id: req.params.id };
+
+    await Event.updateMany(statusQuery, { status }, { runValidators: true });
+
+    const updatedEvent = await Event.findById(req.params.id)
+      .populate('createdBy', 'username email profileColor firstName lastName');
 
     console.log('UpdateEventStatus - Event updated successfully:', updatedEvent);
 
@@ -910,6 +919,7 @@ exports.updateEventStatus = async (req, res) => {
           eventContractNumber: event.eventContractNumber,
           oldStatus: event.status,
           newStatus: status,
+          cascadedToSecondaryEvents: event.isMainEvent,
           changedAt: new Date()
         },
         timestamp: new Date()
@@ -928,10 +938,10 @@ exports.updateEventStatus = async (req, res) => {
   }
 };
 
-// Update pickup field preferences for an event
+// Update pickup field preferences for an event (main event or individual gifting station)
 exports.updatePickupFieldPreferences = async (req, res) => {
   try {
-    const { pickupFieldPreferences } = req.body;
+    const { pickupFieldPreferences, productPickupOverrides } = req.body;
     const event = await Event.findById(req.params.id);
 
     if (!event) {
@@ -956,16 +966,38 @@ exports.updatePickupFieldPreferences = async (req, res) => {
       }
     });
 
+    // Validate product pickup overrides structure
+    let overrides;
+    if (productPickupOverrides && typeof productPickupOverrides === 'object') {
+      overrides = {};
+      Object.entries(productPickupOverrides).forEach(([product, fieldPrefs]) => {
+        if (!product || typeof fieldPrefs !== 'object' || fieldPrefs === null) return;
+        const overridePrefs = {};
+        validFields.forEach(field => {
+          if (typeof fieldPrefs[field] === 'boolean') {
+            overridePrefs[field] = fieldPrefs[field];
+          }
+        });
+        overrides[product] = overridePrefs;
+      });
+    }
+
+    const update = { pickupFieldPreferences: preferences };
+    if (overrides) {
+      update.productPickupOverrides = overrides;
+    }
+
     const updatedEvent = await Event.findByIdAndUpdate(
       req.params.id,
-      { pickupFieldPreferences: preferences },
+      update,
       { new: true, runValidators: true }
     );
 
-    res.json({ 
+    res.json({
       success: true,
       event: updatedEvent,
-      pickupFieldPreferences: updatedEvent.pickupFieldPreferences
+      pickupFieldPreferences: updatedEvent.pickupFieldPreferences,
+      productPickupOverrides: updatedEvent.productPickupOverrides
     });
 
   } catch (error) {

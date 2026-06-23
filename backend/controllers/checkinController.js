@@ -4,6 +4,7 @@ const Guest = require('../models/Guest');
 const Event = require('../models/Event');
 const Inventory = require('../models/Inventory');
 const ActivityLog = require('../models/ActivityLog');
+const { sortInventoryItems } = require('../utils/sizeSort');
 
 // Skip invalid/empty inventory IDs to avoid "Cast to ObjectId failed" (e.g. when multiple items share category/brand and UI sends '')
 const isValidInventoryId = (id) => id && mongoose.Types.ObjectId.isValid(id);
@@ -144,15 +145,15 @@ exports.getCheckinContext = async (req, res) => {
 
     // Get available inventory for all events (shared inventory pool)
     const mainEventId = event.isMainEvent ? eventId : event.parentEventId;
-    let inventory = await Inventory.find({
+    let inventory = sortInventoryItems(await Inventory.find({
       eventId: mainEventId,
       isActive: true
-    }).sort({ type: 1, style: 1, size: 1 });
+    }));
 
     // Filter inventory by allocatedEvents for each event
     const inventoryByEvent = {};
     for (const ev of availableEvents) {
-      inventoryByEvent[ev._id] = inventory.filter(item => (item.allocatedEvents || []).map(id => id.toString()).includes(ev._id.toString()));
+      inventoryByEvent[ev._id.toString()] = inventory.filter(item => (item.allocatedEvents || []).map(id => id.toString()).includes(ev._id.toString()));
     }
 
     res.json({
@@ -194,8 +195,11 @@ exports.multiEventCheckin = async (req, res) => {
     const inventoryUpdates = new Map(); // Track total inventory changes
     const updatedEventIds = new Set(); // Track which events were updated
 
-    // Process each event checkin
+    // Process each event checkin (skip entries with no gift — supports one-station-at-a-time check-in)
     for (const checkin of checkins) {
+      const hasGifts = checkin.selectedGifts?.some((g) => isValidInventoryId(g?.inventoryId));
+      if (!hasGifts) continue;
+
       const event = await Event.findById(checkin.eventId);
       if (!event) {
         results.push({
@@ -247,6 +251,10 @@ exports.multiEventCheckin = async (req, res) => {
       });
 
       updatedEventIds.add(checkin.eventId);
+    }
+
+    if (results.filter((r) => r.success).length === 0) {
+      return res.status(400).json({ message: 'No gifts selected to check in.' });
     }
 
     // Validate total inventory requirements
@@ -879,22 +887,44 @@ exports.updateCheckinGifts = async (req, res) => {
       }));
     await checkin.save();
 
-    // Update guest record
+    // Update guest record — consolidate duplicate subdocs for the same station if present
     const guest = checkin.guestId;
-    const guestCheckin = guest.eventCheckins.find(ec =>
-      ec.eventId.toString() === checkin.eventId.toString()
+    const eventIdStr = checkin.eventId.toString();
+    const matchingGuestCheckins = guest.eventCheckins.filter(
+      (ec) => ec.eventId.toString() === eventIdStr
     );
 
-    if (guestCheckin) {
-      guestCheckin.giftsReceived = newGifts
-        .filter(g => isValidInventoryId(g.inventoryId))
-        .map(gift => ({
-          inventoryId: gift.inventoryId,
-          quantity: gift.quantity,
-          distributedAt: new Date()
-        }));
-      await guest.save();
+    const updatedGifts = newGifts
+      .filter((g) => isValidInventoryId(g.inventoryId))
+      .map((gift) => ({
+        inventoryId: gift.inventoryId,
+        quantity: gift.quantity,
+        distributedAt: new Date(),
+      }));
+
+    if (matchingGuestCheckins.length > 0) {
+      const primaryCheckin = matchingGuestCheckins[0];
+
+      if (matchingGuestCheckins.length > 1) {
+        guest.eventCheckins = guest.eventCheckins.filter(
+          (ec) => ec.eventId.toString() !== eventIdStr
+        );
+        guest.eventCheckins.push({
+          eventId: primaryCheckin.eventId,
+          checkedIn: primaryCheckin.checkedIn,
+          checkedInAt: primaryCheckin.checkedInAt,
+          checkedInBy: primaryCheckin.checkedInBy,
+          giftsReceived: updatedGifts,
+          ...(primaryCheckin.pickupFieldPreferencesAtCheckin != null && {
+            pickupFieldPreferencesAtCheckin: primaryCheckin.pickupFieldPreferencesAtCheckin,
+          }),
+        });
+      } else {
+        primaryCheckin.giftsReceived = updatedGifts;
+      }
     }
+
+    await guest.save();
 
     // Recalculate current inventory for affected items
     for (const [inventoryId] of inventoryChanges) {

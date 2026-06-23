@@ -21,10 +21,6 @@ import {
     InputLabel,
     Select,
     MenuItem,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemSecondaryAction,
     Autocomplete
 } from '@mui/material';
 import {
@@ -46,6 +42,51 @@ import api, { undoCheckin, updateCheckinGifts, deleteGuest, getCheckinContext } 
 import MainLayout from '../layout/MainLayout';
 import toast from 'react-hot-toast';
 import HierarchicalInventorySelector from './HierarchicalInventorySelector';
+import { formatGiftDisplayLabel, mergePickupFieldPreferences } from '../../utils/pickupFieldPreferences';
+
+const toIdString = (id) => (id?._id ?? id)?.toString();
+
+const mergeCheckinsByEvent = (checkins) => {
+  const byEvent = new Map();
+
+  checkins.forEach((checkin) => {
+    const eventId = toIdString(checkin.eventId);
+    if (!eventId) return;
+
+    if (!byEvent.has(eventId)) {
+      byEvent.set(eventId, {
+        ...checkin,
+        giftsReceived: [...(checkin.giftsReceived || [])],
+      });
+      return;
+    }
+
+    const existing = byEvent.get(eventId);
+    existing.giftsReceived = [
+      ...(existing.giftsReceived || []),
+      ...(checkin.giftsReceived || []),
+    ];
+
+    const existingDate = existing.checkedInAt ? new Date(existing.checkedInAt) : null;
+    const nextDate = checkin.checkedInAt ? new Date(checkin.checkedInAt) : null;
+    if (nextDate && (!existingDate || nextDate > existingDate)) {
+      existing.checkedInAt = checkin.checkedInAt;
+      existing.checkedInBy = checkin.checkedInBy || existing.checkedInBy;
+    }
+  });
+
+  return Array.from(byEvent.values());
+};
+
+const getStationPrefsForCheckin = (eventCheckin, mainEvent) => {
+  if (eventCheckin?.eventId && typeof eventCheckin.eventId === 'object') {
+    return eventCheckin.eventId;
+  }
+  if (eventCheckin?.pickupFieldPreferencesAtCheckin) {
+    return { pickupFieldPreferences: eventCheckin.pickupFieldPreferencesAtCheckin };
+  }
+  return mainEvent || null;
+};
 
 // Undo reason options - these map to string values sent to backend
 const UNDO_REASONS = [
@@ -94,24 +135,11 @@ export default function GuestDetailPage() {
         return event?.pickupFieldPreferences || getDefaultPreferences();
     };
 
-    // Base: all fields off so any combination (e.g. brand+product only, category+product) shows only those fields.
-    const displayPrefsBase = { type: false, brand: false, product: false, size: false, gender: false, color: false };
-
-    // Format gift label using prefs at check-in (stored) so we only show what staff actually selected; fall back to current event prefs for legacy.
+    // Format gift label using per-product station prefs so mixed stations (e.g. blankets + headphones) stay distinct.
     const formatGiftLabelWithPrefs = (gift, eventCheckin) => {
-        const stored = eventCheckin?.pickupFieldPreferencesAtCheckin ?? event?.pickupFieldPreferences;
-        const prefs = { ...displayPrefsBase, ...(stored && typeof stored === 'object' ? stored : {}) };
         const item = gift.inventoryId && typeof gift.inventoryId === 'object' ? gift.inventoryId : null;
-        if (!item) return `Unknown x${gift.quantity || 1}`;
-        const parts = [];
-        if (prefs.type && item.type) parts.push(item.type);
-        if (prefs.brand && item.style) parts.push(item.style);
-        if (prefs.product && item.product) parts.push(item.product);
-        if (prefs.size && item.size) parts.push(`Size ${item.size}`);
-        if (prefs.gender && item.gender && item.gender !== 'N/A') parts.push(item.gender);
-        if (prefs.color && item.color) parts.push(item.color);
-        if (parts.length === 0) return `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''} x${gift.quantity || 1}`;
-        return `${parts.join(' - ')} x${gift.quantity || 1}`;
+        const stationPrefs = getStationPrefsForCheckin(eventCheckin, event);
+        return formatGiftDisplayLabel(item, stationPrefs, gift.quantity || 1);
     };
 
     // Format inventory item display based on preferences
@@ -325,11 +353,22 @@ export default function GuestDetailPage() {
             setError('Please provide a reason for modifying gifts');
             return;
         }
+
+        const giftsToSave = modifiedGifts.filter((gift) => gift.inventoryId);
+        if (giftsToSave.length === 0) {
+            setError('Please select at least one gift before saving.');
+            return;
+        }
         
         try {
             setGiftModificationLoading(true);
-            // Use the imported updateCheckinGifts function - pass additional data to help backend find the correct checkin
-            await updateCheckinGifts(selectedCheckin._id, modifiedGifts, reason, guestId, selectedCheckin.eventId._id);
+            await updateCheckinGifts(
+                selectedCheckin._id,
+                giftsToSave,
+                reason,
+                guestId,
+                toIdString(selectedCheckin.eventId)
+            );
             
             // Refresh guest data
             const guestResponse = await api.get(`/guests/${guestId}`);
@@ -373,30 +412,32 @@ export default function GuestDetailPage() {
         setCustomGiftModificationReason('');
         setModifyDialogPickupPreferences(null);
 
-        const eventIdForCheckin = checkin.eventId?._id || checkin.eventId;
+        const eventIdForCheckin = toIdString(checkin.eventId);
         if (!eventIdForCheckin) {
             setError('Cannot determine event for this check-in');
             return;
         }
 
         try {
-            // Use same check-in context as the check-in modal: inventory filtered by allocation + main event pickup preferences
             const contextResponse = await getCheckinContext(eventIdForCheckin);
             const context = contextResponse.data;
 
-            const inventory = context.inventoryByEvent?.[eventIdForCheckin] ?? [];
+            const inventory =
+                context.inventoryByEvent?.[eventIdForCheckin] ??
+                context.inventoryByEvent?.[String(eventIdForCheckin)] ??
+                [];
             setAvailableInventory(Array.isArray(inventory) ? inventory : []);
 
-            const mainEvent = context.availableEvents?.find((e) => e.isMainEvent) || context.availableEvents?.[0] || context.currentEvent;
-            const prefs = mainEvent?.pickupFieldPreferences && typeof mainEvent.pickupFieldPreferences === 'object'
-                ? mainEvent.pickupFieldPreferences
-                : null;
-            setModifyDialogPickupPreferences(prefs);
+            const stationEvent =
+                context.availableEvents?.find((e) => toIdString(e._id) === eventIdForCheckin) ||
+                (typeof checkin.eventId === 'object' ? checkin.eventId : null) ||
+                context.currentEvent;
+            setModifyDialogPickupPreferences(stationEvent || null);
 
             const currentGifts = (checkin.giftsReceived || []).map((gift) => ({
-                inventoryId: gift.inventoryId?._id || gift.inventoryId || '',
+                inventoryId: toIdString(gift.inventoryId) || '',
                 quantity: gift.quantity || 1,
-                notes: gift.notes || ''
+                notes: gift.notes || '',
             }));
             setModifiedGifts(currentGifts);
 
@@ -859,7 +900,9 @@ export default function GuestDetailPage() {
 
                                 {/* Gifts & Check-ins: show all check-ins (match guest table; gifts optional) */}
                                 {(() => {
-                                    const checkinsToShow = (guest.eventCheckins || []).filter(ec => ec.checkedIn);
+                                    const checkinsToShow = mergeCheckinsByEvent(
+                                        (guest.eventCheckins || []).filter((ec) => ec.checkedIn)
+                                    );
                                     if (checkinsToShow.length === 0) {
                                         return (
                                             <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -880,7 +923,7 @@ export default function GuestDetailPage() {
                                         </Typography>
                                         <Stack spacing={2}>
                                             {checkinsToShow.map((checkin, index) => (
-                                                <Card key={index} variant="outlined" sx={{ p: 2 }}>
+                                                <Card key={toIdString(checkin.eventId) || index} variant="outlined" sx={{ p: 2 }}>
                                                     <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' }, alignItems: { md: 'center' } }}>
                                                         {/* Event Info */}
                                                         <Box sx={{ flex: '0 0 200px', minWidth: 0 }}>
@@ -899,7 +942,7 @@ export default function GuestDetailPage() {
                                                         {/* Gifts */}
                                                         <Box sx={{ flex: 1, minWidth: 0 }}>
                                                             <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
-                                                                Gifts Received
+                                                                Gifts Received ({checkin.giftsReceived?.length || 0})
                                                             </Typography>
                                                             {checkin.giftsReceived && checkin.giftsReceived.length > 0 ? (
                                                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -1086,47 +1129,62 @@ export default function GuestDetailPage() {
                             </Typography>
 
                             {modifiedGifts.length > 0 ? (
-                                <List>
+                                <Stack spacing={1.5}>
                                     {modifiedGifts.map((gift, index) => (
-                                        <ListItem key={index} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, mb: 1 }}>
-                                            <ListItemText
-                                                primary={
-                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-                                                            <Box sx={{ flex: 1 }}>
-                                                                <HierarchicalInventorySelector
-                                                                    inventory={Array.isArray(availableInventory) ? availableInventory : []}
-                                                                    value={gift.inventoryId}
-                                                                    onChange={(inventoryId) => updateGift(index, 'inventoryId', inventoryId)}
-                                                                    eventName={selectedCheckin?.eventId?.eventName || 'Event'}
-                                                                    pickupFieldPreferences={modifyDialogPickupPreferences || getDefaultPreferences()}
-                                                                />
-                                                            </Box>
-                                                            <TextField
-                                                                type="number"
-                                                                label="Quantity"
-                                                                value={gift.quantity}
-                                                                onChange={(e) => updateGift(index, 'quantity', parseInt(e.target.value) || 1)}
-                                                                size="small"
-                                                                sx={{ width: 100 }}
-                                                                inputProps={{ min: 1 }}
-                                                            />
-                                                        </Box>
-                                                    </Box>
-                                                }
-                                            />
-                                            <ListItemSecondaryAction>
-                                                <IconButton 
-                                                    edge="end" 
+                                        <Box
+                                            key={`gift-row-${index}-${gift.inventoryId || 'new'}`}
+                                            sx={{
+                                                border: 1,
+                                                borderColor: 'divider',
+                                                borderRadius: 1,
+                                                p: 2,
+                                            }}
+                                        >
+                                            <Box
+                                                sx={{
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'flex-start',
+                                                    gap: 1,
+                                                    mb: 1.5,
+                                                }}
+                                            >
+                                                <Typography variant="body2" fontWeight={600}>
+                                                    Gift {index + 1}
+                                                </Typography>
+                                                <IconButton
                                                     onClick={() => removeGift(index)}
                                                     color="error"
+                                                    size="small"
+                                                    aria-label={`Remove gift ${index + 1}`}
                                                 >
                                                     <Delete />
                                                 </IconButton>
-                                            </ListItemSecondaryAction>
-                                        </ListItem>
+                                            </Box>
+                                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                    <HierarchicalInventorySelector
+                                                        inventory={Array.isArray(availableInventory) ? availableInventory : []}
+                                                        value={gift.inventoryId}
+                                                        onChange={(inventoryId) => updateGift(index, 'inventoryId', inventoryId)}
+                                                        pickupFieldPreferences={mergePickupFieldPreferences(
+                                                            modifyDialogPickupPreferences?.pickupFieldPreferences
+                                                        )}
+                                                    />
+                                                </Box>
+                                                <TextField
+                                                    type="number"
+                                                    label="Quantity"
+                                                    value={gift.quantity}
+                                                    onChange={(e) => updateGift(index, 'quantity', parseInt(e.target.value) || 1)}
+                                                    size="small"
+                                                    sx={{ width: 100 }}
+                                                    inputProps={{ min: 1 }}
+                                                />
+                                            </Box>
+                                        </Box>
                                     ))}
-                                </List>
+                                </Stack>
                             ) : (
                                 <Typography variant="body2" color="textSecondary" sx={{ textAlign: 'center', py: 2 }}>
                                     No gifts to modify. Click "Add Gift" to add new gifts.

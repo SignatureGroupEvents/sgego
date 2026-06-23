@@ -1,15 +1,80 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import {
-  Box,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Typography
-} from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Button, Typography } from '@mui/material';
+import { sortSizeValues } from '../../utils/sizeSort';
+import { mergePickupFieldPreferences } from '../../utils/pickupFieldPreferences';
 
-const HierarchicalInventorySelector = ({ inventory, value, onChange, eventName, pickupFieldPreferences }) => {
-  // Get pick-up modal field display preferences from props or use defaults
+const COLOR_MAP = {
+  navy: '#1a2744',
+  white: '#ffffff',
+  black: '#1a1a1a',
+  pink: '#e8a0b4',
+  red: '#c62828',
+  blue: '#1565c0',
+  green: '#2e7d32',
+  grey: '#9e9e9e',
+  gray: '#9e9e9e',
+  beige: '#d4c4a8',
+  brown: '#6d4c2a',
+  tan: '#d2b48c',
+  gold: '#c9a227',
+  yellow: '#f9a825',
+  orange: '#ef6c00',
+  purple: '#7b1fa2',
+  cream: '#fffdd0',
+  ivory: '#fffff0',
+  charcoal: '#36454f',
+  silver: '#c0c0c0',
+};
+
+const FIELD_LABELS = {
+  type: 'Category',
+  brand: 'Brand',
+  product: 'Product',
+  gender: 'Gender',
+  color: 'Color',
+  size: 'Size',
+};
+
+const resolveColorSwatch = (name) => {
+  const key = (name || '').toLowerCase().trim();
+  if (COLOR_MAP[key]) {
+    return { color: COLOR_MAP[key], needsBorder: key === 'white' || key === 'cream' || key === 'ivory' };
+  }
+  const partial = Object.entries(COLOR_MAP).find(([k]) => key.includes(k));
+  if (partial) {
+    return { color: partial[1], needsBorder: partial[0] === 'white' || partial[0] === 'cream' };
+  }
+  return { color: '#bdbdbd', needsBorder: false };
+};
+
+const formatGenderLabel = (value) => {
+  if (value === 'M') return "Men's";
+  if (value === 'W') return "Women's";
+  if (value === 'N/A') return 'N/A';
+  return value;
+};
+
+const formatDisplayValue = (field, value) => {
+  if (field === 'gender') return formatGenderLabel(value);
+  return value;
+};
+
+const GENDER_ORDER = { M: 0, W: 1, 'N/A': 2 };
+
+const sortFieldValues = (field, values) => {
+  if (field === 'size') return sortSizeValues(values);
+  if (field === 'gender') {
+    return [...values].sort((a, b) => {
+      const rankA = GENDER_ORDER[a] ?? 99;
+      const rankB = GENDER_ORDER[b] ?? 99;
+      if (rankA !== rankB) return rankA - rankB;
+      return String(a).localeCompare(String(b));
+    });
+  }
+  return [...values].sort((a, b) => String(a).localeCompare(String(b), undefined, { sensitivity: 'base' }));
+};
+
+const HierarchicalInventorySelector = ({ inventory, value, onChange, pickupFieldPreferences, stationPrefs }) => {
   const getDefaultPreferences = () => ({
     type: false,
     brand: true,
@@ -19,10 +84,10 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, eventName, 
     color: false
   });
 
-  const prefs = pickupFieldPreferences || getDefaultPreferences();
-  
-  // Determine the order of fields based on what's selected
-  // Order: Type -> Brand -> Gender -> Product -> Color -> Size
+  const prefs = pickupFieldPreferences
+    || mergePickupFieldPreferences(stationPrefs?.pickupFieldPreferences)
+    || getDefaultPreferences();
+
   const fieldOrder = [];
   if (prefs.type) fieldOrder.push('type');
   if (prefs.brand) fieldOrder.push('brand');
@@ -31,7 +96,6 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, eventName, 
   if (prefs.color) fieldOrder.push('color');
   if (prefs.size) fieldOrder.push('size');
 
-  // State for each level of selection
   const [selections, setSelections] = useState({
     type: '',
     brand: '',
@@ -41,169 +105,213 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, eventName, 
     color: ''
   });
 
-  // Initialize selections from existing value if provided
   useEffect(() => {
-    if (value && inventory.length > 0) {
-      const selectedItem = inventory.find(item => item._id === value);
-      if (selectedItem) {
-        setSelections({
-          type: selectedItem.type || '',
-          brand: selectedItem.style || '',
-          product: selectedItem.product || '',
-          gender: selectedItem.gender || '',
-          size: selectedItem.size || '',
-          color: selectedItem.color || ''
-        });
-      }
-    } else if (!value) {
-      // Reset selections when value is cleared
-      setSelections({
-        type: '',
-        brand: '',
-        product: '',
-        gender: '',
-        size: '',
-        color: ''
-      });
-    }
+    if (!value || inventory.length === 0) return;
+
+    const selectedItem = inventory.find((item) => String(item._id) === String(value));
+    if (!selectedItem) return;
+
+    setSelections({
+      type: selectedItem.type || '',
+      brand: selectedItem.style || '',
+      product: selectedItem.product || '',
+      gender: selectedItem.gender || '',
+      size: selectedItem.size || '',
+      color: selectedItem.color || ''
+    });
   }, [value, inventory]);
 
-  // Get unique values for a specific level based on current selections
   const getUniqueValuesForLevel = (level) => {
     if (level >= fieldOrder.length) return [];
-    
+
     const field = fieldOrder[level];
     const values = new Set();
-    
-    // Filter inventory based on previous selections
-    const filtered = inventory.filter(item => {
-      return fieldOrder.slice(0, level).every((f, idx) => {
+
+    const filtered = inventory.filter((item) =>
+      fieldOrder.slice(0, level).every((f, idx) => {
         const fieldName = f === 'brand' ? 'style' : f;
         const itemValue = item[fieldName] || '';
         const selectedValue = selections[fieldOrder[idx]] || '';
         return selectedValue === '' || selectedValue === itemValue;
-      });
-    });
-    
-    // Get unique values for this level
-    filtered.forEach(item => {
+      })
+    );
+
+    filtered.forEach((item) => {
       const fieldName = field === 'brand' ? 'style' : field;
       const itemValue = item[fieldName] || '';
-      if (itemValue) {
-        values.add(itemValue);
-      }
+      if (itemValue) values.add(itemValue);
     });
-    
-    return Array.from(values).sort();
+
+    return sortFieldValues(field, Array.from(values));
   };
 
-  // Handle selection change at a specific level
-  const handleLevelChange = (level, newValue) => {
-    const field = fieldOrder[level];
-    const updatedSelections = { ...selections };
-    
-    // Update this level
-    updatedSelections[field] = newValue;
-    
-    // Clear all subsequent levels
-    const currentIndex = fieldOrder.indexOf(field);
-    fieldOrder.slice(currentIndex + 1).forEach(f => {
-      updatedSelections[f] = '';
-    });
-    
-    setSelections(updatedSelections);
-    
-    // If all hierarchical levels are now selected, auto-select a matching inventory item.
-    // When multiple items match (e.g. same category/brand/product but different size), pick the first so we send a valid ID;
-    // modal settings control which fields are shown—we don't add extra "variant" dropdowns.
-    const allSelected = fieldOrder.every(f => updatedSelections[f]);
-    if (allSelected) {
-      const matchingItems = getFilteredInventoryForSelections(updatedSelections);
-      if (matchingItems.length >= 1) {
-        if (onChange) onChange(matchingItems[0]._id);
-      } else {
-        if (onChange) onChange('');
-      }
-    } else {
-      // Not all levels selected yet - clear selection
-      if (onChange) onChange('');
-    }
-  };
-
-  // Get filtered inventory based on specific selections
-  const getFilteredInventoryForSelections = (sel) => {
-    return inventory.filter(item => {
-      return fieldOrder.every(field => {
+  const getFilteredInventoryForSelections = (sel) =>
+    inventory.filter((item) =>
+      fieldOrder.every((field) => {
         const fieldName = field === 'brand' ? 'style' : field;
         const itemValue = item[fieldName] || '';
         const selectedValue = sel[field] || '';
         return selectedValue === '' || selectedValue === itemValue;
-      });
+      })
+    );
+
+  const handleLevelChange = (level, newValue) => {
+    const field = fieldOrder[level];
+    const updatedSelections = { ...selections };
+    updatedSelections[field] = newValue;
+
+    const currentIndex = fieldOrder.indexOf(field);
+    fieldOrder.slice(currentIndex + 1).forEach((f) => {
+      updatedSelections[f] = '';
     });
+
+    setSelections(updatedSelections);
+
+    const allSelected = fieldOrder.every((f) => updatedSelections[f]);
+    if (allSelected) {
+      const matchingItems = getFilteredInventoryForSelections(updatedSelections);
+      if (matchingItems.length >= 1) {
+        if (onChange) onChange(matchingItems[0]._id);
+      } else if (onChange) {
+        onChange('');
+      }
+    } else if (onChange && value) {
+      onChange('');
+    }
   };
 
-  // If no fields are selected, show simple dropdown
+  const pillButtonSx = (selected, compact = false) => ({
+    borderRadius: compact ? '8px' : '20px',
+    px: compact ? 1.25 : 2,
+    py: compact ? 0.75 : 1,
+    minWidth: compact ? 44 : 'auto',
+    height: compact ? 44 : 'auto',
+    textTransform: 'none',
+    border: '2px solid',
+    borderColor: selected ? '#31365E' : '#e0e0e0',
+    bgcolor: selected ? '#FFFAF6' : '#fff',
+    color: '#31365E',
+    fontWeight: selected ? 600 : 400,
+    boxShadow: 'none',
+    '&:hover': {
+      bgcolor: selected ? '#FFFAF6' : '#f7f7f7',
+      borderColor: selected ? '#31365E' : '#bdbdbd',
+      boxShadow: 'none',
+    },
+  });
+
+  const renderOptionButton = (field, optionValue, selected, onSelect) => {
+    const compact = field === 'size';
+    const display = formatDisplayValue(field, optionValue);
+
+    if (field === 'color') {
+      const swatch = resolveColorSwatch(optionValue);
+      return (
+        <Button
+          key={optionValue}
+          variant="outlined"
+          onClick={() => onSelect(optionValue)}
+          sx={{
+            ...pillButtonSx(selected),
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 1,
+          }}
+        >
+          <Box
+            component="span"
+            sx={{
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              bgcolor: swatch.color,
+              border: swatch.needsBorder ? '1px solid #ccc' : 'none',
+              flexShrink: 0,
+            }}
+          />
+          {display}
+        </Button>
+      );
+    }
+
+    return (
+      <Button
+        key={optionValue}
+        variant="outlined"
+        onClick={() => onSelect(optionValue)}
+        sx={pillButtonSx(selected, compact)}
+      >
+        {display}
+      </Button>
+    );
+  };
+
+  const renderGiftButtons = () => (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+      {inventory.map((item) => {
+        const selected = value === item._id;
+        const label = `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''}`;
+        return (
+          <Button
+            key={item._id}
+            variant="outlined"
+            onClick={() => onChange && onChange(item._id)}
+            sx={pillButtonSx(selected)}
+          >
+            {label}
+          </Button>
+        );
+      })}
+    </Box>
+  );
+
   if (fieldOrder.length === 0) {
     return (
-      <FormControl fullWidth size="small">
-        <InputLabel>Select a gift</InputLabel>
-        <Select
-          value={value || ''}
-          onChange={(e) => onChange && onChange(e.target.value)}
-          label="Select a gift"
-        >
-          <MenuItem value="">
-            <em>None</em>
-          </MenuItem>
-          {inventory.map(item => (
-            <MenuItem key={item._id} value={item._id}>
-              {item.style || 'N/A'}{item.size ? ` (${item.size})` : ''}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
+      <Box>
+        <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
+          Select a gift
+        </Typography>
+        {inventory.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No inventory available
+          </Typography>
+        ) : (
+          renderGiftButtons()
+        )}
+      </Box>
     );
   }
 
   return (
     <Box>
       {fieldOrder.map((field, level) => {
-        const fieldLabel = field === 'brand' ? 'Brand' : 
-                          field === 'type' ? 'Category' :
-                          field.charAt(0).toUpperCase() + field.slice(1);
+        const fieldLabel = FIELD_LABELS[field] || field;
         const uniqueValues = getUniqueValuesForLevel(level);
         const currentValue = selections[field] || '';
-        
-        // Don't show this level if previous required level is not selected
+
         const prevField = level > 0 ? fieldOrder[level - 1] : null;
         const prevValue = prevField ? selections[prevField] : null;
-        if (level > 0 && prevValue === '') {
-          return null;
-        }
-        
+        if (level > 0 && prevValue === '') return null;
+
+        if (uniqueValues.length === 0) return null;
+
         return (
-          <FormControl 
-            key={field} 
-            fullWidth 
-            size="small" 
-            sx={{ mb: 1 }}
-          >
-            <InputLabel>{fieldLabel}</InputLabel>
-            <Select
-              value={currentValue}
-              onChange={(e) => handleLevelChange(level, e.target.value)}
-              label={fieldLabel}
-            >
-              <MenuItem value="">
-                <em>Select {fieldLabel}</em>
-              </MenuItem>
-              {uniqueValues.map(val => (
-                <MenuItem key={val} value={val}>
-                  {val}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Box key={field} sx={{ mb: 2 }}>
+            <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
+              {fieldLabel}
+              {currentValue ? ` — ${formatDisplayValue(field, currentValue)}` : ''}
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {uniqueValues.map((optionValue) =>
+                renderOptionButton(
+                  field,
+                  optionValue,
+                  currentValue === optionValue,
+                  (val) => handleLevelChange(level, val)
+                )
+              )}
+            </Box>
+          </Box>
         );
       })}
     </Box>
@@ -211,4 +319,3 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, eventName, 
 };
 
 export default HierarchicalInventorySelector;
-

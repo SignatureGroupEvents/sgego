@@ -363,7 +363,10 @@ exports.getGuestById = async (req, res) => {
     
     const guest = await Guest.findById(id)
       .populate('eventId', 'eventName isMainEvent')
-      .populate('eventCheckins.eventId', 'eventName isMainEvent')
+      .populate(
+        'eventCheckins.eventId',
+        'eventName isMainEvent pickupFieldPreferences productPickupOverrides pickupSettingsMode'
+      )
       .populate('eventCheckins.giftsReceived.inventoryId', 'type style product size gender color')
       .populate('eventCheckins.checkedInBy', 'username');
 
