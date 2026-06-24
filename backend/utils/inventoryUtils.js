@@ -48,6 +48,7 @@ async function findInventoryDuplicateContext(Inventory, mainEventId, item, exclu
 
   const exactMatch = await Inventory.findOne({
     eventId: mainEventId,
+    isActive: true,
     type: fields.type,
     style: fields.style,
     product: fields.product,
@@ -59,6 +60,7 @@ async function findInventoryDuplicateContext(Inventory, mainEventId, item, exclu
 
   const similarItems = await Inventory.find({
     eventId: mainEventId,
+    isActive: true,
     type: fields.type,
     style: fields.style,
     product: fields.product,
@@ -75,7 +77,7 @@ function buildDuplicateInventoryResponse(context) {
 
   if (exactMatch) {
     return {
-      message: `An inventory item with this exact combination already exists. Existing row: ${formatInventoryItemSummary(exactMatch)}. You tried to add gender ${formatGenderLabel(fields.gender)}.`,
+      message: `An inventory item with this exact combination already exists: ${formatInventoryItemSummary(exactMatch)}.`,
       conflictingItem: {
         type: exactMatch.type,
         style: exactMatch.style,

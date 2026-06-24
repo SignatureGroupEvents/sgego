@@ -88,6 +88,7 @@ const InventoryPage = ({ eventId, eventName }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editValuesMap, setEditValuesMap] = useState({});
   const [addItemModalOpen, setAddItemModalOpen] = useState(false);
+  const [isAddingItem, setIsAddingItem] = useState(false);
   const [newItem, setNewItem] = useState({
     type: '',
     style: '',
@@ -785,7 +786,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     } catch (err) {
       const data = err.response?.data;
       let message = data?.message || 'Failed to update inventory item.';
-      if (data?.conflictingItem?.summary) {
+      if (data?.conflictingItem?.summary && !message.includes(data.conflictingItem.summary)) {
         message += ` Conflicting row: ${data.conflictingItem.summary}.`;
       }
       if (data?.hint === 'legacy_index_possible') {
@@ -877,6 +878,7 @@ const InventoryPage = ({ eventId, eventName }) => {
   };
 
   const handleOpenAddItemModal = () => {
+    setError('');
     setAddItemModalOpen(true);
     setNewItem({
       type: '',
@@ -948,7 +950,11 @@ const InventoryPage = ({ eventId, eventName }) => {
   };
 
   const handleAddItem = async () => {
+    if (isAddingItem) return;
+
     try {
+      setIsAddingItem(true);
+      setError('');
       // Validate required fields
       if (!newItem.type || !newItem.style) {
         setError('Category and Brand are required fields.');
@@ -991,17 +997,19 @@ const InventoryPage = ({ eventId, eventName }) => {
       await addInventoryItem(eventId, itemData);
       setSuccess('Inventory item added successfully!');
       handleCloseAddItemModal();
-      loadInventory();
+      await loadInventory();
     } catch (err) {
       const data = err.response?.data;
       let message = data?.message || 'Failed to add inventory item.';
-      if (data?.conflictingItem?.summary) {
+      if (data?.conflictingItem?.summary && !message.includes(data.conflictingItem.summary)) {
         message += ` Conflicting row: ${data.conflictingItem.summary}.`;
       }
       if (data?.hint === 'legacy_index_possible') {
         message += ' Ask your admin to run: node backend/scripts/fixInventoryIndex.js';
       }
       setError(message);
+    } finally {
+      setIsAddingItem(false);
     }
   };
 
@@ -2019,8 +2027,8 @@ const InventoryPage = ({ eventId, eventName }) => {
           <Button onClick={handleCloseAddItemModal} variant="outlined">
             Cancel
           </Button>
-          <Button onClick={handleAddItem} variant="contained" color="primary">
-            Add Item
+          <Button onClick={handleAddItem} variant="contained" color="primary" disabled={isAddingItem}>
+            {isAddingItem ? 'Adding...' : 'Add Item'}
           </Button>
         </DialogActions>
       </Dialog>

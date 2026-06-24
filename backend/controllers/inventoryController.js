@@ -985,7 +985,7 @@ exports.addInventoryItem = async (req, res) => {
       qtyOnSite: Number(qtyBeforeEvent) || 0, // Map qtyBeforeEvent to qtyOnSite
       currentInventory: Number(qtyBeforeEvent) || 0, // Initial current inventory
       postEventCount: postEventCount ? Number(postEventCount) : null,
-      allocatedEvents: [mainEventId], // Default allocation to main event
+      allocatedEvents: [event._id],
       inventoryHistory: [{
         action: 'initial',
         quantity: Number(qtyBeforeEvent) || 0,
@@ -998,26 +998,29 @@ exports.addInventoryItem = async (req, res) => {
 
     await inventoryItem.save();
 
-    // Log the inventory addition
-    await ActivityLog.create({
-      eventId,
-      type: 'inventory_add',
-      performedBy: req.user.id,
-      details: {
-        inventoryId: inventoryItem._id,
-        type: inventoryItem.type,
-        style: inventoryItem.style,
-        product: inventoryItem.product,
-        size: inventoryItem.size,
-        gender: inventoryItem.gender,
-        color: inventoryItem.color,
-        qtyWarehouse: inventoryItem.qtyWarehouse,
-        qtyBeforeEvent: inventoryItem.qtyOnSite,
-        postEventCount: inventoryItem.postEventCount,
-        action: 'individual_addition'
-      },
-      timestamp: new Date()
-    });
+    try {
+      await ActivityLog.create({
+        eventId,
+        type: 'inventory_add',
+        performedBy: req.user.id,
+        details: {
+          inventoryId: inventoryItem._id,
+          type: inventoryItem.type,
+          style: inventoryItem.style,
+          product: inventoryItem.product,
+          size: inventoryItem.size,
+          gender: inventoryItem.gender,
+          color: inventoryItem.color,
+          qtyWarehouse: inventoryItem.qtyWarehouse,
+          qtyBeforeEvent: inventoryItem.qtyOnSite,
+          postEventCount: inventoryItem.postEventCount,
+          action: 'individual_addition'
+        },
+        timestamp: new Date()
+      });
+    } catch (logErr) {
+      console.error('Failed to log inventory_add activity:', logErr);
+    }
 
     res.status(201).json({
       success: true,
