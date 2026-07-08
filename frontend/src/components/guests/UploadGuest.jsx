@@ -51,7 +51,7 @@ import {
   Save as SaveIcon,
   ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import api, { getGuests } from '../../services/api';
 import MainLayout from '../layout/MainLayout';
 import HomeIcon from '@mui/icons-material/Home';
@@ -147,54 +147,59 @@ const UploadGuest = () => {
   const parseExcel = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      
-      reader.onload = (e) => {
+
+      reader.onload = async (e) => {
         try {
-          const fileData = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(fileData, { type: 'array' });
-          
-          // Get the first worksheet
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          
-          // Convert to JSON with header row
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-            header: 1,
-            defval: '',
-            raw: false
-          });
-          
-          if (jsonData.length === 0) {
+          const fileData = e.target.result; // ArrayBuffer
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(fileData);
+
+          const worksheet = workbook.worksheets[0];
+
+          if (!worksheet || worksheet.rowCount === 0) {
             resolve({ headers: [], data: [] });
             return;
           }
-          
-          // First row is headers
-          const headers = jsonData[0].map(h => String(h || '').trim()).filter(h => h);
-          
-          // Remaining rows are data
-          const rowData = jsonData.slice(1)
-            .filter(row => row.some(cell => cell !== '')) // Filter out completely empty rows
-            .map((row, index) => {
-              const rowObj = {};
-              headers.forEach((header, i) => {
-                // Convert cell value to string, handling null/undefined
-                rowObj[header] = row[i] !== undefined && row[i] !== null ? String(row[i]).trim() : '';
-              });
-              rowObj._rowIndex = index + 2; // +2 because index 0 is header, and we start from row 2
-              return rowObj;
+
+          const headerRow = worksheet.getRow(1);
+          const headers = [];
+          headerRow.eachCell({ includeEmpty: false }, (cell) => {
+            const val = String(cell.value ?? '').trim();
+            if (val) headers.push(val);
+          });
+
+          const rowData = [];
+          worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) return;
+
+            const values = row.values;
+            const rowValues = headers.map((_, i) => values[i + 1]);
+
+            const isEmpty = rowValues.every(
+              (cell) => cell === undefined || cell === null || String(cell).trim() === ''
+            );
+            if (isEmpty) return;
+
+            const rowObj = {};
+            headers.forEach((header, i) => {
+              const cell = rowValues[i];
+              rowObj[header] = cell !== undefined && cell !== null ? String(cell).trim() : '';
             });
-          
+            rowObj._rowIndex = rowNumber;
+
+            rowData.push(rowObj);
+          });
+
           resolve({ headers, data: rowData });
         } catch (error) {
           reject(new Error(`Error parsing Excel file: ${error.message}`));
         }
       };
-      
+
       reader.onerror = () => {
         reject(new Error('Error reading file'));
       };
-      
+
       reader.readAsArrayBuffer(file);
     });
   };
