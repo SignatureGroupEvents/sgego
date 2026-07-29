@@ -341,6 +341,7 @@ const InventoryPage = ({ eventId, eventName }) => {
       item.style || null,
       item.gender && item.gender !== 'N/A' ? formatMobileGenderLabel(item.gender) : null,
       item.size || null,
+      item.color || null,
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(' · ') : '—';
   };
