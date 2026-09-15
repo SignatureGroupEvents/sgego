@@ -57,11 +57,6 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
   const navigate = useNavigate();
   const eventId = propEventId || paramEventId;
   const theme = useTheme();
-  
-  // Debug logging
-  useEffect(() => {
-    console.log('ComprehensiveAnalytics mounted with eventId:', eventId);
-  }, [eventId]);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -89,15 +84,12 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
   useEffect(() => {
     const fetchEventData = async () => {
       if (!eventId) {
-        console.warn('ComprehensiveAnalytics: No eventId provided');
         return;
       }
       
-      console.log('ComprehensiveAnalytics: Fetching event data for:', eventId);
       setLoadingEvent(true);
       try {
         const eventData = await getEvent(eventId);
-        console.log('ComprehensiveAnalytics: Event data fetched:', eventData);
         setEvent(eventData);
         
         let mainEvent = eventData;
@@ -113,7 +105,6 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
         // Fetch secondary events for the main event
         const response = await api.get(`/events?parentEventId=${mainEvent._id}`);
         const secondaries = response.data.events || response.data || [];
-        console.log('ComprehensiveAnalytics: Secondary events:', secondaries);
         setSecondaryEvents(secondaries);
         
         // If there are secondary events, default to 'combined' view
@@ -121,7 +112,6 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
           // Only set to combined if we haven't explicitly selected something else
           if (selectedEventId === eventId || !selectedEventId) {
             setSelectedEventId('combined');
-            console.log('ComprehensiveAnalytics: Setting to combined view (has secondary events)');
           }
         } else if (!selectedEventId) {
           // No secondary events, use the current event
@@ -142,7 +132,6 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
   useEffect(() => {
     const fetchAnalytics = async () => {
       if (!eventId || !selectedEventId) {
-        console.warn('ComprehensiveAnalytics: Missing eventId or selectedEventId', { eventId, selectedEventId });
         setLoading(false);
         return;
       }
@@ -156,14 +145,8 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
         // The backend checks if event.isMainEvent and automatically includes secondary events
         const mainEventId = parentEvent?._id || (event?.isMainEvent ? event._id : null) || eventId;
         analyticsEventId = mainEventId;
-        console.log('ComprehensiveAnalytics: Combined view - using main event ID:', analyticsEventId, {
-          parentEventId: parentEvent?._id,
-          eventIsMain: event?.isMainEvent,
-          eventId: eventId
-        });
       } else {
         analyticsEventId = selectedEventId;
-        console.log('ComprehensiveAnalytics: Individual event view - using event ID:', analyticsEventId);
       }
       
       // Compare filters to previous to prevent unnecessary fetches
@@ -175,7 +158,6 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
       const prevKey = prevFiltersRef.current ? `${prevFiltersRef.current.eventId}-${prevFiltersString}` : null;
       
       if (prevFiltersRef.current !== null && currentKey === prevKey) {
-        console.log('ComprehensiveAnalytics: Skipping fetch - no changes');
         return;
       }
 
@@ -186,7 +168,6 @@ const ComprehensiveAnalytics = ({ eventId: propEventId }) => {
       
       try {
         const data = await getAllEventAnalytics(analyticsEventId, filters);
-        console.log('ComprehensiveAnalytics: Analytics data fetched:', data);
         if (data) {
           setAnalytics(data);
         } else {

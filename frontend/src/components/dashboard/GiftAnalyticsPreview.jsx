@@ -53,19 +53,6 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
       setError('');
       try {
         const data = await getAllEventAnalytics(event._id);
-        console.log('📊 GiftAnalyticsPreview: Received analytics data', {
-          allKeys: Object.keys(data),
-          hasRawGiftDistribution: !!data.rawGiftDistribution,
-          rawGiftDistributionLength: data.rawGiftDistribution?.length || 0,
-          sampleItem: data.rawGiftDistribution?.[0],
-          hasGiftDistribution: !!data.giftDistribution,
-          giftDistributionType: data.giftDistribution ? typeof data.giftDistribution : null,
-          giftDistributionKeys: data.giftDistribution ? Object.keys(data.giftDistribution) : null,
-          giftDistributionLength: data.giftDistribution ? Object.keys(data.giftDistribution).length : 0,
-          giftSummary: data.giftSummary,
-          sampleGiftDistribution: data.giftDistribution ? Object.values(data.giftDistribution)[0] : null,
-          fullData: data // Log full data to see structure
-        });
         setAnalytics(data);
       } catch (err) {
         console.error('Error fetching gift analytics:', err);
@@ -157,10 +144,6 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
     if (!sourceData || sourceData.length === 0) {
       // Fallback: convert giftDistribution object to array
       if (analytics?.giftDistribution && Object.keys(analytics.giftDistribution).length > 0) {
-        console.log('📊 GiftAnalyticsPreview: Using giftDistribution as fallback for filtering', {
-          giftDistributionKeys: Object.keys(analytics.giftDistribution),
-          sampleItem: Object.values(analytics.giftDistribution)[0]
-        });
         sourceData = Object.values(analytics.giftDistribution).map(item => ({
           type: item.type,
           style: item.style,
@@ -170,40 +153,18 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
           inventoryId: item.inventoryId
         }));
       } else {
-        console.log('📊 GiftAnalyticsPreview: No gift distribution data available', {
-          hasRawGiftDistribution: !!analytics?.rawGiftDistribution,
-          rawGiftDistributionIsArray: Array.isArray(analytics?.rawGiftDistribution),
-          rawGiftDistributionLength: analytics?.rawGiftDistribution?.length || 0,
-          hasGiftDistribution: !!analytics?.giftDistribution,
-          giftDistributionType: analytics?.giftDistribution ? typeof analytics.giftDistribution : null,
-          giftDistributionIsObject: analytics?.giftDistribution ? typeof analytics.giftDistribution === 'object' : false,
-          giftDistributionKeys: analytics?.giftDistribution ? Object.keys(analytics.giftDistribution) : null,
-          analyticsKeys: analytics ? Object.keys(analytics) : [],
-          giftSummary: analytics?.giftSummary
-        });
         return [];
       }
     }
-    
-    console.log('📊 GiftAnalyticsPreview: Filtering data', {
-      totalItems: sourceData.length,
-      selectedType,
-      selectedStyle,
-      selectedProduct,
-      sampleItem: sourceData[0],
-      dataSource: analytics?.rawGiftDistribution ? 'rawGiftDistribution' : 'giftDistribution'
-    });
     
     let filtered = [...sourceData];
     
     // Apply filters (more inclusive - show all items in category/brand even if product doesn't match)
     if (selectedType) {
       filtered = filtered.filter(item => item.type === selectedType);
-      console.log(`📊 After type filter (${selectedType}):`, filtered.length);
     }
     if (selectedStyle) {
       filtered = filtered.filter(item => item.style === selectedStyle);
-      console.log(`📊 After style filter (${selectedStyle}):`, filtered.length);
     }
     // Only filter by product if explicitly selected, otherwise show all products in that category/brand
     if (selectedProduct) {
@@ -214,7 +175,6 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
         return itemProduct === selectedProductTrimmed || 
                (itemProduct === '' && selectedProductTrimmed === '');
       });
-      console.log(`📊 After product filter (${selectedProduct}):`, filtered.length);
     }
     
     // Add remaining quantity from inventory
@@ -229,7 +189,6 @@ const GiftAnalyticsPreview = ({ event, inventory = [] }) => {
     
     // Sort by quantity descending
     const sorted = filtered.sort((a, b) => (b.totalQuantity || 0) - (a.totalQuantity || 0));
-    console.log('📊 Final filtered data:', sorted.length, 'items');
     return sorted;
   }, [analytics, selectedType, selectedStyle, selectedProduct, inventoryRemainingMap]);
 

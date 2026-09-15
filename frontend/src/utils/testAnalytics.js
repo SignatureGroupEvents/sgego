@@ -350,8 +350,8 @@ export const quickTest = async (eventId = TEST_CONFIG.eventId) => {
   }
 };
 
-// Export for browser console usage
-if (typeof window !== 'undefined') {
+// Export for browser console usage in development only
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
   window.testAnalytics = {
     runAllTests,
     quickTest,
@@ -362,13 +362,4 @@ if (typeof window !== 'undefined') {
     testErrorHandling,
     testEmptyData
   };
-  
-  console.log('🧪 Analytics testing utilities loaded!');
-  console.log('Available functions:');
-  console.log('- window.testAnalytics.quickTest(eventId)');
-  console.log('- window.testAnalytics.runAllTests(eventId)');
-  console.log('- window.testAnalytics.testEmptyData(eventId)');
-  console.log('- window.testAnalytics.testGetAllEventAnalytics(eventId)');
-  console.log('- window.testAnalytics.testSpecificDataAccess(eventId)');
-  console.log('- window.testAnalytics.testPerformance(eventId)');
 } 

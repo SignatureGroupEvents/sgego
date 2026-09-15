@@ -1,6 +1,7 @@
 import React from 'react';
 import { Breadcrumbs, Link, Typography } from '@mui/material';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const routeNameMap = {
   'dashboard': 'Dashboard',
@@ -46,7 +47,12 @@ const BreadcrumbsNav = ({ eventName, userName, parentEventName, parentEventId })
   const location = useLocation();
   const params = useParams();
   const navigate = useNavigate();
+  const { canManageEvents } = usePermissions();
   const pathnames = location.pathname.split('/').filter(Boolean);
+  // Staff are not allowed on the full events table; send them to assigned events on the dashboard
+  const eventsHomePath = canManageEvents ? '/events' : '/dashboard';
+  const eventsHomeLabel = canManageEvents ? 'Events' : 'Dashboard';
+  const goToEventsHome = () => navigate(eventsHomePath);
 
   // Hide breadcrumb on all main pages
   if (
@@ -88,8 +94,8 @@ const BreadcrumbsNav = ({ eventName, userName, parentEventName, parentEventId })
     if (parentEventName && parentEventName !== eventLabel) {
       return (
         <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2, mt: 1 }}>
-          <Link color="inherit" underline="hover" onClick={() => navigate('/events')} sx={{ cursor: 'pointer', fontWeight: 500 }}>
-            Events
+          <Link color="inherit" underline="hover" onClick={goToEventsHome} sx={{ cursor: 'pointer', fontWeight: 500 }}>
+            {eventsHomeLabel}
           </Link>
           <Link color="inherit" underline="hover" onClick={() => navigate(`/events/${parentEventId || params.eventId}`)} sx={{ cursor: 'pointer', fontWeight: 500 }}>
             {parentEventName}
@@ -102,8 +108,8 @@ const BreadcrumbsNav = ({ eventName, userName, parentEventName, parentEventId })
     // No parent event, show simple breadcrumb
     return (
       <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2, mt: 1 }}>
-        <Link color="inherit" underline="hover" onClick={() => navigate('/events')} sx={{ cursor: 'pointer', fontWeight: 500 }}>
-          Events
+        <Link color="inherit" underline="hover" onClick={goToEventsHome} sx={{ cursor: 'pointer', fontWeight: 500 }}>
+          {eventsHomeLabel}
         </Link>
         <Typography color="text.primary" fontWeight={700}>{eventLabel}</Typography>
       </Breadcrumbs>
@@ -126,8 +132,8 @@ const BreadcrumbsNav = ({ eventName, userName, parentEventName, parentEventId })
     if (parentEventName && parentEventName !== eventLabel) {
       return (
         <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2, mt: 1 }}>
-          <Link color="inherit" underline="hover" onClick={() => navigate('/events')} sx={{ cursor: 'pointer', fontWeight: 500 }}>
-            Events
+          <Link color="inherit" underline="hover" onClick={goToEventsHome} sx={{ cursor: 'pointer', fontWeight: 500 }}>
+            {eventsHomeLabel}
           </Link>
           <Link color="inherit" underline="hover" onClick={() => navigate(`/events/${parentEventId || eventId}`)} sx={{ cursor: 'pointer', fontWeight: 500 }}>
             {parentEventName}
@@ -145,8 +151,8 @@ const BreadcrumbsNav = ({ eventName, userName, parentEventName, parentEventId })
     // No parent event, show simple breadcrumb
     return (
       <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2, mt: 1 }}>
-        <Link color="inherit" underline="hover" onClick={() => navigate('/events')} sx={{ cursor: 'pointer', fontWeight: 500 }}>
-          Events
+        <Link color="inherit" underline="hover" onClick={goToEventsHome} sx={{ cursor: 'pointer', fontWeight: 500 }}>
+          {eventsHomeLabel}
         </Link>
         <Link color="inherit" underline="hover" onClick={() => navigate(`/events/${eventId}`)} sx={{ cursor: 'pointer', fontWeight: 500 }}>
           {eventLabel}
@@ -210,7 +216,7 @@ const BreadcrumbsNav = ({ eventName, userName, parentEventName, parentEventId })
             key={crumb.path}
             color="inherit"
             underline="hover"
-            onClick={() => navigate(crumb.path)}
+            onClick={() => navigate(crumb.path === '/events' && !canManageEvents ? '/dashboard' : crumb.path)}
             sx={{ cursor: 'pointer', fontWeight: 500 }}
           >
             {crumb.label}

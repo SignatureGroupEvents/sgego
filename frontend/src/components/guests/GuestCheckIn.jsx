@@ -97,26 +97,13 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
     
     // Pre-populate gift selections based on existing check-in data
     if (propGuest && propGuest.eventCheckins) {
-      console.log('Pre-populating gifts for guest:', propGuest.firstName, propGuest.lastName);
-      console.log('Guest eventCheckins:', propGuest.eventCheckins);
-      console.log('Current event:', event);
-      
       const existingSelections = {};
       
       if (event?.isMainEvent) {
         // For main events, check all events (main + secondary)
         const eventsToCheck = [event, ...(event?.secondaryEvents || [])];
-        console.log('Events to check (main):', eventsToCheck.map(ev => ({ id: ev._id, name: ev.eventName })));
         
         eventsToCheck.forEach(ev => {
-          console.log(`Looking for event ${ev.eventName} with ID: ${ev._id}`);
-          console.log('Available eventCheckins:', propGuest.eventCheckins.map(ec => ({
-            eventId: ec.eventId,
-            eventIdType: typeof ec.eventId,
-            eventIdString: ec.eventId?.toString(),
-            giftsReceived: ec.giftsReceived
-          })));
-          
           const checkin = propGuest.eventCheckins.find(ec => {
             // Handle both populated and unpopulated eventId
             let ecEventId;
@@ -129,16 +116,13 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
             }
             
             const evEventId = ev._id?.toString();
-            console.log(`Comparing: "${ecEventId}" === "${evEventId}"`);
             return ecEventId === evEventId;
           });
-          console.log(`Checking event ${ev.eventName} (${ev._id}):`, checkin);
           
           if (checkin && checkin.giftsReceived && checkin.giftsReceived.length > 0) {
             // For now, use the first gift (UI currently supports single gift selection)
             // TODO: Extend UI to support multiple gifts per event
             const gift = checkin.giftsReceived[0];
-            console.log(`Found gift for ${ev.eventName}:`, gift);
             existingSelections[ev._id] = {
               inventoryId: gift.inventoryId?._id || gift.inventoryId,
               quantity: gift.quantity || 1
@@ -147,14 +131,6 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
         });
       } else {
         // For secondary events, check only this event
-        console.log(`Looking for secondary event ${event.eventName} with ID: ${event._id}`);
-        console.log('Available eventCheckins:', propGuest.eventCheckins.map(ec => ({
-          eventId: ec.eventId,
-          eventIdType: typeof ec.eventId,
-          eventIdString: ec.eventId?.toString(),
-          giftsReceived: ec.giftsReceived
-        })));
-        
         const checkin = propGuest.eventCheckins.find(ec => {
           // Handle both populated and unpopulated eventId
           let ecEventId;
@@ -167,16 +143,13 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
           }
           
           const evEventId = event._id?.toString();
-          console.log(`Comparing: "${ecEventId}" === "${evEventId}"`);
           return ecEventId === evEventId;
         });
-        console.log(`Checking secondary event ${event.eventName} (${event._id}):`, checkin);
         
         if (checkin && checkin.giftsReceived && checkin.giftsReceived.length > 0) {
           // For now, use the first gift (UI currently supports single gift selection)
           // TODO: Extend UI to support multiple gifts per event
           const gift = checkin.giftsReceived[0];
-          console.log(`Found gift for ${event.eventName}:`, gift);
           existingSelections[event._id] = {
             inventoryId: gift.inventoryId?._id || gift.inventoryId,
             quantity: gift.quantity || 1
@@ -184,10 +157,8 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
         }
       }
       
-      console.log('Final existing selections:', existingSelections);
       setGiftSelections(existingSelections);
     } else {
-      console.log('No guest or eventCheckins found');
       setGiftSelections({});
     }
     

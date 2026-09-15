@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { staffCanAccessEvent } = require('../utils/staffEventAccess');
 
 exports.protect = async (req, res, next) => {
   try {
@@ -62,4 +63,30 @@ exports.requireOperationsOrAdmin = (req, res, next) => {
   }
 
   next();
+};
+
+// Staff may only access events they are assigned to (and children of those events)
+exports.requireAssignedEventForStaff = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Access denied' });
+    }
+
+    if (req.user.role !== 'staff') {
+      return next();
+    }
+
+    const eventId = req.params.id || req.params.eventId;
+    const allowed = await staffCanAccessEvent(req.user.id, eventId);
+
+    if (!allowed) {
+      return res.status(403).json({
+        message: 'Access denied. You can only view events assigned to you.'
+      });
+    }
+
+    next();
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
 };

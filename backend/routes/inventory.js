@@ -16,7 +16,7 @@ const {
   exportInventoryExcel,
   addInventoryItem
 } = require('../controllers/inventoryController');
-const { protect, requireOperationsOrAdmin } = require('../middleware/auth');
+const { protect, requireOperationsOrAdmin, requireAssignedEventForStaff } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -90,7 +90,7 @@ router.get('/test', (req, res) => {
 router.use(protect); // Protect all inventory routes
 
 // View routes - allow all authenticated users (including staff)
-router.get('/:eventId', getInventory);
+router.get('/:eventId', requireAssignedEventForStaff, getInventory);
 router.get('/:inventoryId/history', getInventoryHistory);
 router.get('/:eventId/export/csv', exportInventoryCSV);
 router.get('/:eventId/export/excel', exportInventoryExcel);

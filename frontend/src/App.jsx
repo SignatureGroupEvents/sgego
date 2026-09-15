@@ -141,13 +141,14 @@ function App() {
                 <DashboardLayout />
               </ProtectedRoute>
             } />
+            {/* Full events table: Admin and Ops only. Staff are redirected to assigned events on the dashboard. */}
             <Route path="/events" element={
-              <ProtectedRoute requiredCapability="VIEW_EVENTS">
+              <ProtectedRoute requiredCapability="MANAGE_EVENTS" redirectStaffTo="/dashboard">
                 <EventsList />
               </ProtectedRoute>
             } />
             <Route path="/events/archived" element={
-              <ProtectedRoute requiredCapability="VIEW_EVENTS">
+              <ProtectedRoute requiredCapability="MANAGE_EVENTS" redirectStaffTo="/dashboard">
                 <ArchivedEventsList />
               </ProtectedRoute>
             } />

@@ -2,6 +2,7 @@ const Event = require('../models/Event');
 const ActivityLog = require('../models/ActivityLog');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const { getStaffAccessibleEventIds } = require('../utils/staffEventAccess');
 
 exports.getEvents = async (req, res) => {
   try {
@@ -10,6 +11,15 @@ exports.getEvents = async (req, res) => {
 
     if (parentEventId) {
       filter.parentEventId = parentEventId;
+    }
+
+    // Staff must only receive events they are assigned to
+    if (req.user.role === 'staff') {
+      const accessibleIds = await getStaffAccessibleEventIds(req.user.id);
+      if (accessibleIds.size === 0) {
+        return res.json({ events: [] });
+      }
+      filter._id = { $in: Array.from(accessibleIds) };
     }
 
     // Handle archived events filtering

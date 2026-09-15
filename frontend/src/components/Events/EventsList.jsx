@@ -221,9 +221,6 @@ const EventsList = () => {
         const status = activeTab === 0 ? 'active' : 'closed';
         const res = await getEvents(status);
         let allEvents = res.events || res;
-
-        // Staff can view all events, but operations managers and admins can view all events
-        // The filtering for assigned events is no longer needed since staff should see all events
         setEvents(allEvents);
       } catch (err) {
         console.error('Error fetching events:', err);

@@ -172,10 +172,11 @@ const MyEventsBoard = () => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const promises = [loadAllEvents()];
-      
-      // Only load added events for non-staff users
+      const promises = [];
+
+      // Full events list is ops/admin only — staff must not fetch every event
       if (!isStaff) {
+        promises.push(loadAllEvents());
         promises.push(loadMyAddedEvents());
       }
       

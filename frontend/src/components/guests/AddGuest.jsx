@@ -56,7 +56,6 @@ const AddGuest = ({ open, onClose, eventId, onGuestAdded }) => {
           // Set available tags from event
           const tags = eventData?.availableTags || [];
           setAvailableTags(tags);
-          console.log('Available tags fetched:', tags); // Debug log
           
           // Fetch existing guests to get unique attendee types from CSV uploads
           try {

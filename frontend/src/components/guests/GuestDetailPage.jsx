@@ -336,7 +336,7 @@ export default function GuestDetailPage() {
             setSelectedCheckin(null);
             setError(''); // Clear any previous errors
         } catch (err) {
-            console.error('Undo checkin error:', err); // DEBUG
+            console.error('Undo checkin error:', err);
             setError(err.response?.data?.message || 'Failed to undo check-in');
         } finally {
             setUndoLoading(false);
