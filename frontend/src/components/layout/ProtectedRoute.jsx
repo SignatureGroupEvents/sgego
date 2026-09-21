@@ -10,12 +10,14 @@ import { usePermissions } from '../../hooks/usePermissions';
  * @param {React.ReactNode} children - The component to render if access is granted
  * @param {string|string[]} requiredCapability - Single capability or array of capabilities (user needs ANY)
  * @param {boolean} requireAny - If true, user needs ANY of the capabilities. If false (default), user needs ALL.
+ * @param {string} [redirectStaffTo] - If set, staff users are redirected here instead of rendering the page.
  * 
  * Usage:
  * <ProtectedRoute requiredCapability="MANAGE_EVENTS">...</ProtectedRoute>
  * <ProtectedRoute requiredCapability={["EDIT_ANY_USER", "EDIT_STAFF_ONLY"]} requireAny>...</ProtectedRoute>
+ * <ProtectedRoute requiredCapability="MANAGE_EVENTS" redirectStaffTo="/dashboard">...</ProtectedRoute>
  */
-const ProtectedRoute = ({ children, requiredCapability, requireAny = true }) => {
+const ProtectedRoute = ({ children, requiredCapability, requireAny = true, redirectStaffTo }) => {
   const { isAuthenticated, loading } = useAuth();
   const permissions = usePermissions();
 
@@ -31,6 +33,11 @@ const ProtectedRoute = ({ children, requiredCapability, requireAny = true }) => 
   // Not authenticated - redirect to login
   if (!isAuthenticated) {
     return <Navigate to="/auth?view=login" replace />;
+  }
+
+  // Staff should never land on the full events table (or other staff-blocked pages)
+  if (redirectStaffTo && permissions.isStaff) {
+    return <Navigate to={redirectStaffTo} replace />;
   }
 
   // No capability requirement - allow all authenticated users

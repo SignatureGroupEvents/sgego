@@ -111,12 +111,10 @@ const ManageTeam = ({ eventId, eventName }) => {
   const loadAllUsers = async () => {
     try {
       const response = await getAllUsers();
-      console.log('All users response:', response.data);
       // Filter to show staff, operations_manager, and admin users for assignment
       const users = (response.data.users || []).filter(
         user => user.isActive && (user.role === 'staff' || user.role === 'operations_manager' || user.role === 'admin')
       );
-      console.log('Filtered users for assignment:', users);
       setAllUsers(users);
     } catch (error) {
       console.error('Error loading users:', error);

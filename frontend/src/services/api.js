@@ -24,7 +24,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+    if (import.meta.env.DEV) {
+      const status = error.response?.status;
+      const message = error.response?.data?.message || error.message;
+      console.error('API Error:', status ? `${status} ${message}` : message);
+    }
     
     if (error.response?.status === 401) {
       localStorage.removeItem('token');

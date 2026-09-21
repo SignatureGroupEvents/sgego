@@ -53,7 +53,8 @@ import TagManagement from './TagManagement';
 const EventDetails = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { isOperationsManager, isAdmin } = usePermissions();
+  const { isOperationsManager, isAdmin, canManageEvents } = usePermissions();
+  const eventsHomePath = canManageEvents ? '/events' : '/dashboard';
   
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -142,7 +143,7 @@ const EventDetails = () => {
       setDeleting(true);
       await deleteEvent(eventId);
       toast.success('Event deleted successfully');
-      navigate('/events');
+      navigate(eventsHomePath);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete event');
     } finally {
@@ -186,7 +187,7 @@ const EventDetails = () => {
         {/* Header */}
         <Box sx={{ mb: 4 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-            <IconButton onClick={() => navigate('/events')} sx={{ mr: 1 }}>
+            <IconButton onClick={() => navigate(eventsHomePath)} sx={{ mr: 1 }}>
               <ArrowBackIcon />
             </IconButton>
             <Typography variant="h4" fontWeight={700} color="primary.main">

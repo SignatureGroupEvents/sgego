@@ -2,6 +2,7 @@ const Guest = require('../models/Guest');
 const Event = require('../models/Event');
 const ActivityLog = require('../models/ActivityLog');
 const { v4: uuidv4 } = require('uuid');
+const { staffCanAccessEvent } = require('../utils/staffEventAccess');
 
 exports.getGuests = async (req, res) => {
   try {
@@ -16,6 +17,15 @@ exports.getGuests = async (req, res) => {
     const event = await Event.findById(eventId);
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
+    }
+
+    if (req.user.role === 'staff') {
+      const allowed = await staffCanAccessEvent(req.user.id, eventId);
+      if (!allowed) {
+        return res.status(403).json({
+          message: 'Access denied. You can only view events assigned to you.'
+        });
+      }
     }
 
     let guestEventIds = [eventId];

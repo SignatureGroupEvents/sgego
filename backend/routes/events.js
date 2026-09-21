@@ -23,7 +23,7 @@ const {
   removeUserFromEvent,
   updateUserAssignment
 } = require('../controllers/userController');
-const { protect, requireOperationsOrAdmin } = require('../middleware/auth');
+const { protect, requireOperationsOrAdmin, requireAssignedEventForStaff } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -49,14 +49,14 @@ router.put('/:id/assigned-users/:assignmentId', requireOperationsOrAdmin, update
 router.delete('/:id/assigned-users/:assignmentId', requireOperationsOrAdmin, removeUserFromEvent);
 
 // Other specific routes - must come before generic /:id route
-router.get('/:id/analytics', getEventAnalytics);
-router.get('/:id/inventory', getEventInventory);
+router.get('/:id/analytics', requireAssignedEventForStaff, getEventAnalytics);
+router.get('/:id/inventory', requireAssignedEventForStaff, getEventInventory);
 router.get('/:id/client-portal', requireOperationsOrAdmin, getClientPortal);
 router.put('/:id/client-portal', requireOperationsOrAdmin, updateClientPortal);
 router.post('/:id/client-portal/regenerate-password', requireOperationsOrAdmin, regenerateClientPortalPassword);
 
 // Generic routes - must come last
-router.get('/:id', getEvent);
+router.get('/:id', requireAssignedEventForStaff, getEvent);
 
 // Modification routes - restrict to operations manager and admin
 router.post('/', requireOperationsOrAdmin, createEvent);

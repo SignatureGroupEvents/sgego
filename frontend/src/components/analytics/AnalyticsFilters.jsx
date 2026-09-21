@@ -120,7 +120,6 @@ const AnalyticsFilters = ({
       // On first render, just initialize prevFiltersRef and skip triggering onFiltersChange
       // Only trigger when user actually changes dates (not on initial mount)
       if (isFirstRender.current) {
-        console.log('🚀 AnalyticsFilters: First render, initializing prevFiltersRef:', normalizedCurrent);
         prevFiltersRef.current = JSON.parse(JSON.stringify(normalizedCurrent));
         isFirstRender.current = false;
         return; // Don't trigger onFiltersChange on first render
@@ -133,20 +132,13 @@ const AnalyticsFilters = ({
       
       // If no date filters now and no date filters before, skip
       if (!hasDateFilters && !hadDateFilters && Object.keys(normalizedCurrent).length === 0 && Object.keys(normalizedPrev).length === 0) {
-        console.log('⏭️ AnalyticsFilters: No date filters and filters are empty, skipping');
         return;
       }
       
       // Only call onFiltersChange if filters actually changed
       if (currentString !== prevString) {
-        console.log('🔄 AnalyticsFilters: Filters changed, scheduling onFiltersChange:', normalizedCurrent);
-        console.log('   Previous filters:', normalizedPrev);
-        console.log('   Previous filters string:', prevString);
-        console.log('   Current filters string:', currentString);
-        
         // Clear any existing timeout
         if (timeoutRef.current) {
-          console.log('🧹 AnalyticsFilters: Clearing existing timeout');
           clearTimeout(timeoutRef.current);
         }
         
@@ -156,7 +148,6 @@ const AnalyticsFilters = ({
         
         // Debounce: Wait 500ms before applying filters to give user time to select both dates
         timeoutRef.current = setTimeout(() => {
-          console.log('⏰ AnalyticsFilters: Debounce complete, calling onFiltersChange:', normalizedCurrent);
           // Update prevFiltersRef AFTER we're about to call onFiltersChange
           // This ensures that if the component re-renders before the timeout, we still have the correct prev value
           prevFiltersRef.current = pendingFilters;
@@ -168,13 +159,10 @@ const AnalyticsFilters = ({
         // Cleanup timeout if filters change again before timeout completes
         return () => {
           if (timeoutRef.current) {
-            console.log('🧹 AnalyticsFilters: Cleaning up timeout (filters changed again)');
             clearTimeout(timeoutRef.current);
             timeoutRef.current = null;
           }
         };
-      } else {
-        console.log('⏭️ AnalyticsFilters: Filters unchanged, skipping onFiltersChange');
       }
     }
   }, [filters, autoApply, onFiltersChange, showEventSelector]);
