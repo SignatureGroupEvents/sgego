@@ -418,7 +418,7 @@ const GuestCheckIn = ({ event, mainEvent, guest: propGuest, onClose, onCheckinSu
                         inventory={getEventInventory(ev)}
                         value={currentSelection}
                         onChange={(inventoryId) => handleGiftChange(ev._id, inventoryId)}
-                        pickupFieldPreferences={getPickupFieldPreferences(ev)}
+                        stationPrefs={ev}
                       />
                     ) : (
                       <Typography variant="body2" color="text.secondary">

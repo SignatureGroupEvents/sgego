@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import { sortSizeValues } from '../../utils/sizeSort';
-import { mergePickupFieldPreferences } from '../../utils/pickupFieldPreferences';
+import {
+  buildPickupFieldOrder,
+  getLockedProduct,
+  resolvePickupPrefs,
+  getFieldsEnabledSomewhere,
+} from '../../utils/pickupFieldPreferences';
 
 const COLOR_MAP = {
   navy: '#1a2744',
@@ -74,60 +79,133 @@ const sortFieldValues = (field, values) => {
   return [...values].sort((a, b) => String(a).localeCompare(String(b), undefined, { sensitivity: 'base' }));
 };
 
-const HierarchicalInventorySelector = ({ inventory, value, onChange, pickupFieldPreferences, stationPrefs }) => {
-  const getDefaultPreferences = () => ({
-    type: false,
-    brand: false,
-    product: false,
-    size: false,
-    gender: false,
-    color: false
-  });
+// Maps a pickup field name to the corresponding inventory item property.
+const FIELD_TO_ITEM_KEY = {
+  type: 'type',
+  brand: 'style',
+  product: 'product',
+  gender: 'gender',
+  size: 'size',
+  color: 'color'
+};
 
-  const prefs = pickupFieldPreferences
-    || mergePickupFieldPreferences(stationPrefs?.pickupFieldPreferences)
-    || getDefaultPreferences();
+const formatSelectedGiftLabel = (item) => {
+  if (!item) return 'Unknown gift';
+  const parts = [
+    item.product,
+    item.style,
+    item.gender ? formatGenderLabel(item.gender) : null,
+    item.color,
+    item.size ? `Size ${item.size}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : item.type || 'Gift';
+};
 
-  const fieldOrder = [];
-  if (prefs.type) fieldOrder.push('type');
-  if (prefs.brand) fieldOrder.push('brand');
-  if (prefs.gender) fieldOrder.push('gender');
-  if (prefs.product) fieldOrder.push('product');
-  if (prefs.color) fieldOrder.push('color');
-  if (prefs.size) fieldOrder.push('size');
+const emptySelections = () => ({
+  type: '',
+  brand: '',
+  product: '',
+  gender: '',
+  size: '',
+  color: '',
+});
 
-  const [selections, setSelections] = useState({
-    type: '',
-    brand: '',
-    product: '',
-    gender: '',
-    size: '',
-    color: ''
-  });
+const idsEqual = (a, b) => String(a ?? '') === String(b ?? '');
 
+const HierarchicalInventorySelector = ({
+  inventory,
+  value,
+  onChange,
+  stationPrefs,
+  pickupFieldPreferences,
+  requireRemoveToChange = false,
+}) => {
+  // Prefer full station prefs (defaults + product overrides). Fall back to flat prefs
+  // for any callers that still pass pickupFieldPreferences only.
+  const effectiveStationPrefs = stationPrefs
+    || (pickupFieldPreferences ? { pickupFieldPreferences } : null);
+
+  const [selections, setSelections] = useState(emptySelections);
+  const lastHydratedValueRef = useRef(undefined);
+
+  const enabledFields = useMemo(
+    () => getFieldsEnabledSomewhere(effectiveStationPrefs),
+    [effectiveStationPrefs]
+  );
+
+  // Narrow only by fields that are actually enabled in station defaults or overrides.
+  // Unchecked fields (e.g. type/Category) must never filter candidates — a stale type
+  // from a prior Tumi pick was emptying the list and resurfacing Category in the fallback.
+  const candidateItems = useMemo(() => {
+    return inventory.filter((item) =>
+      enabledFields.every((field) => {
+        const itemKey = FIELD_TO_ITEM_KEY[field];
+        const selectedValue = selections[field] || '';
+        const itemValue = item[itemKey] || '';
+        return selectedValue === '' || selectedValue === itemValue;
+      })
+    );
+  }, [inventory, selections, enabledFields]);
+
+  const lockedProduct = useMemo(
+    () => getLockedProduct(candidateItems, selections),
+    [candidateItems, selections]
+  );
+
+  const fieldOrder = useMemo(
+    () => buildPickupFieldOrder(effectiveStationPrefs, {
+      lockedProduct,
+      candidateItems,
+      inventory,
+      selections,
+    }),
+    [effectiveStationPrefs, lockedProduct, candidateItems, inventory, selections]
+  );
+
+  // Clear fields that are no longer shown so hidden values cannot linger.
   useEffect(() => {
-    if (!value || inventory.length === 0) return;
+    setSelections((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      Object.keys(FIELD_TO_ITEM_KEY).forEach((field) => {
+        if (next[field] && !fieldOrder.includes(field)) {
+          next[field] = '';
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [fieldOrder]);
 
-    const selectedItem = inventory.find((item) => String(item._id) === String(value));
+  // Hydrate pill selections when value is set from outside (e.g. opening modify dialog).
+  // Only hydrate fields enabled for this item — never stash unchecked fields like type.
+  useEffect(() => {
+    if (!value) {
+      lastHydratedValueRef.current = value;
+      return;
+    }
+    if (inventory.length === 0) return;
+    if (idsEqual(value, lastHydratedValueRef.current)) return;
+
+    const selectedItem = inventory.find((item) => idsEqual(item._id, value));
     if (!selectedItem) return;
 
+    const prefs = resolvePickupPrefs(selectedItem, effectiveStationPrefs);
     setSelections({
-      type: selectedItem.type || '',
-      brand: selectedItem.style || '',
-      product: selectedItem.product || '',
-      gender: selectedItem.gender || '',
-      size: selectedItem.size || '',
-      color: selectedItem.color || ''
+      type: prefs.type ? (selectedItem.type || '') : '',
+      brand: prefs.brand ? (selectedItem.style || '') : '',
+      product: prefs.product ? (selectedItem.product || '') : '',
+      gender: prefs.gender ? (selectedItem.gender || '') : '',
+      size: prefs.size ? (selectedItem.size || '') : '',
+      color: prefs.color ? (selectedItem.color || '') : '',
     });
-  }, [value, inventory]);
+    lastHydratedValueRef.current = value;
+  }, [value, inventory, effectiveStationPrefs]);
 
-  const getUniqueValuesForLevel = (level) => {
-    if (level >= fieldOrder.length) return [];
-
-    const field = fieldOrder[level];
-    const values = new Set();
-
-    const filtered = inventory.filter((item) =>
+  // Options for a field are based only on prior picks in the flow — never the current
+  // field's selection, so all choices stay visible and the user can change their mind.
+  const getItemsForLevelOptions = (level) =>
+    inventory.filter((item) =>
       fieldOrder.slice(0, level).every((f, idx) => {
         const fieldName = f === 'brand' ? 'style' : f;
         const itemValue = item[fieldName] || '';
@@ -136,7 +214,13 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, pickupField
       })
     );
 
-    filtered.forEach((item) => {
+  const getUniqueValuesForLevel = (level) => {
+    if (level >= fieldOrder.length) return [];
+
+    const field = fieldOrder[level];
+    const values = new Set();
+
+    getItemsForLevelOptions(level).forEach((item) => {
       const fieldName = field === 'brand' ? 'style' : field;
       const itemValue = item[fieldName] || '';
       if (itemValue) values.add(itemValue);
@@ -145,40 +229,67 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, pickupField
     return sortFieldValues(field, Array.from(values));
   };
 
-  const getFilteredInventoryForSelections = (sel) =>
+  // Narrow inventory using only fields that are currently visible in the flow.
+  const getFilteredInventoryForSelections = (sel, order = fieldOrder) =>
     inventory.filter((item) =>
-      fieldOrder.every((field) => {
-        const fieldName = field === 'brand' ? 'style' : field;
-        const itemValue = item[fieldName] || '';
+      order.every((field) => {
+        const itemKey = FIELD_TO_ITEM_KEY[field];
         const selectedValue = sel[field] || '';
+        const itemValue = item[itemKey] || '';
         return selectedValue === '' || selectedValue === itemValue;
       })
     );
+
+  const commitSelectionIfUnique = (sel, order) => {
+    if (!onChange) return;
+
+    const matchingItems = getFilteredInventoryForSelections(sel, order);
+
+    // No visible fields (e.g. product override with all options off) — commit when unique.
+    if (!order.length) {
+      if (matchingItems.length === 1) {
+        const nextId = matchingItems[0]._id;
+        if (!idsEqual(value, nextId)) onChange(nextId);
+      } else if (value) {
+        onChange('');
+      }
+      return;
+    }
+
+    if (!order.every((f) => sel[f])) {
+      if (value) onChange('');
+      return;
+    }
+
+    if (matchingItems.length === 1) {
+      const nextId = matchingItems[0]._id;
+      if (!idsEqual(value, nextId)) onChange(nextId);
+    } else if (value) {
+      onChange('');
+    }
+  };
 
   const handleLevelChange = (level, newValue) => {
     const field = fieldOrder[level];
     const updatedSelections = { ...selections };
     updatedSelections[field] = newValue;
 
-    const currentIndex = fieldOrder.indexOf(field);
-    fieldOrder.slice(currentIndex + 1).forEach((f) => {
-      updatedSelections[f] = '';
+    // Keep only this field and earlier visible fields. Clears hidden stale values
+    // (type) and later picks (product) when switching brand.
+    const keep = new Set(fieldOrder.slice(0, level + 1));
+    Object.keys(FIELD_TO_ITEM_KEY).forEach((f) => {
+      if (!keep.has(f)) updatedSelections[f] = '';
     });
 
     setSelections(updatedSelections);
-
-    const allSelected = fieldOrder.every((f) => updatedSelections[f]);
-    if (allSelected) {
-      const matchingItems = getFilteredInventoryForSelections(updatedSelections);
-      if (matchingItems.length >= 1) {
-        if (onChange) onChange(matchingItems[0]._id);
-      } else if (onChange) {
-        onChange('');
-      }
-    } else if (onChange && value) {
-      onChange('');
-    }
+    commitSelectionIfUnique(updatedSelections, fieldOrder);
   };
+
+  // Re-evaluate commit when field list or selections change (e.g. override with no visible fields).
+  useEffect(() => {
+    commitSelectionIfUnique(selections, fieldOrder);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldOrder, selections]);
 
   const pillButtonSx = (selected, compact = false) => ({
     borderRadius: compact ? '8px' : '20px',
@@ -246,43 +357,73 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, pickupField
     );
   };
 
-  const renderGiftButtons = () => (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-      {inventory.map((item) => {
-        const selected = value === item._id;
-        const label = `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''}`;
-        return (
-          <Button
-            key={item._id}
-            variant="outlined"
-            onClick={() => onChange && onChange(item._id)}
-            sx={pillButtonSx(selected)}
-          >
-            {label}
-          </Button>
-        );
-      })}
-    </Box>
-  );
+  const handleClearCommittedSelection = () => {
+    setSelections(emptySelections());
+    lastHydratedValueRef.current = '';
+    onChange?.('');
+  };
 
-  if (fieldOrder.length === 0) {
+  if (requireRemoveToChange && value) {
+    const selectedItem = inventory.find((item) => idsEqual(item._id, value));
     return (
-      <Box>
-        <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
-          Select a gift
+      <Box
+        sx={{
+          border: '1px solid',
+          borderColor: 'divider',
+          borderRadius: 1,
+          p: 1.5,
+          bgcolor: 'grey.50',
+        }}
+      >
+        <Typography variant="body2" fontWeight={600} sx={{ mb: 0.5 }}>
+          Current gift
         </Typography>
-        {inventory.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            No inventory available
-          </Typography>
-        ) : (
-          renderGiftButtons()
-        )}
+        <Typography variant="body2" sx={{ mb: 1.5 }}>
+          {formatSelectedGiftLabel(selectedItem)}
+        </Typography>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={handleClearCommittedSelection}
+          sx={{ textTransform: 'none' }}
+        >
+          Change gift
+        </Button>
       </Box>
     );
   }
 
-  return (
+  const renderCommittedSelection = (selectedItem, { showChangeButton = true } = {}) => (
+    <Box
+      sx={{
+        border: '1px solid',
+        borderColor: value ? 'primary.light' : 'divider',
+        borderRadius: 1,
+        p: 1.5,
+        mb: fieldOrder.length > 0 ? 2 : 0,
+        bgcolor: value ? 'rgba(25, 118, 210, 0.06)' : 'grey.50',
+      }}
+    >
+      <Typography variant="body2" fontWeight={600} sx={{ mb: 0.5 }}>
+        {value ? 'Selected gift' : 'Confirming gift'}
+      </Typography>
+      <Typography variant="body2" sx={{ mb: showChangeButton ? 1.5 : 0 }}>
+        {formatSelectedGiftLabel(selectedItem)}
+      </Typography>
+      {showChangeButton && (
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={handleClearCommittedSelection}
+          sx={{ textTransform: 'none' }}
+        >
+          Change gift
+        </Button>
+      )}
+    </Box>
+  );
+
+  const renderFieldPills = () => (
     <Box>
       {fieldOrder.map((field, level) => {
         const fieldLabel = FIELD_LABELS[field] || field;
@@ -314,6 +455,67 @@ const HierarchicalInventorySelector = ({ inventory, value, onChange, pickupField
           </Box>
         );
       })}
+    </Box>
+  );
+
+  const renderGiftButtons = () => (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+      {inventory.map((item) => {
+        const selected = idsEqual(value, item._id);
+        const label = `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''}`;
+        return (
+          <Button
+            key={item._id}
+            variant="outlined"
+            onClick={() => onChange && onChange(item._id)}
+            sx={pillButtonSx(selected)}
+          >
+            {label}
+          </Button>
+        );
+      })}
+    </Box>
+  );
+
+  if (fieldOrder.length === 0) {
+    if (inventory.length === 0) {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          No inventory available
+        </Typography>
+      );
+    }
+
+    if (candidateItems.length === 1) {
+      const item = candidateItems[0];
+      return renderCommittedSelection(item);
+    }
+
+    return (
+      <Box>
+        <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
+          Select a gift
+        </Typography>
+        {renderGiftButtons()}
+      </Box>
+    );
+  }
+
+  const selectedItem = value ? inventory.find((item) => idsEqual(item._id, value)) : null;
+
+  return (
+    <Box>
+      {renderFieldPills()}
+      {selectedItem && (
+        <Button
+          variant="text"
+          size="small"
+          onClick={handleClearCommittedSelection}
+          sx={{ textTransform: 'none', mt: 0.5, px: 0 }}
+        >
+          Change gift
+        </Button>
+      )}
     </Box>
   );
 };
