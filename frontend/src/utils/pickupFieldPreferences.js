@@ -176,6 +176,15 @@ const shouldShowField = (stationPrefs, field, candidateItems, lockedProduct, sel
   if (needing.length === 0) return false;
 
   const notNeeding = candidateItems.filter((item) => !itemNeedsField(stationPrefs, item, field));
+
+  // Field is off in station defaults — only surface it once every remaining candidate
+  // needs it via product override (e.g. Brand-only station, then Greyson is chosen).
+  // Avoid showing Gender/Product for everyone just because some products have overrides.
+  const stationDefaults = readExplicitPrefs(stationPrefs?.pickupFieldPreferences);
+  if (!stationDefaults[field]) {
+    return notNeeding.length === 0;
+  }
+
   if (notNeeding.length === 0) return true;
 
   if (field === 'product') {

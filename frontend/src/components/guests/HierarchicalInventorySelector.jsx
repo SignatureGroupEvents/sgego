@@ -162,12 +162,14 @@ const HierarchicalInventorySelector = ({
     [effectiveStationPrefs, lockedProduct, candidateItems, inventory, selections]
   );
 
-  // Clear fields that are no longer shown so hidden values cannot linger.
+  // Only clear variant fields (color/size) that are no longer shown. Identifier
+  // selections (brand/product/gender) are cleared when the user changes an earlier
+  // field via handleLevelChange.
   useEffect(() => {
     setSelections((prev) => {
       let changed = false;
       const next = { ...prev };
-      Object.keys(FIELD_TO_ITEM_KEY).forEach((field) => {
+      ['color', 'size'].forEach((field) => {
         if (next[field] && !fieldOrder.includes(field)) {
           next[field] = '';
           changed = true;
@@ -240,12 +242,18 @@ const HierarchicalInventorySelector = ({
       })
     );
 
-  const commitSelectionIfUnique = (sel, order) => {
+  // When visible prefs can't uniquely identify a row (brand-only + many Greyson SKUs),
+  // still commit one matching item — unchecked fields are intentionally ignored.
+  // Stock is not used for this pick; any matching row is fine for logging.
+  const pickCommittedItem = (matchingItems) =>
+    matchingItems.length ? matchingItems[0] : null;
+
+  const commitSelectionIfReady = (sel, order) => {
     if (!onChange) return;
 
     const matchingItems = getFilteredInventoryForSelections(sel, order);
 
-    // No visible fields (e.g. product override with all options off) — commit when unique.
+    // No visible fields — only auto-commit when a single item remains (gift buttons otherwise).
     if (!order.length) {
       if (matchingItems.length === 1) {
         const nextId = matchingItems[0]._id;
@@ -261,9 +269,9 @@ const HierarchicalInventorySelector = ({
       return;
     }
 
-    if (matchingItems.length === 1) {
-      const nextId = matchingItems[0]._id;
-      if (!idsEqual(value, nextId)) onChange(nextId);
+    const item = pickCommittedItem(matchingItems);
+    if (item) {
+      if (!idsEqual(value, item._id)) onChange(item._id);
     } else if (value) {
       onChange('');
     }
@@ -282,12 +290,12 @@ const HierarchicalInventorySelector = ({
     });
 
     setSelections(updatedSelections);
-    commitSelectionIfUnique(updatedSelections, fieldOrder);
+    commitSelectionIfReady(updatedSelections, fieldOrder);
   };
 
-  // Re-evaluate commit when field list or selections change (e.g. override with no visible fields).
+  // Re-evaluate commit when field list or selections change.
   useEffect(() => {
-    commitSelectionIfUnique(selections, fieldOrder);
+    commitSelectionIfReady(selections, fieldOrder);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldOrder, selections]);
 
