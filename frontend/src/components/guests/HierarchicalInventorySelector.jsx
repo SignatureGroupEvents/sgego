@@ -4,7 +4,6 @@ import { sortSizeValues } from '../../utils/sizeSort';
 import {
   buildPickupFieldOrder,
   getLockedProduct,
-  resolvePickupPrefs,
   getFieldsEnabledSomewhere,
 } from '../../utils/pickupFieldPreferences';
 
@@ -179,8 +178,8 @@ const HierarchicalInventorySelector = ({
     });
   }, [fieldOrder]);
 
-  // Hydrate pill selections when value is set from outside (e.g. opening modify dialog).
-  // Only hydrate fields enabled for this item — never stash unchecked fields like type.
+  // Hydrate only station-default fields. Do not pull in product-override fields
+  // (e.g. Greyson size/gender) after a brand-only commit — that resurfaces unchecked pills.
   useEffect(() => {
     if (!value) {
       lastHydratedValueRef.current = value;
@@ -192,14 +191,25 @@ const HierarchicalInventorySelector = ({
     const selectedItem = inventory.find((item) => idsEqual(item._id, value));
     if (!selectedItem) return;
 
-    const prefs = resolvePickupPrefs(selectedItem, effectiveStationPrefs);
+    const stationDefaults = {
+      type: false,
+      brand: false,
+      product: false,
+      size: false,
+      gender: false,
+      color: false,
+      ...(effectiveStationPrefs?.pickupFieldPreferences &&
+      typeof effectiveStationPrefs.pickupFieldPreferences === 'object'
+        ? effectiveStationPrefs.pickupFieldPreferences
+        : {}),
+    };
     setSelections({
-      type: prefs.type ? (selectedItem.type || '') : '',
-      brand: prefs.brand ? (selectedItem.style || '') : '',
-      product: prefs.product ? (selectedItem.product || '') : '',
-      gender: prefs.gender ? (selectedItem.gender || '') : '',
-      size: prefs.size ? (selectedItem.size || '') : '',
-      color: prefs.color ? (selectedItem.color || '') : '',
+      type: stationDefaults.type ? (selectedItem.type || '') : '',
+      brand: stationDefaults.brand ? (selectedItem.style || '') : '',
+      product: stationDefaults.product ? (selectedItem.product || '') : '',
+      gender: stationDefaults.gender ? (selectedItem.gender || '') : '',
+      size: stationDefaults.size ? (selectedItem.size || '') : '',
+      color: stationDefaults.color ? (selectedItem.color || '') : '',
     });
     lastHydratedValueRef.current = value;
   }, [value, inventory, effectiveStationPrefs]);
