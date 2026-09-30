@@ -244,15 +244,9 @@ const HierarchicalInventorySelector = ({
 
   // When visible prefs can't uniquely identify a row (brand-only + many Greyson SKUs),
   // still commit one matching item — unchecked fields are intentionally ignored.
-  const pickCommittedItem = (matchingItems) => {
-    if (!matchingItems.length) return null;
-    if (matchingItems.length === 1) return matchingItems[0];
-    const withStock = matchingItems.find((item) => {
-      const qty = Number(item.qtyOnSite ?? item.qtyBeforeEvent ?? item.qtyWarehouse ?? 0);
-      return qty > 0;
-    });
-    return withStock || matchingItems[0];
-  };
+  // Stock is not used for this pick; any matching row is fine for logging.
+  const pickCommittedItem = (matchingItems) =>
+    matchingItems.length ? matchingItems[0] : null;
 
   const commitSelectionIfReady = (sel, order) => {
     if (!onChange) return;
