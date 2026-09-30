@@ -8,7 +8,7 @@
  */
 function sanitizePortalEvent(event) {
   if (!event) return null;
-  const obj = event.toObject ? event.toObject() : { ...event };
+  const obj = event.toObject ? event.toObject({ flattenMaps: true }) : { ...event };
 
   if (obj.clientPortal) {
     const { passwordHash, allowedEmails, ...safeClientPortal } = obj.clientPortal;

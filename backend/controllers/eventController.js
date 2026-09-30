@@ -138,7 +138,10 @@ exports.getEvent = async (req, res) => {
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    const eventObj = event.toObject ? event.toObject() : event;
+    // flattenMaps: true so Map fields (e.g. productPickupOverrides) serialize as plain
+    // objects. Default toObject() leaves Maps as Map instances, which JSON.stringify
+    // turns into {} — causing saved product overrides to appear empty after refetch.
+    const eventObj = event.toObject ? event.toObject({ flattenMaps: true }) : event;
     if (event.isMainEvent) {
       eventObj.secondaryEvents = await Event.find({ parentEventId: req.params.id, isActive: true })
         .select('_id eventName eventContractNumber isMainEvent parentEventId pickupFieldPreferences productPickupOverrides')
@@ -1007,7 +1010,10 @@ exports.updatePickupFieldPreferences = async (req, res) => {
       success: true,
       event: updatedEvent,
       pickupFieldPreferences: updatedEvent.pickupFieldPreferences,
-      productPickupOverrides: updatedEvent.productPickupOverrides
+      // Mongoose Maps stringify to {} unless flattened for JSON
+      productPickupOverrides: updatedEvent.toObject
+        ? updatedEvent.toObject({ flattenMaps: true }).productPickupOverrides
+        : updatedEvent.productPickupOverrides
     });
 
   } catch (error) {

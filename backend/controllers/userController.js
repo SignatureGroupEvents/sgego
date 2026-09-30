@@ -909,7 +909,7 @@ const getMyAssignedEvents = async (req, res) => {
         const event = a.eventId;
         if (!event) return null;
         return {
-          ...event.toObject(),
+          ...event.toObject({ flattenMaps: true }),
           allocatedToSecondaryEvent: a.allocatedToSecondaryEventId
         };
       })
