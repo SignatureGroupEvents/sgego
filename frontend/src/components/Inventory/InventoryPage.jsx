@@ -43,6 +43,7 @@ import {
   getDefaultPickupFieldPreferences,
   mergePickupFieldPreferences,
   getEnabledPickupFieldLabels,
+  normalizeProductPickupOverrides,
 } from '../../utils/pickupFieldPreferences';
 
 // ✅ Use usePermissions only
@@ -56,7 +57,7 @@ const getItemAllocatedIds = (item) =>
 // Normalize a productPickupOverrides map for equality comparison, regardless of key order
 // or whether each entry has been merged with defaults yet.
 const normalizeOverridesForCompare = (overrides) => {
-  const entries = Object.entries(overrides || {})
+  const entries = Object.entries(normalizeProductPickupOverrides(overrides))
     .map(([product, prefs]) => [product, mergePickupFieldPreferences(prefs)])
     .sort(([a], [b]) => a.localeCompare(b));
   return JSON.stringify(entries);
@@ -173,7 +174,7 @@ const InventoryPage = ({ eventId, eventName }) => {
     if (pickupSettingsEventId) {
       setPickupFieldPreferences(mergePickupFieldPreferences(event.pickupFieldPreferences));
       setPickupSettingsMode(event.pickupSettingsMode === 'station' ? 'station' : 'product');
-      setProductOverrides(event.productPickupOverrides || {});
+      setProductOverrides(normalizeProductPickupOverrides(event.productPickupOverrides));
     }
     if (hasMultiGiftStations) {
       const next = {};
@@ -182,7 +183,7 @@ const InventoryPage = ({ eventId, eventName }) => {
       secondaryStations.forEach((station) => {
         next[station._id] = mergePickupFieldPreferences(station.pickupFieldPreferences);
         nextModes[station._id] = station.pickupSettingsMode === 'station' ? 'station' : 'product';
-        nextOverrides[station._id] = station.productPickupOverrides || {};
+        nextOverrides[station._id] = normalizeProductPickupOverrides(station.productPickupOverrides);
       });
       setStationPrefs(next);
       setStationModes(nextModes);
