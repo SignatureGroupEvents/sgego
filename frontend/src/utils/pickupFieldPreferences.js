@@ -208,13 +208,26 @@ export const getLockedProduct = (candidateItems, selections) => {
   return products.length === 1 ? products[0] : null;
 };
 
+// True when station defaults or any product override enables the field.
+export const fieldEnabledSomewhere = (stationPrefs, field) => {
+  const stationDefaults = readExplicitPrefs(stationPrefs?.pickupFieldPreferences);
+  if (stationDefaults[field]) return true;
+  const overrides = normalizeProductPickupOverrides(stationPrefs?.productPickupOverrides);
+  return Object.values(overrides).some((override) => readExplicitPrefs(override)[field]);
+};
+
+export const getFieldsEnabledSomewhere = (stationPrefs) =>
+  PICKUP_CANONICAL_FIELD_ORDER.filter((field) => fieldEnabledSomewhere(stationPrefs, field));
+
 // Identifier fields to keep visible when a locked product hides all configured fields,
 // so staff can still switch between product lines at the same station.
-const buildIdentifierFallbackFieldOrder = (inventory) => {
+// Never surface fields that aren't enabled in station defaults or any override.
+const buildIdentifierFallbackFieldOrder = (stationPrefs, inventory) => {
   if (!inventory?.length) return [];
 
   return PICKUP_CANONICAL_FIELD_ORDER.filter((field) => {
     if (!IDENTIFIER_FIELDS.includes(field)) return false;
+    if (!fieldEnabledSomewhere(stationPrefs, field)) return false;
     const itemKey = field === 'brand' ? 'style' : field;
     const values = new Set(inventory.map((i) => i[itemKey]).filter(Boolean));
     return values.size > 1;
@@ -234,7 +247,7 @@ export const buildPickupFieldOrder = (
   if (fromPrefs.length > 0) return fromPrefs;
 
   const items = inventory.length ? inventory : candidateItems;
-  return buildIdentifierFallbackFieldOrder(items);
+  return buildIdentifierFallbackFieldOrder(stationPrefs, items);
 };
 
 export const PICKUP_VARIANT_FIELDS = VARIANT_FIELDS;

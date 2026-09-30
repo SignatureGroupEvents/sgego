@@ -167,9 +167,12 @@ exports.getCheckinContext = async (req, res) => {
       inventoryByEvent[ev._id.toString()] = inventory.filter(item => (item.allocatedEvents || []).map(id => id.toString()).includes(ev._id.toString()));
     }
 
+    // flattenMaps so productPickupOverrides serializes as a plain object for the pickup modal
+    const toPlainEvent = (ev) => (ev.toObject ? ev.toObject({ flattenMaps: true }) : ev);
+
     res.json({
-      currentEvent: event,
-      availableEvents,
+      currentEvent: toPlainEvent(event),
+      availableEvents: availableEvents.map(toPlainEvent),
       checkinMode,
       inventoryByEvent,
       canCheckIntoMultiple: event.isMainEvent

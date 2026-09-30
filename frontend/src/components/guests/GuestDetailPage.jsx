@@ -42,7 +42,7 @@ import api, { undoCheckin, updateCheckinGifts, deleteGuest, getCheckinContext } 
 import MainLayout from '../layout/MainLayout';
 import toast from 'react-hot-toast';
 import HierarchicalInventorySelector from './HierarchicalInventorySelector';
-import { formatGiftDisplayLabel, mergePickupFieldPreferences } from '../../utils/pickupFieldPreferences';
+import { formatGiftDisplayLabel } from '../../utils/pickupFieldPreferences';
 
 const toIdString = (id) => (id?._id ?? id)?.toString();
 
@@ -1167,9 +1167,7 @@ export default function GuestDetailPage() {
                                                         inventory={Array.isArray(availableInventory) ? availableInventory : []}
                                                         value={gift.inventoryId}
                                                         onChange={(inventoryId) => updateGift(index, 'inventoryId', inventoryId)}
-                                                        pickupFieldPreferences={mergePickupFieldPreferences(
-                                                            modifyDialogPickupPreferences?.pickupFieldPreferences
-                                                        )}
+                                                        stationPrefs={modifyDialogPickupPreferences}
                                                     />
                                                 </Box>
                                                 <TextField
