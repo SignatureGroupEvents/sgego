@@ -458,11 +458,10 @@ const HierarchicalInventorySelector = ({
     </Box>
   );
 
-  const renderGiftButtons = () => (
+  const renderGiftButtons = (items = inventory) => (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-      {inventory.map((item) => {
+      {items.map((item) => {
         const selected = idsEqual(value, item._id);
-        const label = `${item.style || 'N/A'}${item.size ? ` (${item.size})` : ''}`;
         return (
           <Button
             key={item._id}
@@ -470,7 +469,7 @@ const HierarchicalInventorySelector = ({
             onClick={() => onChange && onChange(item._id)}
             sx={pillButtonSx(selected)}
           >
-            {label}
+            {formatSelectedGiftLabel(item)}
           </Button>
         );
       })}
@@ -502,10 +501,23 @@ const HierarchicalInventorySelector = ({
   }
 
   const selectedItem = value ? inventory.find((item) => idsEqual(item._id, value)) : null;
+  // Brand-only (or incomplete) prefs can leave multiple SKUs after all visible fields
+  // are chosen — e.g. Greyson with 25 size/color variants. Offer explicit gift picks.
+  const allVisibleFieldsSelected = fieldOrder.every((field) => selections[field]);
+  const needsGiftDisambiguation =
+    allVisibleFieldsSelected && !selectedItem && candidateItems.length > 1;
 
   return (
     <Box>
       {renderFieldPills()}
+      {needsGiftDisambiguation && (
+        <Box sx={{ mt: 1 }}>
+          <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
+            Select a gift
+          </Typography>
+          {renderGiftButtons(candidateItems)}
+        </Box>
+      )}
       {selectedItem && (
         <Button
           variant="text"
