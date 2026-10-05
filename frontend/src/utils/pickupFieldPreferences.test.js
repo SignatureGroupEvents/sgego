@@ -3,6 +3,7 @@ import {
   buildPickupFieldOrder,
   getLockedProduct,
   getFieldsEnabledSomewhere,
+  canAutoCommitMatchingItems,
 } from './pickupFieldPreferences';
 
 // Mirrors Pfizer contract 26307: station brand-only, Tumi product overrides, Maui Jim no product.
@@ -139,66 +140,49 @@ describe('buildPickupFieldOrder — Pfizer-style mixed station', () => {
   });
 });
 
-describe('buildPickupFieldOrder — Alexander Group Greyson overrides (26276)', () => {
-  const greysonOverride = {
-    type: false,
-    brand: true,
-    product: true,
-    gender: true,
-    color: true,
-    size: true,
-  };
-  const prefs = {
-    pickupFieldPreferences: {
-      type: false,
-      brand: true,
-      product: false,
-      gender: false,
-      color: false,
-      size: false,
-    },
-    productPickupOverrides: {
-      'Colorado Zip': greysonOverride,
-      'Halley Zip': greysonOverride,
-    },
-  };
-  const inv = [
-    { _id: '1', type: 'Apparel', style: 'Greyson', product: 'Colorado Zip', gender: 'M', color: 'Blue', size: 'M' },
-    { _id: '2', type: 'Apparel', style: 'Greyson', product: 'Colorado Zip', gender: 'M', color: 'Blue', size: 'L' },
-    { _id: '3', type: 'Apparel', style: 'Greyson', product: 'Halley Zip', gender: 'W', color: 'Blue', size: 'S' },
-    { _id: '4', type: 'Bags', style: 'TUMI', product: 'Tote', gender: 'N/A', color: 'Black', size: '' },
-  ];
-
-  it('starts with Brand only', () => {
-    const order = buildPickupFieldOrder(prefs, {
-      lockedProduct: null,
-      candidateItems: inv,
-      inventory: inv,
-      selections: {},
-    });
-    expect(order).toEqual(['brand']);
+describe('canAutoCommitMatchingItems — brand-only vs Tumi overrides', () => {
+  it('does not auto-commit Tumi after brand only — Product override still required', () => {
+    const tumi = inventory.filter((i) => i.style === 'Tumi');
+    expect(
+      canAutoCommitMatchingItems(tumi, stationPrefs, { brand: 'Tumi' })
+    ).toBe(false);
   });
 
-  it('after Greyson, shows apparel fields from product overrides', () => {
-    const candidates = inv.filter((i) => i.style === 'Greyson');
-    const order = buildPickupFieldOrder(prefs, {
-      lockedProduct: null,
-      candidateItems: candidates,
-      inventory: inv,
-      selections: { brand: 'Greyson' },
-    });
-    expect(order[0]).toBe('brand');
-    expect(order).toEqual(expect.arrayContaining(['gender', 'product', 'color', 'size']));
+  it('auto-commits Tumi after brand + product are selected', () => {
+    const tote = inventory.filter((i) => i.product === 'Tumi Just In Case Tote');
+    expect(
+      canAutoCommitMatchingItems(tote, stationPrefs, {
+        brand: 'Tumi',
+        product: 'Tumi Just In Case Tote',
+      })
+    ).toBe(true);
   });
 
-  it('after TUMI, stays Brand only (unique SKU)', () => {
-    const candidates = inv.filter((i) => i.style === 'TUMI');
-    const order = buildPickupFieldOrder(prefs, {
-      lockedProduct: null,
-      candidateItems: candidates,
-      inventory: inv,
-      selections: { brand: 'TUMI' },
-    });
-    expect(order).toEqual(['brand']);
+  it('auto-commits Maui Jim on brand only (no product override)', () => {
+    const maui = inventory.filter((i) => i.style === 'Maui Jim');
+    expect(
+      canAutoCommitMatchingItems(maui, stationPrefs, { brand: 'Maui Jim' })
+    ).toBe(true);
+  });
+
+  it('auto-commits multi-SKU brand-only with no overrides (Greyson-style)', () => {
+    const greysonPrefs = {
+      pickupFieldPreferences: {
+        type: false,
+        brand: true,
+        product: false,
+        gender: false,
+        color: false,
+        size: false,
+      },
+      productPickupOverrides: {},
+    };
+    const greyson = [
+      { _id: '1', style: 'Greyson', product: 'A', gender: 'M', size: 'M' },
+      { _id: '2', style: 'Greyson', product: 'B', gender: 'W', size: 'L' },
+    ];
+    expect(
+      canAutoCommitMatchingItems(greyson, greysonPrefs, { brand: 'Greyson' })
+    ).toBe(true);
   });
 });
