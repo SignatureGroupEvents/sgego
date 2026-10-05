@@ -5,6 +5,7 @@ import {
   buildPickupFieldOrder,
   getLockedProduct,
   getFieldsEnabledSomewhere,
+  canAutoCommitMatchingItems,
 } from '../../utils/pickupFieldPreferences';
 
 const COLOR_MAP = {
@@ -178,8 +179,9 @@ const HierarchicalInventorySelector = ({
     });
   }, [fieldOrder]);
 
-  // Hydrate only station-default fields. Do not pull in product-override fields
-  // (e.g. Greyson size/gender) after a brand-only commit — that resurfaces unchecked pills.
+  // Hydrate fields from station defaults AND currently visible fieldOrder.
+  // Station-defaults-only broke Tumi overrides (product cleared after commit).
+  // resolvePickupPrefs-only resurfaced Greyson override fields after brand-only commit.
   useEffect(() => {
     if (!value) {
       lastHydratedValueRef.current = value;
@@ -203,16 +205,19 @@ const HierarchicalInventorySelector = ({
         ? effectiveStationPrefs.pickupFieldPreferences
         : {}),
     };
+    const shouldHydrate = (field) =>
+      !!(stationDefaults[field] || fieldOrder.includes(field));
+
     setSelections({
-      type: stationDefaults.type ? (selectedItem.type || '') : '',
-      brand: stationDefaults.brand ? (selectedItem.style || '') : '',
-      product: stationDefaults.product ? (selectedItem.product || '') : '',
-      gender: stationDefaults.gender ? (selectedItem.gender || '') : '',
-      size: stationDefaults.size ? (selectedItem.size || '') : '',
-      color: stationDefaults.color ? (selectedItem.color || '') : '',
+      type: shouldHydrate('type') ? (selectedItem.type || '') : '',
+      brand: shouldHydrate('brand') ? (selectedItem.style || '') : '',
+      product: shouldHydrate('product') ? (selectedItem.product || '') : '',
+      gender: shouldHydrate('gender') ? (selectedItem.gender || '') : '',
+      size: shouldHydrate('size') ? (selectedItem.size || '') : '',
+      color: shouldHydrate('color') ? (selectedItem.color || '') : '',
     });
     lastHydratedValueRef.current = value;
-  }, [value, inventory, effectiveStationPrefs]);
+  }, [value, inventory, effectiveStationPrefs, fieldOrder]);
 
   // Options for a field are based only on prior picks in the flow — never the current
   // field's selection, so all choices stay visible and the user can change their mind.
@@ -252,9 +257,8 @@ const HierarchicalInventorySelector = ({
       })
     );
 
-  // When visible prefs can't uniquely identify a row (brand-only + many Greyson SKUs),
-  // still commit one matching item — unchecked fields are intentionally ignored.
-  // Stock is not used for this pick; any matching row is fine for logging.
+  // When brand-only prefs leave multiple SKUs (Greyson), commit one matching row.
+  // When overrides still require Product (Tumi), wait — do not auto-pick the first SKU.
   const pickCommittedItem = (matchingItems) =>
     matchingItems.length ? matchingItems[0] : null;
 
@@ -275,6 +279,11 @@ const HierarchicalInventorySelector = ({
     }
 
     if (!order.every((f) => sel[f])) {
+      if (value) onChange('');
+      return;
+    }
+
+    if (!canAutoCommitMatchingItems(matchingItems, effectiveStationPrefs, sel)) {
       if (value) onChange('');
       return;
     }

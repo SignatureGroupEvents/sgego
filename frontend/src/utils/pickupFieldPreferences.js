@@ -262,6 +262,24 @@ export const buildPickupFieldOrder = (
 export const PICKUP_VARIANT_FIELDS = VARIANT_FIELDS;
 export const PICKUP_IDENTIFIER_FIELDS = IDENTIFIER_FIELDS;
 
+// True when this item's effective prefs still require a field the user hasn't selected.
+// Used so brand-only Greyson can auto-commit, while Tumi overrides wait for Product.
+export const itemHasUnselectedRequiredFields = (item, stationPrefs, selections = {}) => {
+  const prefs = resolvePickupPrefs(item, stationPrefs);
+  return PICKUP_CANONICAL_FIELD_ORDER.some(
+    (field) => prefs[field] && !selections[field]
+  );
+};
+
+// Auto-commit multiple matching rows only when no item still needs override/station fields.
+export const canAutoCommitMatchingItems = (matchingItems, stationPrefs, selections = {}) => {
+  if (!matchingItems?.length) return false;
+  if (matchingItems.length === 1) return true;
+  return matchingItems.every(
+    (item) => !itemHasUnselectedRequiredFields(item, stationPrefs, selections)
+  );
+};
+
 const formatGenderDisplay = (gender) => {
   if (gender === 'M') return "Men's";
   if (gender === 'W') return "Women's";
