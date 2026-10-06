@@ -6,6 +6,7 @@ import {
   getLockedProduct,
   getFieldsEnabledSomewhere,
   canAutoCommitMatchingItems,
+  resolvePickupPrefs,
 } from '../../utils/pickupFieldPreferences';
 
 const COLOR_MAP = {
@@ -127,6 +128,10 @@ const HierarchicalInventorySelector = ({
 
   const [selections, setSelections] = useState(emptySelections);
   const lastHydratedValueRef = useRef(undefined);
+  // Modify dialog opens with a pre-filled gift. Commit/hydrate can briefly look
+  // "incomplete" (e.g. brand-only station + product overrides). Do not clear that
+  // gift until the user actually changes a pill / clears selection.
+  const userHasEditedRef = useRef(false);
 
   const enabledFields = useMemo(
     () => getFieldsEnabledSomewhere(effectiveStationPrefs),
@@ -179,12 +184,13 @@ const HierarchicalInventorySelector = ({
     });
   }, [fieldOrder]);
 
-  // Hydrate fields from station defaults AND currently visible fieldOrder.
-  // Station-defaults-only broke Tumi overrides (product cleared after commit).
-  // resolvePickupPrefs-only resurfaced Greyson override fields after brand-only commit.
+  // Hydrate from the selected item's effective prefs (station defaults + that product's
+  // overrides). Safe for modify: restores Brand+Product for override items. Brand-only
+  // items without overrides still hydrate Brand only.
   useEffect(() => {
     if (!value) {
       lastHydratedValueRef.current = value;
+      userHasEditedRef.current = false;
       return;
     }
     if (inventory.length === 0) return;
@@ -193,31 +199,19 @@ const HierarchicalInventorySelector = ({
     const selectedItem = inventory.find((item) => idsEqual(item._id, value));
     if (!selectedItem) return;
 
-    const stationDefaults = {
-      type: false,
-      brand: false,
-      product: false,
-      size: false,
-      gender: false,
-      color: false,
-      ...(effectiveStationPrefs?.pickupFieldPreferences &&
-      typeof effectiveStationPrefs.pickupFieldPreferences === 'object'
-        ? effectiveStationPrefs.pickupFieldPreferences
-        : {}),
-    };
-    const shouldHydrate = (field) =>
-      !!(stationDefaults[field] || fieldOrder.includes(field));
-
+    const prefs = resolvePickupPrefs(selectedItem, effectiveStationPrefs);
     setSelections({
-      type: shouldHydrate('type') ? (selectedItem.type || '') : '',
-      brand: shouldHydrate('brand') ? (selectedItem.style || '') : '',
-      product: shouldHydrate('product') ? (selectedItem.product || '') : '',
-      gender: shouldHydrate('gender') ? (selectedItem.gender || '') : '',
-      size: shouldHydrate('size') ? (selectedItem.size || '') : '',
-      color: shouldHydrate('color') ? (selectedItem.color || '') : '',
+      type: prefs.type ? (selectedItem.type || '') : '',
+      brand: prefs.brand ? (selectedItem.style || '') : '',
+      product: prefs.product ? (selectedItem.product || '') : '',
+      gender: prefs.gender ? (selectedItem.gender || '') : '',
+      size: prefs.size ? (selectedItem.size || '') : '',
+      color: prefs.color ? (selectedItem.color || '') : '',
     });
     lastHydratedValueRef.current = value;
-  }, [value, inventory, effectiveStationPrefs, fieldOrder]);
+    // External/pre-filled value (check-in commit or modify open) — not a user edit yet.
+    userHasEditedRef.current = false;
+  }, [value, inventory, effectiveStationPrefs]);
 
   // Options for a field are based only on prior picks in the flow — never the current
   // field's selection, so all choices stay visible and the user can change their mind.
@@ -257,13 +251,19 @@ const HierarchicalInventorySelector = ({
       })
     );
 
-  // When brand-only prefs leave multiple SKUs (Greyson), commit one matching row.
-  // When overrides still require Product (Tumi), wait — do not auto-pick the first SKU.
+  // When brand-only prefs leave multiple SKUs, commit one matching row.
+  // When overrides still require Product, wait — do not auto-pick the first SKU.
   const pickCommittedItem = (matchingItems) =>
     matchingItems.length ? matchingItems[0] : null;
 
   const commitSelectionIfReady = (sel, order) => {
     if (!onChange) return;
+
+    // Preserve pre-filled gifts (modify dialog / just-committed check-in) until the
+    // user changes a pill. Otherwise hydrate/fieldOrder races clear inventoryId.
+    if (value && !userHasEditedRef.current) {
+      return;
+    }
 
     const matchingItems = getFilteredInventoryForSelections(sel, order);
 
@@ -308,6 +308,7 @@ const HierarchicalInventorySelector = ({
       if (!keep.has(f)) updatedSelections[f] = '';
     });
 
+    userHasEditedRef.current = true;
     setSelections(updatedSelections);
     commitSelectionIfReady(updatedSelections, fieldOrder);
   };
@@ -385,6 +386,7 @@ const HierarchicalInventorySelector = ({
   };
 
   const handleClearCommittedSelection = () => {
+    userHasEditedRef.current = true;
     setSelections(emptySelections());
     lastHydratedValueRef.current = '';
     onChange?.('');
@@ -494,7 +496,10 @@ const HierarchicalInventorySelector = ({
           <Button
             key={item._id}
             variant="outlined"
-            onClick={() => onChange && onChange(item._id)}
+            onClick={() => {
+              userHasEditedRef.current = true;
+              onChange && onChange(item._id);
+            }}
             sx={pillButtonSx(selected)}
           >
             {label}
